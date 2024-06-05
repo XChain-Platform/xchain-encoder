@@ -2,8 +2,9 @@ const axios = require('axios');
 axios.defaults.timeout = 5000
 
 class AddressIndexer {
-	constructor(url) {
-		this.url = url
+	constructor(url, port) {
+		this.url = "http://"+url+":"+port
+		this.port = port
 	}
 	
     async getUtxosFromAddress(address){

@@ -22,10 +22,10 @@ const OutputType = {
 
 
 class XChainEncoder {
-	constructor(network, nodeUrl, nodeUser, nodePassword, addressIndexerUrl) {
+	constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, addressIndexerUrl, addressIndexerPort) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
-	  this.connector = new BlockchainConnector(nodeUrl, nodeUser, nodePassword)
-	  this.addressIndexConnector = new AddressIndexer(addressIndexerUrl)
+	  this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
+	  this.addressIndexConnector = new AddressIndexer(addressIndexerUrl, addressIndexerPort)
     }
 	
 	isSegwitUTXO(utxo) {

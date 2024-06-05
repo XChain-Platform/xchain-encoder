@@ -12,11 +12,13 @@ const jsonRouter = require('express-json-rpc-router')
 
 const NETWORK = process.env.NETWORK
 const NODE_URL = process.env.NODE_URL
+const NODE_PORT = process.env.NODE_PORT
 const NODE_USER = process.env.NODE_USER
 const NODE_PASSWORD = process.env.NODE_PASSWORD
 const ADDRESS_INDEXER_URL = process.env.ADDRESS_INDEXER_URL
+const ADDRESS_INDEXER_PORT = process.env.ADDRESS_INDEXER_PORT
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_USER, NODE_PASSWORD, ADDRESS_INDEXER_URL);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, ADDRESS_INDEXER_URL, ADDRESS_INDEXER_PORT);
 
 // Create the app
 const app = express();
