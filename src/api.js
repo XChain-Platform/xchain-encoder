@@ -6,7 +6,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
-const XChainEncoder  = require('./XChainEncoder');
+const XChainEncoder  = require('./XchainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 
 
