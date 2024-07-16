@@ -16,9 +16,10 @@ const NODE_PORT = process.env.NODE_PORT
 const NODE_USER = process.env.NODE_USER
 const NODE_PASSWORD = process.env.NODE_PASSWORD
 const ADDRESS_INDEXER_URL = process.env.ADDRESS_INDEXER_URL
-const ADDRESS_INDEXER_PORT = process.env.ADDRESS_INDEXER_PORT
+const ADDRESS_INDEXER_API_PORT = process.env.ADDRESS_INDEXER_API_PORT
+const ENCODER_API_PORT = process.env.ENCODER_API_PORT
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, ADDRESS_INDEXER_URL, ADDRESS_INDEXER_PORT);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, ADDRESS_INDEXER_URL, ADDRESS_INDEXER_API_PORT);
 
 // Create the app
 const app = express();
@@ -61,6 +62,6 @@ app.use(jsonRouter({methods: jsonRpcController}))
 
 
 // Start the server
-app.listen(3000, () => {
-  console.log('API listening on port 3000');
+app.listen(ENCODER_API_PORT, () => {
+  console.log('API listening on port '+ENCODER_API_PORT);
 });
