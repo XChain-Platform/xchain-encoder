@@ -15,11 +15,11 @@ const NODE_URL = process.env.NODE_URL
 const NODE_PORT = process.env.NODE_PORT
 const NODE_USER = process.env.NODE_USER
 const NODE_PASSWORD = process.env.NODE_PASSWORD
-const ADDRESS_INDEXER_URL = process.env.ADDRESS_INDEXER_URL
-const ADDRESS_INDEXER_API_PORT = process.env.ADDRESS_INDEXER_API_PORT
+const UTXO_TRACKER_URL = process.env.UTXO_TRACKER_URL
+const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = process.env.ENCODER_API_PORT
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, ADDRESS_INDEXER_URL, ADDRESS_INDEXER_API_PORT);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT);
 
 // Create the app
 const app = express();

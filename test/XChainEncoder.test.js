@@ -112,7 +112,7 @@ describe('XChainEncoder', () => {
 			}
 			
 			// Configurar instancias y datos de prueba
-		const encoder = new XChainEncoder("bitcoin-regtest", "http://127.0.0.1:8333", "rpc", "rpc", "");
+			const encoder = new XChainEncoder("bitcoin-regtest", "http://127.0.0.1:8333", "rpc", "rpc", "");
 			const pubkey = testAddress;
 			const customOutputs = {};
 			const data = "Small data";

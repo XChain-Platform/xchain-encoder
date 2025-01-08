@@ -1,7 +1,7 @@
 const axios = require('axios');
 axios.defaults.timeout = 5000
 
-class AddressIndexer {
+class UtxoTracker {
 	constructor(url, port) {
 		this.url = "http://"+url+":"+port
 		this.port = port
@@ -26,4 +26,4 @@ class AddressIndexer {
 	}
 }
 
-module.exports = AddressIndexer
+module.exports = UtxoTracker

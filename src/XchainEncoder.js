@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const bs58check = require('bs58check')
 const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
-const AddressIndexer = require('./AddressIndexer')
+const UtxoTracker = require('./UtxoTracker')
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
@@ -22,10 +22,10 @@ const OutputType = {
 
 
 class XChainEncoder {
-	constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, addressIndexerUrl, addressIndexerPort) {
+	constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
 	  this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
-	  this.addressIndexConnector = new AddressIndexer(addressIndexerUrl, addressIndexerPort)
+	  this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
     }
 	
 	isSegwitUTXO(utxo) {
@@ -176,7 +176,7 @@ class XChainEncoder {
 		let inputSatoshis = 0
 
 		if ((utxosList == null) || (utxosList.length == 0)){
-			utxosList = AddressIndexer.getUtxosFromAddress(pubkey)
+			utxosList = UtxoTracker.getUtxosFromAddress(pubkey)
 			
 			if ((utxosList == null) || (utxosList.length == 0)){
 				throw new Error("no utxos were provided and no utxos found on the blockchain")
@@ -353,7 +353,7 @@ class XChainEncoder {
 					psbt.addOutput({
 						script: multisignScript.output,
 						value: 1000
-					})
+						})
 					break	
 			}
 		}
