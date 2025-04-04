@@ -1,6 +1,5 @@
 const bitcoin = require('bitcoinjs-lib');
 const axios = require('axios');
-const BitcoinCore = require('bitcoin-core');
 const crypto = require('crypto');
 const bs58check = require('bs58check')
 const BlockchainConnector = require('./BlockchainConnector')
@@ -176,7 +175,8 @@ class XChainEncoder {
 		let inputSatoshis = 0
 
 		if ((utxosList == null) || (utxosList.length == 0)){
-			utxosList = UtxoTracker.getUtxosFromAddress(pubkey)
+			utxosList = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
+			utxosList = utxosList["utxos"]
 			
 			if ((utxosList == null) || (utxosList.length == 0)){
 				throw new Error("no utxos were provided and no utxos found on the blockchain")
@@ -190,6 +190,7 @@ class XChainEncoder {
 				
 			for (let nextUtxoIndex in utxosList){
 				let nextUtxo = utxosList[nextUtxoIndex]
+				nextUtxo.value = parseInt(nextUtxos.value)
 				
 				if (!txidFirstInput){
 					txidFirstInput = nextUtxo["txid"]
@@ -367,7 +368,7 @@ class XChainEncoder {
 			})
 		}
 		
-		return psbt
+		return psbt.toBase64()
 	}
 }
 

@@ -36,25 +36,25 @@ app.use(cors());
 
 const jsonRpcController = {
 
-	// Function to create transactions hex for a given data and encoding type
-	async create_tx({ utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey }) {
-		//const { utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey } = req.body;
+    // Function to create transactions hex for a given data and encoding type
+    async create_tx({ utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey }) {
+        //const { utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey } = req.body;
 
-		// Input validation
-		if (!utxosList){
-			let error = new Error("utxos list missing") //Utxos cannot be searched until the address indexer is ready
-			throw error
-			//return res.status(400).send({ error: 'utxos list missing' }); 
-		  
-		} 
+        // Input validation
+        //if (!utxosList){
+        //  let error = new Error("utxos list missing") //Utxos cannot be searched until the address indexer is ready
+        //  throw error
+            //return res.status(400).send({ error: 'utxos list missing' }); 
+          
+        //} 
 
-		// Create the transaction
-		let psbt = await encoder.createTransaction(utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey)
-		const psbtBase64 = psbt.toBase64()
+        // Create the transaction
+        let psbt = await encoder.createTransaction(utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey)
+        const psbtBase64 = psbt.toHex()
 
-		// Return the transaction
-		return { psbt: psbtBase64};
-	}
+        // Return the transaction
+        return { psbt: psbtBase64};
+    }
 }
 
 // Allow JSON-RPC requests
