@@ -1,5 +1,4 @@
-const axios = require('axios');
-axios.defaults.timeout = 5000
+const fetch = require('cross-fetch')
 
 class UtxoTracker {
     constructor(url, port) {
@@ -7,22 +6,42 @@ class UtxoTracker {
         this.port = port
     }
     
-    async getUtxosFromAddress(address){
-        const data = {
-            jsonrpc: '2.0',
-            method: 'get_utxos',
-            params: {"address":address},
-            id: 1
-        }
-        
-        // Make the request to the node
-        const response = await axios.post(this.url, data)
+    async getUtxosFromAddress(address) {
+        try {
+            const data = {
+                jsonrpc: '2.0',
+                method: 'get_utxos',
+                params: { address: address },
+                id: 1
+            };
 
-        // Verify if there is a result and return it
-        if (response.data.result) {
-            return response.data.result;
-        } else {
-            throw new Error('Error getting utxos');
+            // Options configuration for fetch
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            };
+
+            // Make the request to the node
+            const response = await fetch(this.url, options);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const responseData = await response.json();
+
+            // Verify if there is a result and return it
+            if (responseData.result) {
+                return responseData.result;
+            } else {
+                throw new Error('Error getting utxos');
+            }
+        } catch (error) {
+            console.error('Error fetching UTXOs:', error.message);
+            throw error;
         }
     }
 }

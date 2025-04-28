@@ -1,64 +1,91 @@
-const axios = require('axios');
-axios.defaults.timeout = 5000
+const fetch = require('cross-fetch')
 
 class BlockchainConnector {
-	constructor(url, port, rpcUser, rpcPassword) {
-		this.url = "http://"+url+":"+port
-		this.rpcUser = rpcUser
-		this.rpcPassword = rpcPassword
-	}
-	
+    constructor(url, port, rpcUser, rpcPassword) {
+        this.url = "http://"+url+":"+port
+        this.rpcUser = rpcUser
+        this.rpcPassword = rpcPassword
+    }
+    
     async getNetworkInfo(){
-		const data = {
-			jsonrpc: '2.0',
-			method: 'getnetworkinfo',
-			id: 1
-		}
-		
-		// Make the request to the node
-		const response = await axios.post(this.url, data, {
-			auth: {
-				username: this.rpcUser,
-				password: this.rpcPassword,
-			},
-		})
+        const data = {
+            jsonrpc: '2.0',
+            method: 'getnetworkinfo',
+            id: 1
+        };
+        
+        // Options configuration for fetch
+        const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${auth}`
+            },
+            body: JSON.stringify(data)
+        };
 
-		// Verify if there is a result and return it
-		if (response.data.result) {
-			return response.data.result;
-		} else {
-			throw new Error('Error getting transaction');
-		}
-	}
+        try {
+            // Make the request to the node
+            const response = await fetch(this.url, options);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const responseData = await response.json();
 
-	async getTransactionHex(txid, hexFormat=true) {
-		try {
-			const data = {
-				jsonrpc: '2.0',
-				method: 'getrawtransaction',
-				params: [txid, hexFormat],
-				id: 1,
-			}
+            // Verify if there is a result and return it
+            if (responseData.result) {
+                return responseData.result;
+            } else {
+                throw new Error('Error getting network info');
+            }
+        } catch (error) {
+            throw new Error(`Error in network request: ${error.message}`);
+        }
+    }
 
-			// Make the request to the node
-			const response = await axios.post(this.url, data, {
-				auth: {
-					username: this.rpcUser,
-					password: this.rpcPassword,
-				},
-			})
+    async getTransactionHex(txid, hexFormat = true) {
+        try {
+            const data = {
+                jsonrpc: '2.0',
+                method: 'getrawtransaction',
+                params: [txid, hexFormat],
+                id: 1,
+            };
 
-			// Verify if there is a result and return it
-			if (response.data.result) {
-				return response.data.result.hex;
-			} else {
-				throw new Error('Error getting transaction');
-			}
-		} catch (error) {
-			console.error('Error:', error.message);
-			throw error;
-		}
-	}
+            // Options configuration for fetch
+            const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Basic ${auth}`
+                },
+                body: JSON.stringify(data)
+            };
+
+            // Make the request to the node
+            const response = await fetch(this.url, options);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const responseData = await response.json();
+
+            // Verify if there is a result and return the hex
+            if (responseData.result && responseData.result.hex) {
+                return responseData.result.hex;
+            } else {
+                throw new Error('Error getting transaction hex');
+            }
+        } catch (error) {
+            console.error('Error:', error.message);
+            throw error;
+        }
+    }
 }
 
 module.exports = BlockchainConnector

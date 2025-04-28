@@ -2,13 +2,13 @@
   "name":"xchain-encoder",
   "version": "0.0.1",
   "dependencies": {
-    "axios": "^1.6.7",
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",
     "bitcoin-core": "^4.1.0",
     "bitcoinjs-lib": "^6.1.5",
     "bs58check": "^3.0.1",
     "cors": "^2.8.5",
+    "cross-fetch": "^4.1.0",
     "dotenv": "^16.4.5",
     "ecpair": "^2.1.0",
     "express": "^4.18.3",
@@ -16,8 +16,16 @@
     "helmet": "^7.1.0",
     "tiny-secp256k1": "^2.2.3"
   },
+  "devDependencies":{
+    "browserify": "^17.0.0",
+    "babelify": "^10.0.0",
+    "@babel/core": "^7.0.0",
+    "@babel/preset-env": "^7.0.0"
+  },
   "scripts": {
     "api": "node ./src/api.js",
-    "test": "mocha --timeout 0 --require ./test/prepareRegtest.test.js"
+    "test": "mocha --timeout 0 --require ./test/prepareRegtest.test.js",
+    "build": "npx browserify src/index.js -t [ babelify --presets [ @babel/preset-env ] --global ] | npx uglify-js --compress --mangle -o dist/xchain_encoder.min.js",
+    "build:dev": "npx browserify src/index.js -t [ babelify --presets [ @babel/preset-env ] --global ] -o dist/xchain_encoder.min.js"
   }
 }
