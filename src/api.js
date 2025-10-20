@@ -6,7 +6,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
-const XChainEncoder  = require('./XchainEncoder');
+const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 
 
@@ -18,8 +18,9 @@ const NODE_PASSWORD = process.env.NODE_PASSWORD
 const UTXO_TRACKER_URL = process.env.UTXO_TRACKER_URL
 const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = process.env.ENCODER_API_PORT
+const DUST_AMOUNT = parseInt(process.env.DUST_AMOUNT)
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, DUST_AMOUNT);
 
 // Create the app
 const app = express();
@@ -35,9 +36,12 @@ app.use(cors());
 
 
 const jsonRpcController = {
-
+    // Function to check if xchain-indexer is up
+    async ping() {
+        return {status:"success"};
+    },
     // Function to create transactions hex for a given data and encoding type
-    async create_tx({ utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey }) {
+    async create_tx({ utxosList, pubkey, customOutputs, data, rawData, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey }) {
         //const { utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey } = req.body;
 
         // Input validation
@@ -49,11 +53,12 @@ const jsonRpcController = {
         //} 
 
         // Create the transaction
-        let psbt = await encoder.createTransaction(utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey)
-        const psbtBase64 = psbt.toHex()
-
+        let psbt = await encoder.createTransaction(utxosList, pubkey, customOutputs, data, rawData, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey)
+                                            
+        psbt["psbt"] = psbt["psbt"].toHex()
+        
         // Return the transaction
-        return { psbt: psbtBase64};
+        return psbt;
     }
 }
 
