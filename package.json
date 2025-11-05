@@ -1,6 +1,12 @@
 {
   "name":"xchain-encoder",
+  "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
   "version": "0.0.2",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/XChain-platform/xchain-encoder.git"
+  },
   "dependencies": {
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",
