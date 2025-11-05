@@ -46,6 +46,45 @@ class BlockchainConnector {
         }
     }
 
+    async isRegtest(){
+        const data = {
+            jsonrpc: '2.0',
+            method: 'getblockchaininfo',
+            id: 1
+        };
+        
+        // Options configuration for fetch
+        const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${auth}`
+            },
+            body: JSON.stringify(data)
+        };
+
+        try {
+            // Make the request to the node
+            const response = await fetch(this.url, options);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const responseData = await response.json();
+
+            // Verify if there is a result and return it
+            if (responseData.result && responseData.result.chain) {
+                return responseData.result.chain == "regtest"
+            } else {
+                throw new Error('Error getting blockchain info');
+            }
+        } catch (error) {
+            throw new Error(`Error in network request: ${error.message}`);
+        }
+    }
+
     async getTransactionHex(txid, hexFormat = true) {
         try {
             const data = {
@@ -120,7 +159,11 @@ class BlockchainConnector {
             if (responseData.result && responseData.result.feerate) {
                 return responseData.result.feerate;
             } else {
-                throw new Error('Error getting smart fee from node');
+                if (await this.isRegtest()){
+                    return 0.00001000
+                } else {
+                    throw new Error('Error getting smart fee from node');
+                }
             }
         } catch (error) {
             console.error('Error:', error.message);

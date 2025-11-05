@@ -27,7 +27,7 @@ class XChainEncoder {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
-      this.dustAmount = dustAmount
+      this.dustAmount = this.network["dustThreshold"]
     }
     
     isSegwitUTXO(utxo) {
