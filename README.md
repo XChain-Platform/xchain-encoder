@@ -9,20 +9,23 @@ A JavaScript module for encoding data within xchain-compatible blockchain transa
 Constructs a transaction with embedded data.
 
 #### Parameters
-| Parameter          | Type                                   | Description                                                                 | Required | Default       |
-|--------------------|----------------------------------------|-----------------------------------------------------------------------------|----------|---------------|
-| `utxosList`        | `Array<UTXO>`                          | List of UTXOs to spend (see structure below)                                | No <sup>[1](#utxolist-footnote)</sup>      | -             |
-| `pubkey`           | `string`                               | Sender's public key (hex)                                                   | Yes      | -             |
-| `customOutputs`    | `Array<{address: string, value: number}>` | Custom outputs                                                           | No       | `[]`          |
-| `data`             | `string \| Buffer`                     | Data to embed (hex/Buffer)                                                  | Yes      |               |
-| `rawData`          | `string \| Buffer`                     | Additional Data to embed that will be ignored by the decoder (hex/Buffer)   | No       | `null`        |
-| `exactFee`         | `number`                               | Fixed fee in satoshis                                                       | No       | Auto-calculated|
-| `rbf`              | `boolean`                              | Enable Replace-By-Fee                                                       | No       | `false`       |
-| `outputType`       | `string`                               | Encoding type (`op_return`/`p2sh`/`p2wsh`/`p2tr`/`multisign`)               | No       |`op_return`/`p2sh`|
-| `changeAddress`    | `string`                               | Change address                                                              | No       | -             |
-| `p2shHash`         | `string`                               | previous P2SH redeem script hash                                            | No       | -             |
-| `p2shHex`          | `string`                               | previous P2SH hex                                                           | No       | -             |
-| `compressedPubKey` | `boolean`                              | Compressed pubkey for multisign                                             | No       | null        |
+| Parameter          | Type                                   | Description                                                                  | Required                                   | Default          |
+|--------------------|----------------------------------------|------------------------------------------------------------------------------|--------------------------------------------|------------------|
+| `utxos`            | `Array<UTXO>`                          | List of UTXOs to spend (see structure below)                                 | No <sup>[1](#utxolist-footnote)</sup>      | -                |
+| `pubkey`           | `string`                               | Sender's public key (hex)                                                    | Yes                                        | -                |
+| `customOutputs`    | `Array<{address: string, value: number}>` | Custom outputs                                                            | No                                         |0 `[]`            |
+| `data`             | `string \| Buffer`                     | Data to embed (hex/Buffer)                                                   | Yes                                        |                  |
+| `rawData`          | `string \| Buffer`                     | Additional Data to embed that will be ignored by the decoder (hex/Buffer)    | No                                         | `null`           |
+| `fee`              | `number`                               | Fixed fee in satoshis                                                        | No                                         | Auto-calculated  |
+| `rbf`              | `boolean`                              | Enable Replace-By-Fee                                                        | No                                         | `false`          |
+| `encoding`         | `string`                               | Encoding type (`op_return`/`p2sh`/`p2wsh`/`p2tr`/`multisign`)                | No                                         |`op_return`/`p2sh`|
+| `change`           | `string`                               | Change address                                                               | No                                         | -                |
+| `p2shHash`         | `string`                               | previous P2SH redeem script hash                                             | No                                         | -                |
+| `p2shHex`          | `string`                               | previous P2SH hex                                                            | No                                         | -                |
+| `compressedPubKey` | `boolean`                              | Compressed pubkey for multisign                                              | No                                         | null             |
+| `unconfirmed`      | `boolean`                              | Enables the use of unconfirmed transactions (in mempool) as utxos            | No                                         | true             |
+| `feePerKb`         | `number`                               | Fee per kilobytes to calculate transaction fee (Only works if fee is not set)| No                                         | null             |
+| `dust`             | `number`                               | Dust amount to use in multisig, p2sh and p2tr outputs                        | No                                         | network min dust |
 
 #### Footnotes
 <a name="utxolist-footnote">1</a>: `utxosList` is not required if the `UTXO_TRACKER_URL` environment variable is configured and the UTXO Tracker service is reachable. If omitted, the module will automatically fetch UTXOs for the provided `pubkey`.
