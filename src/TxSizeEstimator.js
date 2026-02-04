@@ -25,8 +25,8 @@ const bitcoin = require('bitcoinjs-lib');
 class TxSizeEstimator {
     static estimateOpReturnOutput(data){
         //TODO: this won't be precise if the scriptpubkey is greater than 252 bytes
-        return 11 //8 for value, 1 for OP_RETURN, 1 for script pubkey size flag, 1 for push data
-            + data.length
+        return 11 +//8 for value, 1 for OP_RETURN, 1 for script pubkey size flag, 1 for push data
+             data.length
     }
     
     static estimateP2shOutput(){
