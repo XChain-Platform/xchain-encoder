@@ -78,7 +78,7 @@ class CryptoNetworks {
                     "pubKeyHash": 0x30,
                     "scriptHash": 0x32,
                     "wif": 0xb0,
-                    "dustThreshold": 546
+                    "dustThreshold": 5460
                 }
             case "litecoin-testnet":
                 return {
@@ -91,7 +91,7 @@ class CryptoNetworks {
                     "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
                     "wif": 0xef,
-                    "dustThreshold": 546
+                    "dustThreshold": 5460
                 }
             case "litecoin-regtest":
                 return {
@@ -104,7 +104,7 @@ class CryptoNetworks {
                     "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
                     "wif": 0xef,
-                    "dustThreshold": 546
+                    "dustThreshold": 5460
                 }
         }
     }

@@ -40,9 +40,8 @@ const NODE_PASSWORD = process.env.NODE_PASSWORD
 const UTXO_TRACKER_URL = process.env.UTXO_TRACKER_URL
 const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = process.env.ENCODER_API_PORT
-const DUST_AMOUNT = parseInt(process.env.DUST_AMOUNT)
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, DUST_AMOUNT);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT);
 
 // Create the app
 const app = express();
@@ -63,19 +62,16 @@ const jsonRpcController = {
         return {status:"success"};
     },
     // Function to create transactions hex for a given data and encoding type
-    async create_tx({ utxosList, pubkey, customOutputs, data, rawData, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey }) {
-        //const { utxosList, pubkey, customOutputs, data, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey } = req.body;
-
-        // Input validation
-        //if (!utxosList){
-        //  let error = new Error("utxos list missing") //Utxos cannot be searched until the address indexer is ready
-        //  throw error
-            //return res.status(400).send({ error: 'utxos list missing' }); 
-          
-        //} 
-
+    async create_tx({ 
+        utxos, pubkey, customOutputs, data, rawData, fee, rbf, 
+        encoding, change, p2shHash, p2shHex, compressedPubKey,
+        unconfirmed, feePerKb, dust
+    }) {
         // Create the transaction
-        let psbt = await encoder.createTransaction(utxosList, pubkey, customOutputs, data, rawData, exactFee, rbf, outputType, changeAddress, p2shHash, p2shHex, compressedPubKey)
+        let psbt = await encoder.createTransaction(
+            utxos, pubkey, customOutputs, data, rawData, 
+            fee, rbf, encoding, change, p2shHash, p2shHex,
+            compressedPubKey, unconfirmed, feePerKb, dust)
                                             
         psbt["psbt"] = psbt["psbt"].toHex()
         

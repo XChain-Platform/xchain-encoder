@@ -36,7 +36,7 @@ const MAGIC_WORD = "XCHN"
 
 const SATOSHI_UNIT = 100000000
 
-const OutputType = {
+const Encoding = {
     OP_RETURN: "OP_RETURN",
     P2SH: "P2SH",
     MULTISIGN: "MULTISIGN",
@@ -45,11 +45,11 @@ const OutputType = {
 
 
 class XChainEncoder {
-    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, dustAmount) {
+    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
-      this.dustAmount = dustAmount
+      this.dustAmount = this.network["dustThreshold"]
     }
     
     isSegwitUTXO(utxo) {
@@ -63,22 +63,22 @@ class XChainEncoder {
         }
     }
     
-    prepareData(data, outputType, pubKey){
+    prepareData(data, encoding, pubKey){
         let magicWordBuffer = Buffer.from(MAGIC_WORD,'utf8')
         
-        if (!outputType){
+        if (!encoding){
             if (data.length + magicWordBuffer.length <= OP_RETURN_SIZE) {
-                outputType = OutputType.OP_RETURN
+                encoding = Encoding.OP_RETURN
             } else {
-                outputType = OutputType.P2SH
+                encoding = Encoding.P2SH
             }
         }       
         let chunksSize = 0
         let dataBufferArray = []
         let i = 0
         let nextDataChunk = null
-        switch (outputType){
-            case OutputType.OP_RETURN:
+        switch (encoding){
+            case Encoding.OP_RETURN:
                 chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //There will be many OP_RETURNS with the data inside, and this data will have the magic word appended on the beginning
                 
                 i = 0
@@ -88,9 +88,9 @@ class XChainEncoder {
                     i = i + nextDataChunk.length
                 }
                 
-                return {"dataBufferArray":dataBufferArray, "outputType": outputType}
-            case OutputType.P2SH:
-            case OutputType.P2WSH:
+                return {"dataBufferArray":dataBufferArray, "encoding": encoding}
+            case Encoding.P2SH:
+            case Encoding.P2WSH:
                 /* REDEEM SCRIPT
                 data_chunk (max 480 bytes)
                 +
@@ -115,7 +115,7 @@ class XChainEncoder {
                 OP_EQUAL // 1 byte
                 */
                 
-                chunksSize = (outputType == OutputType.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 //There will be many P2SH outputs, later the inputs spending this outputs will have the data inside the script
+                chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 //There will be many P2SH outputs, later the inputs spending this outputs will have the data inside the script
                 
                 let pubkeyFromBase58 = bitcoin.address.fromBase58Check(pubKey).hash
                 
@@ -144,8 +144,8 @@ class XChainEncoder {
                     i = i + nextDataChunk.length
                 }
                 
-                return {"dataBufferArray":dataBufferArray, "outputType": outputType}
-            case OutputType.MULTISIGN:
+                return {"dataBufferArray":dataBufferArray, "encoding": encoding}
+            case Encoding.MULTISIGN:
                 chunksSize = MULTISIGN_SIZE 
                     - magicWordBuffer.length 
                     - 1 //1 byte for the OP_CHECKMULTISIG
@@ -161,7 +161,7 @@ class XChainEncoder {
                     i = i + nextDataChunk.length
                 }
                 
-                return {"dataBufferArray":dataBufferArray, "outputType": outputType}    
+                return {"dataBufferArray":dataBufferArray, "encoding": encoding}    
         }
         
         return null
@@ -191,8 +191,21 @@ class XChainEncoder {
     }
     
     //This function will create a transaction for the xchain platform
-    async createTransaction(utxosList, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, p2shHash=null, p2shHex=null, compressedPubKey=null){
-        let feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
+    async createTransaction(utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
+      encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null, 
+      unconfirmed=true, feePerKb=null, dust=null){
+        let feePerBytes = null
+        if (feePerKb){
+            feePerBytes = feePerKb/1000
+        } else {
+            feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
+        }
+        
+        let finalDust = this.dustAmount
+        if (dust){
+            finalDust = dust
+        }
+        
         let dataBuffer = Buffer.from(data, 'utf8')
         let dataToCompile = [dataBuffer]
         
@@ -209,44 +222,51 @@ class XChainEncoder {
         //let txidFirstInput = null
         let inputSatoshis = 0
 
-        if ((utxosList == null) || (utxosList.length == 0)){
-            utxosList = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
-            utxosList = utxosList["utxos"]
+        if ((utxos == null) || (utxos.length == 0)){
+            utxos = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
+            utxos = utxos["utxos"]
             
-            if ((utxosList == null) || (utxosList.length == 0)){
+            if ((utxos == null) || (utxos.length == 0)){
                 throw new Error("no utxos were provided and no utxos found on the blockchain")
             }
         }
         
         //Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes, this should be fixed)
+        //Also if unconfirmed is false, then all mempool txs will be eliminated
         let utxoIndex = 0
-        while (utxoIndex < utxosList.length){
-            let nextUtxo = utxosList[utxoIndex]
+        while (utxoIndex < utxos.length){
+            let nextUtxo = utxos[utxoIndex]
             
-            let utxoDupIndex = utxoIndex + 1
-            while (utxoDupIndex < utxosList.length){
-                let nextUtxoDup = utxosList[utxoDupIndex]
-                
-                if ((nextUtxoDup.txid == nextUtxo.txid) && (nextUtxoDup.vout == nextUtxo.vout)){
-                    utxosList.splice(utxoDupIndex, 1)
-                } else {
-                    utxoDupIndex = utxoDupIndex + 1
+            //if the tx is in the mempool, remove it if unconfirmed is false
+            if (!unconfirmed && (nextUtxo.confirmations == 0)){
+                utxos.splice(utxoIndex, 1)
+            } else {
+            
+                let utxoDupIndex = utxoIndex + 1
+                while (utxoDupIndex < utxos.length){
+                    let nextUtxoDup = utxos[utxoDupIndex]
+                    
+                    if ((nextUtxoDup.txid == nextUtxo.txid) && (nextUtxoDup.vout == nextUtxo.vout)){
+                        utxos.splice(utxoDupIndex, 1)
+                    } else {
+                        utxoDupIndex = utxoDupIndex + 1
+                    }
                 }
+                
+                utxoIndex = utxoIndex+1
             }
-            
-            utxoIndex = utxoIndex+1
         }
 
-        //Order the utxosList from the biggest value to the smallest
-        utxosList.sort((a,b)=> b.value - a.value)
-        let txidFirstInput = utxosList[0]["txid"] //The first utxo will always be used as the first input
+        //Order the utxos from the biggest value to the smallest
+        utxos.sort((a,b)=> b.value - a.value)
+        let txidFirstInput = utxos[0]["txid"] //The first utxo will always be used as the first input
         
         if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
             psbt = new bitcoin.Psbt({ network: this.network })
         }
         
         //Prepare the Data
-        let preparedData = this.prepareData(finalDataBuffer, outputType, pubkey)
+        let preparedData = this.prepareData(finalDataBuffer, encoding, pubkey)
         
         let outputSatoshis = 0
         let voutPsbtIndex = 0
@@ -257,8 +277,8 @@ class XChainEncoder {
         for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
             let nextDataBuffer = preparedData["dataBufferArray"][nextDataBufferIndex]
             
-            switch (preparedData["outputType"]){
-                case OutputType.OP_RETURN:
+            switch (preparedData["encoding"]){
+                case Encoding.OP_RETURN:
                 
                     obfuscatedData = await this.obfuscate(nextDataBuffer, txidFirstInput)
                     let opReturnScript = bitcoin.payments.embed({ data: [obfuscatedData] })
@@ -273,7 +293,7 @@ class XChainEncoder {
                         + TxSizeEstimator.estimateOpReturnOutput(obfuscatedData)
                     
                     break
-                case OutputType.P2SH:
+                case Encoding.P2SH:
                     if (p2shHex){
                         let p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
@@ -332,7 +352,7 @@ class XChainEncoder {
                     }
                     
                     break
-                case OutputType.P2WSH:
+                case Encoding.P2WSH:
                     let p2shTx = null
                     if (p2shHex){
                         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
@@ -376,7 +396,7 @@ class XChainEncoder {
                     } else {
                         psbt.addOutput({
                             address: bitcoin.payments.p2wsh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
-                            value:1000
+                            value:finalDust
                         })
                         
                         estimatedTxSize = estimatedTxSize
@@ -384,7 +404,7 @@ class XChainEncoder {
                     }
                     
                     break
-                case OutputType.MULTISIGN:
+                case Encoding.MULTISIGN:
                     obfuscatedData = await this.obfuscate(nextDataBuffer, txidFirstInput)
                     let pubkey1 = await this.dataToPubkey(obfuscatedData.slice(0, 32))
                     let pubkey2 = await this.dataToPubkey(obfuscatedData.slice(32, obfuscatedData.length))
@@ -406,7 +426,7 @@ class XChainEncoder {
                     
                     psbt.addOutput({
                         script: multisignScript.output,
-                        value: 1000
+                        value: finalDust
                         })
                         
                     estimatedTxSize = estimatedTxSize
@@ -420,14 +440,14 @@ class XChainEncoder {
         estimatedTxSize = estimatedTxSize + 43 
         
         let estimatedFee = 0
-        if (exactFee){
-            estimatedFee = exactFee
+        if (fee){
+            estimatedFee = fee
         }
         
         if (!p2shHash){//The p2sh input is already created before
             let nextUtxoIndex = 0
-            while (nextUtxoIndex < utxosList.length){
-                let nextUtxo = utxosList[nextUtxoIndex]
+            while (nextUtxoIndex < utxos.length){
+                let nextUtxo = utxos[nextUtxoIndex]
                 nextUtxo.value = parseInt(nextUtxo.value)
                 
                 //if (!txidFirstInput){
@@ -462,7 +482,7 @@ class XChainEncoder {
                     inputSatoshis = inputSatoshis + nextUtxo.value
                 }
                 
-                if (!exactFee){
+                if (!fee){
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
                 }
                 
@@ -481,14 +501,14 @@ class XChainEncoder {
         
         let changeSatoshis = inputSatoshis - outputSatoshis - estimatedFee
         
-        if ((changeSatoshis > 0) && (changeAddress)) {
+        if ((changeSatoshis > 0) && (change)) {
             psbt.addOutput({
-                address: changeAddress,
+                address: change,
                 value: changeSatoshis
             })
         }
         
-        return {"psbt":psbt,"encode_type":preparedData["outputType"]}
+        return {"psbt":psbt,"encoding":preparedData["encoding"]}
     }
     
     estimateSpendingP2shTx(redeemData){
