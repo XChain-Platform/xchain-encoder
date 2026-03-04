@@ -69,11 +69,10 @@ class TxSizeEstimator {
                 console.error("Error decoding nonWitnessUtxo:", e.message)
                 return null
             }
-            return null
-            
+
             if (!scriptPubKey) {
-                 console.log("It was not possible to obtain the scriptPubKey. Assuming P2PKH.");
-                 return 180;
+                console.log("It was not possible to obtain the scriptPubKey. Assuming P2PKH.");
+                return 180;
             }
         } else {
             //The utxo doesn't have witnessUtxo nor nonWitnessUtxo

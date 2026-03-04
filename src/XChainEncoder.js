@@ -500,7 +500,11 @@ class XChainEncoder {
         }
         
         let changeSatoshis = inputSatoshis - outputSatoshis - estimatedFee
-        
+
+        if ((changeSatoshis > this.dustAmount) && !change) {
+            throw new Error(`Transaction would burn ${changeSatoshis} satoshis as fees. Please provide a change address.`)
+        }
+
         if ((changeSatoshis > 0) && (change)) {
             psbt.addOutput({
                 address: change,
