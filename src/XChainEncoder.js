@@ -45,11 +45,14 @@ const Encoding = {
 
 
 class XChainEncoder {
-    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort) {
+    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
       this.dustAmount = this.network["dustThreshold"]
+      // Maximum fee rate in sat/byte (null = no cap). Prevents runaway estimates
+      // (e.g. regtest feedback loop) from producing fees that the node will reject.
+      this.maxFeePerBytes = maxFeeRateKb ? maxFeeRateKb / 1000 : null
     }
     
     isSegwitUTXO(utxo) {
@@ -200,6 +203,9 @@ class XChainEncoder {
         } else {
             feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
         }
+        if (this.maxFeePerBytes && feePerBytes > this.maxFeePerBytes) {
+            feePerBytes = this.maxFeePerBytes
+        }
         
         let finalDust = this.dustAmount
         if (dust){
@@ -337,8 +343,8 @@ class XChainEncoder {
                         let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
                         let spendingP2shEstimatedFee = Math.trunc((spendingP2shEstimatedSize * feePerBytes) * SATOSHI_UNIT)
                     
-                        if (spendingP2shEstimatedFee < this.dustAmount){
-                            spendingP2shEstimatedFee = this.dustAmount
+                        if (spendingP2shEstimatedFee < finalDust){
+                            spendingP2shEstimatedFee = finalDust
                         }
                     
                         psbt.addOutput({
