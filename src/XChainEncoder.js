@@ -50,9 +50,10 @@ class XChainEncoder {
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
       this.dustAmount = this.network["dustThreshold"]
-      // Maximum fee rate in sat/byte (null = no cap). Prevents runaway estimates
+      // Maximum fee rate in BTC/byte (null = no cap). Prevents runaway estimates
       // (e.g. regtest feedback loop) from producing fees that the node will reject.
-      this.maxFeePerBytes = maxFeeRateKb ? maxFeeRateKb / 1000 : null
+      // MAX_FEE_RATE_KB is in sat/kB, convert to BTC/byte to match feePerBytes units.
+      this.maxFeePerBytes = maxFeeRateKb ? maxFeeRateKb / 1000 / SATOSHI_UNIT : null
     }
     
     isSegwitUTXO(utxo) {
