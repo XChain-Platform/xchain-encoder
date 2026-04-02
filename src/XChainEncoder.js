@@ -435,10 +435,22 @@ class XChainEncoder {
                     break   
             }
         }
-        
+
+        // Process custom outputs (e.g., COINPay native coin payment outputs)
+        if (customOutputs && Array.isArray(customOutputs)) {
+            for (let output of customOutputs) {
+                psbt.addOutput({
+                    address: output.address,
+                    value:   parseInt(output.value)
+                })
+                outputSatoshis += parseInt(output.value)
+                estimatedTxSize += 43 // Taproot output size estimate (most expensive)
+            }
+        }
+
         //the output for the change address. The most expensive type of address: taproot
-        estimatedTxSize = estimatedTxSize + 43 
-        
+        estimatedTxSize = estimatedTxSize + 43
+
         let estimatedFee = 0
         if (fee){
             estimatedFee = fee
