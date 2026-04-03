@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-02
+
+### Added
+- Boundary test suite (95 tests) verifying encoder behavior at exact parameter limits and edge cases
+- Test categories: encoding chunk boundaries (OP_RETURN/P2SH/P2WSH/MULTISIGN split thresholds), fee calculation extremes, change address dust boundaries, UTXO value edge cases, custom output parseInt truncation, UTF-8/null-byte data payloads, obfuscation with degenerate TXIDs, and TxSizeEstimator fallback behavior
+- `npm run test:boundary` script
+- Boundary testing plan report at `reports/XCHAIN_ENCODER_BOUNDARY_TESTING_PLAN.md`
+
+### Fixed
+- MULTISIGN_SIZE reduced from 71 to 69 — previous value allowed chunk sizes that produced oversized fake pubkeys (>33 bytes), causing `p2ms()` to reject data payloads of 60+ compiled bytes
+- PW2SH_SIZE reduced from 10000 to 3615 — previous value exceeded bitcoinjs-lib's 3600-byte redeem script limit, causing all P2WSH payloads over ~3568 chars to throw
+- TxSizeEstimator.estimateInputSize() now returns 350 (conservative fallback) instead of null when UTXO data is missing — null silently coerced to 0 in JavaScript arithmetic, causing fee underestimation
+
 ## [0.1.4] - 2026-04-02
 
 ### Added

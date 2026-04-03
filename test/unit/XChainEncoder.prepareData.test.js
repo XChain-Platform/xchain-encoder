@@ -6,8 +6,8 @@ const MAGIC_WORD = 'XCHN'
 const MAGIC_LEN = 4
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
-const PW2SH_SIZE = 10000
-const MULTISIGN_SIZE = 71
+const PW2SH_SIZE = 3615
+const MULTISIGN_SIZE = 69
 
 // A valid regtest P2PKH address for P2SH/P2WSH redeem script tests
 const REGTEST_ADDRESS = bitcoin.payments.p2pkh({
@@ -167,7 +167,7 @@ describe('XChainEncoder.prepareData()', () => {
   // ── P2WSH ────────────────────────────────────────────────────────
 
   describe('P2WSH encoding', () => {
-    const chunkDataSize = PW2SH_SIZE - 44 // 9956
+    const chunkDataSize = PW2SH_SIZE - 44 // 3571
 
     it('produces compiled redeem scripts same structure as P2SH', () => {
       const data = Buffer.alloc(100, 0xEE)
@@ -179,14 +179,14 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(decompiled[6], bitcoin.opcodes.OP_CHECKSIG)
     })
 
-    it('uses the larger P2WSH chunk size (9956)', () => {
+    it('uses the P2WSH chunk size (3571) — larger than P2SH (476)', () => {
       // Data that fits in one P2WSH chunk but would need many P2SH chunks
-      const data = Buffer.alloc(5000, 0xFF)
+      const data = Buffer.alloc(3000, 0xFF)
       const result = encoder.prepareData(data, 'P2WSH', REGTEST_ADDRESS)
       assert.strictEqual(result.dataBufferArray.length, 1)
     })
 
-    it('splits into multiple chunks when data exceeds 9956 bytes', () => {
+    it('splits into multiple chunks when data exceeds 3571 bytes', () => {
       const data = Buffer.alloc(chunkDataSize + 1, 0xAA)
       const result = encoder.prepareData(data, 'P2WSH', REGTEST_ADDRESS)
       assert.strictEqual(result.dataBufferArray.length, 2)
@@ -196,9 +196,8 @@ describe('XChainEncoder.prepareData()', () => {
   // ── MULTISIGN ────────────────────────────────────────────────────
 
   describe('MULTISIGN encoding', () => {
-    // chunkSize = 71 - 4(magic) - 1 - 1 - 1 - 1 - 1 = 62 -- wait, let me recount
-    // MULTISIGN_SIZE(71) - MAGIC_LEN(4) - 1 - 1 - 1 - 1 - 1 = 62
-    const chunkDataSize = MULTISIGN_SIZE - MAGIC_LEN - 1 - 1 - 1 - 1 - 1 // 62
+    // MULTISIGN_SIZE(69) - MAGIC_LEN(4) - 1 - 1 - 1 - 1 - 1 = 60
+    const chunkDataSize = MULTISIGN_SIZE - MAGIC_LEN - 1 - 1 - 1 - 1 - 1 // 60
 
     it('prepends XCHN magic word to each chunk', () => {
       const data = Buffer.from('multisig test')

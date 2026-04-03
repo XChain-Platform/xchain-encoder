@@ -67,7 +67,7 @@ class TxSizeEstimator {
                 }
             } catch (e) {
                 console.error("Error decoding nonWitnessUtxo:", e.message)
-                return null
+                return 350
             }
 
             if (!scriptPubKey) {
@@ -76,7 +76,8 @@ class TxSizeEstimator {
             }
         } else {
             //The utxo doesn't have witnessUtxo nor nonWitnessUtxo
-            return null
+            //Return conservative fallback to avoid silent fee underestimation
+            return 350
         }
 
         // Convert to hex string to detect patterns

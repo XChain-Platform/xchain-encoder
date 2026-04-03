@@ -30,8 +30,8 @@ const TxSizeEstimator = require("./TxSizeEstimator")
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
-const PW2SH_SIZE = 10000
-const MULTISIGN_SIZE = 71
+const PW2SH_SIZE = 3615 // bitcoinjs-lib enforces a 3600-byte redeem script limit; 3615 - 44 overhead = 3571 max chunk
+const MULTISIGN_SIZE = 69 // dataToPubkey handles at most 32 bytes per slice; chunk = magic(4) + data(N), split at byte 32 → max chunk = 64 → max data = 60 → 60 + 4(magic) + 5(overhead) = 69
 const MAGIC_WORD = "XCHN"
 
 const SATOSHI_UNIT = 100000000

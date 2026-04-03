@@ -1,0 +1,282 @@
+/**
+ * Fee Calculation Boundary Tests
+ *
+ * Tests fee arithmetic edge cases: feePerKb=0, negative feePerKb,
+ * maxFeeRateKb capping, Math.trunc truncation, fee exceeding inputs,
+ * and explicit fee parameter behavior.
+ */
+
+const assert = require('assert')
+const bitcoin = require('bitcoinjs-lib')
+const XChainEncoder = require('../../src/XChainEncoder')
+const {
+  TXID_A,
+  TXID_B,
+  makeSegwitUtxo,
+  makeEncoder,
+  getTestAddress,
+  buildRawTxHex
+} = require('../integration/helpers/utxoFactory')
+
+const NETWORK = 'dogecoin-regtest'
+const BTC_DUST = 546
+const LTC_DUST = 5460
+
+describe('Fee Calculation Boundaries', () => {
+
+  // ── feePerKb = 0 → floored to dustAmount ────────────────────────
+
+  describe('feePerKb = 0 → floored to dustAmount', () => {
+    it('BTC/DOGE: fee floors to 546 sats', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, 0 // feePerKb = 0
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.strictEqual(impliedFee, BTC_DUST,
+        `fee should be floored to dustAmount (${BTC_DUST}), got ${impliedFee}`)
+    })
+
+    it('LTC: fee floors to 5460 sats', async () => {
+      const encoder = makeEncoder('litecoin-regtest')
+      const address = getTestAddress('litecoin-regtest')
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, 0
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.strictEqual(impliedFee, LTC_DUST,
+        `LTC fee should be floored to ${LTC_DUST}, got ${impliedFee}`)
+    })
+  })
+
+  // ── Negative feePerKb ───────────────────────────────────────────
+
+  describe('negative feePerKb → floored to dustAmount', () => {
+    it('negative feePerKb does not produce negative fee', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, -0.001 // negative feePerKb
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.ok(impliedFee >= BTC_DUST,
+        `fee ${impliedFee} should be >= dustAmount ${BTC_DUST} even with negative feePerKb`)
+    })
+  })
+
+  // ── maxFeeRateKb capping ────────────────────────────────────────
+
+  describe('maxFeeRateKb caps feePerBytes', () => {
+    it('high feePerKb with cap produces lower fee than without cap', async () => {
+      // Capped encoder: maxFeeRateKb = 1000 sat/kB
+      const capped = new XChainEncoder(
+        NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 1000
+      )
+      capped.connector = {
+        getFeePerKilobyte: async () => 0.00001,
+        getTransactionHex: async () => buildRawTxHex(100000000, NETWORK),
+        isRegtest: async () => true
+      }
+
+      // Uncapped encoder
+      const uncapped = makeEncoder(NETWORK)
+
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const highFee = 1.0 // 1 BTC/kB = extremely high
+
+      const cappedResult = await capped.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, highFee
+      )
+
+      const uncappedResult = await uncapped.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, highFee
+      )
+
+      const cappedChange = cappedResult.psbt.txOutputs.find(o => o.value > 0).value
+      const uncappedChange = uncappedResult.psbt.txOutputs.find(o => o.value > 0).value
+      assert.ok(cappedChange > uncappedChange,
+        'capped fee should leave more change than uncapped')
+    })
+
+    it('feePerKb below cap → cap has no effect', async () => {
+      const capped = new XChainEncoder(
+        NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 100000
+      )
+      capped.connector = {
+        getFeePerKilobyte: async () => 0.00001,
+        getTransactionHex: async () => buildRawTxHex(100000000, NETWORK),
+        isRegtest: async () => true
+      }
+
+      const uncapped = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const lowFee = 0.00001 // below the cap
+
+      const cappedResult = await capped.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, lowFee
+      )
+
+      const uncappedResult = await uncapped.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, lowFee
+      )
+
+      const cappedChange = cappedResult.psbt.txOutputs.find(o => o.value > 0).value
+      const uncappedChange = uncappedResult.psbt.txOutputs.find(o => o.value > 0).value
+      assert.strictEqual(cappedChange, uncappedChange,
+        'cap should have no effect when feePerKb is below it')
+    })
+  })
+
+  // ── Math.trunc truncation ───────────────────────────────────────
+
+  describe('Math.trunc precision', () => {
+    it('fractional fee is truncated toward zero, not rounded', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      // Use a fee rate that produces a fractional satoshi amount
+      // feePerBytes * txSize * SATOSHI_UNIT needs to be fractional
+      // A very precise feePerKb will do this
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, 0.000033333
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      // Fee should be an integer (Math.trunc removes fractional part)
+      assert.strictEqual(impliedFee, Math.trunc(impliedFee),
+        'fee should be an integer after Math.trunc')
+      assert.ok(impliedFee >= BTC_DUST, 'fee should be at least dust')
+    })
+  })
+
+  // ── Fee > total inputs ──────────────────────────────────────────
+
+  describe('fee exceeding total inputs', () => {
+    it('1-sat UTXO with dust-floored fee → negative change, no throw', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 1)
+
+      // fee will be floored to 546; changeSatoshis = 1 - 0 - 546 = -545
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, 0.0000001
+      )
+
+      assert.ok(result.psbt instanceof bitcoin.Psbt)
+      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
+      assert.strictEqual(changeOutputs.length, 0, 'negative change = no output')
+    })
+
+    it('multiple small UTXOs all exhausted, still insufficient', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+
+      // 3 UTXOs of 100 sats each = 300 total. With fee = 10000, insufficient.
+      const result = await encoder.createTransaction(
+        [
+          makeSegwitUtxo(TXID_A, 0, 100),
+          makeSegwitUtxo(TXID_B, 0, 100),
+          makeSegwitUtxo(TXID_A, 1, 100)
+        ],
+        address, null,
+        'SEND|0|X|1|a', null, 10000, false, null, address,
+        null, null, null, true, 0.00001
+      )
+
+      assert.ok(result.psbt instanceof bitcoin.Psbt)
+      assert.strictEqual(result.psbt.data.inputs.length, 3,
+        'all 3 UTXOs should be consumed')
+      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
+      assert.strictEqual(changeOutputs.length, 0,
+        'insufficient funds → no change output')
+    })
+  })
+
+  // ── Explicit fee parameter ──────────────────────────────────────
+
+  describe('explicit fee parameter', () => {
+    it('fee=10000 sets estimatedFee=10000 regardless of tx size', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, 10000, false, null, address,
+        null, null, null, true, 0.00001
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      assert.strictEqual(changeOutput.value, 100000000 - 10000)
+    })
+
+    it('explicit fee=0 still gets floored to dustAmount', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, 0, false, null, address,
+        null, null, null, true, 0.00001
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.strictEqual(impliedFee, BTC_DUST,
+        `explicit fee=0 should be floored to ${BTC_DUST}`)
+    })
+
+    it('explicit fee=1 still gets floored to dustAmount', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, 1, false, null, address,
+        null, null, null, true, 0.00001
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.strictEqual(impliedFee, BTC_DUST,
+        `explicit fee=1 should be floored to ${BTC_DUST}`)
+    })
+  })
+})

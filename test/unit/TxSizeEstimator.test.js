@@ -144,13 +144,13 @@ describe('TxSizeEstimator', () => {
     })
 
     describe('No witnessUtxo or nonWitnessUtxo', () => {
-      it('returns null', () => {
+      it('returns 350 (conservative fallback)', () => {
         const utxo = {
           hash: Buffer.alloc(32),
           index: 0,
           sequence: 0xffffffff
         }
-        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), null)
+        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 350)
       })
     })
   })
