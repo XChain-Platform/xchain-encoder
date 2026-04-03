@@ -316,18 +316,18 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.strictEqual(changeOutput.value, 100000000 - 10000)
     })
 
-    it('omits change output when change address is falsy', async () => {
+    it('throws when change address is falsy and change would be burned', async () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      const result = await encoder.createTransaction(
-        [utxo], TEST_ADDRESS, null,
-        'test', null, 10000, false, null, null, // no change address
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], TEST_ADDRESS, null,
+          'test', null, 10000, false, null, null, // no change address
+          null, null, null, true, 0.00001
+        ),
+        /change address/i
       )
-
-      const positiveOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(positiveOutputs.length, 0)
     })
   })
 

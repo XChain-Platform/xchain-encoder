@@ -7,19 +7,27 @@ describe('CryptoNetworks', () => {
   describe('.getBitcoinJsNetwork()', () => {
 
     describe('Bitcoin networks', () => {
-      it('returns bitcoinjs-lib bitcoin mainnet for "bitcoin-mainnet"', () => {
+      it('returns bitcoin mainnet config with dustThreshold for "bitcoin-mainnet"', () => {
         const result = CryptoNetworks.getBitcoinJsNetwork('bitcoin-mainnet')
-        assert.strictEqual(result, bitcoin.networks.bitcoin)
+        assert.strictEqual(result.bech32, bitcoin.networks.bitcoin.bech32)
+        assert.strictEqual(result.pubKeyHash, bitcoin.networks.bitcoin.pubKeyHash)
+        assert.strictEqual(result.scriptHash, bitcoin.networks.bitcoin.scriptHash)
+        assert.strictEqual(result.wif, bitcoin.networks.bitcoin.wif)
+        assert.strictEqual(result.dustThreshold, 546)
       })
 
-      it('returns bitcoinjs-lib testnet for "bitcoin-testnet"', () => {
+      it('returns testnet config with dustThreshold for "bitcoin-testnet"', () => {
         const result = CryptoNetworks.getBitcoinJsNetwork('bitcoin-testnet')
-        assert.strictEqual(result, bitcoin.networks.testnet)
+        assert.strictEqual(result.bech32, bitcoin.networks.testnet.bech32)
+        assert.strictEqual(result.pubKeyHash, bitcoin.networks.testnet.pubKeyHash)
+        assert.strictEqual(result.dustThreshold, 546)
       })
 
-      it('returns bitcoinjs-lib regtest for "bitcoin-regtest"', () => {
+      it('returns regtest config with dustThreshold for "bitcoin-regtest"', () => {
         const result = CryptoNetworks.getBitcoinJsNetwork('bitcoin-regtest')
-        assert.strictEqual(result, bitcoin.networks.regtest)
+        assert.strictEqual(result.bech32, bitcoin.networks.regtest.bech32)
+        assert.strictEqual(result.pubKeyHash, bitcoin.networks.regtest.pubKeyHash)
+        assert.strictEqual(result.dustThreshold, 546)
       })
     })
 

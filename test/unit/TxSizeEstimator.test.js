@@ -104,10 +104,7 @@ describe('TxSizeEstimator', () => {
     })
 
     describe('Legacy inputs (nonWitnessUtxo)', () => {
-      // BUG: line 72 has an early `return null` that makes the P2PKH/P2SH
-      // classification unreachable. These tests document the current (buggy) behavior.
-      it('returns null for nonWitnessUtxo due to early return on line 72 (known bug)', () => {
-        // Build a minimal valid transaction buffer
+      it('returns 180 for P2PKH nonWitnessUtxo', () => {
         const tx = new bitcoin.Transaction()
         tx.addInput(Buffer.alloc(32), 0)
         // P2PKH output: OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_CHECKSIG
@@ -123,8 +120,26 @@ describe('TxSizeEstimator', () => {
           nonWitnessUtxo: tx.toBuffer()
         }
 
-        // Should be 180 for P2PKH, but returns null due to bug
-        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), null)
+        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 180)
+      })
+
+      it('returns 289 for P2SH nonWitnessUtxo', () => {
+        const tx = new bitcoin.Transaction()
+        tx.addInput(Buffer.alloc(32), 0)
+        // P2SH output: OP_HASH160 <hash> OP_EQUAL
+        const p2shScript = Buffer.from(
+          'a914' + 'ab'.repeat(20) + '87', 'hex'
+        )
+        tx.addOutput(p2shScript, 100000)
+
+        const utxo = {
+          hash: Buffer.alloc(32),
+          index: 0,
+          sequence: 0xffffffff,
+          nonWitnessUtxo: tx.toBuffer()
+        }
+
+        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 289)
       })
     })
 
