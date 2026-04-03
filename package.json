@@ -38,6 +38,7 @@
     "test:boundary": "npx mocha --timeout 30000 'test/boundary/**/*.test.js'",
     "build": "npx browserify src/index.js -t [ babelify --presets [ @babel/preset-env ] --global ] | npx uglify-js --compress --mangle -o dist/xchain_encoder.min.js",
     "build:dev": "npx browserify src/index.js -t [ babelify --presets [ @babel/preset-env ] --global ] -o dist/xchain_encoder.min.js",
+    "test:chaos": "npx mocha --timeout 30000 'test/chaos/**/*.test.js'",
     "bench": "node test/performance/bench.js",
     "bench:full": "node test/performance/bench.js --full --json",
     "bench:soak": "node test/performance/soak.js --duration 60",
