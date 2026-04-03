@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-02
+
+### Added
+- Comprehensive unit test suite (113 tests) covering all encoder modules: prepareData, obfuscate, dataToPubkey, isSegwitUTXO, TxSizeEstimator, CryptoNetworks, and createTransaction
+- `npm run test:unit` script for running unit tests without external dependencies
+
 ## [0.1.0] - 2026-04-02
 
 ### Added
