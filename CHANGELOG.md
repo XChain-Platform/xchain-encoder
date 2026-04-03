@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-02
+
+### Added
+- Integration test suite (108 tests) verifying encoder behavior across all integration points without requiring a live bitcoind
+- Test categories: ACTION payload encoding fidelity (all 19 ACTION types), encoding type integration (OP_RETURN/P2SH/P2WSH/MULTISIGN), obfuscation round-trip, UTXO & fee handling, custom outputs, multi-chain (BTC/DOGE/LTC), and error handling
+- Shared test helpers: deobfuscation utility, UTXO fixture factory, ACTION payload factory
+- `npm run test:integration` script
+- Integration testing plan report at `reports/XCHAIN_ENCODER_INTEGRATION_TESTING_PLAN.md`
+
 ## [0.1.1] - 2026-04-02
 
 ### Added
