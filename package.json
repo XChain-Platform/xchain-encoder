@@ -1,5 +1,5 @@
 {
-  "name":"xchain-encoder",
+  "name": "xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
   "version": "1.3.0",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -23,11 +23,13 @@
     "helmet": "^7.1.0",
     "tiny-secp256k1": "^2.2.3"
   },
-  "devDependencies":{
-    "browserify": "^17.0.0",
-    "babelify": "^10.0.0",
+  "devDependencies": {
     "@babel/core": "^7.0.0",
-    "@babel/preset-env": "^7.0.0"
+    "@babel/preset-env": "^7.0.0",
+    "@stryker-mutator/core": "^8.7.1",
+    "@stryker-mutator/mocha-runner": "^8.7.1",
+    "babelify": "^10.0.0",
+    "browserify": "^17.0.0"
   },
   "scripts": {
     "api": "node ./src/api.js",
@@ -42,6 +44,8 @@
     "bench": "node test/performance/bench.js",
     "bench:full": "node test/performance/bench.js --full --json",
     "bench:soak": "node test/performance/soak.js --duration 60",
-    "bench:k6": "k6 run test/performance/k6/sustained.js"
+    "bench:k6": "k6 run test/performance/k6/sustained.js",
+    "mutate": "npx stryker run",
+    "mutate:quick": "npx stryker run stryker.conf.quick.json"
   }
 }
