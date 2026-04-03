@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-03
+
+### Added
+- Chaos engineering test suite (`test/chaos/`) with 61 tests across 6 categories: network/dependency failures, input corruption, library monkey-patch failures, arithmetic edge cases, resource exhaustion, and API layer resilience
+- Test categories: ECONNREFUSED/timeout/malformed RPC responses (A-1..A-7), empty UTXO array after dedup, degenerate AES keys, max payload boundaries, corrupted scriptPubKeys (B-1..B-6), Psbt.addInput/addOutput/toHex and crypto.createCipheriv monkey-patch injection (C-1..C-5), fee overflow and insufficient UTXO detection (D-1..D-4), 500-UTXO and 65KB payload stress (E-1..E-2), validator fuzzing and api.js toHex exposure (F-1..F-3)
+- `npm run test:chaos` script
+- Chaos engineering plan report at `reports/XCHAIN_ENCODER_CHAOS_ENGINEERING_PLAN.md`
+- Documented known issues: unguarded empty UTXO array crash (B-1), silent fund loss on negative change (D-1), insufficient UTXOs returning valid PSBT (D-2), psbt.toHex() outside try/catch in api.js (F-3)
+
 ## [1.2.0] - 2026-04-03
 
 ### Added
