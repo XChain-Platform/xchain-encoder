@@ -1,7 +1,7 @@
 {
   "name": "xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
@@ -41,6 +41,7 @@
     "build": "npx browserify src/index.js -t [ babelify --presets [ @babel/preset-env ] --global ] | npx uglify-js --compress --mangle -o dist/xchain_encoder.min.js",
     "build:dev": "npx browserify src/index.js -t [ babelify --presets [ @babel/preset-env ] --global ] -o dist/xchain_encoder.min.js",
     "test:chaos": "npx mocha --timeout 30000 'test/chaos/**/*.test.js'",
+    "test:regression": "npx mocha --timeout 30000 'test/regression/**/*.test.js'",
     "bench": "node test/performance/bench.js",
     "bench:full": "node test/performance/bench.js --full --json",
     "bench:soak": "node test/performance/soak.js --duration 60",

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-03
+
+### Added
+- Regression test suite (`test/regression/`) with 196 tests across 8 files covering all critical encoder paths
+- `reg-01-encoding-types.test.js` — all 4 encoding types (OP_RETURN, P2SH, P2WSH, MULTISIGN) produce valid PSBTs
+- `reg-02-obfuscation.test.js` — AES-128-CTR round-trip, key derivation, TXID sensitivity, P2SH/P2WSH markers
+- `reg-03-fee-utxo.test.js` — UTXO selection/sort, deduplication, fee calculation, dust floor, change output, tracker fallback
+- `reg-04-validator.test.js` — dedicated coverage for all validate* functions in src/validator.js (fills identified coverage gap)
+- `reg-05-multi-chain.test.js` — Bitcoin, Litecoin, Dogecoin network configs, dust thresholds, P2WSH segwit restriction
+- `reg-06-p2sh-p2wsh-sequence.test.js` — tx1→tx2 chaining integrity for P2SH and P2WSH encoding
+- `reg-07-action-pipeline.test.js` — SEND, ISSUE, MULTISEND, ORDER, BROADCAST, FILE, BATCH, rawData, special characters
+- `reg-08-api-contract.test.js` — validateAll→createTransaction parameter flow, error classification, PSBT serialization
+- `npm run test:regression` script
+- Regression testing strategy report at `reports/XCHAIN_ENCODER_REGRESSION_TESTING_PLAN.md`
+
 ## [1.4.0] - 2026-04-03
 
 ### Added
