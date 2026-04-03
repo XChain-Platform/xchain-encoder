@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-03
+
+### Added
+- `src/validator.js` — centralized input validation module with 14 validators for all `createTransaction` parameters (types, ranges, formats, array limits)
+- API key authentication middleware (opt-in via `API_KEY` env var, checks `x-api-key` header)
+- Rate limiting via `express-rate-limit` (configurable via `RATE_LIMIT_RPM`, default 60 req/min)
+- CORS restriction (configurable via `CORS_ORIGIN` env var, default disabled)
+- Request body size limit (1 MB) on JSON-RPC endpoint
+- Payload size hard limit (64 KB) on combined `data` + `rawData`
+- P2WSH encoding blocked on Dogecoin networks (no bech32 support)
+- `supportsSegwit: false` flag on all Dogecoin network configs in CryptoNetworks
+- P2WSH `p2shTx.outs` bounds check before accessing output by index
+- `changeSatoshis` NaN guard — throws RangeError if fee arithmetic produces non-finite result
+- Security audit plan report at `reports/XCHAIN_ENCODER_SECURITY_AUDIT_PLAN.md`
+
+### Fixed
+- `customOutputs` value parsing now uses `parseInt(value, 10)` with NaN and negative guards — prevents silent NaN propagation that could burn all change as miner fees
+- UTXO value parsing now uses `parseInt(value, 10)` with NaN guard — prevents hex string interpretation and silent arithmetic corruption
+- Explicit `fee` parameter now validated as non-negative integer — previously accepted NaN, negative, or non-numeric values
+- `prepareData()` now throws TypeError for unknown encoding instead of returning null (which caused opaque TypeError downstream)
+- `CryptoNetworks.getBitcoinJsNetwork()` now throws TypeError for unknown network names instead of returning undefined (which crashed the process on startup)
+- Error sanitization in API layer — TypeError/RangeError messages forwarded, all other errors return generic "Internal encoder error" to prevent information leakage
+- Change address error message no longer leaks exact wallet balance in satoshis
+
+### Changed
+- `api.js` validation layer: all parameters validated via `validator.validateAll()` before reaching encoder
+- `express-rate-limit` added as production dependency
+
 ## [1.0.0] - 2026-04-02
 
 ### Changed

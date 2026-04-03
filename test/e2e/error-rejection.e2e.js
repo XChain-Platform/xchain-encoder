@@ -159,7 +159,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
         () => new XChainEncoder(
           'invalid-network', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
         ),
-        /Cannot read properties of undefined/
+        { name: 'TypeError' }
       )
     })
   })

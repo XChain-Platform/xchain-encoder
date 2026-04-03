@@ -125,9 +125,11 @@ describe('S3: CryptoNetworks Integrity', () => {
     assert.notStrictEqual(mainnet.pubKeyHash, testnet.pubKeyHash)
   })
 
-  it('returns undefined for unknown network', () => {
-    const result = CryptoNetworks.getBitcoinJsNetwork('invalid-network')
-    assert.strictEqual(result, undefined)
+  it('throws TypeError for unknown network', () => {
+    assert.throws(
+      () => CryptoNetworks.getBitcoinJsNetwork('invalid-network'),
+      { name: 'TypeError' }
+    )
   })
 })
 

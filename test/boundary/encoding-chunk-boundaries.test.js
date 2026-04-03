@@ -469,18 +469,18 @@ describe('Encoding Chunk Boundaries — Full Pipeline', () => {
       assert.strictEqual(result.encoding, 'P2SH')
     })
 
-    it('invalid encoding string returns null from prepareData → no outputs', async () => {
+    it('invalid encoding string throws TypeError from prepareData', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      // prepareData returns null for unknown encoding. createTransaction
-      // will then try to iterate null.dataBufferArray → throws
+      // prepareData throws TypeError for unknown encoding
       await assert.rejects(
         () => encoder.createTransaction(
           [standardUtxo()], address, null,
           'test', null, 10000, false, 'INVALID_TYPE', address,
           null, null, null, true, 0.00001
-        )
+        ),
+        { name: 'TypeError' }
       )
     })
   })

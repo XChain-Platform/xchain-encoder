@@ -239,10 +239,12 @@ describe('XChainEncoder.prepareData()', () => {
   // ── Invalid encoding ─────────────────────────────────────────────
 
   describe('invalid encoding', () => {
-    it('returns null for unrecognized encoding string', () => {
+    it('throws TypeError for unrecognized encoding string', () => {
       const data = Buffer.from('test')
-      const result = encoder.prepareData(data, 'INVALID', null)
-      assert.strictEqual(result, null)
+      assert.throws(
+        () => encoder.prepareData(data, 'INVALID', null),
+        { name: 'TypeError' }
+      )
     })
   })
 })

@@ -55,11 +55,24 @@ class UtxoTracker {
             
             const responseData = await response.json();
 
-            // Verify if there is a result and return it
-            if (responseData.result) {
-                return responseData.result;
+            // Verify structure and return result
+            if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
+                const result = responseData.result
+                if (!Array.isArray(result.utxos)) {
+                    throw new TypeError('UTXO tracker result missing utxos array')
+                }
+                for (let i = 0; i < result.utxos.length; i++) {
+                    const u = result.utxos[i]
+                    if (typeof u !== 'object' || u === null ||
+                        typeof u.txid !== 'string' ||
+                        typeof u.vout === 'undefined' ||
+                        typeof u.value === 'undefined') {
+                        throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}`)
+                    }
+                }
+                return result
             } else {
-                throw new Error('Error getting utxos');
+                throw new Error('Error getting utxos: empty result')
             }
         } catch (error) {
             console.error('Error fetching UTXOs:', error.message);

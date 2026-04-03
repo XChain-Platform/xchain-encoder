@@ -41,7 +41,8 @@ class CryptoNetworks {
                     "pubKeyHash": 0x1e,
                     "scriptHash": 0x16,
                     "wif": 0x9e,
-                    "dustThreshold": 546
+                    "dustThreshold": 546,
+                    "supportsSegwit": false
                 }
             case "dogecoin-testnet":
                 return {
@@ -53,7 +54,8 @@ class CryptoNetworks {
                     "pubKeyHash": 0x71,
                     "scriptHash": 0xc4,
                     "wif": 0xf1,
-                    "dustThreshold": 546
+                    "dustThreshold": 546,
+                    "supportsSegwit": false
                 }
             case "dogecoin-regtest":
                 return {
@@ -65,7 +67,8 @@ class CryptoNetworks {
                     "pubKeyHash": 0x71,
                     "scriptHash": 0xc4,
                     "wif": 0xf1,
-                    "dustThreshold": 546
+                    "dustThreshold": 546,
+                    "supportsSegwit": false
                 }
             case "litecoin-mainnet":
                 return {
@@ -106,6 +109,8 @@ class CryptoNetworks {
                     "wif": 0xef,
                     "dustThreshold": 5460
                 }
+            default:
+                throw new TypeError(`Unknown network: "${networkName}". Supported: bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest`)
         }
     }
     

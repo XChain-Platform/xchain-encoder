@@ -165,10 +165,10 @@ class XChainEncoder {
                     i = i + nextDataChunk.length
                 }
                 
-                return {"dataBufferArray":dataBufferArray, "encoding": encoding}    
+                return {"dataBufferArray":dataBufferArray, "encoding": encoding}
+            default:
+                throw new TypeError(`Unknown encoding: "${encoding}". Valid values: OP_RETURN, P2SH, MULTISIGN, P2WSH`)
         }
-        
-        return null
     }
     
     async obfuscate(data, key){
@@ -222,7 +222,15 @@ class XChainEncoder {
         }
         
         let finalDataBuffer = bitcoin.script.compile(dataToCompile)
-        
+
+        if (finalDataBuffer.length > 65536) {
+            throw new RangeError(`Payload too large: ${finalDataBuffer.length} bytes exceeds maximum (65536)`)
+        }
+
+        if (encoding === 'P2WSH' && this.network.supportsSegwit === false) {
+            throw new TypeError('P2WSH encoding is not supported on this network (no segwit support)')
+        }
+
         let psbt = null
         
         let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
@@ -385,6 +393,9 @@ class XChainEncoder {
                             })
                         }
                         
+                        if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
+                            throw new RangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
+                        }
                         let nextInput = {
                             sequence: utxoSequence,
                             hash:p2shHash,
@@ -392,7 +403,7 @@ class XChainEncoder {
                             witnessScript:nextDataBuffer,
                             index: voutPsbtIndex,
                             witnessUtxo:{
-                                script:p2shTx["outs"][voutPsbtIndex]["script"], 
+                                script:p2shTx["outs"][voutPsbtIndex]["script"],
                                 value:p2shTx["outs"][voutPsbtIndex]["value"]
                             }
                         }
@@ -445,12 +456,17 @@ class XChainEncoder {
 
         // Process custom outputs (e.g., COINPay native coin payment outputs)
         if (customOutputs && Array.isArray(customOutputs)) {
-            for (let output of customOutputs) {
+            for (let i = 0; i < customOutputs.length; i++) {
+                const output = customOutputs[i]
+                const outputValue = parseInt(output.value, 10)
+                if (isNaN(outputValue) || outputValue < 0) {
+                    throw new RangeError(`customOutputs[${i}].value is not a valid satoshi amount`)
+                }
                 psbt.addOutput({
                     address: output.address,
-                    value:   parseInt(output.value)
+                    value:   outputValue
                 })
-                outputSatoshis += parseInt(output.value)
+                outputSatoshis += outputValue
                 estimatedTxSize += 43 // Taproot output size estimate (most expensive)
             }
         }
@@ -459,15 +475,22 @@ class XChainEncoder {
         estimatedTxSize = estimatedTxSize + 43
 
         let estimatedFee = 0
-        if (fee){
-            estimatedFee = fee
+        if (fee != null && fee !== false) {
+            const numFee = parseInt(fee, 10)
+            if (isNaN(numFee) || numFee < 0) {
+                throw new RangeError(`fee must be a non-negative integer, got: ${fee}`)
+            }
+            estimatedFee = numFee
         }
         
         if (!p2shHash){//The p2sh input is already created before
             let nextUtxoIndex = 0
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
-                nextUtxo.value = parseInt(nextUtxo.value)
+                nextUtxo.value = parseInt(nextUtxo.value, 10)
+                if (isNaN(nextUtxo.value) || nextUtxo.value < 0) {
+                    throw new RangeError(`utxos[${nextUtxoIndex}].value is not a valid satoshi amount`)
+                }
                 
                 //if (!txidFirstInput){
                 //    txidFirstInput = nextUtxo["txid"]
@@ -501,7 +524,7 @@ class XChainEncoder {
                     inputSatoshis = inputSatoshis + nextUtxo.value
                 }
                 
-                if (!fee){
+                if (fee == null || fee === false) {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
                 }
                 
@@ -520,8 +543,12 @@ class XChainEncoder {
         
         let changeSatoshis = inputSatoshis - outputSatoshis - estimatedFee
 
+        if (!Number.isFinite(changeSatoshis)) {
+            throw new RangeError('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
+        }
+
         if ((changeSatoshis > this.dustAmount) && !change) {
-            throw new Error(`Transaction would burn ${changeSatoshis} satoshis as fees. Please provide a change address.`)
+            throw new Error('Transaction would burn significant satoshis as fees. Please provide a change address.')
         }
 
         if ((changeSatoshis > 0) && (change)) {

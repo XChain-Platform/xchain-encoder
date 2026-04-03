@@ -91,14 +91,18 @@ describe('CryptoNetworks', () => {
     })
 
     describe('Unknown network', () => {
-      it('returns undefined for an unrecognized network name', () => {
-        const result = CryptoNetworks.getBitcoinJsNetwork('unknown-network')
-        assert.strictEqual(result, undefined)
+      it('throws TypeError for an unrecognized network name', () => {
+        assert.throws(
+          () => CryptoNetworks.getBitcoinJsNetwork('unknown-network'),
+          { name: 'TypeError' }
+        )
       })
 
-      it('returns undefined for empty string', () => {
-        const result = CryptoNetworks.getBitcoinJsNetwork('')
-        assert.strictEqual(result, undefined)
+      it('throws TypeError for empty string', () => {
+        assert.throws(
+          () => CryptoNetworks.getBitcoinJsNetwork(''),
+          { name: 'TypeError' }
+        )
       })
     })
   })

@@ -125,14 +125,12 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
   // ── H-4: Invalid network name ─────────────────────────────────
 
   describe('H-4: Invalid network name', () => {
-    it('throws during construction (undefined network config)', () => {
-      // CryptoNetworks.getBitcoinJsNetwork('invalid') returns undefined,
-      // causing the constructor to throw when accessing dustThreshold
+    it('throws TypeError during construction for invalid network', () => {
       assert.throws(
         () => new XChainEncoder(
           'invalid-network', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
         ),
-        /Cannot read properties of undefined/
+        { name: 'TypeError' }
       )
     })
   })
