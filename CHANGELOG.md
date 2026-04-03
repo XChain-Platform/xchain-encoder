@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-03
+
+### Added
+- Mutation testing with StrykerJS v8 targeting XChainEncoder.js, validator.js, TxSizeEstimator.js, and CryptoNetworks.js
+- `stryker.conf.json` — full mutation config running unit/integration/boundary/chaos tests against 896 mutants across 4 source files
+- `stryker.conf.quick.json` — incremental config for PR-level checks (XChainEncoder.js only, ~47s)
+- `npm run mutate` and `npm run mutate:quick` scripts
+- Mutation testing plan report at `reports/XCHAIN_ENCODER_MUTATION_TESTING_PLAN.md` cataloging 187 high-value mutation sites
+- Baseline mutation scores: XChainEncoder.js 83.3%, TxSizeEstimator.js 82.8%, CryptoNetworks.js 72.7%, validator.js 55.6%
+- `@stryker-mutator/core` and `@stryker-mutator/mocha-runner` added as devDependencies
+
 ## [1.3.0] - 2026-04-03
 
 ### Added
