@@ -40,8 +40,9 @@ const NODE_PASSWORD = process.env.NODE_PASSWORD
 const UTXO_TRACKER_URL = process.env.UTXO_TRACKER_URL
 const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = process.env.ENCODER_API_PORT
+const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_FEE_RATE_KB) : null
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB);
 
 // Create the app
 const app = express();
