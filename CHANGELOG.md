@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-03
+
+### Added
+- Performance and load testing suite (`test/performance/`) with 27 benchmark scenarios covering all encoding types, UTXO scaling, and payload size matrices
+- `bench.js` — standalone benchmark harness with CLI flags (`--full`, `--scenario`, `--json`, `--warmup`, `--iters`) measuring per-encoding throughput, latency percentiles, memory, and GC pauses
+- `soak.js` — sustained-duration leak and latency drift detector with 10-second window summaries and automatic warnings
+- k6 API load test scripts: `sustained.js` (constant 100 req/sec), `spike.js` (burst to 500 req/sec), `concurrent.js` (ramp 1-100 VUs)
+- Metrics helpers: Histogram (nanosecond-precision), MemoryTracker, GcTracker, EldTracker, ASCII report formatter, JSON report writer
+- Pre-built fixture library reusing existing utxoFactory and actionFactory test helpers
+- `npm run bench`, `bench:full`, `bench:soak`, `bench:k6` scripts
+- Performance testing plan report at `reports/XCHAIN_ENCODER_PERFORMANCE_TESTING_PLAN.md`
+
 ## [1.1.0] - 2026-04-03
 
 ### Added

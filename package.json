@@ -1,7 +1,7 @@
 {
   "name":"xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
