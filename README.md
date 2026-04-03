@@ -3,102 +3,118 @@
 
 # XChain Platform Encoder
 
-## Overview
-A JavaScript module for encoding data within xchain-compatible blockchain transactions.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.5.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-769%2B%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/coverage-unit%20%7C%20integration%20%7C%20e2e%20%7C%20boundary%20%7C%20chaos%20%7C%20mutation%20%7C%20regression%20%7C%20smoke-brightgreen" alt="Coverage">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-green" alt="Node">
+  <img src="https://img.shields.io/badge/license-Dankest%20Community-orange" alt="License">
+</p>
 
-## JSON RPC API Reference
+PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of UTXOs, and a public key, and returns an unsigned Partially Signed Bitcoin Transaction (PSBT) ready for the caller to sign and broadcast. The encoder is fully stateless — no database, no persistent connections, every call is independent.
 
-### `create_tx` Function
-Constructs a transaction with embedded data.
+## Features
 
-#### Parameters
-| Parameter          | Type                                   | Description                                                                  | Required                                   | Default          |
-|--------------------|----------------------------------------|------------------------------------------------------------------------------|--------------------------------------------|------------------|
-| `utxos`            | `Array<UTXO>`                          | List of UTXOs to spend (see structure below)                                 | No <sup>[1](#utxolist-footnote)</sup>      | -                |
-| `pubkey`           | `string`                               | Sender's public key (hex)                                                    | Yes                                        | -                |
-| `customOutputs`    | `Array<{address: string, value: number}>` | Custom outputs                                                            | No                                         |0 `[]`            |
-| `data`             | `string \| Buffer`                     | Data to embed (hex/Buffer)                                                   | Yes                                        |                  |
-| `rawData`          | `string \| Buffer`                     | Additional Data to embed that will be ignored by the decoder (hex/Buffer)    | No                                         | `null`           |
-| `fee`              | `number`                               | Fixed fee in satoshis                                                        | No                                         | Auto-calculated  |
-| `rbf`              | `boolean`                              | Enable Replace-By-Fee                                                        | No                                         | `false`          |
-| `encoding`         | `string`                               | Encoding type (`op_return`/`p2sh`/`p2wsh`/`p2tr`/`multisign`)                | No                                         |`op_return`/`p2sh`|
-| `change`           | `string`                               | Change address                                                               | No                                         | -                |
-| `p2shHash`         | `string`                               | previous P2SH redeem script hash                                             | No                                         | -                |
-| `p2shHex`          | `string`                               | previous P2SH hex                                                            | No                                         | -                |
-| `compressedPubKey` | `boolean`                              | Compressed pubkey for multisign                                              | No                                         | null             |
-| `unconfirmed`      | `boolean`                              | Enables the use of unconfirmed transactions (in mempool) as utxos            | No                                         | true             |
-| `feePerKb`         | `number`                               | Fee per kilobytes to calculate transaction fee (Only works if fee is not set)| No                                         | null             |
-| `dust`             | `number`                               | Dust amount to use in multisig, p2sh and p2tr outputs                        | No                                         | network min dust |
+- **Four encoding formats** — OP_RETURN (76B), P2SH (476B), P2WSH (3,571B), and multisig (~61B/key); auto-selected by payload size
+- **AES-128-CTR obfuscation** — derives key and IV from the first input's txid; `XCHN` magic prefix on all payloads
+- **Two-transaction P2SH/P2WSH** — automatic tx1 (fund) → tx2 (spend/reveal) orchestration with marker OP_RETURN
+- **UTXO selection** — largest-first selection, duplicate removal, optional unconfirmed filtering, automatic change output
+- **Fee estimation** — byte-accurate transaction size estimation per format via `TxSizeEstimator`; dust floor enforcement
+- **Fee rate cap** — `MAX_FEE_RATE_KB` environment variable prevents runaway fee estimates
+- **Input validation** — centralized parameter validation (`validator.js`) with typed errors for all 15 `createTransaction` parameters
+- **Multi-chain support** — Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
+- **Replace-By-Fee** — optional RBF signaling via sequence number
+- **Custom outputs** — arbitrary address/value outputs (e.g., COINPay native coin payments)
+- **JSON-RPC API** — Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
+- **Browser bundle** — Browserify build for client-side PSBT generation without a server
+- **769+ tests** — unit, integration, e2e, boundary, chaos, mutation, regression, smoke, performance
 
-#### Footnotes
-<a name="utxolist-footnote">1</a>: `utxosList` is not required if the `UTXO_TRACKER_URL` environment variable is configured and the UTXO Tracker service is reachable. If omitted, the module will automatically fetch UTXOs for the provided `pubkey`.
+## Documentation
 
-#### UTXO Structure
-```javascript
-{
-  txid: "hexstring",  // Transaction ID 
-  vout: 0,            // Output index
-  value: 100000,      // Value in satoshis
-  scriptPubKey: "hex" // Locking script
-}
-```
+Full encoder documentation is available in the [xchain-documentation](https://github.com/XChain-platform/xchain-documentation/tree/master/components/encoder) repository:
 
-#### Returns
-- **`psbtHex`**:  
-  - Hex-encoded PSBT compliant with [BIP 174](https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki).
+| Document | Description |
+|---|---|
+| [README](https://github.com/XChain-platform/xchain-documentation/blob/master/components/encoder/README.md) | Overview, encoding process, format details, API, testing, configuration |
+| [Format Selection](https://github.com/XChain-platform/xchain-documentation/blob/master/components/encoder/FORMAT_SELECTION.md) | Decision guide for encoding formats with size limits and trade-offs |
 
----
+## Quick Start
 
-## Environment Variables & Deployment
-
-### **1. Core Configuration**
-| Variable               | Required | Default      | Description                                                                 |
-|------------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `NETWORK`              | Yes      |              | Coin and network (`bitcoin-mainnet`, `dogecoin-testnet`, `bitcoin-regtest`) |
-| `ENCODER_API_PORT`     | No       | `3000`       | Port for the encoder's JSON-RPC API                                         |
-
-### **2. Bitcoin Node Connection**
-| Variable               | Required | Default      | Description                                                                 |
-|------------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `NODE_URL`             | Yes      | -            | Bitcoin Core RPC host (e.g., `127.0.0.1`)                                  |
-| `NODE_PORT`            | Yes      | -            | Bitcoin Core RPC port (`8332` for mainnet, `18332` for testnet)            |
-| `NODE_USER`            | Yes      | -            | RPC username                                                               |
-| `NODE_PASSWORD`        | Yes      | -            | RPC password                                                               |
-
-### **3. UTXO Tracker Integration**
-| Variable               | Required | Default      | Description                                                                 |
-|------------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `UTXO_TRACKER_URL`     | No       | -            | Host of the Xchain UTXO Tracker API                                         |
-| `UTXO_TRACKER_API_PORT`| No       | -            | Port for the Xchain UTXO Tracker API                                        |
-
----
-
-### **Deployment Options**
-
-#### **A. Docker Deployment**
 ```bash
-docker build -t xchain-encoder .
-docker run -d \
-  -e NETWORK=bitcoin-testnet \
-  -e NODE_URL=bitcoind \
-  -e NODE_PORT=18332 \
-  -e NODE_USER=rpcuser \
-  -e NODE_PASSWORD=rpcpass \
-  -e UTXO_TRACKER_URL=utxo-tracker \
-  -e ENCODER_API_PORT=3000 \
-  -p 3000:3000 \
-  --name xchain-encoder \
-  xchain-encoder
+git clone https://github.com/XChain-platform/xchain-encoder.git
+cd xchain-encoder
+npm install
 ```
 
-#### **B. Browser Bundle**
+Create a `.env` file:
+
+```env
+NETWORK=bitcoin-regtest
+NODE_URL=127.0.0.1
+NODE_PORT=8332
+NODE_USER=rpcuser
+NODE_PASSWORD=rpcpass
+ENCODER_API_PORT=3000
+```
+
+Start the encoder:
+
 ```bash
-# Development build (unminified)
-npm run build:dev  # Output: ./dist/xchain-encoder.js
-
-# Production build (minified)
-npm run build      # Output: ./dist/xchain-encoder.min.js
+npm run api
 ```
+
+## Configuration
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NETWORK` | Yes | — | Coin and network (`bitcoin-mainnet`, `dogecoin-testnet`, `litecoin-regtest`, etc.) |
+| `NODE_URL` | Yes | — | Coin node RPC host (e.g., `127.0.0.1`) |
+| `NODE_PORT` | Yes | — | Coin node RPC port |
+| `NODE_USER` | Yes | — | RPC username |
+| `NODE_PASSWORD` | Yes | — | RPC password |
+| `ENCODER_API_PORT` | No | `3000` | JSON-RPC API port |
+| `DUST_AMOUNT` | No | Network default | Minimum output value in satoshis |
+| `UTXO_TRACKER_URL` | No | — | xchain-utxo-tracker service host |
+| `UTXO_TRACKER_API_PORT` | No | — | xchain-utxo-tracker service port |
+| `MAX_FEE_RATE_KB` | No | Uncapped | Maximum fee rate in sat/kB to prevent runaway estimates |
+| `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
+| `RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
+| `CORS_ORIGIN` | No | Disabled | CORS origin (`*` to allow all) |
+
+## Scripts
+
+| Command | Description |
+|---|---|
+| `npm run api` | Start the JSON-RPC API server |
+| `npm run build` | Production browser bundle (minified) → `dist/xchain_encoder.min.js` |
+| `npm run build:dev` | Development browser bundle (unminified) |
+| `npm run smoke-test` | Smoke tests (~10 tests, <1s) |
+| `npm run test:unit` | Unit tests (114 tests) |
+| `npm run test:integration` | Integration tests (108 tests) |
+| `npm run test:boundary` | Boundary condition tests (~120 tests) |
+| `npm run test:chaos` | Chaos engineering tests (61 tests) |
+| `npm run test:regression` | Regression tests (196 tests) |
+| `npm run mutate` | Full mutation testing via StrykerJS |
+| `npm run mutate:quick` | Quick mutation check (XChainEncoder.js only) |
+| `npm run bench` | Performance benchmarks |
+| `npm run bench:full` | Extended benchmarks with JSON output |
+| `npm run bench:soak` | Soak test (sustained load) |
+| `npm test` | Regtest integration tests (requires local bitcoind) |
+
+## Test Suite
+
+| Type | Tests | Description |
+|---|---|---|
+| Unit | 114 | `XChainEncoder.createTransaction`, `prepareData`, `obfuscate`, `dataToPubkey`, `isSegwitUTXO`, `TxSizeEstimator`, `CryptoNetworks` |
+| Integration | 108 | ACTION encoding fidelity, encoding type selection, obfuscation round-trip, UTXO/fee interaction, multi-chain, custom outputs, error handling |
+| E2E | ~80 | Full pipeline: API layer, P2SH/P2WSH two-tx orchestration, round-trip encode/decode, multi-chain, edge cases |
+| Smoke | ~10 | Module loading, instantiation, network configs, basic PSBT creation, API startup |
+| Boundary | ~120 | Payload size limits, chunk boundaries, fee calculation edges, UTXO values, change address, custom outputs, obfuscation |
+| Chaos | 61 | Network failures, input corruption, library monkey-patching, arithmetic edge cases, resource exhaustion, API resilience |
+| Mutation | StrykerJS | 896 mutants across `XChainEncoder.js`, `validator.js`, `TxSizeEstimator.js`, `CryptoNetworks.js` |
+| Regression | 196 | Curated critical-path suite: encoding types, obfuscation, fee/UTXO, validator, multi-chain, P2SH/P2WSH, ACTION pipeline, API contract |
+| Performance | 3 suites | Baseline benchmarks, full benchmarks with JSON, sustained soak tests |
+| **Total** | **769+** | |
 
 ---
 
