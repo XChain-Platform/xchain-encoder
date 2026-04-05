@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-04-05
+
+### Changed
+- Moved Stryker mutation configs (`stryker.conf.json`, `stryker.conf.quick.json`) from project root into `test/mutation/`
+- Updated `mutate` and `mutate:quick` npm scripts to reference new config paths
+
 ## [1.5.0] - 2026-04-03
 
 ### Added
