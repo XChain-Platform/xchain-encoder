@@ -196,8 +196,15 @@ class XChainEncoder {
     
     //This function will create a transaction for the xchain platform
     async createTransaction(utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
-      encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null, 
-      unconfirmed=true, feePerKb=null, dust=null){
+      encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null,
+      unconfirmed=true, feePerKb=null, dust=null, feeQuote=null){
+
+        // If feeQuote is provided, inject it as a custom output
+        if(feeQuote && feeQuote.address && feeQuote.amount > 0){
+            if(!customOutputs) customOutputs = [];
+            customOutputs.push({ address: feeQuote.address, value: feeQuote.amount });
+        }
+
         let feePerBytes = null
         if (feePerKb){
             feePerBytes = feePerKb/1000

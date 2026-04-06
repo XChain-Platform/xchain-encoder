@@ -108,7 +108,8 @@ const jsonRpcController = {
                 params.utxos, params.pubkey, params.customOutputs,
                 params.data, params.rawData, params.fee, params.rbf,
                 params.encoding, params.change, params.p2shHash, params.p2shHex,
-                params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust)
+                params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
+                params.feeQuote)
         } catch (err) {
             // Sanitize: TypeError/RangeError messages are safe (from our validation);
             // all others get a generic message to prevent internal info leakage

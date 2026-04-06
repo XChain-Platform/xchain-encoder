@@ -180,6 +180,28 @@ function validateCustomOutputs(customOutputs) {
     return customOutputs
 }
 
+function validateFeeQuote(feeQuote) {
+    if (feeQuote == null) return null
+    if (typeof feeQuote !== 'object') {
+        throw new TypeError('feeQuote must be an object with address and amount')
+    }
+    if (typeof feeQuote.address !== 'string' || feeQuote.address.length === 0) {
+        throw new TypeError('feeQuote.address must be a non-empty string')
+    }
+    if (feeQuote.address.length > 100) {
+        throw new TypeError('feeQuote.address exceeds maximum length (100)')
+    }
+    const amount = parseInt(feeQuote.amount, 10)
+    if (isNaN(amount) || amount <= 0) {
+        throw new RangeError('feeQuote.amount must be a positive integer (satoshis)')
+    }
+    if (amount > MAX_FEE_SATOSHIS) {
+        throw new RangeError('feeQuote.amount exceeds maximum (' + MAX_FEE_SATOSHIS + ')')
+    }
+    feeQuote.amount = amount
+    return feeQuote
+}
+
 function validateP2shParams(p2shHash, p2shHex) {
     const hasHash = (p2shHash != null && p2shHash !== false)
     const hasHex = (p2shHex != null && p2shHex !== false)
@@ -234,6 +256,7 @@ function validateAll(params) {
     const dust = validateDust(params.dust)
     const utxos = validateUtxoArray(params.utxos)
     const customOutputs = validateCustomOutputs(params.customOutputs)
+    const feeQuote = validateFeeQuote(params.feeQuote)
     const { p2shHash, p2shHex } = validateP2shParams(params.p2shHash, params.p2shHex)
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
     const change = validateChange(params.change)
@@ -245,7 +268,7 @@ function validateAll(params) {
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,
         encoding, change, p2shHash, p2shHex, compressedPubKey,
-        unconfirmed, feePerKb, dust
+        unconfirmed, feePerKb, dust, feeQuote
     }
 }
 

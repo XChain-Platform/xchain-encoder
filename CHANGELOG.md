@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-04-06
+
+### Added
+- `feeQuote` parameter for `create_tx` — automatically adds a protocol fee output to the PSBT when provided with `{ address, amount }` from the hub's `getfeequote` endpoint
+- `validateFeeQuote()` in validator.js — validates address (string, max 100 chars) and amount (positive integer, max 2.1T satoshis)
+
 ## [1.5.1] - 2026-04-05
 
 ### Changed
