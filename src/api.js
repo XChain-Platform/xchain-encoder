@@ -126,6 +126,44 @@ const jsonRpcController = {
 
         // Return the transaction
         return psbt;
+    },
+    // Function to broadcast a signed transaction to the coin node
+    async broadcast_tx(rawParams) {
+        let tx_hex = rawParams && rawParams.tx_hex
+        if (!tx_hex) {
+            const e = new Error('Missing required parameter: tx_hex')
+            e.code = -32602
+            throw e
+        }
+
+        try {
+            let txid = await encoder.connector.sendRawTransaction(tx_hex)
+            return { txid: txid }
+        } catch (err) {
+            console.error('Broadcast error:', err.message)
+            const e = new Error(err.message || 'Transaction broadcast failed')
+            e.code = -32603
+            throw e
+        }
+    },
+    // Function to fetch UTXOs for an address (proxies to UTXO tracker)
+    async get_utxos(rawParams) {
+        let address = rawParams && rawParams.address
+        if (!address) {
+            const e = new Error('Missing required parameter: address')
+            e.code = -32602
+            throw e
+        }
+
+        try {
+            let result = await encoder.utxoTrackerConnector.getUtxosFromAddress(address)
+            return result
+        } catch (err) {
+            console.error('UTXO fetch error:', err.message)
+            const e = new Error(err.message || 'UTXO fetch failed')
+            e.code = -32603
+            throw e
+        }
     }
 }
 

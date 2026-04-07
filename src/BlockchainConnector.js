@@ -148,6 +148,48 @@ class BlockchainConnector {
         }
     }
     
+    async sendRawTransaction(txHex) {
+        try {
+            const data = {
+                jsonrpc: '2.0',
+                method: 'sendrawtransaction',
+                params: [txHex],
+                id: 1,
+            };
+
+            const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Basic ${auth}`
+                },
+                body: JSON.stringify(data)
+            };
+
+            const response = await fetch(this.url, options);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const responseData = await response.json();
+
+            if (responseData.error) {
+                throw new Error(responseData.error.message || 'sendrawtransaction failed');
+            }
+
+            if (responseData.result) {
+                return responseData.result;
+            } else {
+                throw new Error('Error broadcasting transaction: empty result');
+            }
+        } catch (error) {
+            console.error('Error:', error.message);
+            throw error;
+        }
+    }
+
     async getFeePerKilobyte(blocksNumber) {
         try {
             const data = {
