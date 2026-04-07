@@ -1,7 +1,7 @@
 # XChain Encoder — Smoke Testing Plan
 
-**Date:** 2026-04-02
-**Component:** xchain-encoder
+**Date:** 2026-04-02  
+**Component:** xchain-encoder  
 **Author:** QA Engineering
 
 ---
@@ -115,13 +115,13 @@ Scenarios are ordered by priority. All scenarios must pass for the smoke suite t
 
 **What:** Call `encoder.prepareData()` with representative data for each encoding type and verify output structure.
 
-**Checks:**
-- **OP_RETURN encoding:** A short ACTION string (e.g., `SEND|0|JDOG|1|<address>`, ~40 bytes) → returns `{ dataBufferArray: [Buffer], encoding: 'OP_RETURN' }`. Buffer is prefixed with `XCHN` magic word (bytes `58 43 48 4e`). Total chunk size ≤ 80 bytes.
-- **OP_RETURN auto-select:** Passing `encoding=null` with data ≤ 76 bytes → auto-selects `OP_RETURN`.
-- **P2SH encoding:** A medium ACTION string (~200 bytes) with `encoding='P2SH'` → returns chunks each ≤ 520 bytes, encoding is `'P2SH'`.
-- **P2SH auto-select:** Passing `encoding=null` with data > 76 bytes → auto-selects `P2SH`.
-- **P2WSH encoding:** A large payload (~5000 bytes) with `encoding='P2WSH'` → returns chunks each ≤ ~10000 bytes.
-- **MULTISIGN encoding:** A short string with `encoding='MULTISIGN'` → returns chunks each ≤ 71 bytes, prefixed with `XCHN`.
+**Checks:**  
+- **OP_RETURN encoding:** A short ACTION string (e.g., `SEND|0|JDOG|1|<address>`, ~40 bytes) → returns `{ dataBufferArray: [Buffer], encoding: 'OP_RETURN' }`. Buffer is prefixed with `XCHN` magic word (bytes `58 43 48 4e`). Total chunk size ≤ 80 bytes.  
+- **OP_RETURN auto-select:** Passing `encoding=null` with data ≤ 76 bytes → auto-selects `OP_RETURN`.  
+- **P2SH encoding:** A medium ACTION string (~200 bytes) with `encoding='P2SH'` → returns chunks each ≤ 520 bytes, encoding is `'P2SH'`.  
+- **P2SH auto-select:** Passing `encoding=null` with data > 76 bytes → auto-selects `P2SH`.  
+- **P2WSH encoding:** A large payload (~5000 bytes) with `encoding='P2WSH'` → returns chunks each ≤ ~10000 bytes.  
+- **MULTISIGN encoding:** A short string with `encoding='MULTISIGN'` → returns chunks each ≤ 71 bytes, prefixed with `XCHN`.  
 - **Chunk count correctness:** Data that exceeds a single chunk's capacity produces multiple chunks.
 
 **Why critical:** `prepareData()` is the core logic that splits and formats data before it enters the PSBT. If chunking is wrong, data is silently truncated or corrupted. This check requires no network access.

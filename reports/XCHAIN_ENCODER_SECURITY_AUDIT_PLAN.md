@@ -1,8 +1,8 @@
 # XChain Encoder Security Audit Plan
 
-**Component:** xchain-encoder v1.0.0
-**Date:** 2026-04-02
-**Auditor Role:** Senior Security Auditor & Backend Developer
+**Component:** xchain-encoder v1.0.0  
+**Date:** 2026-04-02  
+**Auditor Role:** Senior Security Auditor & Backend Developer  
 **Criticality:** HIGH — errors in encoding or input handling can lead to invalid transactions, loss of funds, or platform exploits
 
 ---
@@ -113,28 +113,28 @@ Return { psbt, encode_type }
 ### 4.1 API-Level Security
 
 #### SEC-API-01: No Authentication on JSON-RPC Endpoint [CRITICAL]
-- **File:** `src/api.js:51-85`
-- **Finding:** The `/api` endpoint has zero authentication. No API key, JWT, IP allowlist, or any middleware gates access. Any host that can reach the port can call `create_tx` and instruct the encoder to construct arbitrary transactions.
+- **File:** `src/api.js:51-85`  
+- **Finding:** The `/api` endpoint has zero authentication. No API key, JWT, IP allowlist, or any middleware gates access. Any host that can reach the port can call `create_tx` and instruct the encoder to construct arbitrary transactions.  
 - **Impact:** Unauthorized transaction construction; potential fund theft if signing is automated downstream.
 
 #### SEC-API-02: Wildcard CORS Policy [MEDIUM]
-- **File:** `src/api.js:57`
-- **Finding:** `app.use(cors())` with no options sets `Access-Control-Allow-Origin: *`. In browser deployments, any origin can make requests to the encoder API.
+- **File:** `src/api.js:57`  
+- **Finding:** `app.use(cors())` with no options sets `Access-Control-Allow-Origin: *`. In browser deployments, any origin can make requests to the encoder API.  
 - **Impact:** Cross-origin transaction construction requests from malicious websites.
 
 #### SEC-API-03: No Rate Limiting [MEDIUM]
-- **File:** `src/api.js`
-- **Finding:** No rate-limiting middleware exists. Unbounded `create_tx` requests trigger upstream RPC calls to the coin node and UTXO tracker.
+- **File:** `src/api.js`  
+- **Finding:** No rate-limiting middleware exists. Unbounded `create_tx` requests trigger upstream RPC calls to the coin node and UTXO tracker.  
 - **Impact:** Denial-of-service against the encoder and connected coin node; fee-estimation abuse through rapid sequential requests.
 
 #### SEC-API-04: No Request Body Size or Depth Limit [HIGH]
-- **File:** `src/api.js:54`
-- **Finding:** `bodyParser.json()` uses the default 100KB limit but no validation of array depth or size. A `utxos` array with thousands of entries triggers an RPC call per entry.
+- **File:** `src/api.js:54`  
+- **Finding:** `bodyParser.json()` uses the default 100KB limit but no validation of array depth or size. A `utxos` array with thousands of entries triggers an RPC call per entry.  
 - **Impact:** Resource exhaustion via large UTXO arrays or deeply nested custom output structures.
 
 #### SEC-API-05: All Parameters Passed Through Without Validation [CRITICAL]
-- **File:** `src/api.js:66-81`
-- **Finding:** Every parameter from the JSON-RPC body is forwarded directly to `encoder.createTransaction()` with no type checking, range validation, or sanitization at the API boundary.
+- **File:** `src/api.js:66-81`  
+- **Finding:** Every parameter from the JSON-RPC body is forwarded directly to `encoder.createTransaction()` with no type checking, range validation, or sanitization at the API boundary.  
 - **Impact:** All downstream validation gaps (SEC-INPUT-01 through SEC-INPUT-10) are directly exploitable via the API.
 
 ---
@@ -142,53 +142,53 @@ Return { psbt, encode_type }
 ### 4.2 Input Validation & Sanitization
 
 #### SEC-INPUT-01: `data` and `rawData` Not Validated [HIGH]
-- **File:** `src/XChainEncoder.js:216-224`
-- **Finding:** `data` is converted via `Buffer.from(data, 'utf8')` with no type check, length limit, or content validation. Non-string types, null bytes, and arbitrarily large payloads are accepted. A very large string produces unbounded chunk iteration and potentially hundreds of PSBT outputs.
+- **File:** `src/XChainEncoder.js:216-224`  
+- **Finding:** `data` is converted via `Buffer.from(data, 'utf8')` with no type check, length limit, or content validation. Non-string types, null bytes, and arbitrarily large payloads are accepted. A very large string produces unbounded chunk iteration and potentially hundreds of PSBT outputs.  
 - **Impact:** Memory exhaustion; transactions exceeding node policy limits; unlimited fee burn.
 
 #### SEC-INPUT-02: `pubkey` Not Validated Before Base58Check Decode [HIGH]
-- **File:** `src/XChainEncoder.js:124`
-- **Finding:** `bitcoin.address.fromBase58Check(pubkey)` is called without pre-validation. Invalid Base58Check strings cause bitcoinjs-lib to throw raw exceptions that propagate to the API caller.
+- **File:** `src/XChainEncoder.js:124`  
+- **Finding:** `bitcoin.address.fromBase58Check(pubkey)` is called without pre-validation. Invalid Base58Check strings cause bitcoinjs-lib to throw raw exceptions that propagate to the API caller.  
 - **Impact:** Information leakage via library error messages; unhandled crash if exception is not caught by the RPC framework.
 
 #### SEC-INPUT-03: `compressedPubKey` Used Without Format Validation [HIGH]
-- **File:** `src/XChainEncoder.js:418`
-- **Finding:** `Buffer.from(compressedPubKey, "hex")` is called with no length check (must be 33 bytes) or prefix check (must start with `02` or `03`). A malformed buffer may produce an invalid multisig script that bitcoinjs-lib silently accepts.
+- **File:** `src/XChainEncoder.js:418`  
+- **Finding:** `Buffer.from(compressedPubKey, "hex")` is called with no length check (must be 33 bytes) or prefix check (must start with `02` or `03`). A malformed buffer may produce an invalid multisig script that bitcoinjs-lib silently accepts.  
 - **Impact:** Malformed MULTISIGN transactions; potential fund loss if the multisig output becomes unspendable.
 
 #### SEC-INPUT-04: `encoding` Not Validated Against Allowed Enum [HIGH]
-- **File:** `src/XChainEncoder.js:70-172`
-- **Finding:** `prepareData()` has no `default` case in its `switch`. Unrecognized `encoding` values cause `prepareData` to return `null`. The caller at line 276 then dereferences `preparedData["dataBufferArray"]` on `null`, causing an uncaught `TypeError`.
+- **File:** `src/XChainEncoder.js:70-172`  
+- **Finding:** `prepareData()` has no `default` case in its `switch`. Unrecognized `encoding` values cause `prepareData` to return `null`. The caller at line 276 then dereferences `preparedData["dataBufferArray"]` on `null`, causing an uncaught `TypeError`.  
 - **Impact:** Unhandled crash; error message leaks internal code structure.
 
 #### SEC-INPUT-05: `customOutputs` Entries Not Validated [CRITICAL]
-- **File:** `src/XChainEncoder.js:447-456`
-- **Finding:** `output.address` is passed to `psbt.addOutput()` without address format validation. `parseInt(output.value)` has no NaN guard — if `value` is non-numeric, `NaN` propagates through all subsequent arithmetic (`outputSatoshis`, `changeSatoshis`), silently corrupting the entire fee and change calculation.
+- **File:** `src/XChainEncoder.js:447-456`  
+- **Finding:** `output.address` is passed to `psbt.addOutput()` without address format validation. `parseInt(output.value)` has no NaN guard — if `value` is non-numeric, `NaN` propagates through all subsequent arithmetic (`outputSatoshis`, `changeSatoshis`), silently corrupting the entire fee and change calculation.  
 - **Impact:** Silent transaction corruption; all change burned as fees (loss of funds); cross-network address injection.
 
 #### SEC-INPUT-06: `fee` Parameter Accepts Any Value [HIGH]
-- **File:** `src/XChainEncoder.js:463`
-- **Finding:** The explicit `fee` parameter bypasses the `maxFeePerBytes` cap entirely. A caller can supply `fee: 0` (stuck transaction), a negative number, or `NaN`. The dust floor check at line 517 does not catch `NaN` because `NaN < dustAmount` evaluates to `false`.
+- **File:** `src/XChainEncoder.js:463`  
+- **Finding:** The explicit `fee` parameter bypasses the `maxFeePerBytes` cap entirely. A caller can supply `fee: 0` (stuck transaction), a negative number, or `NaN`. The dust floor check at line 517 does not catch `NaN` because `NaN < dustAmount` evaluates to `false`.  
 - **Impact:** Fee manipulation — either zero-fee stuck transactions or excessive fees draining the wallet.
 
 #### SEC-INPUT-07: `dust` Parameter Not Range-Checked [MEDIUM]
-- **File:** `src/XChainEncoder.js:211-213`
-- **Finding:** `finalDust = dust` when truthy, with no type or range check. An astronomically large `dust` value forces all P2SH and MULTISIGN outputs to carry that amount, draining the sender. A `dust: 0` value is falsy and ignored (not applied), which is inconsistent.
+- **File:** `src/XChainEncoder.js:211-213`  
+- **Finding:** `finalDust = dust` when truthy, with no type or range check. An astronomically large `dust` value forces all P2SH and MULTISIGN outputs to carry that amount, draining the sender. A `dust: 0` value is falsy and ignored (not applied), which is inconsistent.  
 - **Impact:** Fund drain via inflated output values; inconsistent behavior at zero.
 
 #### SEC-INPUT-08: `feePerKb` Accepts Unbounded Values [MEDIUM]
-- **File:** `src/XChainEncoder.js:202-203`
-- **Finding:** `feePerBytes = feePerKb/1000` with no minimum or maximum. If `MAX_FEE_RATE_KB` is not configured at startup, the caller can supply `feePerKb: 0.000001` (stuck) or `feePerKb: 99999999` (drain).
+- **File:** `src/XChainEncoder.js:202-203`  
+- **Finding:** `feePerBytes = feePerKb/1000` with no minimum or maximum. If `MAX_FEE_RATE_KB` is not configured at startup, the caller can supply `feePerKb: 0.000001` (stuck) or `feePerKb: 99999999` (drain).  
 - **Impact:** Fee manipulation via uncapped fee rate parameter.
 
 #### SEC-INPUT-09: `p2shHex` Not Validated [HIGH]
-- **File:** `src/XChainEncoder.js:305, 364`
-- **Finding:** `Buffer.from(p2shHex, 'hex')` and `bitcoin.Transaction.fromHex(p2shHex)` called without format validation. Malformed hex produces truncated buffers or assertion failures with internal messages.
+- **File:** `src/XChainEncoder.js:305, 364`  
+- **Finding:** `Buffer.from(p2shHex, 'hex')` and `bitcoin.Transaction.fromHex(p2shHex)` called without format validation. Malformed hex produces truncated buffers or assertion failures with internal messages.  
 - **Impact:** Crash; information leakage through library assertion messages.
 
 #### SEC-INPUT-10: `utxos` Array Entries Not Structurally Validated [HIGH]
-- **File:** `src/XChainEncoder.js:243-268`
-- **Finding:** UTXO entries are iterated assuming `txid`, `vout`, `confirmations`, `value`, and `scriptPubKey` fields exist and are the correct type. Missing `scriptPubKey` causes `Buffer.from(undefined, 'hex')` producing an empty buffer. Missing `txid` causes `undefined` as a PSBT input hash.
+- **File:** `src/XChainEncoder.js:243-268`  
+- **Finding:** UTXO entries are iterated assuming `txid`, `vout`, `confirmations`, `value`, and `scriptPubKey` fields exist and are the correct type. Missing `scriptPubKey` causes `Buffer.from(undefined, 'hex')` producing an empty buffer. Missing `txid` causes `undefined` as a PSBT input hash.  
 - **Impact:** Malformed PSBTs; silent data corruption; potential crash.
 
 ---
@@ -196,23 +196,23 @@ Return { psbt, encode_type }
 ### 4.3 ACTION Format & Encoding Logic
 
 #### SEC-ACTION-01: No ACTION Parameter Validation [CRITICAL]
-- **File:** `src/XChainEncoder.js:216`
-- **Finding:** The encoder treats `data` as an opaque byte string. It never parses or validates the pipe-delimited ACTION format, VERSION field, required field count, field types, or reserved-character restrictions (pipes `|` in MEMO, semicolons `;` in BATCH sub-commands). Any byte sequence is encoded into a valid PSBT.
+- **File:** `src/XChainEncoder.js:216`  
+- **Finding:** The encoder treats `data` as an opaque byte string. It never parses or validates the pipe-delimited ACTION format, VERSION field, required field count, field types, or reserved-character restrictions (pipes `|` in MEMO, semicolons `;` in BATCH sub-commands). Any byte sequence is encoded into a valid PSBT.  
 - **Impact:** Syntactically invalid ACTIONs produce valid blockchain transactions that burn fees but are rejected by the indexer. Embedded pipe characters in freeform fields cause field-count drift in the decoder. BATCH payloads with embedded semicolons in MEMO fields could inject phantom sub-commands.
 
 #### SEC-ACTION-02: Cross-Chain ACTION Restrictions Not Enforced [MEDIUM]
-- **File:** `src/XChainEncoder.js`
-- **Finding:** STAKE, UNSTAKE, DELEGATE, REVOKE_DELEGATION, and CLAIM_REWARDS are protocol-restricted to BTC only. The encoder is configured with a `NETWORK` env var but never checks whether the ACTION type is legal for the configured network.
+- **File:** `src/XChainEncoder.js`  
+- **Finding:** STAKE, UNSTAKE, DELEGATE, REVOKE_DELEGATION, and CLAIM_REWARDS are protocol-restricted to BTC only. The encoder is configured with a `NETWORK` env var but never checks whether the ACTION type is legal for the configured network.  
 - **Impact:** Valid Dogecoin/Litecoin transactions carrying BTC-only ACTIONs; fees burned, decoder DB polluted with failed actions.
 
 #### SEC-ACTION-03: VERSION Field Never Parsed or Validated [HIGH]
-- **File:** `src/XChainEncoder.js:216`
-- **Finding:** Each ACTION type has version-specific field layouts (e.g., SEND v0 vs v2 have different field counts and meanings). The encoder never reads VERSION. A version-0 SEND with a version-2 layout will encode into a valid transaction carrying corrupt ACTION data.
+- **File:** `src/XChainEncoder.js:216`  
+- **Finding:** Each ACTION type has version-specific field layouts (e.g., SEND v0 vs v2 have different field counts and meanings). The encoder never reads VERSION. A version-0 SEND with a version-2 layout will encode into a valid transaction carrying corrupt ACTION data.  
 - **Impact:** Silent data corruption; indexer rejection or misparse of ACTION fields.
 
 #### SEC-ACTION-04: No Maximum Payload Size Guard [CRITICAL]
-- **File:** `src/XChainEncoder.js:80-169`
-- **Finding:** No upper bound on encoded data size. Megabytes of data submitted for P2WSH encoding (3615 bytes/chunk) produce an unbounded number of outputs in a single PSBT. The UTXO selection loop then tries to fund all outputs. This can exhaust memory and produce PSBTs that exceed node mempool policy limits.
+- **File:** `src/XChainEncoder.js:80-169`  
+- **Finding:** No upper bound on encoded data size. Megabytes of data submitted for P2WSH encoding (3615 bytes/chunk) produce an unbounded number of outputs in a single PSBT. The UTXO selection loop then tries to fund all outputs. This can exhaust memory and produce PSBTs that exceed node mempool policy limits.  
 - **Impact:** Memory exhaustion DoS; stuck oversized transactions; unlimited fee burn.
 
 ---
@@ -220,23 +220,23 @@ Return { psbt, encode_type }
 ### 4.4 PSBT Construction Integrity
 
 #### SEC-PSBT-01: P2WSH Path Missing Bounds Check on `p2shTx.outs` [HIGH]
-- **File:** `src/XChainEncoder.js:393-397`
-- **Finding:** `p2shTx["outs"][voutPsbtIndex]` is accessed without checking that the index exists. If `p2shHex` has fewer outputs than expected data chunks, dereferencing `undefined["script"]` throws an uncaught `TypeError`.
+- **File:** `src/XChainEncoder.js:393-397`  
+- **Finding:** `p2shTx["outs"][voutPsbtIndex]` is accessed without checking that the index exists. If `p2shHex` has fewer outputs than expected data chunks, dereferencing `undefined["script"]` throws an uncaught `TypeError`.  
 - **Impact:** Crash; error message leaks PSBT construction internals.
 
 #### SEC-PSBT-02: NaN `changeSatoshis` Silently Burns All Change as Fees [CRITICAL]
-- **File:** `src/XChainEncoder.js:527-531`
-- **Finding:** Change output is added only when `changeSatoshis > 0`. If any satoshi calculation was corrupted by NaN (from SEC-INPUT-05, SEC-INPUT-10), then `NaN > 0` is `false` — no change output is added and no error is thrown. The transaction silently assigns all unallocated input value to miner fees.
+- **File:** `src/XChainEncoder.js:527-531`  
+- **Finding:** Change output is added only when `changeSatoshis > 0`. If any satoshi calculation was corrupted by NaN (from SEC-INPUT-05, SEC-INPUT-10), then `NaN > 0` is `false` — no change output is added and no error is thrown. The transaction silently assigns all unallocated input value to miner fees.  
 - **Impact:** Complete loss of change funds; silent, undetectable by the caller.
 
 #### SEC-PSBT-03: `p2shHash`/`p2shHex` Mismatch Not Detected [HIGH]
-- **File:** `src/XChainEncoder.js:304-306`
-- **Finding:** If `p2shHex` represents a different transaction than `p2shHash`, the PSBT references `p2shHash` as the input TXID but uses the wrong redeem script and witness data from `p2shHex`. No cross-validation (`p2shTx.getId() === p2shHash`) is performed.
+- **File:** `src/XChainEncoder.js:304-306`  
+- **Finding:** If `p2shHex` represents a different transaction than `p2shHash`, the PSBT references `p2shHash` as the input TXID but uses the wrong redeem script and witness data from `p2shHex`. No cross-validation (`p2shTx.getId() === p2shHash`) is performed.  
 - **Impact:** Unbroadcastable or malformed transactions; potential fund lock in P2SH outputs that can never be spent.
 
 #### SEC-PSBT-04: Negative `changeSatoshis` Not Detected [MEDIUM]
-- **File:** `src/XChainEncoder.js:466-531`
-- **Finding:** If all UTXOs are exhausted without covering `outputSatoshis + estimatedFee`, `changeSatoshis` becomes negative. Since `negative > 0` is `false`, no change output is added and no error is thrown. The PSBT has inputs that do not cover outputs + fees.
+- **File:** `src/XChainEncoder.js:466-531`  
+- **Finding:** If all UTXOs are exhausted without covering `outputSatoshis + estimatedFee`, `changeSatoshis` becomes negative. Since `negative > 0` is `false`, no change output is added and no error is thrown. The PSBT has inputs that do not cover outputs + fees.  
 - **Impact:** Invalid transaction that will be rejected by the network; caller receives no error feedback.
 
 ---
@@ -244,28 +244,28 @@ Return { psbt, encode_type }
 ### 4.5 Fee Calculation & Integer Math
 
 #### SEC-FEE-01: Floating-Point Multiplication in Satoshi Arithmetic [MEDIUM]
-- **File:** `src/XChainEncoder.js:505`
-- **Finding:** `estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)` chains floating-point operations. `Math.trunc` always rounds down, systematically underestimating fees. For large transactions this can produce below-minimum-relay-fee results.
+- **File:** `src/XChainEncoder.js:505`  
+- **Finding:** `estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)` chains floating-point operations. `Math.trunc` always rounds down, systematically underestimating fees. For large transactions this can produce below-minimum-relay-fee results.  
 - **Impact:** Stuck transactions due to fee underestimation on large payloads.
 
 #### SEC-FEE-02: `parseInt` Without Radix on UTXO Values [MEDIUM]
-- **File:** `src/XChainEncoder.js:470`
-- **Finding:** `parseInt(nextUtxo.value)` without explicit radix. Strings starting with `"0x"` are parsed as hexadecimal. A malicious UTXO tracker response could supply hex-encoded values that parse to unexpected amounts.
+- **File:** `src/XChainEncoder.js:470`  
+- **Finding:** `parseInt(nextUtxo.value)` without explicit radix. Strings starting with `"0x"` are parsed as hexadecimal. A malicious UTXO tracker response could supply hex-encoded values that parse to unexpected amounts.  
 - **Impact:** Incorrect UTXO value interpretation; fee miscalculation.
 
 #### SEC-FEE-03: `parseInt(output.value)` NaN Propagation [CRITICAL]
-- **File:** `src/XChainEncoder.js:451, 453`
-- **Finding:** No `isNaN()` guard after `parseInt`. A single non-numeric custom output value corrupts `outputSatoshis` to `NaN`, which cascades to `changeSatoshis = NaN`, triggering SEC-PSBT-02 (silent change burn).
+- **File:** `src/XChainEncoder.js:451, 453`  
+- **Finding:** No `isNaN()` guard after `parseInt`. A single non-numeric custom output value corrupts `outputSatoshis` to `NaN`, which cascades to `changeSatoshis = NaN`, triggering SEC-PSBT-02 (silent change burn).  
 - **Impact:** Complete loss of change funds from a single malformed custom output.
 
 #### SEC-FEE-04: Explicit `fee` Parameter Bypasses `MAX_FEE_RATE_KB` Cap [HIGH]
-- **File:** `src/XChainEncoder.js:463`, `src/api.js:43`
-- **Finding:** The `maxFeePerBytes` cap only applies to the auto-estimated fee path. The explicit `fee` parameter is accepted verbatim with no upper bound.
+- **File:** `src/XChainEncoder.js:463`, `src/api.js:43`  
+- **Finding:** The `maxFeePerBytes` cap only applies to the auto-estimated fee path. The explicit `fee` parameter is accepted verbatim with no upper bound.  
 - **Impact:** Caller can set arbitrarily high fees, draining wallet funds to miner fees.
 
 #### SEC-FEE-05: Fee Estimate Wrong for Large `rawData` (>252 bytes) [MEDIUM]
-- **File:** `src/XChainEncoder.js:216-224`, `src/TxSizeEstimator.js`
-- **Finding:** `TxSizeEstimator.estimateOpReturnOutput` comment notes "this won't be precise if the scriptpubkey is greater than 252 bytes." Large `rawData` payloads via `bitcoin.script.compile` trigger `OP_PUSHDATA2` encoding (2-byte length prefix), but the size estimator does not account for this.
+- **File:** `src/XChainEncoder.js:216-224`, `src/TxSizeEstimator.js`  
+- **Finding:** `TxSizeEstimator.estimateOpReturnOutput` comment notes "this won't be precise if the scriptpubkey is greater than 252 bytes." Large `rawData` payloads via `bitcoin.script.compile` trigger `OP_PUSHDATA2` encoding (2-byte length prefix), but the size estimator does not account for this.  
 - **Impact:** Fee underestimation on FILE actions or other large-data ACTIONs.
 
 ---
@@ -273,23 +273,23 @@ Return { psbt, encode_type }
 ### 4.6 Obfuscation & Cryptographic Concerns
 
 #### SEC-CRYPTO-01: AES Key and IV Derived from Same Public TXID [MEDIUM]
-- **File:** `src/XChainEncoder.js:174-181`
-- **Finding:** The AES-128-CTR key is `txid.substr(0,16)` and IV is `txid.substr(16,16)` — both from the first input's TXID, which is public on the blockchain. Key and IV are not independent. Additionally, the "key" is 16 ASCII hex characters (effective entropy ~64 bits, not 128 bits).
+- **File:** `src/XChainEncoder.js:174-181`  
+- **Finding:** The AES-128-CTR key is `txid.substr(0,16)` and IV is `txid.substr(16,16)` — both from the first input's TXID, which is public on the blockchain. Key and IV are not independent. Additionally, the "key" is 16 ASCII hex characters (effective entropy ~64 bits, not 128 bits).  
 - **Impact:** No actual confidentiality. Anyone observing the blockchain can derive the key and deobfuscate the data. This is by design (obfuscation not encryption), but the security properties should be clearly documented so downstream consumers do not assume confidentiality.
 
 #### SEC-CRYPTO-02: AES-CTR Keystream Reuse on Same First-Input TXID [MEDIUM]
-- **File:** `src/XChainEncoder.js:174-181, 290`
-- **Finding:** If the same first-input TXID is reused across multiple `create_tx` calls (possible when the caller supplies UTXOs manually), the identical keystream is generated. XOR-recovery of plaintexts from two ciphertexts encrypted with the same CTR keystream is trivial.
+- **File:** `src/XChainEncoder.js:174-181, 290`  
+- **Finding:** If the same first-input TXID is reused across multiple `create_tx` calls (possible when the caller supplies UTXOs manually), the identical keystream is generated. XOR-recovery of plaintexts from two ciphertexts encrypted with the same CTR keystream is trivial.  
 - **Impact:** Complete deobfuscation of both messages if an attacker observes two transactions sharing the same first input TXID.
 
 #### SEC-CRYPTO-03: `dataToPubkey` Produces Invalid EC Points [LOW]
-- **File:** `src/XChainEncoder.js:186-194`
-- **Finding:** Prepends `0x02` to arbitrary data and zero-pads to 33 bytes. The resulting value is not a valid secp256k1 compressed public key for most inputs. While bitcoinjs-lib accepts it in `p2ms` construction, wallet software or hardware signers that validate public keys against the curve will reject the transaction.
+- **File:** `src/XChainEncoder.js:186-194`  
+- **Finding:** Prepends `0x02` to arbitrary data and zero-pads to 33 bytes. The resulting value is not a valid secp256k1 compressed public key for most inputs. While bitcoinjs-lib accepts it in `p2ms` construction, wallet software or hardware signers that validate public keys against the curve will reject the transaction.  
 - **Impact:** MULTISIGN-encoded transactions may be rejected by strict validators; known trade-off but undocumented as a compatibility risk.
 
 #### SEC-CRYPTO-04: `Buffer.allocUnsafe` in `dataToPubkey` [LOW]
-- **File:** `src/XChainEncoder.js:186-194`
-- **Finding:** `Buffer.allocUnsafe(32 - data.length)` is used for padding. The buffer is immediately filled with `0x00`, but if the fill ever fails partially (e.g., due to a future Node.js API change), uninitialized heap memory could leak into the transaction.
+- **File:** `src/XChainEncoder.js:186-194`  
+- **Finding:** `Buffer.allocUnsafe(32 - data.length)` is used for padding. The buffer is immediately filled with `0x00`, but if the fill ever fails partially (e.g., due to a future Node.js API change), uninitialized heap memory could leak into the transaction.  
 - **Impact:** Low probability; potential information leakage of heap contents into broadcast transactions.
 
 ---
@@ -297,28 +297,28 @@ Return { psbt, encode_type }
 ### 4.7 UTXO Handling
 
 #### SEC-UTXO-01: UTXO Tracker Response Trusted Without Validation [HIGH]
-- **File:** `src/UtxoTracker.js:56-62`, `src/XChainEncoder.js:234-238`
-- **Finding:** The response from the external xchain-utxo-tracker is used directly. No structural validation of UTXO objects. A compromised tracker could return manipulated `value`, incorrect `scriptPubKey`, or false `confirmations`.
+- **File:** `src/UtxoTracker.js:56-62`, `src/XChainEncoder.js:234-238`  
+- **Finding:** The response from the external xchain-utxo-tracker is used directly. No structural validation of UTXO objects. A compromised tracker could return manipulated `value`, incorrect `scriptPubKey`, or false `confirmations`.  
 - **Impact:** Transaction construction based on falsified UTXO data; incorrect fee calculations; potential fund loss.
 
 #### SEC-UTXO-02: UTXO Tracker Has No Authentication [MEDIUM]
-- **File:** `src/UtxoTracker.js:41-46`
-- **Finding:** HTTP requests to the UTXO tracker include no authentication header. Any process on the network that can intercept or impersonate the tracker can inject malicious UTXO data.
+- **File:** `src/UtxoTracker.js:41-46`  
+- **Finding:** HTTP requests to the UTXO tracker include no authentication header. Any process on the network that can intercept or impersonate the tracker can inject malicious UTXO data.  
 - **Impact:** Man-in-the-middle UTXO injection; transaction manipulation.
 
 #### SEC-UTXO-03: `scriptPubKey` Not Validated Before Buffer Conversion [MEDIUM]
-- **File:** `src/XChainEncoder.js:482`
-- **Finding:** `Buffer.from(utxo.scriptPubKey, 'hex')` called without checking the field is a non-empty, even-length hex string. Non-hex or odd-length values silently produce truncated or empty buffers.
+- **File:** `src/XChainEncoder.js:482`  
+- **Finding:** `Buffer.from(utxo.scriptPubKey, 'hex')` called without checking the field is a non-empty, even-length hex string. Non-hex or odd-length values silently produce truncated or empty buffers.  
 - **Impact:** Malformed witness scripts in PSBT inputs; potentially unspendable outputs.
 
 #### SEC-UTXO-04: Caller Controls AES Key via UTXO Order [MEDIUM]
-- **File:** `src/XChainEncoder.js:269`
-- **Finding:** `txidFirstInput = utxos[0]["txid"]` is set after sorting by value (largest first). A caller supplying UTXOs manually controls which TXID becomes the AES key/IV. Combined with SEC-CRYPTO-02, this enables chosen-key attacks on the obfuscation.
+- **File:** `src/XChainEncoder.js:269`  
+- **Finding:** `txidFirstInput = utxos[0]["txid"]` is set after sorting by value (largest first). A caller supplying UTXOs manually controls which TXID becomes the AES key/IV. Combined with SEC-CRYPTO-02, this enables chosen-key attacks on the obfuscation.  
 - **Impact:** Attacker-controlled obfuscation key; complete control over the "encrypted" output.
 
 #### SEC-UTXO-05: O(n^2) Deduplication Loop [LOW]
-- **File:** `src/XChainEncoder.js:243-265`
-- **Finding:** Nested while loop with `splice` for deduplication. O(n^2) for large UTXO lists and mutates the array during iteration.
+- **File:** `src/XChainEncoder.js:243-265`  
+- **Finding:** Nested while loop with `splice` for deduplication. O(n^2) for large UTXO lists and mutates the array during iteration.  
 - **Impact:** Denial-of-service via API with thousands of duplicate UTXOs.
 
 ---
@@ -326,23 +326,23 @@ Return { psbt, encode_type }
 ### 4.8 Error Handling & Information Leakage
 
 #### SEC-ERR-01: Raw Library Exceptions Propagate to API Callers [HIGH]
-- **File:** `src/XChainEncoder.js` (throughout)
-- **Finding:** No `try/catch` blocks in `createTransaction`. All exceptions from bitcoinjs-lib (`psbt.addInput`, `psbt.addOutput`, `bitcoin.address.fromBase58Check`, `bitcoin.Transaction.fromHex`) propagate unhandled to `express-json-rpc-router`, which serializes them to the caller. Error messages may contain internal file paths, stack traces, or parameter values.
+- **File:** `src/XChainEncoder.js` (throughout)  
+- **Finding:** No `try/catch` blocks in `createTransaction`. All exceptions from bitcoinjs-lib (`psbt.addInput`, `psbt.addOutput`, `bitcoin.address.fromBase58Check`, `bitcoin.Transaction.fromHex`) propagate unhandled to `express-json-rpc-router`, which serializes them to the caller. Error messages may contain internal file paths, stack traces, or parameter values.  
 - **Impact:** Information disclosure of internal architecture, library versions, and code paths.
 
 #### SEC-ERR-02: `BlockchainConnector` Logs and Re-Throws Full Error Objects [MEDIUM]
-- **File:** `src/BlockchainConnector.js:146-148`
-- **Finding:** `console.error('Error:', error.message)` followed by `throw error`. The original error object may contain the full HTTP response body from the coin daemon. While credentials are in headers (not URL), internal node addresses are leaked.
+- **File:** `src/BlockchainConnector.js:146-148`  
+- **Finding:** `console.error('Error:', error.message)` followed by `throw error`. The original error object may contain the full HTTP response body from the coin daemon. While credentials are in headers (not URL), internal node addresses are leaked.  
 - **Impact:** Information disclosure of internal infrastructure topology.
 
 #### SEC-ERR-03: Change Amount Leaked in Error Message [LOW]
-- **File:** `src/XChainEncoder.js:524`
-- **Finding:** `throw new Error(\`Transaction would burn ${changeSatoshis} satoshis as fees.\`)` reveals the exact change amount to the caller, disclosing how much the sender's wallet holds beyond the outputs.
+- **File:** `src/XChainEncoder.js:524`  
+- **Finding:** `throw new Error(\`Transaction would burn ${changeSatoshis} satoshis as fees.\`)` reveals the exact change amount to the caller, disclosing how much the sender's wallet holds beyond the outputs.  
 - **Impact:** Wallet balance information disclosure in multi-party or custodial deployments.
 
 #### SEC-ERR-04: `CryptoNetworks` Crash on Unknown Network [LOW]
-- **File:** `src/CryptoNetworks.js:26-109`
-- **Finding:** `getBitcoinJsNetwork` has no `default` case. An unrecognized `NETWORK` env var causes the constructor to dereference `undefined["dustThreshold"]`, crashing the entire API process at startup.
+- **File:** `src/CryptoNetworks.js:26-109`  
+- **Finding:** `getBitcoinJsNetwork` has no `default` case. An unrecognized `NETWORK` env var causes the constructor to dereference `undefined["dustThreshold"]`, crashing the entire API process at startup.  
 - **Impact:** Denial-of-service via misconfiguration; no graceful error message.
 
 ---
@@ -350,7 +350,7 @@ Return { psbt, encode_type }
 ### 4.9 Dependency Security
 
 #### SEC-DEP-01: `bitcoin-core` Depends on Deprecated `request` Package [HIGH]
-- **Vulnerability chain:** `bitcoin-core@4.2.0` -> `@uphold/request-logger@2.0.0` -> `request@2.88.2`
+- **Vulnerability chain:** `bitcoin-core@4.2.0` -> `@uphold/request-logger@2.0.0` -> `request@2.88.2`  
 - **CVEs via `request`:**
   - `form-data@2.3.3` — **CRITICAL**: Unsafe random boundary generation (GHSA-fjxv-7rqg-78g4)
   - `qs` (old) — **MODERATE**: arrayLimit bypass enables DoS via memory exhaustion (GHSA-6rw7-vpxm-498p)
@@ -358,8 +358,8 @@ Return { psbt, encode_type }
 - **Fix status:** No fix available — `request` is deprecated. Requires replacing `bitcoin-core` with a modern RPC client.
 
 #### SEC-DEP-02: Browserify Chain Includes Vulnerable `elliptic` [MEDIUM]
-- **Vulnerability chain:** `browserify@17.0.1` -> `crypto-browserify@3.12.1` -> `browserify-sign@4.2.5` -> `elliptic@6.6.1`
-- **CVE:** GHSA-848j-6mx2-7j84 — Risky cryptographic implementation
+- **Vulnerability chain:** `browserify@17.0.1` -> `crypto-browserify@3.12.1` -> `browserify-sign@4.2.5` -> `elliptic@6.6.1`  
+- **CVE:** GHSA-848j-6mx2-7j84 — Risky cryptographic implementation  
 - **Impact:** Affects the browser bundle only (`dist/xchain_encoder.min.js`). The Node.js API server uses built-in `crypto`, not `elliptic`.
 
 #### SEC-DEP-03: Core Crypto Dependencies Are Current [INFORMATIONAL]
@@ -371,18 +371,18 @@ Return { psbt, encode_type }
 ### 4.10 Network & Cross-Chain Risks
 
 #### SEC-NET-01: Dogecoin Configs Missing `bech32` Field [MEDIUM]
-- **File:** `src/CryptoNetworks.js:35-70`
-- **Finding:** `dogecoin-mainnet`, `dogecoin-testnet`, and `dogecoin-regtest` network objects lack a `bech32` field. P2WSH encoding on Dogecoin will cause bitcoinjs-lib to either throw or silently fall back to Bitcoin's bech32 HRP (`bc1`), producing invalid addresses.
+- **File:** `src/CryptoNetworks.js:35-70`  
+- **Finding:** `dogecoin-mainnet`, `dogecoin-testnet`, and `dogecoin-regtest` network objects lack a `bech32` field. P2WSH encoding on Dogecoin will cause bitcoinjs-lib to either throw or silently fall back to Bitcoin's bech32 HRP (`bc1`), producing invalid addresses.  
 - **Impact:** P2WSH transactions on Dogecoin produce Bitcoin-format bech32 addresses; funds sent to these addresses are unrecoverable on Dogecoin.
 
 #### SEC-NET-02: Dogecoin Regtest/Testnet Share Identical Network Params [LOW]
-- **File:** `src/CryptoNetworks.js:47-70`
-- **Finding:** Both environments use `pubKeyHash: 0x71`, `scriptHash: 0xc4`, `wif: 0xf1`. Addresses are indistinguishable, preventing environment separation.
+- **File:** `src/CryptoNetworks.js:47-70`  
+- **Finding:** Both environments use `pubKeyHash: 0x71`, `scriptHash: 0xc4`, `wif: 0xf1`. Addresses are indistinguishable, preventing environment separation.  
 - **Impact:** Accidental cross-environment transaction submission; no address-level safety net.
 
 #### SEC-NET-03: P2WSH Chunk Size Hardcoded Against Library Limit [LOW]
-- **File:** `src/XChainEncoder.js:33`
-- **Finding:** `PW2SH_SIZE = 3615` is derived from bitcoinjs-lib's internal 3600-byte redeem script limit, not Bitcoin consensus (10,000 bytes for witness scripts). If the library is upgraded and this limit changes, the constant silently becomes wrong.
+- **File:** `src/XChainEncoder.js:33`  
+- **Finding:** `PW2SH_SIZE = 3615` is derived from bitcoinjs-lib's internal 3600-byte redeem script limit, not Bitcoin consensus (10,000 bytes for witness scripts). If the library is upgraded and this limit changes, the constant silently becomes wrong.  
 - **Impact:** Encoding failures or oversized scripts after library upgrades.
 
 ---

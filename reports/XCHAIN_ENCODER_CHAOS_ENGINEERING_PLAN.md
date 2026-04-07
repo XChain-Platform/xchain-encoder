@@ -767,8 +767,8 @@ Each experiment follows the **Steady State → Inject → Observe → Verify →
 
 ### 6.1 Development Workflow
 
-- **Pre-merge:** Run Phase 1 experiments (critical safety) as part of the test suite for any PR touching `createTransaction()`, `prepareData()`, `obfuscate()`, or fee calculation logic.
-- **Post-refactor:** Run full chaos suite after any significant refactor of the encoding pipeline.
+- **Pre-merge:** Run Phase 1 experiments (critical safety) as part of the test suite for any PR touching `createTransaction()`, `prepareData()`, `obfuscate()`, or fee calculation logic.  
+- **Post-refactor:** Run full chaos suite after any significant refactor of the encoding pipeline.  
 - **Dependency upgrade:** Run Category C experiments (library failures) after any `bitcoinjs-lib` or Node.js crypto update.
 
 ### 6.2 CI Integration
@@ -803,12 +803,12 @@ Each experiment produces a finding:
 ```markdown
 ### [ID] Experiment Name
 
-**Status:** PASS | FAIL | UNEXPECTED
-**Fault Injected:** [description]
-**Observed Behavior:** [what actually happened]
-**Expected Behavior:** [what should have happened]
-**Impact:** [crash / fund loss / data corruption / degraded performance / none]
-**Severity:** CRITICAL | HIGH | MEDIUM | LOW
+**Status:** PASS | FAIL | UNEXPECTED  
+**Fault Injected:** [description]  
+**Observed Behavior:** [what actually happened]  
+**Expected Behavior:** [what should have happened]  
+**Impact:** [crash / fund loss / data corruption / degraded performance / none]  
+**Severity:** CRITICAL | HIGH | MEDIUM | LOW  
 **Recommendation:** [defensive fix or monitoring improvement]
 ```
 

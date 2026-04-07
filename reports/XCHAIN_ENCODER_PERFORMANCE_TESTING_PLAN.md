@@ -245,8 +245,8 @@ For API-level tests (k6), run the encoder server with mocked dependencies behind
 
 ### 6.1 Local Development
 
-- **Quick benchmark:** `npm run bench` -- runs BASE-01 through BASE-05 (< 30 seconds). Developers run this before committing changes to encoding logic.
-- **Full benchmark:** `npm run bench:full` -- runs all BASE-* and CPLX-* scenarios (< 5 minutes).
+- **Quick benchmark:** `npm run bench` -- runs BASE-01 through BASE-05 (< 30 seconds). Developers run this before committing changes to encoding logic.  
+- **Full benchmark:** `npm run bench:full` -- runs all BASE-* and CPLX-* scenarios (< 5 minutes).  
 - **Profiling:** `npm run profile` -- runs SUST-02 with Clinic.js Doctor attached, outputs HTML report.
 
 ### 6.2 CI Pipeline Integration
@@ -297,8 +297,8 @@ Each performance test run produces a JSON results file:
 
 ### 7.2 Tracking & Visualization
 
-- **Trend dashboard:** Plot p50/p95/p99 latency per scenario over time (by git SHA). Use Grafana if available, otherwise a simple HTML chart generated from JSON results.
-- **Regression detection:** Compare each CI run against the rolling 7-day average. Alert on >20% regression.
+- **Trend dashboard:** Plot p50/p95/p99 latency per scenario over time (by git SHA). Use Grafana if available, otherwise a simple HTML chart generated from JSON results.  
+- **Regression detection:** Compare each CI run against the rolling 7-day average. Alert on >20% regression.  
 - **Bottleneck heatmap:** After profiling runs, generate a table showing time spent in each processing step (validation, fee fetch, dedup, prepareData, obfuscate, output gen, input selection, change calc, serialization) as percentage of total.
 
 ### 7.3 Bottleneck Identification Priority
@@ -332,9 +332,9 @@ Based on architectural analysis, these are the most likely optimization targets 
 ### 8.2 Parameterized Test Matrix
 
 The benchmark harness should support a parameterized matrix combining:
-- **Encoding type:** OP_RETURN, P2SH, P2WSH, MULTISIGN
-- **Payload size:** minimal, medium, maximum
-- **UTXO count:** 1, 10, 50, 500
+- **Encoding type:** OP_RETURN, P2SH, P2WSH, MULTISIGN  
+- **Payload size:** minimal, medium, maximum  
+- **UTXO count:** 1, 10, 50, 500  
 - **UTXO type:** all-SegWit, all-legacy, mixed
 
 This produces 4 x 3 x 4 x 3 = 144 combinations for comprehensive coverage. The CI subset should cover the 12 most representative combinations (one per encoding x payload size, with mixed UTXOs).

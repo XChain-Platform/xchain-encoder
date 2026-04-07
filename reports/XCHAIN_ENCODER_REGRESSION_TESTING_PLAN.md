@@ -1,7 +1,7 @@
 # XChain Encoder: Regression Testing Plan
 
-**Date:** 2026-04-03
-**Component:** xchain-encoder
+**Date:** 2026-04-03  
+**Component:** xchain-encoder  
 **Scope:** Strategy for building and maintaining a comprehensive regression test suite that prevents code changes from breaking existing, stable encoder functionality
 
 ---

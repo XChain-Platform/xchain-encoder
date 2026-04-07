@@ -1,7 +1,7 @@
 # XChain Encoder: End-to-End Testing Plan
 
-**Date:** 2026-04-02
-**Component:** xchain-encoder
+**Date:** 2026-04-02  
+**Component:** xchain-encoder  
 **Scope:** Full pipeline validation from ACTION configuration input to broadcastable PSBT output
 
 ---

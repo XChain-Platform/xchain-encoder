@@ -325,9 +325,9 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 
 ### Phase 1: XChainEncoder.js Core Logic (Week 1)
 
-**Scope:** Mutate only `src/XChainEncoder.js`
-**Test Suite:** unit + integration + boundary + chaos
-**Expected Mutants:** ~98
+**Scope:** Mutate only `src/XChainEncoder.js`  
+**Test Suite:** unit + integration + boundary + chaos  
+**Expected Mutants:** ~98  
 **Estimated Runtime:** ~3 minutes (4 parallel workers, ~30ms per mutant)
 
 **Focus Areas:**
@@ -347,9 +347,9 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 
 ### Phase 2: validator.js (Week 2)
 
-**Scope:** `src/validator.js`
-**Test Suite:** integration + boundary + chaos
-**Expected Mutants:** ~52
+**Scope:** `src/validator.js`  
+**Test Suite:** integration + boundary + chaos  
+**Expected Mutants:** ~52  
 **Estimated Runtime:** ~2 minutes
 
 **Focus Areas:**
@@ -362,9 +362,9 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 
 ### Phase 3: TxSizeEstimator.js (Week 2)
 
-**Scope:** `src/TxSizeEstimator.js`
-**Test Suite:** unit + integration + boundary
-**Expected Mutants:** ~18
+**Scope:** `src/TxSizeEstimator.js`  
+**Test Suite:** unit + integration + boundary  
+**Expected Mutants:** ~18  
 **Estimated Runtime:** ~1 minute
 
 **Focus Areas:**
@@ -376,8 +376,8 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 
 ### Phase 4: CryptoNetworks.js + api.js (Week 3)
 
-**Scope:** `src/CryptoNetworks.js`, `src/api.js`
-**Test Suite:** unit + integration + chaos
+**Scope:** `src/CryptoNetworks.js`, `src/api.js`  
+**Test Suite:** unit + integration + chaos  
 **Expected Mutants:** ~19 (12 + 7)
 
 **Focus Areas:**
@@ -389,8 +389,8 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 
 ### Phase 5: Full Codebase Run + Regression Gate (Week 4)
 
-**Scope:** All 4 mutated files simultaneously
-**Test Suite:** Full (unit + integration + boundary + chaos)
+**Scope:** All 4 mutated files simultaneously  
+**Test Suite:** Full (unit + integration + boundary + chaos)  
 **Purpose:** Establish the project-wide mutation score as a CI gate
 
 ---
@@ -452,8 +452,8 @@ For each surviving mutant:
 
 ### 9.3 Example Survivor → Test Improvement
 
-**Survivor**: `SATOSHI_UNIT = 100000000` mutated to `10000000` (line 37)
-**Analysis**: Fee calculation test checks `impliedFee >= BTC_DUST` but doesn't assert an exact fee value. With SATOSHI_UNIT divided by 10, fee is 10× lower but still ≥ 546 (dust threshold).
+**Survivor**: `SATOSHI_UNIT = 100000000` mutated to `10000000` (line 37)  
+**Analysis**: Fee calculation test checks `impliedFee >= BTC_DUST` but doesn't assert an exact fee value. With SATOSHI_UNIT divided by 10, fee is 10× lower but still ≥ 546 (dust threshold).  
 **Fix**: Add assertion: `assert.ok(impliedFee > 1000, 'fee should be reasonable for this tx size')` or better: compute expected fee from known tx size and assert within ±10%.
 
 ### 9.4 Trend Tracking
