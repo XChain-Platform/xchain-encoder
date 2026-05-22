@@ -28,6 +28,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Multi-chain support** — Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee** — optional RBF signaling via sequence number
 - **Custom outputs** — arbitrary address/value outputs (e.g., COINPay native coin payments)
+- **Token-gated content support** — encodes [FILE v1](https://github.com/XChain-platform/xchain-documentation/blob/master/protocol/actions/FILE.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API** — Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Browser bundle** — Browserify build for client-side PSBT generation without a server
 - **769+ tests** — unit, integration, e2e, boundary, chaos, mutation, regression, smoke, performance
