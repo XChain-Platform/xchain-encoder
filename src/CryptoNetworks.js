@@ -58,15 +58,19 @@ class CryptoNetworks {
                     "supportsSegwit": false
                 }
             case "dogecoin-regtest":
+                // Dogecoin v1.14.x regtest reuses Bitcoin-testnet prefixes
+                // (pubKeyHash 0x6f, WIF 0xef, bip32 0x043587cf/0x04358394).
+                // NOT Dogecoin-testnet prefixes (0x71/0xf1) — encoder would
+                // produce addresses the running node treats as invalid.
                 return {
                     "messagePrefix": '\x19Dogecoin Signed Message:\n',
                     "bip32": {
-                       "public": 0x0432a9a8,
-                       "private": 0x0432a243
+                       "public": 0x043587cf,
+                       "private": 0x04358394
                     },
-                    "pubKeyHash": 0x71,
+                    "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
-                    "wif": 0xf1,
+                    "wif": 0xef,
                     "dustThreshold": 546,
                     "supportsSegwit": false
                 }
