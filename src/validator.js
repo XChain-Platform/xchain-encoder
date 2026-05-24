@@ -52,7 +52,9 @@ function validateCombinedDataLength(data, rawData) {
     if (data == null) return
     let total = Buffer.byteLength(data, 'utf8')
     if (rawData != null) {
-        total += Buffer.byteLength(rawData, 'utf8')
+        // Match XChainEncoder.js — rawData is bytes-as-string (Latin-1), so the
+        // on-chain byte count is the string length, not the UTF-8 encoding length.
+        total += Buffer.byteLength(rawData, 'binary')
     }
     if (total > MAX_DATA_BYTES) {
         throw new RangeError(`Combined data payload (${total} bytes) exceeds maximum (${MAX_DATA_BYTES})`)

@@ -224,7 +224,11 @@ class XChainEncoder {
         let dataToCompile = [dataBuffer]
         
         if (rawData != null){
-            let rawDataBuffer = Buffer.from(rawData, 'utf8')
+            // 'binary' (Latin-1) preserves bytes 0-255 one-to-one. 'utf8' would
+            // corrupt arbitrary binary payloads (e.g. AES-GCM ciphertext for
+            // token-gated FILEs). Existing ASCII callers like base64-encoded
+            // file bytes are byte-identical under both encodings.
+            let rawDataBuffer = Buffer.from(rawData, 'binary')
             dataToCompile.push(rawDataBuffer)
         }
         
