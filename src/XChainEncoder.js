@@ -283,6 +283,13 @@ class XChainEncoder {
             }
         }
 
+        //If unconfirmed=false stripped every mempool UTXO and nothing
+        //confirmed remains, surface the same error as a never-funded
+        //address rather than crashing on utxos[0] below.
+        if (utxos.length == 0){
+            throw new Error("no utxos were provided and no utxos found on the blockchain")
+        }
+
         //Order the utxos from the biggest value to the smallest
         utxos.sort((a,b)=> b.value - a.value)
         let txidFirstInput = utxos[0]["txid"] //The first utxo will always be used as the first input
