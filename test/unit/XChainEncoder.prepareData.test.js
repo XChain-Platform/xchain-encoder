@@ -218,21 +218,56 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(result.dataBufferArray.length, 2)
     })
 
-    it('preserves all data across chunks', () => {
+    it('preserves all data across chunks (trailing pad is stripped on read)', () => {
       const data = Buffer.alloc(200, 0)
       for (let i = 0; i < data.length; i++) data[i] = i % 256
       const result = encoder.prepareData(data, 'MULTISIGN', null)
 
+      // Each chunk is now zero-padded to a full 64-byte slot, so the final
+      // chunk carries trailing pad after the real data. The reader recovers the
+      // original payload via the compiled-script's self-describing length, so
+      // here we assert the magic-stripped concatenation STARTS WITH the data
+      // and the remainder is zero padding only.
       const reassembled = Buffer.concat(
         result.dataBufferArray.map(c => c.subarray(MAGIC_LEN))
       )
-      assert.deepStrictEqual(reassembled, data)
+      assert.deepStrictEqual(reassembled.subarray(0, data.length), data)
+      assert.ok(reassembled.subarray(data.length).every(b => b === 0),
+        'bytes after the payload must be zero padding')
     })
 
     it('pubKey is not used (null pubKey works)', () => {
       const data = Buffer.from('test')
       const result = encoder.prepareData(data, 'MULTISIGN', null)
       assert.ok(result)
+    })
+
+    // ── Regression: multi-chunk last-chunk sizing ──────────────────
+    // Every MULTISIGN output splits its 64 data bytes across two 32-byte
+    // pubkey halves. A short final chunk used to leave the second half empty
+    // or near-empty, so dataToPubkey() produced an all-zero / low-entropy EC
+    // point that bitcoinjs-lib rejected ("Expected property 'pubkeys.1' of
+    // type isPoint"). The encoder now zero-pads every chunk to a full 64-byte
+    // slot, so both halves are always complete 32-byte values. These cases
+    // exercise the previously-failing remainders.
+    describe('regression: every chunk fills the full 64-byte slot', () => {
+      const cases = [
+        { compiled: 61,  chunks: 2, note: '1 data byte in last chunk (first multi-chunk boundary)' },
+        { compiled: 88,  chunks: 2, note: 'last chunk = magic(4) + 28 = 32 bytes (pubkey2 would be empty before fix)' },
+        { compiled: 120, chunks: 2, note: 'exact multiple of 60 — baseline, both chunks already full' }
+      ]
+      for (const { compiled, chunks, note } of cases) {
+        it(`compiled=${compiled}: ${note}`, () => {
+          const data = Buffer.alloc(compiled, 0xAB)
+          const result = encoder.prepareData(data, 'MULTISIGN', null)
+          assert.strictEqual(result.dataBufferArray.length, chunks,
+            `compiled=${compiled} should produce ${chunks} chunks`)
+          for (const chunk of result.dataBufferArray) {
+            assert.strictEqual(chunk.length, 64,
+              `every chunk must be a full 64-byte slot, got ${chunk.length}`)
+          }
+        })
+      }
     })
   })
 

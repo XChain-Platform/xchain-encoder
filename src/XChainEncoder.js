@@ -158,13 +158,30 @@ class XChainEncoder {
                     - 1 //1 byte for the first address length
                     - 1 //1 byte for the second address length
                 
+                // Each MULTISIGN output carries its data across two 32-byte
+                // pubkey halves (64 data bytes total). A full chunk is already
+                // magic(4) + 60 = 64 bytes, but the final chunk is shorter.
+                // Zero-pad every chunk up to the full 64-byte slot so BOTH
+                // pubkey halves are always complete 32-byte values. Without
+                // this, a short final chunk leaves the second half empty (or
+                // near-empty); dataToPubkey() then produces an all-zero /
+                // low-entropy EC point that bitcoinjs-lib rejects as not a
+                // valid point. The reader strips this trailing pad using the
+                // payload's own self-describing compiled-script length, so the
+                // padding is invisible end-to-end.
+                let multisignSlotSize = 64
+
                 i = 0
                 while (i < data.length){
                     nextDataChunk = data.subarray(i,i+chunksSize)
-                    dataBufferArray.push(Buffer.concat([magicWordBuffer,nextDataChunk]))
+                    let nextChunk = Buffer.concat([magicWordBuffer,nextDataChunk])
+                    if (nextChunk.length < multisignSlotSize){
+                        nextChunk = Buffer.concat([nextChunk, Buffer.alloc(multisignSlotSize - nextChunk.length, 0)])
+                    }
+                    dataBufferArray.push(nextChunk)
                     i = i + nextDataChunk.length
                 }
-                
+
                 return {"dataBufferArray":dataBufferArray, "encoding": encoding}
             default:
                 throw new TypeError(`Unknown encoding: "${encoding}". Valid values: OP_RETURN, P2SH, MULTISIGN, P2WSH`)

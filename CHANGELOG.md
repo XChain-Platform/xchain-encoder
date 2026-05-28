@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.4] - 2026-05-28
+
+### Fixed
+- Multi-chunk `MULTISIGN` encoding now zero-pads every chunk to a full 64-byte slot before splitting it across the two data-carrying pubkey halves. Previously a short final chunk left the second 32-byte half empty or near-empty, which produced an all-zero / low-entropy point that `bitcoinjs-lib` rejected (`Expected property 'pubkeys.1' of type isPoint`) — breaking any `MULTISIGN` payload whose compiled size was not an exact multiple of 60. The reader already recovers the original payload via the compiled script's self-describing length, so the trailing pad is invisible end-to-end and no decoder change is required.
+
 ## [1.6.3] - 2026-05-28
 
 ### Security
