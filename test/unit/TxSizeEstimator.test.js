@@ -45,19 +45,45 @@ describe('TxSizeEstimator', () => {
   })
 
   describe('.estimateP2shInputWithRedeem(redeemData)', () => {
-    it('returns 115 + redeemData.length for empty redeem', () => {
+    // Estimate breakdown:
+    //   40 outpoint+sequence + scriptSig-varint + scriptSig
+    //   scriptSig = 73 (1-byte opcode + 72-byte sig) + redeemPush + redeem
+    //   redeemPush = 1  (<76 bytes), 2 (76..255), or 3 (256..65535)
+    //   scriptSig-varint = 1 if scriptSig <253, else 3
+
+    it('returns 115 for empty redeem (scriptSig=74, varint=1)', () => {
       const redeem = Buffer.alloc(0)
       assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 115)
     })
 
-    it('returns 115 + redeemData.length for 476-byte redeem', () => {
+    it('returns 595 for 476-byte redeem (PUSHDATA2, varint=3)', () => {
       const redeem = Buffer.alloc(476)
-      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 591)
+      // 40 + 3 + (73 + 3 + 476) = 40 + 3 + 552 = 595
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 595)
     })
 
     it('returns 116 for a 1-byte redeem script', () => {
       const redeem = Buffer.from([0x01])
       assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 116)
+    })
+
+    it('uses OP_PUSHDATA1 (2-byte push) at redeem 76 bytes', () => {
+      const redeem = Buffer.alloc(76)
+      // 40 + 1 + (73 + 2 + 76) = 40 + 1 + 151 = 192
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 192)
+    })
+
+    it('uses OP_PUSHDATA2 (3-byte push) at redeem 256 bytes', () => {
+      const redeem = Buffer.alloc(256)
+      // scriptSig = 73 + 3 + 256 = 332 → scriptSig-varint = 3
+      // 40 + 3 + 332 = 375
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 375)
+    })
+
+    it('uses 3-byte scriptSig varint when total scriptSig >= 253', () => {
+      // 178-byte redeem → scriptSig = 73 + 2 + 178 = 253 → varint widens to 3
+      const redeem = Buffer.alloc(178)
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 40 + 3 + 253)
     })
   })
 

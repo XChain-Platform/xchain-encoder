@@ -42,10 +42,20 @@ class TxSizeEstimator {
     }
     
     static estimateP2shInputWithRedeem(redeemData){
-        return 41 +//overhead: Outpoint + Sequence + Flag de Longitud del ScriptSig
-        2 +//two push flags
-        72 +//one sign
-        redeemData.length
+        // Outpoint (32 txid + 4 vout) + sequence (4) = 40 bytes
+        // ScriptSig length varint: 1 byte for ScriptSig <253 bytes, 3 bytes for 253..65535
+        // ScriptSig contents:
+        //   - sig push: 1-byte opcode + 72 bytes (sig + sighash)
+        //   - redeem script push: 1 byte for <76, 2 bytes (OP_PUSHDATA1) for 76..255,
+        //                         3 bytes (OP_PUSHDATA2) for 256..65535
+        //   - redeem script bytes
+        let sigPush      = 1 + 72                                   // 73
+        let redeemPush   = redeemData.length < 76   ? 1
+                         : redeemData.length < 256  ? 2
+                         :                            3
+        let scriptSig    = sigPush + redeemPush + redeemData.length
+        let scriptVarint = scriptSig < 253 ? 1 : 3
+        return 40 + scriptVarint + scriptSig
     }
     
     // Estimates the final vSize of a UTXO

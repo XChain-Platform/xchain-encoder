@@ -642,7 +642,7 @@ describe('XChainEncoder.createTransaction()', () => {
   // ── estimateSpendingP2shTx ───────────────────────────────────────
 
   describe('estimateSpendingP2shTx()', () => {
-    it('returns correct formula: 10 + P2SH input estimate + OP_RETURN estimate', () => {
+    it('returns 10 + P2SH input + OP_RETURN + 32-byte safety margin', () => {
       const encoder = makeEncoder()
       const TxSizeEstimator = require('../../src/TxSizeEstimator')
       const redeemData = Buffer.alloc(200, 0xAA)
@@ -652,16 +652,20 @@ describe('XChainEncoder.createTransaction()', () => {
         + TxSizeEstimator.estimateOpReturnOutput(
             Buffer.concat([Buffer.from('XCHN'), Buffer.from('p2sh')])
           )
+        + 32 // safety margin for sig + varint jitter
 
       assert.strictEqual(encoder.estimateSpendingP2shTx(redeemData), expected)
     })
 
-    it('increases proportionally with redeem data size', () => {
+    it('increases monotonically with redeem data size', () => {
       const encoder = makeEncoder()
       const small = encoder.estimateSpendingP2shTx(Buffer.alloc(100))
       const large = encoder.estimateSpendingP2shTx(Buffer.alloc(400))
       assert.ok(large > small)
-      assert.strictEqual(large - small, 300) // difference is exactly the data size delta
+      // Delta is at least the raw data delta (300); the larger redeem may
+      // cross the OP_PUSHDATA2 (256) and scriptSig-varint (253) boundaries,
+      // each adding bytes — so we assert monotonicity, not exact equality.
+      assert.ok(large - small >= 300)
     })
   })
 })
