@@ -1,7 +1,7 @@
 {
   "name": "xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
@@ -50,6 +50,7 @@
     "mutate:quick": "npx stryker run test/mutation/stryker.conf.quick.json"
   },
   "overrides": {
+    "qs": "^6.15.2",
     "serialize-javascript": "^7.0.5",
     "diff": "^8.0.3",
     "tmp": "^0.2.7",
