@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.6] - 2026-05-29
+
+### Changed
+- `getFirstBlock()` for `bitcoin-mainnet` now returns `900000` instead of `844000`, matching the decoder's mainnet ingest floor. The two services must agree on the first block scanned on mainnet; they previously disagreed by 56,000 blocks, which would have left the encoder treating a range as in-scope that the decoder never ingests. Pre-launch change with no effect on already-encoded data.
+
 ## [1.6.5] - 2026-05-28
 
 ### Fixed
