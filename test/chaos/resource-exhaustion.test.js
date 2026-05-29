@@ -23,14 +23,14 @@ describe('Chaos Category E: Resource Exhaustion', () => {
   // ── E-1: Large P2WSH encoding ─────────────────────────────────
 
   describe('E-1: Large P2WSH encoding (memory stress)', () => {
-    it('65533-byte payload with P2WSH completes in <5s', async () => {
+    it('8192-byte payload with P2WSH completes in <5s', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       const start = Date.now()
       const result = await encoder.createTransaction(
         [utxo], BTC_ADDR, null,
-        'X'.repeat(65533), null, 100000, false, 'P2WSH', BTC_ADDR,
+        'X'.repeat(8192), null, 100000, false, 'P2WSH', BTC_ADDR,
         null, null, null, true, 0.00001
       )
       const elapsed = Date.now() - start
@@ -40,14 +40,14 @@ describe('Chaos Category E: Resource Exhaustion', () => {
       assert.ok(elapsed < 5000, `should complete in <5s, took ${elapsed}ms`)
     })
 
-    it('65534-byte payload exceeds limit → RangeError', async () => {
+    it('8193-byte payload exceeds limit → RangeError', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
           [utxo], BTC_ADDR, null,
-          'X'.repeat(65534), null, 100000, false, 'P2WSH', BTC_ADDR,
+          'X'.repeat(8193), null, 100000, false, 'P2WSH', BTC_ADDR,
           null, null, null, true, 0.00001
         ),
         /Payload too large/

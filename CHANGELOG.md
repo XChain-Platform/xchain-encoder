@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.5] - 2026-05-28
+
+### Fixed
+- Aligned the maximum payload size across the encoder with the decoder's hard ingest limit. The inner encode guard now rejects payloads whose compiled size exceeds 8,195 bytes (8,192 decompiled characters) instead of 65,536, and the API pre-validation gate (`MAX_DATA_BYTES`) is lowered from 65,536 to 8,192 to match. Previously the encoder accepted payloads up to 65,536 bytes that the decoder silently drops on ingest — so a large FILE/BATCH payload in the 8,193–65,536 byte range could be encoded, broadcast, and mined but never recorded, with fees unrecoverable. The two gates now reject such payloads consistently at encode time. Chaos boundary tests updated to the 8,195-byte compiled limit.
+
 ## [1.6.4] - 2026-05-28
 
 ### Fixed

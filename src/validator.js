@@ -21,7 +21,7 @@
  *
  ********************************************************************/
 
-const MAX_DATA_BYTES = 65536
+const MAX_DATA_BYTES = 8192
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis

@@ -251,8 +251,8 @@ class XChainEncoder {
         
         let finalDataBuffer = bitcoin.script.compile(dataToCompile)
 
-        if (finalDataBuffer.length > 65536) {
-            throw new RangeError(`Payload too large: ${finalDataBuffer.length} bytes exceeds maximum (65536)`)
+        if (finalDataBuffer.length > 8195) {
+            throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum 8,195 bytes (8,192 decompiled characters)`)
         }
 
         if (encoding === 'P2WSH' && this.network.supportsSegwit === false) {

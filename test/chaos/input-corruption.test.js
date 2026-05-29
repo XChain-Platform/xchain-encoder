@@ -175,28 +175,28 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
   // ── B-4: Maximum payload stress ───────────────────────────────
 
-  describe('B-4: Maximum payload stress (65536 byte boundary)', () => {
-    it('65533-byte data → compiled=65536 → at limit, P2WSH succeeds', async () => {
+  describe('B-4: Maximum payload stress (8195 byte boundary)', () => {
+    it('8192-byte data → compiled=8195 → at limit, P2WSH succeeds', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       const result = await encoder.createTransaction(
         [utxo], BTC_ADDR, null,
-        'X'.repeat(65533), null, 10000, false, 'P2WSH', BTC_ADDR,
+        'X'.repeat(8192), null, 10000, false, 'P2WSH', BTC_ADDR,
         null, null, null, true, 0.00001
       )
       assert.ok(result.psbt instanceof bitcoin.Psbt)
       assert.strictEqual(result.encoding, 'P2WSH')
     })
 
-    it('65534-byte data → compiled>65536 → RangeError: Payload too large', async () => {
+    it('8193-byte data → compiled=8196 → RangeError: Payload too large', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
           [utxo], BTC_ADDR, null,
-          'X'.repeat(65534), null, 10000, false, 'P2WSH', BTC_ADDR,
+          'X'.repeat(8193), null, 10000, false, 'P2WSH', BTC_ADDR,
           null, null, null, true, 0.00001
         ),
         /Payload too large/
