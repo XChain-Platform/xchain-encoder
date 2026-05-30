@@ -46,6 +46,11 @@ const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_F
 const API_KEY = process.env.API_KEY
 const CORS_ORIGIN = process.env.CORS_ORIGIN
 
+if (!API_KEY) {
+    console.error('FATAL: API_KEY environment variable is required but not set. Refusing to start.')
+    process.exit(1)
+}
+
 const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB);
 
 // Create the app
@@ -57,19 +62,17 @@ app.use(helmet());
 // Allow JSON requests with size limit
 app.use(bodyParser.json({ limit: '1mb' }));
 
-// API key authentication (opt-in via API_KEY env var)
-if (API_KEY) {
-    app.use((req, res, next) => {
-        const key = req.headers['x-api-key']
-        if (key !== API_KEY) {
-            return res.status(401).json({
-                jsonrpc: '2.0', id: null,
-                error: { code: -32001, message: 'Unauthorized' }
-            })
-        }
-        next()
-    })
-}
+// API key authentication
+app.use((req, res, next) => {
+    const key = req.headers['x-api-key']
+    if (key !== API_KEY) {
+        return res.status(401).json({
+            jsonrpc: '2.0', id: null,
+            error: { code: -32001, message: 'Unauthorized' }
+        })
+    }
+    next()
+})
 
 // Rate limiting
 const limiter = rateLimit({
