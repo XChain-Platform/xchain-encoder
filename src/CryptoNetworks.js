@@ -85,7 +85,7 @@ class CryptoNetworks {
                     "pubKeyHash": 0x30,
                     "scriptHash": 0x32,
                     "wif": 0xb0,
-                    "dustThreshold": 5460
+                    "dustThreshold": 546
                 }
             case "litecoin-testnet":
                 return {
@@ -93,12 +93,12 @@ class CryptoNetworks {
                     "bech32": 'tltc',
                     "bip32": {
                        "public": 0x0436f6e1,
-                       "private": 0x0436ef7d 
+                       "private": 0x0436ef7d
                     },
                     "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
                     "wif": 0xef,
-                    "dustThreshold": 5460
+                    "dustThreshold": 546
                 }
             case "litecoin-regtest":
                 return {
@@ -106,12 +106,12 @@ class CryptoNetworks {
                     "bech32": 'rltc',
                     "bip32": {
                        "public": 0x0436f6e1,
-                       "private": 0x0436ef7d 
+                       "private": 0x0436ef7d
                     },
                     "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
                     "wif": 0xef,
-                    "dustThreshold": 5460
+                    "dustThreshold": 546
                 }
             default:
                 throw new TypeError(`Unknown network: "${networkName}". Supported: bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest`)

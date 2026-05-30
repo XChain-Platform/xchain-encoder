@@ -21,7 +21,7 @@ const actions = require('./helpers/actionFactory')
 const CHAINS = [
   { name: 'bitcoin-regtest', dustThreshold: 546 },
   { name: 'dogecoin-regtest', dustThreshold: 546 },
-  { name: 'litecoin-regtest', dustThreshold: 5460 },
+  { name: 'litecoin-regtest', dustThreshold: 546 },
 ]
 
 describe('Category F: Multi-Chain Network Configs', () => {
