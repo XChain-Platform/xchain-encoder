@@ -1,121 +1,99 @@
 /*********************************************************************
- * 
+ *
  * Copyright © 2025 Dankest, LLC
  * Based on XChain Platform by Dankest, LLC – https://dankest.llc
  *
  * Licensed under the Dankest Community License (Apache License 2.0 + Additional Terms).
- * You may not use this file except in compliance with that License.
- * 
+ * You may not use this file except in compliance with the License.
+ *
  * A copy of the License is available at:
  *     https://dankest.llc/license
  *
- * This software is provided “AS IS”, without warranties or conditions of any kind.
- * 
+ * This software is provided "AS IS", without warranties or conditions of any kind.
+ *
  ********************************************************************/
 
-const BitcoinCore = require('bitcoin-core');
-const axios = require('axios');
 const crypto = require('crypto');
 
 const rpcUser = 'rpc';
 const rpcPassword = 'rpc';
-const url = 'http://localhost:8333';		
+const rpcPort = 8333;
 
-module.exports = {
-	async getWalletConnection(walletName){
-		let connectionParams = {
-		   network: 'regtest',
-		   username: 'rpc',
-		   password: 'rpc',
-		   port: 8333
-		}
-		
-		let connection = new BitcoinCore(connectionParams)
-		
-		let walletList = await connection.listWallets()
-		
-		if (!(walletName in walletList)){
-			console.log("Creating wallet "+walletName)
-			await connection.createWallet(walletName)
-			connectionParams["wallet"] = walletName
-			connection = new BitcoinCore(connectionParams)
-		}
-		
-		return connection
-	},
-	
-	async broadcastTx(txHex){
-		try {
-			const data = {
-				jsonrpc: '2.0',
-				method: 'sendrawtransaction',
-				params: [txHex],
-				id: 1
-			}
-
-			// Realizar la solicitud JSON-RPC al nodo
-			const response = await axios.post(url, data, {
-				auth: {
-					username: rpcUser,
-					password: rpcPassword,
-				},
-			})
-
-			// Verificar si la solicitud fue exitosa y devolver el hex de la transacción
-			if (response.data.result) {
-				return response.data.result;
-			} else {
-				throw new Error('Error al enviar la transacción');
-			}
-		} catch (error) {
-			console.error('Error:', error.message);
-			throw error;
-		}
-		
-		
-	},
-	
-	async getTransaction(txid, hexFormat=true) {
-		try {
-			const data = {
-				jsonrpc: '2.0',
-				method: 'getrawtransaction',
-				params: [txid, !hexFormat],
-				id: 1,
-			}
-
-			// Realizar la solicitud JSON-RPC al nodo
-			const response = await axios.post(url, data, {
-				auth: {
-					username: rpcUser,
-					password: rpcPassword,
-				},
-			})
-
-			// Verificar si la solicitud fue exitosa y devolver el hex de la transacción
-			if (response.data.result) {
-				return response.data.result;
-			} else {
-				throw new Error('Error al obtener la transacción');
-			}
-		} catch (error) {
-			console.error('Error:', error.message);
-			throw error;
-		}
-	},
-	
-	async removeObfuscation(data, txid){
-		var cipherKey = txid.substr(0,16)
-		var iv = txid.substr(16,16)
-		
-		//console.log("keys used to remove obfuscation------------>")
-		//console.log(cipherKey)
-		//console.log(iv)
-		
-		var decipher = crypto.createDecipheriv('aes-128-cbc', cipherKey, iv);
-		var decryptedData = decipher.update(data) // + decipher.final()
-		decryptedData = Buffer.concat([decryptedData, decipher.final()])
-		return decryptedData
+class BitcoinRpcClient {
+	constructor({ username, password, port, wallet }) {
+		this._auth = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
+		this._base = `http://localhost:${port}`;
+		this._wallet = wallet || null;
 	}
+
+	async _rpc(method, params = []) {
+		const url = this._wallet
+			? `${this._base}/wallet/${this._wallet}`
+			: this._base;
+		const resp = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': this._auth },
+			body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
+		});
+		const data = await resp.json();
+		if (data.error) throw new Error(data.error.message);
+		return data.result;
+	}
+
+	listWallets()                      { return this._rpc('listwallets'); }
+	createWallet(name)                 { return this._rpc('createwallet', [name]); }
+	getNewAddress()                    { return this._rpc('getnewaddress'); }
+	generateToAddress(n, addr)         { return this._rpc('generatetoaddress', [n, addr]); }
+	getBalance()                       { return this._rpc('getbalance'); }
+	sendToAddress(addr, amount)        { return this._rpc('sendtoaddress', [addr, amount]); }
+	getRawTransaction(txid, verbose)   { return this._rpc('getrawtransaction', [txid, verbose]); }
 }
 
+module.exports = {
+	async getWalletConnection(walletName) {
+		let params = { username: rpcUser, password: rpcPassword, port: rpcPort };
+		let connection = new BitcoinRpcClient(params);
+
+		const walletList = await connection.listWallets();
+
+		if (!walletList.includes(walletName)) {
+			console.log('Creating wallet ' + walletName);
+			await connection.createWallet(walletName);
+		}
+
+		return new BitcoinRpcClient({ ...params, wallet: walletName });
+	},
+
+	async broadcastTx(txHex) {
+		const auth = 'Basic ' + Buffer.from(`${rpcUser}:${rpcPassword}`).toString('base64');
+		const resp = await fetch(`http://localhost:${rpcPort}`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+			body: JSON.stringify({ jsonrpc: '2.0', method: 'sendrawtransaction', params: [txHex], id: 1 }),
+		});
+		const data = await resp.json();
+		if (!data.result) throw new Error('Error al enviar la transacción');
+		return data.result;
+	},
+
+	async getTransaction(txid, hexFormat = true) {
+		const auth = 'Basic ' + Buffer.from(`${rpcUser}:${rpcPassword}`).toString('base64');
+		const resp = await fetch(`http://localhost:${rpcPort}`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+			body: JSON.stringify({ jsonrpc: '2.0', method: 'getrawtransaction', params: [txid, !hexFormat], id: 1 }),
+		});
+		const data = await resp.json();
+		if (!data.result) throw new Error('Error al obtener la transacción');
+		return data.result;
+	},
+
+	async removeObfuscation(data, txid) {
+		var cipherKey = txid.substr(0, 16);
+		var iv = txid.substr(16, 16);
+		var decipher = crypto.createDecipheriv('aes-128-cbc', cipherKey, iv);
+		var decryptedData = decipher.update(data);
+		decryptedData = Buffer.concat([decryptedData, decipher.final()]);
+		return decryptedData;
+	}
+};
