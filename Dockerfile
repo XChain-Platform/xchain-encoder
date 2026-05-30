@@ -2,8 +2,9 @@ FROM node:latest
 
 RUN mkdir /XChainEncoder/
 COPY ./package.json /XChainEncoder/package.json
+COPY ./package-lock.json /XChainEncoder/package-lock.json
 WORKDIR /XChainEncoder
-RUN npm install
+RUN npm ci
 
 COPY ./src /XChainEncoder/src
 # Glob pattern matches zero or one .env file so the build succeeds when
