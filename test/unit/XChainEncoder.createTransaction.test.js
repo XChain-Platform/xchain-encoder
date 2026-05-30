@@ -619,6 +619,43 @@ describe('XChainEncoder.createTransaction()', () => {
       const decompiled = bitcoin.script.decompile(msOutput.script)
       assert.deepStrictEqual(decompiled[3], pubkeyBuf)
     })
+
+    // ── Regression: short final chunk (≤28 data bytes) ───────────────
+    // A payload whose last chunk holds ≤28 data bytes produces a final
+    // magic(4)+data buffer of ≤32 bytes. Before each chunk was padded to a
+    // full 64-byte slot, obfuscatedData.slice(32) was empty, so dataToPubkey()
+    // returned an all-zero x-coordinate (0x02 || 0x00×32) — a secp256k1 x=0
+    // point that p2ms() rejects at construction time, surfacing as a 500.
+    // This payload compiles to 88 bytes → chunks of 60 + 28, exercising that
+    // path end-to-end. TXID_MS_SHORT is brute-forced so every obfuscated
+    // pubkey half across both chunks is a valid curve point.
+    const TXID_MS_SHORT = '5efa379f1f220474a1c6d3114efb4bcac3e38d54e2003db334d1cb97c2f8bfba'
+    const MS_DATA_SHORT = 'Z'.repeat(86) // compiles to 88 bytes → last chunk = magic(4) + 28
+
+    it('encodes a short final chunk without throwing (x=0 pubkey regression)', async () => {
+      const encoder = makeEncoder()
+      const utxo = makeSegwitUtxo(TXID_MS_SHORT, 0, 100000000)
+      const compressedPubKey = pubkeyBuf.toString('hex')
+
+      const result = await encoder.createTransaction(
+        [utxo], TEST_ADDRESS, null,
+        MS_DATA_SHORT, null, 10000, false, 'MULTISIGN', TEST_ADDRESS,
+        null, null, compressedPubKey, true, 0.00001
+      )
+
+      assert.strictEqual(result.encoding, 'MULTISIGN')
+
+      // Two MULTISIGN outputs (one per 64-byte chunk), each a well-formed
+      // 1-of-3 p2ms script — proving both chunks' pubkey halves are valid points.
+      const msOutputs = result.psbt.txOutputs.filter(o => o.value === encoder.dustAmount)
+      assert.strictEqual(msOutputs.length, 2, 'should emit one MULTISIGN output per chunk')
+      for (const out of msOutputs) {
+        const decompiled = bitcoin.script.decompile(out.script)
+        assert.strictEqual(decompiled[0], bitcoin.opcodes.OP_1)
+        assert.strictEqual(decompiled[4], bitcoin.opcodes.OP_3)
+        assert.strictEqual(decompiled[5], bitcoin.opcodes.OP_CHECKMULTISIG)
+      }
+    })
   })
 
   // ── Return value shape ───────────────────────────────────────────

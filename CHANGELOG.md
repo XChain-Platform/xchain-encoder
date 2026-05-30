@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests
+- Added an end-to-end `createTransaction` regression test covering a short final `MULTISIGN` chunk (compiled payload of 88 bytes → chunks of 60 + 28, last chunk's data portion = 28 bytes). This exercises the previously-failing path through `p2ms()` construction — before chunks were padded to a full 64-byte slot, the final chunk left the second pubkey half empty and `dataToPubkey()` produced an x=0 point that `bitcoinjs-lib` rejected (`Expected property 'pubkeys.1' of type isPoint`). The existing `prepareData` test only asserted chunk sizes structurally; this one asserts the full encode succeeds and emits one well-formed 1-of-3 output per chunk. Uses a brute-forced txid so every obfuscated pubkey half is a valid secp256k1 point.
+
 ## [1.6.8] - 2026-05-29
 
 ### Fixed
