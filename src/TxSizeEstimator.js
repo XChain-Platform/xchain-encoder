@@ -76,7 +76,7 @@ class TxSizeEstimator {
                     scriptPubKey = output.script
                 }
             } catch (e) {
-                console.error("Error decoding nonWitnessUtxo:", e.message)
+                console.error("Error decoding nonWitnessUtxo:", e)
                 return 350
             }
 

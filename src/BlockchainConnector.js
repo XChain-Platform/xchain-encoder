@@ -161,7 +161,7 @@ class BlockchainConnector {
                 throw new Error('Error getting transaction hex');
             }
         } catch (error) {
-            console.error('Error:', error.message);
+            console.error('Error:', error);
             throw error;
         } finally {
             clearTimeout(timer);
@@ -209,7 +209,7 @@ class BlockchainConnector {
                 throw new Error('Error broadcasting transaction: empty result');
             }
         } catch (error) {
-            console.error('Error:', error.message);
+            console.error('Error:', error);
             throw error;
         } finally {
             clearTimeout(timer);
@@ -260,7 +260,7 @@ class BlockchainConnector {
                 }
             }
         } catch (error) {
-            console.error('Error:', error.message);
+            console.error('Error:', error);
             throw error;
         } finally {
             clearTimeout(timer);

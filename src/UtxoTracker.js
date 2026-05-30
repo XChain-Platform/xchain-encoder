@@ -93,7 +93,7 @@ class UtxoTracker {
                 throw new Error(`utxo-tracker is lagging by ${lag} blocks; refusing to fetch UTXOs`)
             }
         } catch (error) {
-            console.error('Error checking UTXO tracker sync status:', error.message);
+            console.error('Error checking UTXO tracker sync status:', error);
             throw error;
         }
 
@@ -147,7 +147,7 @@ class UtxoTracker {
                 throw new Error('Error getting utxos: empty result')
             }
         } catch (error) {
-            console.error('Error fetching UTXOs:', error.message);
+            console.error('Error fetching UTXOs:', error);
             throw error;
         } finally {
             clearTimeout(timer);

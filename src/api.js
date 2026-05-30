@@ -118,7 +118,7 @@ const jsonRpcController = {
             // all others get a generic message to prevent internal info leakage
             const isKnown = err instanceof TypeError || err instanceof RangeError
             if (!isKnown) {
-                console.error('Encoder error:', err.message)
+                console.error('Encoder error:', err)
             }
             const e = new Error(isKnown ? err.message : 'Internal encoder error')
             e.code = -32603
@@ -143,7 +143,7 @@ const jsonRpcController = {
             let txid = await encoder.connector.sendRawTransaction(tx_hex)
             return { txid: txid }
         } catch (err) {
-            console.error('Broadcast error:', err.message)
+            console.error('Broadcast error:', err)
             const e = new Error(err.message || 'Transaction broadcast failed')
             e.code = -32603
             throw e
@@ -162,7 +162,7 @@ const jsonRpcController = {
             let result = await encoder.utxoTrackerConnector.getUtxosFromAddress(address)
             return result
         } catch (err) {
-            console.error('UTXO fetch error:', err.message)
+            console.error('UTXO fetch error:', err)
             const e = new Error(err.message || 'UTXO fetch failed')
             e.code = -32603
             throw e
