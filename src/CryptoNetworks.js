@@ -124,12 +124,19 @@ class CryptoNetworks {
             case "bitcoin-mainnet":
                 return 900000
             case "bitcoin-testnet":
-                return 0
-            case "bitcoin-regtest":
+                return 100000
+            case "litecoin-mainnet":
+                return 3000000
+            case "litecoin-testnet":
+                return 4470000
+            case "dogecoin-mainnet":
+                return 6000000
+            case "dogecoin-testnet":
+                return 19900000
+            // All regtest networks start parsing at block 0
+            default:
                 return 0
         }
-        
-        return 0
     }
 }
 

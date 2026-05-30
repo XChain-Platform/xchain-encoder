@@ -108,20 +108,44 @@ describe('CryptoNetworks', () => {
   })
 
   describe('.getFirstBlock()', () => {
-    it('returns 844000 for bitcoin-mainnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-mainnet'), 844000)
+    it('returns 900000 for bitcoin-mainnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-mainnet'), 900000)
     })
 
-    it('returns 0 for bitcoin-testnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-testnet'), 0)
+    it('returns 100000 for bitcoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-testnet'), 100000)
+    })
+
+    it('returns 3000000 for litecoin-mainnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-mainnet'), 3000000)
+    })
+
+    it('returns 4470000 for litecoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-testnet'), 4470000)
+    })
+
+    it('returns 6000000 for dogecoin-mainnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-mainnet'), 6000000)
+    })
+
+    it('returns 19900000 for dogecoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 19900000)
     })
 
     it('returns 0 for bitcoin-regtest', () => {
       assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-regtest'), 0)
     })
 
+    it('returns 0 for litecoin-regtest', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-regtest'), 0)
+    })
+
+    it('returns 0 for dogecoin-regtest', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-regtest'), 0)
+    })
+
     it('returns 0 for unknown network', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-mainnet'), 0)
+      assert.strictEqual(CryptoNetworks.getFirstBlock('eth-mainnet'), 0)
     })
   })
 })

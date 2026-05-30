@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-05-29
+
+### Fixed
+- `getFirstBlock()` now returns the correct first scanned block for Litecoin and Dogecoin networks instead of silently returning `0`. Added `litecoin-mainnet` (3,000,000), `litecoin-testnet` (4,470,000), `dogecoin-mainnet` (6,000,000), and `dogecoin-testnet` (19,900,000), and corrected `bitcoin-testnet` from `0` to `100,000`. These now match the decoder's ingest floors so the two services agree on the first block scanned per network; previously any encoder caller anchoring a scan or filter window on these networks would have started at genesis. All regtest networks continue to start at block `0` via the `default` case.
+
 ## [1.6.6] - 2026-05-29
 
 ### Changed
