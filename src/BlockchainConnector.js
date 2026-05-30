@@ -22,6 +22,8 @@
 // Load required libraries
 const fetch = require('cross-fetch')
 
+const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
+
 class BlockchainConnector {
     constructor(url, port, rpcUser, rpcPassword) {
         this.url = "http://"+url+":"+port
@@ -49,7 +51,7 @@ class BlockchainConnector {
 
         // Abort the request if the node does not respond within 15 seconds
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             // Make the request to the node
@@ -94,7 +96,7 @@ class BlockchainConnector {
 
         // Abort the request if the node does not respond within 15 seconds
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             // Make the request to the node
@@ -122,7 +124,7 @@ class BlockchainConnector {
     async getTransactionHex(txid, hexFormat = true) {
         // Abort the request if the node does not respond within 15 seconds
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             const data = {
@@ -169,7 +171,7 @@ class BlockchainConnector {
     async sendRawTransaction(txHex) {
         // Abort the request if the node does not respond within 15 seconds
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             const data = {
@@ -217,7 +219,7 @@ class BlockchainConnector {
     async getFeePerKilobyte(blocksNumber) {
         // Abort the request if the node does not respond within 15 seconds
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             const data = {
