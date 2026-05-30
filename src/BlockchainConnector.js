@@ -47,14 +47,18 @@ class BlockchainConnector {
             body: JSON.stringify(data)
         };
 
+        // Abort the request if the node does not respond within 15 seconds
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         try {
             // Make the request to the node
-            const response = await fetch(this.url, options);
-            
+            const response = await fetch(this.url, { ...options, signal: controller.signal });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const responseData = await response.json();
 
             // Verify if there is a result and return it
@@ -65,6 +69,8 @@ class BlockchainConnector {
             }
         } catch (error) {
             throw new Error(`Error in network request: ${error.message}`);
+        } finally {
+            clearTimeout(timer);
         }
     }
 
@@ -86,14 +92,18 @@ class BlockchainConnector {
             body: JSON.stringify(data)
         };
 
+        // Abort the request if the node does not respond within 15 seconds
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         try {
             // Make the request to the node
-            const response = await fetch(this.url, options);
-            
+            const response = await fetch(this.url, { ...options, signal: controller.signal });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const responseData = await response.json();
 
             // Verify if there is a result and return it
@@ -104,10 +114,16 @@ class BlockchainConnector {
             }
         } catch (error) {
             throw new Error(`Error in network request: ${error.message}`);
+        } finally {
+            clearTimeout(timer);
         }
     }
 
     async getTransactionHex(txid, hexFormat = true) {
+        // Abort the request if the node does not respond within 15 seconds
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -128,12 +144,12 @@ class BlockchainConnector {
             };
 
             // Make the request to the node
-            const response = await fetch(this.url, options);
-            
+            const response = await fetch(this.url, { ...options, signal: controller.signal });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const responseData = await response.json();
 
             // Verify if there is a result and return the hex
@@ -145,10 +161,16 @@ class BlockchainConnector {
         } catch (error) {
             console.error('Error:', error.message);
             throw error;
+        } finally {
+            clearTimeout(timer);
         }
     }
     
     async sendRawTransaction(txHex) {
+        // Abort the request if the node does not respond within 15 seconds
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -167,7 +189,7 @@ class BlockchainConnector {
                 body: JSON.stringify(data)
             };
 
-            const response = await fetch(this.url, options);
+            const response = await fetch(this.url, { ...options, signal: controller.signal });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -187,10 +209,16 @@ class BlockchainConnector {
         } catch (error) {
             console.error('Error:', error.message);
             throw error;
+        } finally {
+            clearTimeout(timer);
         }
     }
 
     async getFeePerKilobyte(blocksNumber) {
+        // Abort the request if the node does not respond within 15 seconds
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -211,8 +239,8 @@ class BlockchainConnector {
             };
 
             // Make the request to the node
-            const response = await fetch(this.url, options);
-            
+            const response = await fetch(this.url, { ...options, signal: controller.signal });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -232,6 +260,8 @@ class BlockchainConnector {
         } catch (error) {
             console.error('Error:', error.message);
             throw error;
+        } finally {
+            clearTimeout(timer);
         }
     }
 }

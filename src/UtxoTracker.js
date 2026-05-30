@@ -29,6 +29,10 @@ class UtxoTracker {
     }
     
     async getUtxosFromAddress(address) {
+        // Abort the request if the tracker does not respond within 15 seconds
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -47,8 +51,8 @@ class UtxoTracker {
             };
 
             // Make the request to the node
-            const response = await fetch(this.url, options);
-            
+            const response = await fetch(this.url, { ...options, signal: controller.signal });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -77,6 +81,8 @@ class UtxoTracker {
         } catch (error) {
             console.error('Error fetching UTXOs:', error.message);
             throw error;
+        } finally {
+            clearTimeout(timer);
         }
     }
 }

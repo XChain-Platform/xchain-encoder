@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.8] - 2026-05-29
+
+### Fixed
+- Every JSON-RPC request the encoder makes to a coin node (`BlockchainConnector`: `getNetworkInfo`, `isRegtest`, `getTransactionHex`, `sendRawTransaction`, `getFeePerKilobyte`) and every UTXO query it makes to the UTXO tracker (`UtxoTracker.getUtxosFromAddress`) now aborts after a 15-second timeout via `AbortController`. Previously these `fetch` calls had no timeout, so an unresponsive coin node or UTXO tracker would hang the call indefinitely and block the PSBT-building request with no fail-fast path. The abort surfaces through the existing error handling, so callers see a thrown error instead of an indefinite stall. This matches the request timeouts already configured by the other connectors in the platform.
+
 ## [1.6.7] - 2026-05-29
 
 ### Fixed
