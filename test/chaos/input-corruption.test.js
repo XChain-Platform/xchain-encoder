@@ -175,28 +175,33 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
   // ── B-4: Maximum payload stress ───────────────────────────────
 
-  describe('B-4: Maximum payload stress (8195 byte boundary)', () => {
-    it('8192-byte data → compiled=8195 → at limit, P2WSH succeeds', async () => {
+  // The encoder caps the *compiled* on-chain push at MAX_COMPILED_ACTION_DATA_LENGTH
+  // (8192) — the same ceiling the indexing decoder enforces. An 8189-byte payload
+  // compiles to 8189 + 3 (OP_PUSHDATA2 prefix) = 8192 (the limit); 8190 bytes
+  // compiles to 8193 and is rejected, because the decoder would otherwise silently
+  // drop it on chain.
+  describe('B-4: Maximum payload stress (8192 byte compiled boundary)', () => {
+    it('8189-byte data → compiled=8192 → at limit, P2WSH succeeds', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       const result = await encoder.createTransaction(
         [utxo], BTC_ADDR, null,
-        'X'.repeat(8192), null, 10000, false, 'P2WSH', BTC_ADDR,
+        'X'.repeat(8189), null, 10000, false, 'P2WSH', BTC_ADDR,
         null, null, null, true, 0.00001
       )
       assert.ok(result.psbt instanceof bitcoin.Psbt)
       assert.strictEqual(result.encoding, 'P2WSH')
     })
 
-    it('8193-byte data → compiled=8196 → RangeError: Payload too large', async () => {
+    it('8190-byte data → compiled=8193 → RangeError: Payload too large', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
           [utxo], BTC_ADDR, null,
-          'X'.repeat(8193), null, 10000, false, 'P2WSH', BTC_ADDR,
+          'X'.repeat(8190), null, 10000, false, 'P2WSH', BTC_ADDR,
           null, null, null, true, 0.00001
         ),
         /Payload too large/

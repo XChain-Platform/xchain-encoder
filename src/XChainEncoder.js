@@ -27,6 +27,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
+const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('./validator')
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
@@ -251,8 +252,12 @@ class XChainEncoder {
         
         let finalDataBuffer = bitcoin.script.compile(dataToCompile)
 
-        if (finalDataBuffer.length > 8195) {
-            throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum 8,195 bytes (8,192 decompiled characters)`)
+        // Enforce the same compiled-push ceiling the indexing decoder applies
+        // (MAX_ACTION_DATA_LENGTH). The decoder measures the compiled on-chain
+        // push and drops anything larger, so a transaction above this size
+        // would be silently dropped by every node — reject it at encode time.
+        if (finalDataBuffer.length > MAX_COMPILED_ACTION_DATA_LENGTH) {
+            throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${MAX_COMPILED_ACTION_DATA_LENGTH} bytes (compiled on-chain ACTION push)`)
         }
 
         if (encoding === 'P2WSH' && this.network.supportsSegwit === false) {

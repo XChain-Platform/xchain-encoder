@@ -21,7 +21,17 @@
  *
  ********************************************************************/
 
+// Coarse pre-check on the *decoded* ACTION payload (data + rawData). The
+// authoritative on-chain limit is the compiled-push ceiling below
+// (MAX_COMPILED_ACTION_DATA_LENGTH), which XChainEncoder enforces after the
+// script is compiled — that is what indexing nodes measure.
 const MAX_DATA_BYTES = 8192
+// Maximum *compiled* on-chain ACTION push, in bytes. Must equal the decoder's
+// MAX_ACTION_DATA_LENGTH — a transaction whose compiled push exceeds this is
+// silently dropped by every indexing node. Canonical source of truth:
+// xchain-documentation/protocol/constants.js (MAX_ACTION_DATA_LENGTH). The
+// cross-service regression suite asserts these stay equal.
+const MAX_COMPILED_ACTION_DATA_LENGTH = 8192
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
@@ -290,6 +300,7 @@ module.exports = {
     validateChange,
     validateAll,
     MAX_DATA_BYTES,
+    MAX_COMPILED_ACTION_DATA_LENGTH,
     MAX_UTXO_COUNT,
     MAX_CUSTOM_OUTPUTS,
     MAX_FEE_SATOSHIS,

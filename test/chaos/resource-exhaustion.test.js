@@ -23,14 +23,14 @@ describe('Chaos Category E: Resource Exhaustion', () => {
   // ── E-1: Large P2WSH encoding ─────────────────────────────────
 
   describe('E-1: Large P2WSH encoding (memory stress)', () => {
-    it('8192-byte payload with P2WSH completes in <5s', async () => {
+    it('8189-byte payload (compiled 8192, at limit) with P2WSH completes in <5s', async () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       const start = Date.now()
       const result = await encoder.createTransaction(
         [utxo], BTC_ADDR, null,
-        'X'.repeat(8192), null, 100000, false, 'P2WSH', BTC_ADDR,
+        'X'.repeat(8189), null, 100000, false, 'P2WSH', BTC_ADDR,
         null, null, null, true, 0.00001
       )
       const elapsed = Date.now() - start

@@ -309,7 +309,7 @@ describe('XChainEncoder', () => {
             
             let decodedScriptSig = bitcoin.script.decompile(Buffer.from(tx2Obj["vin"][0]["scriptSig"]["hex"], "hex"))
             let decodedRedeemScript = bitcoin.script.decompile(decodedScriptSig[2])
-            let decodedData = Buffer.from(decodedRedeemScript[0],"hex")//.toString("utf-8")
+            let decodedData = Buffer.from(decodedRedeemScript[0])//.toString("utf-8")
 			
 			
 			let decompiledData = bitcoin.script.decompile(decodedData)
@@ -552,7 +552,7 @@ describe('XChainEncoder', () => {
             assert(txDataStr.substr(4) == "p2wsh")
             
             let decodedRedeemScript = bitcoin.script.decompile(Buffer.from(tx2Obj["vin"][0]["txinwitness"][2], "hex"))
-            let decodedData = Buffer.from(decodedRedeemScript[0],"hex")//.toString("utf-8")
+            let decodedData = Buffer.from(decodedRedeemScript[0])//.toString("utf-8")
 			
 			let decompiledData = bitcoin.script.decompile(decodedData)
 			assert(decompiledData.length == 2)
