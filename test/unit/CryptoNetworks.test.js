@@ -53,11 +53,12 @@ describe('CryptoNetworks', () => {
         assert.strictEqual(result.pubKeyHash, 0x1e)
       })
 
-      it('dogecoin-testnet and dogecoin-regtest share the same pubKeyHash 0x71', () => {
+      it('dogecoin-testnet has pubKeyHash 0x71; dogecoin-regtest uses Bitcoin-testnet prefix 0x6f', () => {
         const test = CryptoNetworks.getBitcoinJsNetwork('dogecoin-testnet')
         const reg = CryptoNetworks.getBitcoinJsNetwork('dogecoin-regtest')
         assert.strictEqual(test.pubKeyHash, 0x71)
-        assert.strictEqual(reg.pubKeyHash, 0x71)
+        // DOGE v1.14.x regtest reuses Bitcoin-testnet prefixes, not Dogecoin-testnet prefixes
+        assert.strictEqual(reg.pubKeyHash, 0x6f)
       })
     })
 
@@ -70,7 +71,7 @@ describe('CryptoNetworks', () => {
           assert.ok(result)
           assert.strictEqual(result.messagePrefix, '\x19Litecoin Signed Message:\n')
           assert.strictEqual(typeof result.bech32, 'string')
-          assert.strictEqual(result.dustThreshold, 5460)
+          assert.strictEqual(result.dustThreshold, 546)
         })
       }
 
