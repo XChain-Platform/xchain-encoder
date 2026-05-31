@@ -47,42 +47,48 @@ describe('TxSizeEstimator', () => {
   describe('.estimateP2shInputWithRedeem(redeemData)', () => {
     // Estimate breakdown:
     //   40 outpoint+sequence + scriptSig-varint + scriptSig
-    //   scriptSig = 73 (1-byte opcode + 72-byte sig) + redeemPush + redeem
+    //   scriptSig = 73 (1-byte opcode + 72-byte sig)
+    //             + 34 (1-byte opcode + 33-byte compressed pubkey)
+    //             + redeemPush + redeem
     //   redeemPush = 1  (<76 bytes), 2 (76..255), or 3 (256..65535)
     //   scriptSig-varint = 1 if scriptSig <253, else 3
+    // (The reveal scriptSig pushes sig, pubkey, then the redeem script — the
+    //  pubkey push was previously omitted, undercounting every estimate by 34.)
 
-    it('returns 115 for empty redeem (scriptSig=74, varint=1)', () => {
+    it('returns 149 for empty redeem (scriptSig=108, varint=1)', () => {
       const redeem = Buffer.alloc(0)
-      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 115)
+      // 40 + 1 + (73 + 34 + 1 + 0) = 40 + 1 + 108 = 149
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 149)
     })
 
-    it('returns 595 for 476-byte redeem (PUSHDATA2, varint=3)', () => {
+    it('returns 629 for 476-byte redeem (PUSHDATA2, varint=3)', () => {
       const redeem = Buffer.alloc(476)
-      // 40 + 3 + (73 + 3 + 476) = 40 + 3 + 552 = 595
-      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 595)
+      // 40 + 3 + (73 + 34 + 3 + 476) = 40 + 3 + 586 = 629
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 629)
     })
 
-    it('returns 116 for a 1-byte redeem script', () => {
+    it('returns 150 for a 1-byte redeem script', () => {
       const redeem = Buffer.from([0x01])
-      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 116)
+      // 40 + 1 + (73 + 34 + 1 + 1) = 40 + 1 + 109 = 150
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 150)
     })
 
     it('uses OP_PUSHDATA1 (2-byte push) at redeem 76 bytes', () => {
       const redeem = Buffer.alloc(76)
-      // 40 + 1 + (73 + 2 + 76) = 40 + 1 + 151 = 192
-      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 192)
+      // 40 + 1 + (73 + 34 + 2 + 76) = 40 + 1 + 185 = 226
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 226)
     })
 
     it('uses OP_PUSHDATA2 (3-byte push) at redeem 256 bytes', () => {
       const redeem = Buffer.alloc(256)
-      // scriptSig = 73 + 3 + 256 = 332 → scriptSig-varint = 3
-      // 40 + 3 + 332 = 375
-      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 375)
+      // scriptSig = 73 + 34 + 3 + 256 = 366 → scriptSig-varint = 3
+      // 40 + 3 + 366 = 409
+      assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 409)
     })
 
     it('uses 3-byte scriptSig varint when total scriptSig >= 253', () => {
-      // 178-byte redeem → scriptSig = 73 + 2 + 178 = 253 → varint widens to 3
-      const redeem = Buffer.alloc(178)
+      // 144-byte redeem → scriptSig = 73 + 34 + 2 + 144 = 253 → varint widens to 3
+      const redeem = Buffer.alloc(144)
       assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 40 + 3 + 253)
     })
   })

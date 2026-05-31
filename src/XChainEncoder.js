@@ -604,10 +604,10 @@ class XChainEncoder {
     estimateSpendingP2shTx(redeemData){
         // Per-chunk embedded value sized to cover the spending tx's worst
         // case at 1 sat/vbyte. Includes tx overhead, the OP_RETURN marker
-        // output, the P2SH input bringing this chunk's redeem script, plus
-        // a small safety margin to absorb varint width changes and DER
-        // signature length jitter so the broadcast never lands fractionally
-        // under the node's min relay fee floor.
+        // output, the P2SH input bringing this chunk's redeem script (sig +
+        // compressed pubkey + redeem script push — see estimateP2shInputWithRedeem),
+        // plus a small safety margin to absorb DER signature length jitter so the
+        // broadcast never lands fractionally under the node's min relay fee floor.
         let sizeEstimated =
             10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
             + TxSizeEstimator.estimateP2shInputWithRedeem(redeemData)
@@ -615,7 +615,7 @@ class XChainEncoder {
                 Buffer.from(MAGIC_WORD,'utf8'),
                 Buffer.from("p2sh",'utf8')
             ]))
-            + 32 // safety margin (~one DER-sig byte + varint slack)
+            + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
 
         return sizeEstimated
     }

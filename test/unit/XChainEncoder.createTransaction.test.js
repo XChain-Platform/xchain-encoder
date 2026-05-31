@@ -679,7 +679,7 @@ describe('XChainEncoder.createTransaction()', () => {
   // ── estimateSpendingP2shTx ───────────────────────────────────────
 
   describe('estimateSpendingP2shTx()', () => {
-    it('returns 10 + P2SH input + OP_RETURN + 32-byte safety margin', () => {
+    it('returns 10 + P2SH input + OP_RETURN + 8-byte safety margin', () => {
       const encoder = makeEncoder()
       const TxSizeEstimator = require('../../src/TxSizeEstimator')
       const redeemData = Buffer.alloc(200, 0xAA)
@@ -689,7 +689,7 @@ describe('XChainEncoder.createTransaction()', () => {
         + TxSizeEstimator.estimateOpReturnOutput(
             Buffer.concat([Buffer.from('XCHN'), Buffer.from('p2sh')])
           )
-        + 32 // safety margin for sig + varint jitter
+        + 8 // safety margin for DER-sig length jitter
 
       assert.strictEqual(encoder.estimateSpendingP2shTx(redeemData), expected)
     })

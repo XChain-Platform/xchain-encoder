@@ -112,16 +112,16 @@ describe('TxSizeEstimator Boundaries', () => {
   // ── estimateP2shInputWithRedeem boundary ────────────────────────
 
   describe('estimateP2shInputWithRedeem', () => {
-    it('returns overhead (115) for 0-byte redeem script', () => {
+    it('returns overhead (149) for 0-byte redeem script', () => {
       const estimate = TxSizeEstimator.estimateP2shInputWithRedeem(Buffer.alloc(0))
-      // 40 outpoint+sequence + 1 scriptSig-varint + 73 sig-push + 1 redeem-push + 0 = 115
-      assert.strictEqual(estimate, 115)
+      // 40 outpoint+sequence + 1 scriptSig-varint + 73 sig-push + 34 pubkey-push + 1 redeem-push + 0 = 149
+      assert.strictEqual(estimate, 149)
     })
 
-    it('returns 595 for 476-byte redeem script (max P2SH chunk)', () => {
+    it('returns 629 for 476-byte redeem script (max P2SH chunk)', () => {
       const estimate = TxSizeEstimator.estimateP2shInputWithRedeem(Buffer.alloc(476))
-      // 40 + 3 (varint) + 73 (sig push) + 3 (PUSHDATA2 for 476) + 476 = 595
-      assert.strictEqual(estimate, 595)
+      // 40 + 3 (varint) + 73 (sig push) + 34 (pubkey push) + 3 (PUSHDATA2 for 476) + 476 = 629
+      assert.strictEqual(estimate, 629)
     })
   })
 

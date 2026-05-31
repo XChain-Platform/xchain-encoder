@@ -44,16 +44,19 @@ class TxSizeEstimator {
     static estimateP2shInputWithRedeem(redeemData){
         // Outpoint (32 txid + 4 vout) + sequence (4) = 40 bytes
         // ScriptSig length varint: 1 byte for ScriptSig <253 bytes, 3 bytes for 253..65535
-        // ScriptSig contents:
-        //   - sig push: 1-byte opcode + 72 bytes (sig + sighash)
+        // ScriptSig contents (the XChain reveal finalizer pushes sig, pubkey, then
+        // the redeem script — see xchain-e2e-test xchainP2shFinalizer):
+        //   - sig push:    1-byte opcode + 72 bytes (sig + sighash)
+        //   - pubkey push: 1-byte opcode + 33 bytes (compressed pubkey)
         //   - redeem script push: 1 byte for <76, 2 bytes (OP_PUSHDATA1) for 76..255,
         //                         3 bytes (OP_PUSHDATA2) for 256..65535
         //   - redeem script bytes
         let sigPush      = 1 + 72                                   // 73
+        let pubkeyPush   = 1 + 33                                   // 34
         let redeemPush   = redeemData.length < 76   ? 1
                          : redeemData.length < 256  ? 2
                          :                            3
-        let scriptSig    = sigPush + redeemPush + redeemData.length
+        let scriptSig    = sigPush + pubkeyPush + redeemPush + redeemData.length
         let scriptVarint = scriptSig < 253 ? 1 : 3
         return 40 + scriptVarint + scriptSig
     }
