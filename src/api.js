@@ -46,9 +46,10 @@ const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_F
 const API_KEY = process.env.API_KEY
 const CORS_ORIGIN = process.env.CORS_ORIGIN
 
+// API key authentication is OPTIONAL (see components/encoder/README.md — default Disabled).
+// When API_KEY is unset the encoder runs open; setting it opts into x-api-key enforcement.
 if (!API_KEY) {
-    console.error('FATAL: API_KEY environment variable is required but not set. Refusing to start.')
-    process.exit(1)
+    console.warn('NOTICE: API_KEY not set — encoder API authentication is DISABLED (open access).')
 }
 
 const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB);
@@ -62,17 +63,19 @@ app.use(helmet());
 // Allow JSON requests with size limit
 app.use(bodyParser.json({ limit: '1mb' }));
 
-// API key authentication
-app.use((req, res, next) => {
-    const key = req.headers['x-api-key']
-    if (key !== API_KEY) {
-        return res.status(401).json({
-            jsonrpc: '2.0', id: null,
-            error: { code: -32001, message: 'Unauthorized' }
-        })
-    }
-    next()
-})
+// API key authentication — only enforced when API_KEY is configured.
+if (API_KEY) {
+    app.use((req, res, next) => {
+        const key = req.headers['x-api-key']
+        if (key !== API_KEY) {
+            return res.status(401).json({
+                jsonrpc: '2.0', id: null,
+                error: { code: -32001, message: 'Unauthorized' }
+            })
+        }
+        next()
+    })
+}
 
 // Rate limiting
 const limiter = rateLimit({
