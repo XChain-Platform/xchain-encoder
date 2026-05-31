@@ -18,7 +18,7 @@
     "ecpair": "^2.1.0",
     "express": "^4.18.3",
     "express-json-rpc-router": "^1.4.0",
-    "express-rate-limit": "^7.0.0",
+    "express-rate-limit": "^8.5.2",
     "helmet": "^7.1.0",
     "tiny-secp256k1": "^2.2.3"
   },
