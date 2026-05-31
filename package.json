@@ -50,7 +50,7 @@
     "mutate:quick": "npx stryker run test/mutation/stryker.conf.quick.json"
   },
   "overrides": {
-    "ajv": ">=8.0.0",
+    "ajv": ">=8.18.0",
     "elliptic": "^6.6.1",
     "qs": "^6.15.2",
     "serialize-javascript": "^7.0.5",
