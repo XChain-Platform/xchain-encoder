@@ -34,6 +34,7 @@
     "api": "node ./src/api.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
     "test": "mocha --timeout 0 --require ./test/prepareRegtest.test.js",
+    "ci": "npx mocha --timeout 10000 'test/unit/**/*.test.js' --recursive --exit",
     "test:unit": "npx mocha --timeout 10000 'test/unit/**/*.test.js'",
     "test:integration": "npx mocha --timeout 30000 'test/integration/**/*.test.js'",
     "test:boundary": "npx mocha --timeout 30000 'test/boundary/**/*.test.js'",
@@ -49,6 +50,7 @@
     "mutate:quick": "npx stryker run test/mutation/stryker.conf.quick.json"
   },
   "overrides": {
+    "ajv": ">=8.0.0",
     "elliptic": "^6.6.1",
     "qs": "^6.15.2",
     "serialize-javascript": "^7.0.5",
