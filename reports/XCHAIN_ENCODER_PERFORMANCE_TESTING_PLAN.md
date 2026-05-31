@@ -85,7 +85,7 @@ The encoder exposes two interfaces: a JSON-RPC API server (`src/api.js`) and a d
 | `SPIKE-01` | Idle to burst | 0 req/sec for 30s, then 200 req/sec for 60s, then 0 | Recovery time, error rate during spike |
 | `SPIKE-02` | Repeated spikes | Alternating 10 req/sec (30s) and 150 req/sec (30s) for 5 minutes | Latency stability across transitions |
 | `SPIKE-03` | Gradual ramp | 10 req/sec ramping to 500 req/sec over 5 minutes | Find the throughput ceiling |
-| `SPIKE-04` | Spike with rate limiter | Same as SPIKE-01, but with `RATE_LIMIT_RPM=120` | Verify rate limiter rejects gracefully (HTTP 429) without affecting valid requests |
+| `SPIKE-04` | Spike with rate limiter | Same as SPIKE-01, but with `ENCODER_RATE_LIMIT_RPM=120` | Verify rate limiter rejects gracefully (HTTP 429) without affecting valid requests |
 
 **Pass Criteria:**
 - No process crashes or unhandled promise rejections

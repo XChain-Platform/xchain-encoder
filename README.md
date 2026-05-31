@@ -82,7 +82,7 @@ npm run api
 | `UTXO_TRACKER_API_PORT` | No | — | xchain-utxo-tracker service port |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Maximum fee rate in sat/kB to prevent runaway estimates |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
-| `RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
+| `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
 | `CORS_ORIGIN` | No | Disabled | CORS origin (`*` to allow all) |
 
 ## Scripts
