@@ -80,7 +80,7 @@ if (API_KEY) {
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 60 * 1000,
-    max: parseInt(process.env.ENCODER_RATE_LIMIT_RPM, 10) || 60,
+    limit: parseInt(process.env.ENCODER_RATE_LIMIT_RPM, 10) || 60,
     standardHeaders: true,
     legacyHeaders: false,
     message: { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Too many requests' } }
