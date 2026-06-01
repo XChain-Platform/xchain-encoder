@@ -157,6 +157,10 @@ class BlockchainConnector {
             // Verify if there is a result and return the hex
             if (responseData.result && responseData.result.hex) {
                 return responseData.result.hex;
+            } else if (responseData.error?.code === -5) {
+                // RPC -5: tx not in mempool and not retrievable. For confirmed
+                // transactions this typically means the coin node lacks txindex.
+                throw new Error(`Transaction ${txid} not found — the coin node may require txindex=1 to retrieve confirmed transactions`);
             } else {
                 throw new Error('Error getting transaction hex');
             }
