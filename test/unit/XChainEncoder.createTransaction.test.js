@@ -585,11 +585,16 @@ describe('XChainEncoder.createTransaction()', () => {
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
-      // Find the multisig output (value = dustAmount)
-      const msOutput = result.psbt.txOutputs.find(o =>
-        o.value === encoder.dustAmount
-      )
-      assert.ok(msOutput, 'should have a multisig output at dust value')
+      // Find the multisig output by its script shape (a bare p2ms script ends
+      // in OP_CHECKMULTISIG). Its value is the relay-fee dust floor computed
+      // from the actual script size, which is larger than the flat P2PKH
+      // dustAmount (546) — so we must not match on dustAmount here.
+      const msOutput = result.psbt.txOutputs.find(o => {
+        const d = bitcoin.script.decompile(o.script)
+        return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
+      })
+      assert.ok(msOutput, 'should have a bare-multisig output')
+      assert.ok(msOutput.value >= encoder.dustAmount, 'multisig output value should be at least the dust floor')
 
       // Decompile the script to verify 1-of-3 structure
       const decompiled = bitcoin.script.decompile(msOutput.script)
@@ -613,11 +618,43 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, compressedPubKey, true, 0.00001
       )
 
-      const msOutput = result.psbt.txOutputs.find(o =>
-        o.value === encoder.dustAmount
-      )
+      const msOutput = result.psbt.txOutputs.find(o => {
+        const d = bitcoin.script.decompile(o.script)
+        return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
+      })
+      assert.ok(msOutput, 'should have a bare-multisig output')
       const decompiled = bitcoin.script.decompile(msOutput.script)
       assert.deepStrictEqual(decompiled[3], pubkeyBuf)
+    })
+
+    // ── Regression: outputs must never exceed inputs ─────────────────
+    // The MULTISIGN data output carries real value (a relay-fee dust floor),
+    // so that value MUST be counted toward the running output total before
+    // change is computed. If it isn't, change is over-credited by exactly the
+    // data-output value and total outputs exceed total inputs — bitcoinjs-lib
+    // rejects the tx at extractTransaction ("Outputs are spending more than
+    // Inputs") and the network rejects it as invalid.
+    it('builds a valid tx where total outputs do not exceed inputs', async () => {
+      const encoder = makeEncoder()
+      const inputValue = 100000000
+      const utxo = makeSegwitUtxo(TXID_MS, 0, inputValue)
+      const compressedPubKey = pubkeyBuf.toString('hex')
+
+      // A large dust value with a tiny fee is the exact condition that exposes
+      // the bug: when the data-output value exceeds the fee, omitting it from
+      // the output total over-credits change past the input total. fee=100,
+      // dust=50000.
+      const result = await encoder.createTransaction(
+        [utxo], TEST_ADDRESS, null,
+        MS_DATA, null, 100, false, 'MULTISIGN', TEST_ADDRESS,
+        null, null, compressedPubKey, true, 0.00001, 50000
+      )
+
+      const outputTotal = result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
+      assert.ok(
+        outputTotal <= inputValue,
+        `total outputs (${outputTotal}) must not exceed total inputs (${inputValue})`
+      )
     })
 
     // ── Regression: short final chunk (≤28 data bytes) ───────────────
@@ -647,7 +684,10 @@ describe('XChainEncoder.createTransaction()', () => {
 
       // Two MULTISIGN outputs (one per 64-byte chunk), each a well-formed
       // 1-of-3 p2ms script — proving both chunks' pubkey halves are valid points.
-      const msOutputs = result.psbt.txOutputs.filter(o => o.value === encoder.dustAmount)
+      const msOutputs = result.psbt.txOutputs.filter(o => {
+        const d = bitcoin.script.decompile(o.script)
+        return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
+      })
       assert.strictEqual(msOutputs.length, 2, 'should emit one MULTISIGN output per chunk')
       for (const out of msOutputs) {
         const decompiled = bitcoin.script.decompile(out.script)

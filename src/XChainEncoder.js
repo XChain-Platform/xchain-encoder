@@ -482,11 +482,25 @@ class XChainEncoder {
                         }
                     )
                     
+                    // A bare multisig output is larger than a P2PKH, so the flat
+                    // P2PKH dust floor (this.dustAmount = 546) is below the node's
+                    // relay dust threshold and the broadcast is rejected with
+                    // {"code":-26,"message":"dust"}. Size the floor from the actual
+                    // output script using Bitcoin Core's dust formula:
+                    // (output_bytes + spend_input_bytes) * 3 sat/byte. The spend cost
+                    // assumes a 148-byte P2PKH-style input. For standard 1-of-3
+                    // compressed-key scripts (105 bytes) this is ~786 sat.
+                    let bareMultisigDust = Math.ceil((8 + 1 + multisignScript.output.length + 148) * 3)
+                    let multisigOutputValue = Math.max(finalDust, bareMultisigDust)
+
                     psbt.addOutput({
                         script: multisignScript.output,
-                        value: finalDust
+                        value: multisigOutputValue
                         })
-                        
+                    // Account for the data output's value so change is not over-credited
+                    // (otherwise total outputs exceed total inputs and the tx is invalid).
+                    outputSatoshis += multisigOutputValue
+
                     estimatedTxSize = estimatedTxSize
                         + TxSizeEstimator.estimateMultisignOutput(obfuscatedData)
                         
