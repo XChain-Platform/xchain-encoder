@@ -197,14 +197,19 @@ class BlockchainConnector {
 
             const response = await fetch(this.url, { ...options, signal: controller.signal });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            // bitcoind/litecoind/dogecoind return HTTP 500 for RPC-level errors
+            // (e.g. a rejected tx) WITH a JSON-RPC error body. Read the body even
+            // on a non-2xx status so the node's actual reason (e.g.
+            // "non-mandatory-script-verify-flag", "dust", "bad-txns-*") is
+            // surfaced instead of a useless "HTTP error! status: 500".
+            const responseData = await response.json().catch(() => null);
+
+            if (responseData && responseData.error) {
+                throw new Error(responseData.error.message || JSON.stringify(responseData.error));
             }
 
-            const responseData = await response.json();
-
-            if (responseData.error) {
-                throw new Error(responseData.error.message || 'sendrawtransaction failed');
+            if (!response.ok || !responseData) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             if (responseData.result) {
