@@ -153,6 +153,9 @@ describe('REG-04: Validator Functions', function () {
 
     it('is case-sensitive (rejects lowercase)', function () {
       assert.throws(() => validateEncoding('op_return'), { name: 'TypeError' })
+      // Pin the specific lowercase 'p2sh' regression: publishers once sent this and the
+      // encoder must reject it rather than silently accept a mis-cased encoding.
+      assert.throws(() => validateEncoding('p2sh'), { name: 'TypeError' })
     })
   })
 
