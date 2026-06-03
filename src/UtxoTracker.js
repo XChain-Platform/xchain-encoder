@@ -110,6 +110,9 @@ class UtxoTracker {
                         typeof u.value === 'undefined') {
                         throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}`)
                     }
+                    if (typeof u.scriptPubKey !== 'string' || u.scriptPubKey.length === 0) {
+                        throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}: scriptPubKey must be a non-empty string`)
+                    }
                 }
                 return result
             } else {
