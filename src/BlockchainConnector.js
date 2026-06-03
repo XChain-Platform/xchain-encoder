@@ -1,26 +1,26 @@
 /*********************************************************************
- * 
+ *
  * Copyright © 2025 Dankest, LLC
  * Based on XChain Platform by Dankest, LLC – https://dankest.llc
  *
  * Licensed under the Dankest Community License (Apache License 2.0 + Additional Terms).
  * You may not use this file except in compliance with that License.
- * 
+ *
  * A copy of the License is available at:
  *     https://dankest.llc/license
  *
  * This software is provided “AS IS”, without warranties or conditions of any kind.
- * 
+ *
  **********************************************************************
  *
  * XChain Encoder - Blockchain Connector Class
- * 
+ *
  * This file handles pulling blockchain data from a coin daemon
- * 
+ *
  ********************************************************************/
 
 // Load required libraries
-const fetch = require('cross-fetch')
+const axios = require('axios')
 
 const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
 
@@ -30,38 +30,25 @@ class BlockchainConnector {
         this.rpcUser = rpcUser
         this.rpcPassword = rpcPassword
     }
-    
+
     async getNetworkInfo(){
         const data = {
             jsonrpc: '2.0',
             method: 'getnetworkinfo',
             id: 1
         };
-        
-        // Options configuration for fetch
-        const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
-        const options = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Basic ${auth}`
-            },
-            body: JSON.stringify(data)
-        };
-
-        // Abort the request if the node does not respond within 15 seconds
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             // Make the request to the node
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
+            const response = await axios.post(this.url, data, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
+                },
+                timeout: RPC_TIMEOUT
+            });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const responseData = await response.json();
+            const responseData = response.data;
 
             // Verify if there is a result and return it
             if (responseData.result) {
@@ -71,8 +58,6 @@ class BlockchainConnector {
             }
         } catch (error) {
             throw new Error(`Error in network request: ${error.message}`);
-        } finally {
-            clearTimeout(timer);
         }
     }
 
@@ -82,31 +67,18 @@ class BlockchainConnector {
             method: 'getblockchaininfo',
             id: 1
         };
-        
-        // Options configuration for fetch
-        const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
-        const options = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Basic ${auth}`
-            },
-            body: JSON.stringify(data)
-        };
-
-        // Abort the request if the node does not respond within 15 seconds
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
         try {
             // Make the request to the node
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
+            const response = await axios.post(this.url, data, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
+                },
+                timeout: RPC_TIMEOUT
+            });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const responseData = await response.json();
+            const responseData = response.data;
 
             // Verify if there is a result and return it
             if (responseData.result && responseData.result.chain) {
@@ -116,16 +88,10 @@ class BlockchainConnector {
             }
         } catch (error) {
             throw new Error(`Error in network request: ${error.message}`);
-        } finally {
-            clearTimeout(timer);
         }
     }
 
     async getTransactionHex(txid, hexFormat = true) {
-        // Abort the request if the node does not respond within 15 seconds
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
-
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -134,25 +100,16 @@ class BlockchainConnector {
                 id: 1,
             };
 
-            // Options configuration for fetch
-            const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
-            const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${auth}`
-                },
-                body: JSON.stringify(data)
-            };
-
             // Make the request to the node
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
+            const response = await axios.post(this.url, data, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
+                },
+                timeout: RPC_TIMEOUT
+            });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const responseData = await response.json();
+            const responseData = response.data;
 
             // Verify if there is a result and return the hex
             if (responseData.result && responseData.result.hex) {
@@ -167,16 +124,10 @@ class BlockchainConnector {
         } catch (error) {
             console.error('Error:', error);
             throw error;
-        } finally {
-            clearTimeout(timer);
         }
     }
-    
-    async sendRawTransaction(txHex) {
-        // Abort the request if the node does not respond within 15 seconds
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
 
+    async sendRawTransaction(txHex) {
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -185,51 +136,41 @@ class BlockchainConnector {
                 id: 1,
             };
 
-            const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
-            const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${auth}`
+            const response = await axios.post(this.url, data, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
                 },
-                body: JSON.stringify(data)
-            };
+                timeout: RPC_TIMEOUT
+            });
 
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
-
-            // bitcoind/litecoind/dogecoind return HTTP 500 for RPC-level errors
-            // (e.g. a rejected tx) WITH a JSON-RPC error body. Read the body even
-            // on a non-2xx status so the node's actual reason (e.g.
-            // "non-mandatory-script-verify-flag", "dust", "bad-txns-*") is
-            // surfaced instead of a useless "HTTP error! status: 500".
-            const responseData = await response.json().catch(() => null);
+            const responseData = response.data;
 
             if (responseData && responseData.error) {
                 throw new Error(responseData.error.message || JSON.stringify(responseData.error));
             }
 
-            if (!response.ok || !responseData) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            if (responseData.result) {
+            if (responseData && responseData.result) {
                 return responseData.result;
             } else {
                 throw new Error('Error broadcasting transaction: empty result');
             }
         } catch (error) {
+            // bitcoind/litecoind/dogecoind return HTTP 500 for RPC-level errors
+            // (e.g. a rejected tx) WITH a JSON-RPC error body. axios throws on a
+            // non-2xx status, so read the node's error body off error.response so
+            // its actual reason (e.g. "non-mandatory-script-verify-flag", "dust",
+            // "bad-txns-*") is surfaced instead of a useless "status code 500".
+            const body = error.response?.data;
+            if (body && body.error) {
+                throw new Error(body.error.message || JSON.stringify(body.error));
+            }
             console.error('Error:', error);
             throw error;
-        } finally {
-            clearTimeout(timer);
         }
     }
 
     async getFeePerKilobyte(blocksNumber) {
-        // Abort the request if the node does not respond within 15 seconds
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT);
-
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -238,25 +179,16 @@ class BlockchainConnector {
                 id: 1,
             };
 
-            // Options configuration for fetch
-            const auth = Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64');
-            const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${auth}`
-                },
-                body: JSON.stringify(data)
-            };
-
             // Make the request to the node
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
+            const response = await axios.post(this.url, data, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
+                },
+                timeout: RPC_TIMEOUT
+            });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const responseData = await response.json();
+            const responseData = response.data;
 
             // Verify if there is a result and return the hex
             if (responseData.result && responseData.result.feerate) {
@@ -271,8 +203,6 @@ class BlockchainConnector {
         } catch (error) {
             console.error('Error:', error);
             throw error;
-        } finally {
-            clearTimeout(timer);
         }
     }
 }

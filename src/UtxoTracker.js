@@ -1,26 +1,29 @@
 /*********************************************************************
- * 
+ *
  * Copyright © 2025 Dankest, LLC
  * Based on XChain Platform by Dankest, LLC – https://dankest.llc
  *
  * Licensed under the Dankest Community License (Apache License 2.0 + Additional Terms).
  * You may not use this file except in compliance with that License.
- * 
+ *
  * A copy of the License is available at:
  *     https://dankest.llc/license
  *
  * This software is provided “AS IS”, without warranties or conditions of any kind.
- * 
+ *
  **********************************************************************
  *
  * XChain Encoder - UTXO Tracker Class
- * 
+ *
  * This file handles getting UTXO information from an xchain-utxo-tracker instance
- * 
+ *
  ********************************************************************/
 
 // Load required libraries
-const fetch = require('cross-fetch')
+const axios = require('axios')
+
+// How long to wait on the tracker before giving up on a request.
+const TRACKER_TIMEOUT = 15000
 
 // Maximum number of blocks the tracker may trail the node tip before its UTXO
 // view is considered too stale to build transactions against. Mirrors the
@@ -40,40 +43,23 @@ class UtxoTracker {
     // lag}). Throws on transport/HTTP/shape errors so callers can treat an
     // unreachable or malformed status response as "do not proceed".
     async getSyncStatus() {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+        const data = {
+            jsonrpc: '2.0',
+            method: 'get_sync_status',
+            params: {},
+            id: 1
+        };
 
-        try {
-            const data = {
-                jsonrpc: '2.0',
-                method: 'get_sync_status',
-                params: {},
-                id: 1
-            };
+        const response = await axios.post(this.url, data, {
+            timeout: TRACKER_TIMEOUT
+        });
 
-            const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            };
+        const responseData = response.data;
 
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const responseData = await response.json();
-
-            if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
-                return responseData.result
-            } else {
-                throw new Error('Error getting sync status: empty result')
-            }
-        } finally {
-            clearTimeout(timer);
+        if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
+            return responseData.result
+        } else {
+            throw new Error('Error getting sync status: empty result')
         }
     }
 
@@ -97,10 +83,6 @@ class UtxoTracker {
             throw error;
         }
 
-        // Abort the request if the tracker does not respond within 15 seconds
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
-
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -109,23 +91,12 @@ class UtxoTracker {
                 id: 1
             };
 
-            // Options configuration for fetch
-            const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            };
-
             // Make the request to the node
-            const response = await fetch(this.url, { ...options, signal: controller.signal });
+            const response = await axios.post(this.url, data, {
+                timeout: TRACKER_TIMEOUT
+            });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const responseData = await response.json();
+            const responseData = response.data;
 
             // Verify structure and return result
             if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
@@ -149,8 +120,6 @@ class UtxoTracker {
         } catch (error) {
             console.error('Error fetching UTXOs:', error);
             throw error;
-        } finally {
-            clearTimeout(timer);
         }
     }
 }
