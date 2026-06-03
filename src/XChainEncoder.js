@@ -31,7 +31,13 @@ const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('./validator')
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
-const PW2SH_SIZE = 3615 // bitcoinjs-lib enforces a 3600-byte redeem script limit; 3615 - 44 overhead = 3571 max chunk
+// Each data chunk is pushed as a SINGLE script element inside the witness
+// script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE (520 bytes) — the
+// same limit that caps the P2SH chunk — NOT by the 3600-byte total witness-
+// script policy limit. A larger chunk (e.g. the former 3571) builds a witness
+// script the node rejects at spend time with "Push value size limit exceeded".
+// 520 - 44 overhead = 476-byte max chunk, identical to P2SH.
+const PW2SH_SIZE = 520
 const MULTISIGN_SIZE = 69 // dataToPubkey handles at most 32 bytes per slice; chunk = magic(4) + data(N), split at byte 32 → max chunk = 64 → max data = 60 → 60 + 4(magic) + 5(overhead) = 69
 const MAGIC_WORD = "XCHN"
 
@@ -452,15 +458,38 @@ class XChainEncoder {
                         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
                         voutPsbtIndex = voutPsbtIndex + 1                   
                     } else {
+                        // Size this P2WSH data output to fund its share of the
+                        // reveal (spending) transaction's fee — mirroring the
+                        // P2SH branch above. A flat dust value (546) leaves the
+                        // multi-input reveal tx below the node's min-relay-fee
+                        // floor (observed: 1638 sat across 3 dust outputs vs a
+                        // ~2228 sat floor), so the broadcast is rejected. The
+                        // estimate uses witness-discounted sizing because P2WSH
+                        // reveal data lives in the (÷4-weighted) witness.
+                        let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer)
+                        let spendingP2wshEstimatedFee = Math.trunc((spendingP2wshEstimatedSize * feePerBytes) * SATOSHI_UNIT)
+
+                        if (spendingP2wshEstimatedFee < finalDust){
+                            spendingP2wshEstimatedFee = finalDust
+                        }
+
                         psbt.addOutput({
                             address: bitcoin.payments.p2wsh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
-                            value:finalDust
+                            value:spendingP2wshEstimatedFee
                         })
-                        
+                        // Account for the data output's value so change is not
+                        // over-credited. Without this, changeSatoshis below is
+                        // computed as input - 0 - fee, so the data outputs are
+                        // funded "for free" and total outputs exceed total
+                        // inputs — bitcoinjs rejects tx1 with "Outputs are
+                        // spending more than Inputs". Mirrors the P2SH and
+                        // MULTISIGN branches, which already track their outputs.
+                        outputSatoshis = outputSatoshis + spendingP2wshEstimatedFee
+
                         estimatedTxSize = estimatedTxSize
                             + TxSizeEstimator.estimateP2wshOutput()
                     }
-                    
+
                     break
                 case Encoding.MULTISIGN:
                     obfuscatedData = await this.obfuscate(nextDataBuffer, txidFirstInput)
@@ -629,6 +658,43 @@ class XChainEncoder {
                 Buffer.from(MAGIC_WORD,'utf8'),
                 Buffer.from("p2sh",'utf8')
             ]))
+            + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
+
+        return sizeEstimated
+    }
+
+    estimateSpendingP2wshTx(witnessData){
+        // Per-chunk embedded value sized to cover the P2WSH reveal tx's worst
+        // case at 1 sat/vbyte. A native-segwit input keeps its scriptSig empty
+        // and carries the reveal payload (sig + compressed pubkey + witness
+        // script) in the witness, which is weight-1 (i.e. ÷4 toward vbytes).
+        // That makes a P2WSH reveal materially cheaper than the equivalent P2SH
+        // reveal — sizing it with estimateSpendingP2shTx would over-fund ~4x.
+        let witnessScriptPush = witnessData.length < 76   ? 1
+                              : witnessData.length < 256  ? 2
+                              :                             3
+        // Witness stack (weight 1): item count + sig push (1+72) + pubkey push
+        // (1+33) + witness-script push + script bytes, plus the segwit
+        // marker+flag (2) which are also weight 1.
+        let witnessBytes = 2                                    // marker + flag
+            + 1                                                 // witness stack item count
+            + (1 + 72)                                          // sig push
+            + (1 + 33)                                          // compressed pubkey push
+            + (witnessScriptPush + witnessData.length)          // witness script push + bytes
+
+        // Non-witness (weight 4) bytes: tx overhead + the empty-scriptSig input
+        // outpoint + the OP_RETURN marker output.
+        let nonWitnessBytes =
+            10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
+            + (36 + 1 + 4) // outpoint(36) + empty scriptSig len(1) + sequence(4)
+            + TxSizeEstimator.estimateOpReturnOutput(Buffer.concat([
+                Buffer.from(MAGIC_WORD,'utf8'),
+                Buffer.from("p2wsh",'utf8')
+            ]))
+
+        // vsize = ceil(total weight / 4) = nonWitnessBytes + ceil(witnessBytes/4)
+        let sizeEstimated = nonWitnessBytes
+            + Math.ceil(witnessBytes / 4)
             + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
 
         return sizeEstimated

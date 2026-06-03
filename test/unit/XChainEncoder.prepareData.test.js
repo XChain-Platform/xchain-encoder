@@ -6,7 +6,7 @@ const MAGIC_WORD = 'XCHN'
 const MAGIC_LEN = 4
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
-const PW2SH_SIZE = 3615
+const PW2SH_SIZE = 520
 const MULTISIGN_SIZE = 69
 
 // A valid regtest P2PKH address for P2SH/P2WSH redeem script tests
@@ -167,7 +167,7 @@ describe('XChainEncoder.prepareData()', () => {
   // ── P2WSH ────────────────────────────────────────────────────────
 
   describe('P2WSH encoding', () => {
-    const chunkDataSize = PW2SH_SIZE - 44 // 3571
+    const chunkDataSize = PW2SH_SIZE - 44 // 476
 
     it('produces compiled redeem scripts same structure as P2SH', () => {
       const data = Buffer.alloc(100, 0xEE)
@@ -179,14 +179,17 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(decompiled[6], bitcoin.opcodes.OP_CHECKSIG)
     })
 
-    it('uses the P2WSH chunk size (3571) — larger than P2SH (476)', () => {
-      // Data that fits in one P2WSH chunk but would need many P2SH chunks
-      const data = Buffer.alloc(3000, 0xFF)
+    it('uses the same 476-byte chunk size as P2SH (bounded by the 520-byte push limit)', () => {
+      // Each chunk is pushed as a SINGLE script element inside the witness
+      // script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE (520),
+      // exactly like P2SH — NOT by the larger total witness-script policy
+      // limit. A 476-byte payload is the largest that fits one chunk.
+      const data = Buffer.alloc(chunkDataSize, 0xFF)
       const result = encoder.prepareData(data, 'P2WSH', REGTEST_ADDRESS)
       assert.strictEqual(result.dataBufferArray.length, 1)
     })
 
-    it('splits into multiple chunks when data exceeds 3571 bytes', () => {
+    it('splits into multiple chunks when data exceeds 476 bytes', () => {
       const data = Buffer.alloc(chunkDataSize + 1, 0xAA)
       const result = encoder.prepareData(data, 'P2WSH', REGTEST_ADDRESS)
       assert.strictEqual(result.dataBufferArray.length, 2)

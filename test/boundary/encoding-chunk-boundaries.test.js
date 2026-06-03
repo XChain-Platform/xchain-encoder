@@ -247,20 +247,23 @@ describe('Encoding Chunk Boundaries — Full Pipeline', () => {
   // ── P2WSH chunk-split threshold ─────────────────────────────────
 
   describe('P2WSH real-world boundary (bitcoin-regtest only)', () => {
-    // PW2SH_SIZE = 3615, giving a chunk capacity of 3571 bytes.
-    // bitcoinjs-lib enforces a 3600-byte limit on P2WSH redeem scripts.
-    // The compiled redeem script includes the data chunk plus ~29 bytes of
-    // opcodes/pubkey. Through the full pipeline: 3568-char string (compiled
-    // to 3571 bytes) is the last to fit in one chunk; 3569 chars splits to 2.
+    // PW2SH_SIZE = 520, giving a chunk capacity of 476 bytes — the SAME as
+    // P2SH. Each data chunk is pushed as a single script element inside the
+    // witness script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE
+    // (520), NOT by the larger total witness-script policy limit. (A bigger
+    // chunk builds a witness script the node rejects at spend time with
+    // "Push value size limit exceeded".) Through the full pipeline a 473-char
+    // string (compiled to 476 bytes with a 3-byte OP_PUSHDATA2 prefix) is the
+    // last to fit in one chunk; 474 chars (compiled 477) splits to 2.
 
-    it('3568-char data → 1 P2WSH output (last valid size)', async () => {
+    it('473-char data → 1 P2WSH output (last single-chunk size)', async () => {
       const p2wshNet = 'bitcoin-regtest'
       const encoder = makeEncoder(p2wshNet)
       const address = getTestAddress(p2wshNet)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        'A'.repeat(3568), null, 10000, false, 'P2WSH', address,
+        'A'.repeat(473), null, 10000, false, 'P2WSH', address,
         null, null, null, true, 0.00001
       )
 
@@ -269,16 +272,15 @@ describe('Encoding Chunk Boundaries — Full Pipeline', () => {
       assert.strictEqual(nonZeroOutputs.length, 2)
     })
 
-    it('3569-char data (compiled=3572) → 2 P2WSH outputs (crosses chunk boundary)', async () => {
-      // After fix: PW2SH_SIZE=3615 → chunksSize=3571. Compiled 3572 > 3571 → 2 chunks.
-      // Each chunk's redeem script stays under 3600 bytes.
+    it('474-char data (compiled=477) → 2 P2WSH outputs (crosses chunk boundary)', async () => {
+      // chunksSize = PW2SH_SIZE(520) - 44 = 476. Compiled 477 > 476 → 2 chunks.
       const p2wshNet = 'bitcoin-regtest'
       const encoder = makeEncoder(p2wshNet)
       const address = getTestAddress(p2wshNet)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        'A'.repeat(3569), null, 10000, false, 'P2WSH', address,
+        'A'.repeat(474), null, 10000, false, 'P2WSH', address,
         null, null, null, true, 0.00001
       )
 
