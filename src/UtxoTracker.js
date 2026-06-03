@@ -25,13 +25,6 @@ const axios = require('axios')
 // How long to wait on the tracker before giving up on a request.
 const TRACKER_TIMEOUT = 15000
 
-// Maximum number of blocks the tracker may trail the node tip before its UTXO
-// view is considered too stale to build transactions against. Mirrors the
-// tracker's own SYNCED_THRESHOLD: when lag exceeds this, the tracker reports
-// itself out of sync and may be serving UTXOs that reflect an already-spent
-// state, which would produce transactions the network rejects.
-const SYNCED_THRESHOLD = 3
-
 class UtxoTracker {
     constructor(url, port) {
         this.url = "http://"+url+":"+port
@@ -40,7 +33,9 @@ class UtxoTracker {
 
     // Probe the tracker's lag behind the chain tip. Returns the parsed
     // get_sync_status result ({committed_height, tracker_height, node_height,
-    // lag}). Throws on transport/HTTP/shape errors so callers can treat an
+    // lag, synced}). `synced` is the tracker's own verdict (lag within its
+    // threshold); callers should rely on it rather than re-deriving a local
+    // threshold. Throws on transport/HTTP/shape errors so callers can treat an
     // unreachable or malformed status response as "do not proceed".
     async getSyncStatus() {
         const data = {
@@ -75,7 +70,10 @@ class UtxoTracker {
             if (lag === null || typeof lag === 'undefined') {
                 throw new Error('utxo-tracker has not indexed any blocks yet; refusing to fetch UTXOs')
             }
-            if (lag > SYNCED_THRESHOLD) {
+            // Delegate the sync verdict to the tracker, which computes `synced`
+            // against its own authoritative threshold. Avoids drift from keeping
+            // a local copy of the threshold here.
+            if (!syncStatus.synced) {
                 throw new Error(`utxo-tracker is lagging by ${lag} blocks; refusing to fetch UTXOs`)
             }
         } catch (error) {
