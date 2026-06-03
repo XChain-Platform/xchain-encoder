@@ -25,6 +25,11 @@ const axios = require('axios')
 // How long to wait on the tracker before giving up on a request.
 const TRACKER_TIMEOUT = 15000
 
+// A valid on-chain txid is exactly 64 hex characters. The tracker can emit a
+// shorter zero-hash sentinel in edge cases; reject it here rather than letting
+// it reach bitcoinjs-lib's psbt.addInput() and throw at construction time.
+const HEX_64_RE = /^[0-9a-fA-F]{64}$/
+
 class UtxoTracker {
     constructor(url, port) {
         this.url = "http://"+url+":"+port
@@ -110,8 +115,14 @@ class UtxoTracker {
                         typeof u.value === 'undefined') {
                         throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}`)
                     }
+                    if (!HEX_64_RE.test(u.txid)) {
+                        throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}: txid must be a 64-character hex string`)
+                    }
                     if (typeof u.scriptPubKey !== 'string' || u.scriptPubKey.length === 0) {
                         throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}: scriptPubKey must be a non-empty string`)
+                    }
+                    if (u.confirmations == null) {
+                        u.confirmations = 0
                     }
                 }
                 return result

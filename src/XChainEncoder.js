@@ -27,7 +27,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, validateUtxoArray } = require('./validator')
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
@@ -279,10 +279,18 @@ class XChainEncoder {
         if ((utxos == null) || (utxos.length == 0)){
             utxos = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
             utxos = utxos["utxos"]
-            
+
             if ((utxos == null) || (utxos.length == 0)){
                 throw new Error("no utxos were provided and no utxos found on the blockchain")
             }
+
+            //Tracker-fetched UTXOs bypass the caller-API validation path, yet
+            //feed into the same PSBT construction code below. Run them through
+            //the same checks (64-char hex txid, integer vout/value, non-empty
+            //scriptPubKey, confirmations defaulted) so a malformed tracker
+            //output is rejected here instead of throwing deep inside
+            //bitcoinjs-lib's psbt.addInput().
+            validateUtxoArray(utxos)
         }
         
         //Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes, this should be fixed)
