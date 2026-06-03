@@ -179,7 +179,8 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   // (8192) — the same ceiling the indexing decoder enforces. An 8189-byte payload
   // compiles to 8189 + 3 (OP_PUSHDATA2 prefix) = 8192 (the limit); 8190 bytes
   // compiles to 8193 and is rejected, because the decoder would otherwise silently
-  // drop it on chain.
+  // drop it on chain. (createTransaction enforces the compiled ceiling directly;
+  // the api.js validator additionally pre-checks the raw byte count at 8189.)
   describe('B-4: Maximum payload stress (8192 byte compiled boundary)', () => {
     it('8189-byte data → compiled=8192 → at limit, P2WSH succeeds', async () => {
       const encoder = makeEncoder(BTC)

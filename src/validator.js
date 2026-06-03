@@ -24,8 +24,12 @@
 // Coarse pre-check on the *decoded* ACTION payload (data + rawData). The
 // authoritative on-chain limit is the compiled-push ceiling below
 // (MAX_COMPILED_ACTION_DATA_LENGTH), which XChainEncoder enforces after the
-// script is compiled — that is what indexing nodes measure.
-const MAX_DATA_BYTES = 8192
+// script is compiled — that is what indexing nodes measure. A raw payload of N
+// bytes (N >= 256) compiles to N + 3 once the OP_PUSHDATA2 prefix is added, so
+// the largest raw payload that still fits the 8192-byte compiled ceiling is
+// 8189. Set the pre-check at 8189 so over-limit payloads fail here with a clear
+// message instead of throwing a RangeError mid-build inside createTransaction.
+const MAX_DATA_BYTES = 8189
 // Maximum *compiled* on-chain ACTION push, in bytes. Must equal the decoder's
 // MAX_ACTION_DATA_LENGTH — a transaction whose compiled push exceeds this is
 // silently dropped by every indexing node. Canonical source of truth:
