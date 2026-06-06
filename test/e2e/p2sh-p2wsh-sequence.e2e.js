@@ -1,4 +1,16 @@
-/**
+/*********************************************************************
+ *
+ * Copyright © 2025–2026 Dankest, LLC
+ * Based on XChain Platform by Dankest, LLC – https://dankest.llc
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This file is part of XChain Platform. Licensed under the GNU Affero
+ * General Public License v3.0 or later; see LICENSE.md. A commercial
+ * license (without AGPL source-disclosure terms) is available —
+ * contact legal@dankest.llc.
+ *
+ **********************************************************************
  * E2E-2: Two-Transaction P2SH/P2WSH Orchestration
  *
  * Validates the full tx1 → tx2 sequence for P2SH and P2WSH encoding.

@@ -2,7 +2,7 @@
   "name": "xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
   "version": "1.6.9",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "https://github.com/XChain-platform/xchain-encoder.git"
