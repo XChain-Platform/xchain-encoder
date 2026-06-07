@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
+  "mutate": [
+    "src/validator.js"
+  ],
+  "testRunner": "mocha",
+  "mochaOptions": {
+    "spec": [
+      "test/security/**/*.test.js"
+    ]
+  },
+  "reporters": ["clear-text", "json"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/security-pilot.json"
+  },
+  "coverageAnalysis": "perTest",
+  "concurrency": 4,
+  "timeoutMS": 30000,
+  "tempDirName": ".stryker-tmp",
+  "thresholds": {
+    "high": 90,
+    "low": 60,
+    "break": null
+  }
+}

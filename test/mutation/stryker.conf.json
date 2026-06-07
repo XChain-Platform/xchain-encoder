@@ -12,6 +12,8 @@
       "../../test/unit/**/*.test.js",
       "../../test/integration/**/*.test.js",
       "../../test/boundary/**/*.test.js",
+      "../../test/security/**/*.test.js",
+      "../../test/fuzz/**/*.fuzz.js",
       "../../test/chaos/**/*.test.js"
     ]
   },
