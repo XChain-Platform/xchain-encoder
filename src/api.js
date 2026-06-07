@@ -31,6 +31,7 @@ const rateLimit = require('express-rate-limit');
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 const validator = require('./validator')
+const { version: ENCODER_VERSION } = require('../package.json')
 
 
 const NETWORK = process.env.NETWORK
@@ -91,9 +92,9 @@ app.use(cors(CORS_ORIGIN ? { origin: CORS_ORIGIN } : { origin: false }));
 
 
 const jsonRpcController = {
-    // Function to check if xchain-indexer is up
+    // Function to check if the encoder is up; also reports the running version.
     async ping() {
-        return {status:"success"};
+        return {status:"success", version: ENCODER_VERSION};
     },
     // Function to create transactions hex for a given data and encoding type
     async create_tx(rawParams) {
