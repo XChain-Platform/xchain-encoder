@@ -96,6 +96,27 @@ const jsonRpcController = {
     async ping() {
         return {status:"success", version: ENCODER_VERSION};
     },
+    // Suggested fee tiers (base-unit per vByte: sat/koinu/litoshi) from the node's
+    // estimatesmartfee at decreasing confirmation targets — low=slow/cheap (6
+    // blocks) … high=next block (1). getFeePerKilobyte returns coin/kB; *1e5
+    // converts to base-unit/byte (1e8 base-units per coin ÷ 1000 bytes per kB).
+    // Floored at 1 so a tier is never 0. Read-only; no params.
+    async estimate_fee() {
+        const targets = { low: 6, medium: 3, high: 1 };
+        const out = {};
+        try {
+            for (const tier of Object.keys(targets)) {
+                const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
+                out[tier] = Math.max(1, Math.round(Number(feerate) * 100000));            // -> base-unit/byte
+            }
+        } catch (err) {
+            console.error('Fee estimation error:', err)
+            const e = new Error('Fee estimation failed')
+            e.code = -32603
+            throw e
+        }
+        return out;
+    },
     // Function to create transactions hex for a given data and encoding type
     async create_tx(rawParams) {
         // Validate and sanitize all parameters
