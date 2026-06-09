@@ -28,12 +28,14 @@
     "@stryker-mutator/core": "^8.7.1",
     "@stryker-mutator/mocha-runner": "^8.7.1",
     "babelify": "^10.0.0",
-    "browserify": "^17.0.0"
+    "browserify": "^17.0.0",
+    "c8": "^11.0.0"
   },
   "scripts": {
     "api": "node ./src/api.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
     "test": "mocha --timeout 0 --require ./test/prepareRegtest.test.js",
+    "coverage": "c8 --reporter=text --reporter=html --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",
     "ci": "npx mocha --timeout 10000 'test/unit/**/*.test.js' --recursive --exit",
     "test:unit": "npx mocha --timeout 10000 'test/unit/**/*.test.js'",
     "test:integration": "npx mocha --timeout 30000 'test/integration/**/*.test.js'",

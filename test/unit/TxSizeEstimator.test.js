@@ -195,5 +195,19 @@ describe('TxSizeEstimator', () => {
         assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 350)
       })
     })
+
+    describe('nonWitnessUtxo edge cases', () => {
+      it('returns 350 when the nonWitnessUtxo buffer cannot be decoded', () => {
+        const utxo = { nonWitnessUtxo: Buffer.from([0x00, 0x01]), index: 0 }
+        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 350)
+      })
+      it('returns 180 (assume P2PKH) when the referenced output index is missing', () => {
+        const tx = new bitcoin.Transaction()
+        tx.addInput(Buffer.alloc(32), 0)
+        tx.addOutput(Buffer.from('76a914' + '00'.repeat(20) + '88ac', 'hex'), 1000)
+        const utxo = { nonWitnessUtxo: tx.toBuffer(), index: 5 } // past the single output
+        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 180)
+      })
+    })
   })
 })
