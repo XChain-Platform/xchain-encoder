@@ -199,6 +199,9 @@ describe('XChainEncoder.createTransaction()', () => {
   describe('fee handling', () => {
     it('uses custom fee when provided', async () => {
       const encoder = makeEncoder()
+      // This fee is far above the relative fee-rate cap by design; the cap has
+      // its own suite (XChainEncoder.feeRateCap.test.js), disable it here.
+      encoder.maxFeeRateMultiplier = null
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const customFee = 50000
 

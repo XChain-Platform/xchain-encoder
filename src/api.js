@@ -43,6 +43,12 @@ const UTXO_TRACKER_URL = process.env.UTXO_TRACKER_URL
 const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = process.env.ENCODER_API_PORT
 const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_FEE_RATE_KB, 10) : null
+// Relative fee-rate ceiling as a multiple of the node's estimatesmartfee(1)
+// estimate (default 10). Caps caller-supplied fee/feePerKb so a hostile request
+// cannot drain inputs into miner fee. Set to 0 to disable (not recommended).
+// An unset or unparseable value keeps the encoder default (fail-safe).
+const _maxFeeRateMultiplier = parseFloat(process.env.MAX_FEE_RATE_MULTIPLIER)
+const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFeeRateMultiplier : undefined
 const API_KEY = process.env.API_KEY
 const CORS_ORIGIN = process.env.CORS_ORIGIN
 
@@ -52,7 +58,7 @@ if (!API_KEY) {
     console.warn('NOTICE: API_KEY not set — encoder API authentication is DISABLED (open access).')
 }
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER);
 
 // Create the app
 const app = express();

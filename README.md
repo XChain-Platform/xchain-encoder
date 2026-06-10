@@ -23,7 +23,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Two-transaction P2SH/P2WSH** — automatic tx1 (fund) → tx2 (spend/reveal) orchestration with marker OP_RETURN
 - **UTXO selection** — largest-first selection, duplicate removal, optional unconfirmed filtering, automatic change output
 - **Fee estimation** — byte-accurate transaction size estimation per format via `TxSizeEstimator`; dust floor enforcement
-- **Fee rate cap** — `MAX_FEE_RATE_KB` environment variable prevents runaway fee estimates
+- **Fee rate caps** — caller-supplied `fee`/`feePerKb` is capped at `MAX_FEE_RATE_MULTIPLIER` × the node's own fee estimate (default 100×), so a hostile or buggy request cannot drain inputs into miner fee; `MAX_FEE_RATE_KB` adds an optional absolute cap
 - **Input validation** — centralized parameter validation (`validator.js`) with typed errors for all 15 `createTransaction` parameters
 - **Multi-chain support** — Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee** — optional RBF signaling via sequence number
@@ -80,7 +80,8 @@ npm run api
 | `DUST_AMOUNT` | No | Network default | Minimum output value in satoshis |
 | `UTXO_TRACKER_URL` | No | — | xchain-utxo-tracker service host |
 | `UTXO_TRACKER_API_PORT` | No | — | xchain-utxo-tracker service port |
-| `MAX_FEE_RATE_KB` | No | Uncapped | Maximum fee rate in sat/kB to prevent runaway estimates |
+| `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
+| `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
 | `CORS_ORIGIN` | No | Disabled | CORS origin (`*` to allow all) |

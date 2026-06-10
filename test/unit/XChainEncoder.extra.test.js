@@ -142,6 +142,10 @@ describe('XChainEncoder.createTransaction() — non-segwit UTXO path', () => {
 
   it('uses multiple UTXOs when first is insufficient to cover fee', async () => {
     const encoder = makeEncoder()
+    // The oversized explicit fee here exists to force multi-UTXO selection; it
+    // would trip the relative fee-rate cap (tested in its own suite), so
+    // disable the cap for this test.
+    encoder.maxFeeRateMultiplier = null
     // Two P2PKH UTXOs that must be combined. Sorted largest-first:
     // utxo2 (200000) then utxo1 (100000). With a 250000-sat explicit fee,
     // inputSatoshis after utxo2 alone = 200000, which is not > 0 + 250000,
@@ -420,6 +424,9 @@ describe('XChainEncoder.createTransaction() — maxFeeRateKb cap', () => {
 describe('XChainEncoder.createTransaction() — change edge cases', () => {
   it('does not add change output when changeSatoshis is 0', async () => {
     const encoder = makeEncoder()
+    // fee == input value is drain-shaped on purpose (to zero the change); the
+    // relative fee-rate cap would reject it, so disable the cap for this test.
+    encoder.maxFeeRateMultiplier = null
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
     // Set fee = input value so change = 0
     const fee = 100000000
@@ -437,6 +444,9 @@ describe('XChainEncoder.createTransaction() — change edge cases', () => {
 
   it('does not throw when changeSatoshis <= dustAmount and no change address', async () => {
     const encoder = makeEncoder()
+    // Near-total fee absorption is drain-shaped on purpose (to leave sub-dust
+    // change); the relative fee-rate cap would reject it, so disable the cap.
+    encoder.maxFeeRateMultiplier = null
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
     // Fee absorbs almost everything leaving just below dust
     const fee = 100000000 - 100 // leaves 100 sats = below dustAmount (546)

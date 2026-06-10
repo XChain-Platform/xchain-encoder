@@ -42,6 +42,17 @@ const MAGIC_WORD = "XCHN"
 
 const SATOSHI_UNIT = 100000000
 
+// Default ceiling on any caller-supplied fee, expressed as a multiple of the
+// node's own estimatesmartfee(1) estimate. Without a cap, a malicious or buggy
+// caller can set fee/feePerKb so high that every selected input is drained
+// into miner fee (the user signs the PSBT none the wiser). Relative to the
+// node estimate rather than absolute, so it tracks fee-market swings and works
+// across chains with very different fee scales (BTC/LTC/DOGE). 100× passes any
+// plausible priority/RBF fee (and fixed regtest test fees over quiet-chain
+// estimates) while still rejecting drain-grade fees, which sit thousands of
+// multiples above the market rate.
+const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
+
 const Encoding = {
     OP_RETURN: "OP_RETURN",
     P2SH: "P2SH",
@@ -51,7 +62,7 @@ const Encoding = {
 
 
 class XChainEncoder {
-    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null) {
+    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
@@ -60,6 +71,9 @@ class XChainEncoder {
       // (e.g. regtest feedback loop) from producing fees that the node will reject.
       // MAX_FEE_RATE_KB is in sat/kB, convert to BTC/byte to match feePerBytes units.
       this.maxFeePerBytes = maxFeeRateKb ? maxFeeRateKb / 1000 / SATOSHI_UNIT : null
+      // Relative fee-rate ceiling: caller-supplied fee/feePerKb may not exceed
+      // this multiple of the node's current estimate (0/null disables).
+      this.maxFeeRateMultiplier = maxFeeRateMultiplier || null
     }
     
     isSegwitUTXO(utxo) {
@@ -229,13 +243,38 @@ class XChainEncoder {
         }
 
         let feePerBytes = null
+        let nodeFeePerBytes = null
         if (feePerKb){
             feePerBytes = feePerKb/1000
+            if (this.maxFeeRateMultiplier){
+                try {
+                    nodeFeePerBytes = await this.connector.getFeePerKilobyte(1)/1000
+                } catch (err) {
+                    // The node cannot produce an estimate (e.g. a quiet testnet —
+                    // exactly the case where callers must pass feePerKb to begin
+                    // with). The relative cap has no anchor; fall back to the
+                    // absolute MAX_FEE_RATE_KB cap below, if configured.
+                    console.warn('Relative fee cap skipped: node fee estimate unavailable:', err.message)
+                }
+            }
         } else {
             feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
+            nodeFeePerBytes = feePerBytes
         }
-        if (this.maxFeePerBytes && feePerBytes > this.maxFeePerBytes) {
-            feePerBytes = this.maxFeePerBytes
+
+        // Effective fee-rate ceiling (BTC/byte): the tighter of the absolute
+        // MAX_FEE_RATE_KB cap and the relative multiplier × node-estimate cap.
+        // Bounds the per-byte rate used for fee estimation AND for sizing the
+        // P2SH/P2WSH funding outputs, so a hostile feePerKb cannot drain the
+        // caller's inputs into miner fee or over-funded data outputs.
+        let capFeePerBytes = this.maxFeePerBytes
+        if (this.maxFeeRateMultiplier && nodeFeePerBytes != null){
+            const relativeCap = nodeFeePerBytes * this.maxFeeRateMultiplier
+            capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
+        }
+        if (capFeePerBytes != null && feePerBytes > capFeePerBytes) {
+            console.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds the fee-rate cap, clamping to ${capFeePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
+            feePerBytes = capFeePerBytes
         }
         
         let finalDust = this.dustAmount
@@ -626,6 +665,19 @@ class XChainEncoder {
             }
         }
         
+        // Reject a caller-supplied absolute fee whose effective rate exceeds the
+        // fee-rate cap for a transaction of this estimated size. Unlike feePerKb
+        // (clamped above), an explicit fee is an exact amount the caller believes
+        // they are paying — silently lowering it would change what they sign, so
+        // refuse loudly instead. Without this, fee values up to the gross
+        // validator limit drain every selected input into miner fee.
+        if (fee != null && fee !== false && capFeePerBytes != null){
+            const maxFeeSatoshis = Math.max(this.dustAmount, Math.ceil(estimatedTxSize * capFeePerBytes * SATOSHI_UNIT))
+            if (estimatedFee > maxFeeSatoshis){
+                throw new RangeError(`fee ${estimatedFee} exceeds the maximum allowed ${maxFeeSatoshis} satoshis for a ~${estimatedTxSize}-byte transaction (fee-rate cap)`)
+            }
+        }
+
         //The fee can't be less than the network dust limit
         if (estimatedFee < this.dustAmount){
             estimatedFee = this.dustAmount

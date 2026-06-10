@@ -37,6 +37,10 @@ describe('Chaos Category E: Resource Exhaustion', () => {
   describe('E-1: Large P2WSH encoding (memory stress)', () => {
     it('8189-byte payload (compiled 8192, at limit) with P2WSH completes in <5s', async () => {
       const encoder = makeEncoder(BTC)
+      // This test measures encoding time, not fee policy; its flat 100000-sat
+      // fee lands just over the relative fee-rate cap (which has its own
+      // suite, XChainEncoder.feeRateCap.test.js), so disable the cap here.
+      encoder.maxFeeRateMultiplier = null
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
 
       const start = Date.now()
