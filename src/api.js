@@ -168,6 +168,16 @@ const jsonRpcController = {
             e.code = -32602
             throw e
         }
+        // Shed malformed/oversized payloads before the node round-trip; the
+        // node would reject them anyway, this just answers with a precise
+        // invalid-params reason instead of a node-side parse error.
+        try {
+            validator.validateRawTxHex(tx_hex)
+        } catch (err) {
+            const e = new Error(err.message)
+            e.code = -32602
+            throw e
+        }
 
         try {
             let txid = await encoder.connector.sendRawTransaction(tx_hex)

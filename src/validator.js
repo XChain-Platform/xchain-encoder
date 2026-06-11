@@ -38,6 +38,15 @@ const MAX_COMPILED_ACTION_DATA_LENGTH = 8192
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
+// Maximum accepted raw-transaction hex length, in characters. A standard
+// BTC/LTC/DOGE transaction tops out around 100 KB (200,000 hex chars), so
+// 400,000 chars (a 200 KB transaction) is comfortably above anything the
+// platform constructs while still shedding megabyte garbage before it reaches
+// Transaction.fromHex / Buffer.from or a coin-node round-trip. The Express
+// 1 MB body limit is the outer bound either way; this gives a precise, named
+// rejection instead of a node-side parse error.
+const MAX_RAW_TX_HEX_LENGTH = 400_000
+const RAW_TX_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/
 const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH'])
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
@@ -231,7 +240,29 @@ function validateP2shParams(p2shHash, p2shHex) {
     if (typeof p2shHex !== 'string' || p2shHex.length === 0) {
         throw new TypeError('p2shHex must be a non-empty hex string')
     }
+    if (p2shHex.length > MAX_RAW_TX_HEX_LENGTH) {
+        throw new TypeError('p2shHex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
+    }
+    if (!RAW_TX_HEX_RE.test(p2shHex)) {
+        throw new TypeError('p2shHex must be an even-length hex string')
+    }
     return { p2shHash, p2shHex }
+}
+
+// Raw signed-transaction hex for broadcast_tx. The node would reject malformed
+// hex anyway; rejecting here sheds obvious garbage before the round-trip and
+// returns a -32602 with a precise reason instead of a node parse error.
+function validateRawTxHex(txHex) {
+    if (typeof txHex !== 'string' || txHex.length === 0) {
+        throw new TypeError('tx_hex must be a non-empty hex string')
+    }
+    if (txHex.length > MAX_RAW_TX_HEX_LENGTH) {
+        throw new TypeError('tx_hex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
+    }
+    if (!RAW_TX_HEX_RE.test(txHex)) {
+        throw new TypeError('tx_hex must be an even-length hex string')
+    }
+    return txHex
 }
 
 function validateCompressedPubKey(compressedPubKey) {
@@ -299,9 +330,11 @@ module.exports = {
     validateUtxoEntry,
     validateCustomOutputs,
     validateP2shParams,
+    validateRawTxHex,
     validateCompressedPubKey,
     validateChange,
     validateAll,
+    MAX_RAW_TX_HEX_LENGTH,
     MAX_DATA_BYTES,
     MAX_COMPILED_ACTION_DATA_LENGTH,
     MAX_UTXO_COUNT,

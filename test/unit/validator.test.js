@@ -159,6 +159,36 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateP2shParams(HEX64, ''), /non-empty hex/);
             assert.deepStrictEqual(v.validateP2shParams(HEX64, 'deadbeef'), { p2shHash: HEX64, p2shHex: 'deadbeef' });
         });
+        it('enforces hex shape and the raw-tx length cap on p2shHex', function () {
+            assert.throws(() => v.validateP2shParams(HEX64, 'not-hex!'), /even-length hex/);
+            assert.throws(() => v.validateP2shParams(HEX64, 'abc'), /even-length hex/);
+            assert.throws(
+                () => v.validateP2shParams(HEX64, 'ab'.repeat(v.MAX_RAW_TX_HEX_LENGTH / 2 + 1)),
+                /exceeds maximum length/
+            );
+            // Exactly at the cap is accepted (shape-valid hex)
+            const atCap = 'ab'.repeat(v.MAX_RAW_TX_HEX_LENGTH / 2);
+            assert.strictEqual(v.validateP2shParams(HEX64, atCap).p2shHex, atCap);
+        });
+    });
+
+    describe('validateRawTxHex', function () {
+        it('accepts well-formed hex and returns it', function () {
+            assert.strictEqual(v.validateRawTxHex('deadbeef'), 'deadbeef');
+        });
+        it('rejects non-strings, empty, odd-length and non-hex input', function () {
+            assert.throws(() => v.validateRawTxHex(null), /non-empty hex/);
+            assert.throws(() => v.validateRawTxHex(42), /non-empty hex/);
+            assert.throws(() => v.validateRawTxHex(''), /non-empty hex/);
+            assert.throws(() => v.validateRawTxHex('abc'), /even-length hex/);
+            assert.throws(() => v.validateRawTxHex('zz00'), /even-length hex/);
+        });
+        it('rejects hex above MAX_RAW_TX_HEX_LENGTH', function () {
+            assert.throws(
+                () => v.validateRawTxHex('ab'.repeat(v.MAX_RAW_TX_HEX_LENGTH / 2 + 1)),
+                /exceeds maximum length/
+            );
+        });
     });
 
     describe('validateCompressedPubKey', function () {
