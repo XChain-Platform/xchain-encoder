@@ -81,7 +81,8 @@ describe('CryptoNetworks', () => {
           assert.ok(result)
           assert.strictEqual(result.messagePrefix, '\x19Litecoin Signed Message:\n')
           assert.strictEqual(typeof result.bech32, 'string')
-          assert.strictEqual(result.dustThreshold, 546)
+          // Litecoin's dust relay fee is 10× Bitcoin's → 5460 litoshi floor
+          assert.strictEqual(result.dustThreshold, 5460)
         })
       }
 
