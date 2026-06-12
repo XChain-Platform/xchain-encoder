@@ -7,6 +7,7 @@ WORKDIR /XChainEncoder
 RUN npm ci --omit=dev
 
 COPY ./src /XChainEncoder/src
+COPY ./docs /XChainEncoder/docs
 # Glob pattern matches zero or one .env file so the build succeeds when
 # the source has no .env (typical in CI / fresh clones). Mirrors the
 # pattern used by xchain-indexer/Dockerfile.
