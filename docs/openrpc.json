@@ -1,0 +1,296 @@
+{
+  "openrpc": "1.3.2",
+  "info": {
+    "title": "XChain Encoder API",
+    "version": "1.0.0",
+    "description": "Stateless JSON-RPC 2.0 service (POST /) that builds unsigned PSBTs embedding XChain ACTION payloads into BTC/LTC/DOGE transactions. One instance per chain — the public deployment is path-routed per coin: https://encoder.xchain.io/{COIN}/ (COIN = BTC/TBTC, LTC/TLTC, DOGE/TDOGE). Auth is optional: when the operator configures an API key, requests need an x-api-key header; the public instances run open. Errors follow JSON-RPC 2.0 ({code, message}): -32602 invalid params, -32603 internal, -32001 unauthorized, -32029 rate limited. See the registry at https://docs.xchain.io/protocol/Error_Codes.md. LLM-friendly docs: https://docs.xchain.io/llms.txt",
+    "license": {
+      "name": "AGPL-3.0-or-later",
+      "url": "https://docs.xchain.io/legal/LICENSING.md"
+    }
+  },
+  "servers": [
+    {
+      "name": "public",
+      "url": "https://encoder.xchain.io/{COIN}/",
+      "variables": {
+        "COIN": {
+          "default": "BTC",
+          "enum": [
+            "BTC",
+            "TBTC",
+            "LTC",
+            "TLTC",
+            "DOGE",
+            "TDOGE"
+          ]
+        }
+      }
+    }
+  ],
+  "methods": [
+    {
+      "name": "ping",
+      "summary": "Health check; reports the running encoder version.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "pong",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "description": "\"success\""
+            },
+            "version": {
+              "type": "string",
+              "description": "encoder semver"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "estimate_fee",
+      "summary": "Suggested fee tiers in base-units per vByte (sat/koinu/litoshi) from the node's estimatesmartfee.",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "tiers",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "integer",
+              "description": "6-block target"
+            },
+            "medium": {
+              "type": "integer",
+              "description": "3-block target"
+            },
+            "high": {
+              "type": "integer",
+              "description": "next-block target"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create_tx",
+      "summary": "Build an unsigned PSBT embedding an XChain ACTION payload. The caller signs and broadcasts.",
+      "description": "Encoding auto-selects OP_RETURN for payloads ≤76 bytes, else P2SH (two-transaction flow: call once for the funding tx, then again with p2shHash/p2shHex to build the reveal tx). rawData is decoded as Latin-1 so arbitrary bytes round-trip losslessly. Dogecoin has no segwit: P2WSH encoding is rejected on DOGE networks.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "pubkey",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "sender address (or public key for compressed flows)"
+          }
+        },
+        {
+          "name": "data",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "ACTION payload string (pipe-delimited, from xchain-sdk createAction)"
+          }
+        },
+        {
+          "name": "rawData",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "additional raw bytes, Latin-1 decoded (gated-FILE ciphertext, ECIES envelopes)"
+          }
+        },
+        {
+          "name": "utxos",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "description": "explicit UTXOs; fetched from the UTXO tracker when omitted (max 500)",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "name": "customOutputs",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "description": "extra outputs [{address, value}] (max 100)",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "name": "feeQuote",
+          "required": false,
+          "schema": {
+            "type": "object",
+            "description": "protocol fee output {address, amount} from the hub/indexer fee quote"
+          }
+        },
+        {
+          "name": "fee",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "description": "absolute fee in base units (rejected if over the fee-rate cap)"
+          }
+        },
+        {
+          "name": "feePerKb",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "description": "fee rate in base units per kB (clamped to the fee-rate cap)"
+          }
+        },
+        {
+          "name": "dust",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "description": "dust threshold override"
+          }
+        },
+        {
+          "name": "rbf",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "description": "signal replace-by-fee"
+          }
+        },
+        {
+          "name": "unconfirmed",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "description": "allow spending unconfirmed UTXOs"
+          }
+        },
+        {
+          "name": "encoding",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "force encoding",
+            "enum": [
+              "OP_RETURN",
+              "MULTISIGN",
+              "P2SH",
+              "P2WSH"
+            ]
+          }
+        },
+        {
+          "name": "change",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "change address (defaults to sender)"
+          }
+        },
+        {
+          "name": "p2shHash",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "funding txid — switches to the P2SH/P2WSH reveal (tx2) flow"
+          }
+        },
+        {
+          "name": "p2shHex",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "funding tx raw hex (required with p2shHash)"
+          }
+        },
+        {
+          "name": "compressedPubKey",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "compressed public key when pubkey is an address"
+          }
+        }
+      ],
+      "result": {
+        "name": "tx",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "psbt": {
+              "type": "string",
+              "description": "unsigned PSBT, hex"
+            },
+            "encoding": {
+              "type": "string",
+              "description": "encoding actually used"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "broadcast_tx",
+      "summary": "Broadcast a signed raw transaction to the coin node.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "tx_hex",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "signed raw transaction hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "broadcast",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "txid": {
+              "type": "string",
+              "description": "transaction id"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get_utxos",
+      "summary": "List UTXOs for an address (proxied from xchain-utxo-tracker).",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "address",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "address to query"
+          }
+        }
+      ],
+      "result": {
+        "name": "utxos",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}
