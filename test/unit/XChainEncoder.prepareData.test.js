@@ -99,22 +99,24 @@ describe('XChainEncoder.prepareData()', () => {
       }
     })
 
-    it('produces multiple chunks for data exceeding one chunk', () => {
-      // Each chunk holds 76 bytes of data; 153 bytes = 3 chunks
-      const data = Buffer.alloc(153, 0xAA)
+    it('accepts a payload exactly at the 76-byte single-output limit', () => {
+      const data = Buffer.alloc(OP_RETURN_SIZE - MAGIC_LEN) // 76 bytes
       const result = encoder.prepareData(data, 'OP_RETURN', null)
-      assert.strictEqual(result.dataBufferArray.length, 3)
+      assert.strictEqual(result.dataBufferArray.length, 1)
     })
 
-    it('preserves all data across chunks (no loss, no overlap)', () => {
-      const data = Buffer.alloc(200, 0)
-      for (let i = 0; i < data.length; i++) data[i] = i % 256
-      const result = encoder.prepareData(data, 'OP_RETURN', null)
+    it('rejects a payload one byte over the single-output limit', () => {
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard. Payloads larger
+      // than one 76-byte chunk must throw at construction rather than build a
+      // PSBT that always fails to broadcast.
+      const data = Buffer.alloc(OP_RETURN_SIZE - MAGIC_LEN + 1) // 77 bytes
+      assert.throws(() => encoder.prepareData(data, 'OP_RETURN', null), RangeError)
+    })
 
-      const reassembled = Buffer.concat(
-        result.dataBufferArray.map(c => c.subarray(MAGIC_LEN))
-      )
-      assert.deepStrictEqual(reassembled, data)
+    it('rejects a payload spanning multiple chunks', () => {
+      const data = Buffer.alloc(153, 0xAA)
+      assert.throws(() => encoder.prepareData(data, 'OP_RETURN', null), RangeError)
     })
 
     it('pubKey is not used (null pubKey works)', () => {

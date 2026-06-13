@@ -132,31 +132,42 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.5: BROADCAST — multi-chunk OP_RETURN ────────────────
+  // ── REG-07.5: BROADCAST — oversized OP_RETURN rejected ─────────
 
-  describe('REG-07.5: BROADCAST — multi-chunk OP_RETURN', function () {
-    it('long broadcast forced to OP_RETURN produces multiple outputs', async function () {
+  describe('REG-07.5: BROADCAST — oversized OP_RETURN rejected', function () {
+    it('long broadcast forced to OP_RETURN is rejected', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeBroadcastLong()
 
-      // Force OP_RETURN encoding even though data exceeds single chunk
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A payload larger than one 76-byte chunk must be rejected at
+      // construction rather than split into outputs that never relay.
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], address, null,
+          action.data, null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
+      )
+    })
+
+    it('long broadcast auto-selects P2SH (the valid carrier for oversized data)', async function () {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const action = actions.makeBroadcastLong()
+
       const result = await encoder.createTransaction(
         [utxo], address, null,
-        action.data, null, 10000, false, 'OP_RETURN', address,
+        action.data, null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
 
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.ok(opReturnOutputs.length >= 2,
-        `should have multiple OP_RETURN outputs, got ${opReturnOutputs.length}`)
-    })
-
-    it('reassembled chunks recover full message', async function () {
-      const action = actions.makeBroadcastLong()
-      const { decompiled } = await encodeAndExtract(action, { encoding: 'OP_RETURN' })
-      assert.strictEqual(decompiled[0].toString('utf8'), action.data)
+      assert.strictEqual(result.encoding, 'P2SH')
     })
   })
 

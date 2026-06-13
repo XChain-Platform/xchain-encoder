@@ -116,67 +116,51 @@ describe('Encoding Chunk Boundaries — Full Pipeline', () => {
         '75-char data (compiled=76) fits in one 76-byte chunk + 4 magic = 80')
     })
 
-    it('76-char data → 2 OP_RETURN outputs (chunk split at compile boundary)', async () => {
+    // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+    // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+    // Forcing OP_RETURN with a payload that would not fit a single 76-byte
+    // chunk must therefore be rejected at construction, not split into outputs
+    // that always fail to relay.
+    it('76-char data (compiled=78) → rejected (would exceed single output)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        'A'.repeat(76), null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        encoder.createTransaction(
+          [standardUtxo()], address, null,
+          'A'.repeat(76), null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.strictEqual(opReturnOutputs.length, 2,
-        '76-char data (compiled=78) exceeds one chunk → split into 2')
     })
 
-    it('exactly 152-byte compiled data → 2 chunks (2 × 76 = 152)', async () => {
-      // 150-char data: compile([150]) = 152 (OP_PUSHDATA1 + len + 150 data)
-      // prepareData chunks at 76: 152 / 76 = exactly 2 chunks
+    it('150-char data (compiled=152) → rejected', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        'A'.repeat(150), null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        encoder.createTransaction(
+          [standardUtxo()], address, null,
+          'A'.repeat(150), null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.strictEqual(opReturnOutputs.length, 2,
-        '150-char data (compiled=152) should produce exactly 2 chunks')
     })
 
-    it('151-char data → 3 OP_RETURN outputs (compile=153 → ceil(153/76)=3)', async () => {
+    it('151-char data (compiled=153) → rejected', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        'A'.repeat(151), null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        encoder.createTransaction(
+          [standardUtxo()], address, null,
+          'A'.repeat(151), null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.strictEqual(opReturnOutputs.length, 3)
-    })
-
-    it('data is preserved across multiple OP_RETURN chunks', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(76) // 2 chunks
-
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        data, null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
-      )
-
-      const payload = extractOpReturnPayload(result, TXID_A)
-      assert.strictEqual(payload.magic, MAGIC_WORD)
-      const decompiled = decompilePayload(payload.dataBuffer)
-      assert.strictEqual(decompiled[0].toString('utf8'), data)
     })
   })
 

@@ -38,18 +38,37 @@ describe('Fuzz: prepareData()', function () {
     this.timeout(120000)
     const encoder = makeTestEncoder()
 
-    it(`OP_RETURN chunks carry magic and reassemble exactly over ${ITERATIONS} payloads`, () => {
+    // A transaction may carry at most one OP_RETURN output (Bitcoin Core
+    // rejects multi-OP_RETURN as non-standard), so OP_RETURN holds exactly one
+    // chunk: payloads <= 76 bytes produce a single magic-prefixed output that
+    // reassembles exactly; payloads > 76 bytes are rejected with a RangeError.
+    const OP_RETURN_MAX = 80 - MAGIC.length // 76
+    it(`OP_RETURN produces one magic-prefixed chunk at/under the limit over ${ITERATIONS} payloads`, () => {
         const failures = []
         for (let i = 0; i < ITERATIONS; i++) {
-            const data = crypto.randomBytes(crypto.randomInt(0, 2048))
+            const data = crypto.randomBytes(crypto.randomInt(1, OP_RETURN_MAX + 1)) // 1..76
             const { dataBufferArray } = encoder.prepareData(data, 'OP_RETURN', null)
-            const badMagic = dataBufferArray.find(c => !c.subarray(0, 4).equals(MAGIC))
-            if (badMagic) { failures.push({ i, reason: 'magic', size: data.length }); continue }
-            const reassembled = Buffer.concat(dataBufferArray.map(c => c.subarray(4)))
-            if (!reassembled.equals(data)) failures.push({ i, reason: 'reassembly', size: data.length })
+            if (dataBufferArray.length !== 1) { failures.push({ i, reason: 'chunk-count', got: dataBufferArray.length, size: data.length }); continue }
+            if (!dataBufferArray[0].subarray(0, 4).equals(MAGIC)) { failures.push({ i, reason: 'magic', size: data.length }); continue }
+            if (!dataBufferArray[0].subarray(4).equals(data)) failures.push({ i, reason: 'reassembly', size: data.length })
         }
         assert.strictEqual(failures.length, 0,
             `OP_RETURN chunking violated in ${failures.length}/${ITERATIONS}: ${JSON.stringify(failures.slice(0, 5))}`)
+    })
+
+    it(`OP_RETURN rejects oversized payloads over ${ITERATIONS} payloads`, () => {
+        const failures = []
+        for (let i = 0; i < ITERATIONS; i++) {
+            const data = crypto.randomBytes(crypto.randomInt(OP_RETURN_MAX + 1, 2048)) // 77..2047
+            try {
+                encoder.prepareData(data, 'OP_RETURN', null)
+                failures.push({ i, reason: 'no-throw', size: data.length })
+            } catch (err) {
+                if (!(err instanceof RangeError)) failures.push({ i, reason: 'wrong-error', err: err.message, size: data.length })
+            }
+        }
+        assert.strictEqual(failures.length, 0,
+            `OP_RETURN oversize guard violated in ${failures.length}/${ITERATIONS}: ${JSON.stringify(failures.slice(0, 5))}`)
     })
 
     it(`MULTISIGN chunks are full 64-byte magic-prefixed slots over ${ITERATIONS} payloads`, () => {

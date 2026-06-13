@@ -193,33 +193,27 @@ describe('E2E-9: Round-Trip Verification', () => {
     })
   })
 
-  // ── E2E-9.5: Multi-chunk OP_RETURN reassembly ────────────────
+  // ── E2E-9.5: Oversized OP_RETURN rejected ────────────────────
 
-  describe('E2E-9.5: Multi-chunk OP_RETURN reassembly', () => {
-    it('chunks reassemble to complete payload', async () => {
-      const bigData = 'X'.repeat(200) // spans 3+ OP_RETURN chunks
+  describe('E2E-9.5: Oversized OP_RETURN rejected', () => {
+    it('forced OP_RETURN beyond a single output is rejected', async () => {
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A payload larger than one 76-byte chunk must be rejected at
+      // construction. Large payloads round-trip via the P2SH path instead.
+      const bigData = 'X'.repeat(200)
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
       const utxo = stdUtxo()
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        bigData, null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], address, null,
+          bigData, null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-
-      // Verify multiple OP_RETURN outputs
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.ok(opReturnOutputs.length >= 3, `expected >= 3 chunks, got ${opReturnOutputs.length}`)
-
-      // Extract and reassemble
-      const payload = extractOpReturnPayload(result, TXID_A)
-      assert.strictEqual(payload.magic, MAGIC_WORD)
-
-      const decompiled = decompilePayload(payload.dataBuffer)
-      assert.strictEqual(decompiled[0].toString('utf8'), bigData)
     })
   })
 

@@ -362,33 +362,28 @@ describe('Category B: Encoding Type Integration', () => {
     })
   })
 
-  // ── B-8: Multi-chunk OP_RETURN ─────────────────────────────────
+  // ── B-8: Oversized OP_RETURN rejected ──────────────────────────
 
-  describe('B-8: Multi-chunk OP_RETURN', () => {
-    it('produces multiple OP_RETURN outputs for large data', async () => {
+  describe('B-8: Oversized OP_RETURN rejected', () => {
+    it('rejects forced OP_RETURN when data exceeds a single output', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      // Force OP_RETURN encoding with data larger than one chunk (76 bytes)
-      // Each OP_RETURN chunk holds 76 bytes of data; 200 bytes = 3 chunks
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // Forcing OP_RETURN with data larger than one 76-byte chunk must be
+      // rejected at construction instead of building a PSBT that never relays.
       const bigData = 'X'.repeat(200)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        bigData, null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], address, null,
+          bigData, null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.ok(opReturnOutputs.length >= 3,
-        `expected >= 3 OP_RETURN outputs, got ${opReturnOutputs.length}`)
-
-      // Verify reassembled data matches
-      const payload = extractOpReturnPayload(result, TXID_A)
-      assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
 })

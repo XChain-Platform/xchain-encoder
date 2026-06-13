@@ -225,34 +225,27 @@ describe('E2E-4: Obfuscation Integrity', () => {
     })
   })
 
-  // ── E2E-4.7: Multi-chunk consistency ──────────────────────────
+  // ── E2E-4.7: Oversized OP_RETURN rejected ─────────────────────
 
-  describe('E2E-4.7: Multi-chunk obfuscation consistency', () => {
-    it('each OP_RETURN chunk independently deobfuscates with same TXID', async () => {
+  describe('E2E-4.7: Oversized OP_RETURN rejected', () => {
+    it('forced OP_RETURN beyond a single output is rejected', async () => {
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A payload larger than one 76-byte chunk must be rejected at
+      // construction rather than split into independently-obfuscated outputs.
       const bigData = 'Y'.repeat(200)
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = stdUtxo()
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        bigData, null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], address, null,
+          bigData, null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.ok(opReturnOutputs.length >= 3)
-
-      // Each chunk should deobfuscate independently
-      for (const output of opReturnOutputs) {
-        const decompiled = bitcoin.script.decompile(output.script)
-        const decrypted = deobfuscate(decompiled[1], TXID_A)
-        assert.strictEqual(
-          decrypted.subarray(0, 4).toString('utf8'),
-          MAGIC_WORD,
-          'each chunk should have XCHN magic after deobfuscation'
-        )
-      }
     })
   })
 })

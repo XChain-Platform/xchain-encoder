@@ -88,29 +88,25 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
     })
   })
 
-  // ── E2E-3.4: Forced OP_RETURN with large data ────────────────
+  // ── E2E-3.4: Forced OP_RETURN with large data is rejected ────
 
-  describe('E2E-3.4: Forced OP_RETURN with large data (multi-chunk)', () => {
-    it('200-byte data forced to OP_RETURN produces multiple outputs', async () => {
+  describe('E2E-3.4: Forced OP_RETURN with large data is rejected', () => {
+    it('200-byte data forced to OP_RETURN is rejected', async () => {
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A payload larger than one 76-byte chunk must be rejected at
+      // construction instead of producing a PSBT that never relays.
       const bigData = 'X'.repeat(200)
-      const result = await encode(bigData, { encoding: 'OP_RETURN' })
+      await assert.rejects(
+        encode(bigData, { encoding: 'OP_RETURN' }),
+        RangeError
+      )
+    })
 
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.ok(opReturnOutputs.length >= 3,
-        `expected >= 3 OP_RETURN outputs for 200 bytes, got ${opReturnOutputs.length}`)
-
-      // All OP_RETURN outputs should have valid structure
-      for (const o of opReturnOutputs) {
-        assert.strictEqual(o.script[0], bitcoin.opcodes.OP_RETURN)
-      }
-
-      // Reassembled payload should match
-      const payload = extractOpReturnPayload(result, TXID_A)
-      assert.strictEqual(payload.magic, MAGIC_WORD)
-      const decompiled = decompilePayload(payload.dataBuffer)
-      assert.strictEqual(decompiled[0].toString('utf8'), bigData)
+    it('200-byte data on the auto path selects P2SH (the valid carrier)', async () => {
+      const bigData = 'X'.repeat(200)
+      const result = await encode(bigData)
+      assert.strictEqual(result.encoding, 'P2SH')
     })
   })
 

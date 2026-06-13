@@ -210,23 +210,24 @@ describe('Data/Payload Boundaries', () => {
   // ── Very large payload requiring multiple chunks ────────────────
 
   describe('very large payload', () => {
-    it('1000-byte data forced to OP_RETURN produces multiple outputs', async () => {
+    it('1000-byte data forced to OP_RETURN is rejected (exceeds single output)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const bigData = 'X'.repeat(1000)
 
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        bigData, null, 10000, false, 'OP_RETURN', address,
-        null, null, null, true, 0.00001
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A 1000-byte payload (compiled 1003) cannot fit a single 76-byte chunk,
+      // so it must be rejected at construction instead of producing a PSBT that
+      // always fails to relay. Large payloads belong on the P2SH path.
+      await assert.rejects(
+        encoder.createTransaction(
+          [standardUtxo()], address, null,
+          bigData, null, 10000, false, 'OP_RETURN', address,
+          null, null, null, true, 0.00001
+        ),
+        RangeError
       )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      // 1000 bytes of data. compile([1000]) = 1003 (OP_PUSHDATA2 + 2-byte len + data).
-      // prepareData chunks at 76 bytes each: ceil(1003 / 76) = 14 chunks
-      assert.ok(opReturnOutputs.length >= 10,
-        `expected many OP_RETURN outputs, got ${opReturnOutputs.length}`)
     })
   })
 })

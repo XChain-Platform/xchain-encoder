@@ -255,12 +255,13 @@ describe('S5: prepareData', () => {
     assert.strictEqual(magic, 'XCHN')
   })
 
-  it('multi-chunk: large data produces multiple OP_RETURN chunks', () => {
-    // 200 bytes of data; each OP_RETURN chunk holds 76 usable bytes
+  it('oversized OP_RETURN is rejected (single output per transaction)', () => {
+    // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+    // rejects multi-OP_RETURN transactions as non-standard. A payload larger
+    // than one 76-byte chunk must throw rather than split into outputs.
     const data = Buffer.alloc(200, 0x44)
     const compiled = bitcoin.script.compile([data])
-    const result = encoder.prepareData(compiled, 'OP_RETURN', testAddress)
-    assert.ok(result.dataBufferArray.length >= 3)
+    assert.throws(() => encoder.prepareData(compiled, 'OP_RETURN', testAddress), RangeError)
   })
 })
 

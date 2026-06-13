@@ -104,7 +104,23 @@ class XChainEncoder {
         switch (encoding){
             case Encoding.OP_RETURN:
                 chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //There will be many OP_RETURNS with the data inside, and this data will have the magic word appended on the beginning
-                
+
+                // A single transaction may carry at most ONE OP_RETURN output:
+                // Bitcoin Core (>=v0.12) rejects multi-OP_RETURN transactions as
+                // non-standard ("multi-op-return") at broadcast. Splitting an
+                // oversized payload across several OP_RETURN outputs therefore
+                // produces a structurally valid PSBT that always fails to relay,
+                // silently burning the fee UTXOs. The auto-selection path above
+                // avoids this by falling back to P2SH; the explicit-encoding path
+                // must reject loudly at construction time instead. One chunk =
+                // OP_RETURN_SIZE - magic word (76 bytes) of payload.
+                if (data.length > chunksSize) {
+                    throw new RangeError(
+                        `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
+                        `got ${data.length}. Use P2SH for larger payloads.`
+                    )
+                }
+
                 i = 0
                 while (i < data.length){
                     nextDataChunk = data.subarray(i,i+chunksSize)
