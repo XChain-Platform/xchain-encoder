@@ -20,14 +20,12 @@
  *
  ********************************************************************/
 
-// Coarse pre-check on the *decoded* ACTION payload (data + rawData). The
-// authoritative on-chain limit is the compiled-push ceiling below
-// (MAX_COMPILED_ACTION_DATA_LENGTH), which XChainEncoder enforces after the
-// script is compiled — that is what indexing nodes measure. A raw payload of N
-// bytes (N >= 256) compiles to N + 3 once the OP_PUSHDATA2 prefix is added, so
-// the largest raw payload that still fits the 8192-byte compiled ceiling is
-// 8189. Set the pre-check at 8189 so over-limit payloads fail here with a clear
-// message instead of throwing a RangeError mid-build inside createTransaction.
+// Largest raw single-push payload that still fits the compiled on-chain ceiling:
+// a raw payload of N bytes (N >= 256) compiles to N + 3 once the OP_PUSHDATA2
+// prefix is added, so 8189 + 3 == 8192. Retained as the documented single-push
+// limit; validateCombinedDataLength now derives the actual ceiling per push via
+// compiledPushSize so that dual-push payloads are measured against the compiled
+// ceiling directly rather than this single-push approximation.
 const MAX_DATA_BYTES = 8189
 // Maximum *compiled* on-chain ACTION push, in bytes. Must equal the decoder's
 // MAX_ACTION_DATA_LENGTH — a transaction whose compiled push exceeds this is
@@ -70,16 +68,29 @@ function validateDataParam(value, fieldName) {
     return value
 }
 
+// Size of a single script push once bitcoin.script.compile adds its length
+// prefix: a direct push opcode for <=75 bytes, OP_PUSHDATA1 (+2) for <=255, or
+// OP_PUSHDATA2 (+3) beyond that. Mirrors how prepareData compiles data/rawData.
+function compiledPushSize(byteLength) {
+    if (byteLength <= 75)  return byteLength + 1   // direct push opcode
+    if (byteLength <= 255) return byteLength + 2   // OP_PUSHDATA1
+    return byteLength + 3                           // OP_PUSHDATA2
+}
+
 function validateCombinedDataLength(data, rawData) {
     if (data == null) return
-    let total = Buffer.byteLength(data, 'utf8')
-    if (rawData != null) {
-        // Match XChainEncoder.js — rawData is bytes-as-string (Latin-1), so the
-        // on-chain byte count is the string length, not the UTF-8 encoding length.
-        total += Buffer.byteLength(rawData, 'binary')
-    }
-    if (total > MAX_DATA_BYTES) {
-        throw new RangeError(`Combined data payload (${total} bytes) exceeds maximum (${MAX_DATA_BYTES})`)
+    const dataBytes = Buffer.byteLength(data, 'utf8')
+    // Match XChainEncoder.js — rawData is bytes-as-string (Latin-1), so the
+    // on-chain byte count is the string length, not the UTF-8 encoding length.
+    const rawBytes = rawData != null ? Buffer.byteLength(rawData, 'binary') : 0
+    // When both fields are present, prepareData compiles them as two separate
+    // pushes (bitcoin.script.compile([utf8Buffer, rawDataBuffer])), so each push
+    // carries its own length-prefix overhead. Summing the raw byte counts would
+    // undercount the on-chain size and let dual-push payloads slip past this
+    // pre-check only to fail the compiled-size ceiling later in createTransaction.
+    const compiled = compiledPushSize(dataBytes) + (rawData != null ? compiledPushSize(rawBytes) : 0)
+    if (compiled > MAX_COMPILED_ACTION_DATA_LENGTH) {
+        throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${MAX_COMPILED_ACTION_DATA_LENGTH})`)
     }
 }
 

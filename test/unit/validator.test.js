@@ -54,6 +54,30 @@ describe('Encoder input validator', function () {
             assert.doesNotThrow(() => v.validateCombinedDataLength(big, null));
             assert.throws(() => v.validateCombinedDataLength(big, 'y'), RangeError);
         });
+        it('accepts a single-push payload at the compiled ceiling (backwards-compatible)', function () {
+            // 8189 raw bytes compile to 8189 + 3 (OP_PUSHDATA2) == 8192 == ceiling.
+            const single = 'x'.repeat(v.MAX_DATA_BYTES);
+            assert.doesNotThrow(() => v.validateCombinedDataLength(single, null));
+        });
+        it('accounts for per-push overhead on dual-push payloads at the boundary', function () {
+            // Two pushes of 4093 bytes each compile to (4093 + 3) * 2 == 8192 == ceiling.
+            const okData = 'x'.repeat(4093);
+            const okRaw = 'y'.repeat(4093);
+            assert.doesNotThrow(() => v.validateCombinedDataLength(okData, okRaw));
+        });
+        it('rejects dual-push payloads whose compiled size exceeds the ceiling', function () {
+            // Two pushes of 4094 bytes each compile to (4094 + 3) * 2 == 8194 > 8192.
+            const bigData = 'x'.repeat(4094);
+            const bigRaw = 'y'.repeat(4094);
+            assert.throws(() => v.validateCombinedDataLength(bigData, bigRaw), RangeError);
+        });
+        it('rejects the documented dual-push undercount case (raw sum within old limit)', function () {
+            // 4094 + 4095 == 8189 raw bytes passed the old sum-based check, but the
+            // two pushes compile to 4097 + 4098 == 8195 > 8192.
+            const data = 'x'.repeat(4094);
+            const rawData = 'y'.repeat(4095);
+            assert.throws(() => v.validateCombinedDataLength(data, rawData), RangeError);
+        });
     });
 
     describe('validateEncoding', function () {
