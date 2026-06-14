@@ -54,7 +54,7 @@ describe('CryptoNetworks', () => {
           assert.strictEqual(typeof result.pubKeyHash, 'number')
           assert.strictEqual(typeof result.scriptHash, 'number')
           assert.strictEqual(typeof result.wif, 'number')
-          assert.strictEqual(result.dustThreshold, 546)
+          assert.strictEqual(result.dustThreshold, 100000)
         })
       }
 

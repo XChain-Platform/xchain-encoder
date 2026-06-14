@@ -32,7 +32,7 @@ const actions = require('./helpers/actionFactory')
 
 const CHAINS = [
   { name: 'bitcoin-regtest', dustThreshold: 546 },
-  { name: 'dogecoin-regtest', dustThreshold: 546 },
+  { name: 'dogecoin-regtest', dustThreshold: 100000 },
   { name: 'litecoin-regtest', dustThreshold: 5460 },
 ]
 

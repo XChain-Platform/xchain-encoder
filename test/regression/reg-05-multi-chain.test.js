@@ -109,9 +109,9 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
 
-    it('dustAmount is 546', function () {
+    it('dustAmount is 100000 (Dogecoin Core hard dust limit)', function () {
       const encoder = makeEncoder('dogecoin-regtest')
-      assert.strictEqual(encoder.dustAmount, 546)
+      assert.strictEqual(encoder.dustAmount, 100000)
     })
 
     it('P2WSH encoding throws TypeError', async function () {
@@ -179,7 +179,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     for (const [network, expectedDust] of [
       ['bitcoin-regtest', 546],
       ['litecoin-regtest', 5460],
-      ['dogecoin-regtest', 546]
+      ['dogecoin-regtest', 100000]
     ]) {
       it(`${network} P2SH output value >= ${expectedDust}`, async function () {
         const encoder = makeEncoder(network)

@@ -41,7 +41,7 @@ function stdUtxo () {
 
 const CHAINS = [
   { name: 'bitcoin-regtest', dust: 546 },
-  { name: 'dogecoin-regtest', dust: 546 },
+  { name: 'dogecoin-regtest', dust: 100000 },
   { name: 'litecoin-regtest', dust: 5460 }
 ]
 
