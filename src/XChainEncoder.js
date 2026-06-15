@@ -535,6 +535,24 @@ class XChainEncoder {
                             spendingP2wshEstimatedFee = finalDust
                         }
 
+                        // Chains such as Litecoin reject a reveal tx whose
+                        // stripped (non-witness) serialization is below their
+                        // relay floor (minStandardTxNonWitnessSize). A reveal
+                        // spending these data outputs is 10 (header) + 41 per
+                        // P2WSH input + ~20 (OP_RETURN marker) stripped bytes; a
+                        // single-chunk reveal is only 71 bytes, under Litecoin's
+                        // 85-byte floor. The reveal builder clears the floor with
+                        // one extra small payment output (see the p2shHash branch
+                        // and addRevealSizeFloorPadding below), so fund that
+                        // output's value here — one dust — otherwise the reveal
+                        // has no satoshis left to create it after the fee floor.
+                        let strippedFloor = this.network.minStandardTxNonWitnessSize
+                        let chunkCount = preparedData["dataBufferArray"].length
+                        let predictedRevealStripped = 30 + (41 * chunkCount)
+                        if (strippedFloor && predictedRevealStripped < strippedFloor){
+                            spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + finalDust
+                        }
+
                         psbt.addOutput({
                             address: bitcoin.payments.p2wsh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
                             value:spendingP2wshEstimatedFee
@@ -715,10 +733,46 @@ class XChainEncoder {
                 value: changeSatoshis
             })
         }
-        
+
+        // A P2WSH reveal that spends a single data chunk is just 1 input + 1
+        // OP_RETURN marker — 71 stripped (non-witness) bytes. Bitcoin Core
+        // relays it (floor 65), but Litecoin Core rejects it as "tx-size-small"
+        // (floor ~85): the payload lives in the witness and does not count
+        // toward stripped size. Lift the reveal over the chain's floor with one
+        // small payment output back to the caller's own address. A second
+        // OP_RETURN would be non-standard (multi-op-return), so we cannot pad
+        // with that. The funding tx already over-funded this reveal by one dust
+        // (see the P2WSH funding branch) so the output's value is available.
+        let strippedFloor = this.network.minStandardTxNonWitnessSize
+        if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
+            let padAddress = change || pubkey
+            if (padAddress && this.strippedTxSize(psbt) < strippedFloor){
+                psbt.addOutput({
+                    address: padAddress,
+                    value: this.dustAmount
+                })
+            }
+        }
+
         return {"psbt":psbt,"encoding":preparedData["encoding"]}
     }
-    
+
+    // Stripped (non-witness) serialized byte count of a PSBT's underlying tx —
+    // the size a node measures against its MIN_STANDARD_TX_NONWITNESS_SIZE relay
+    // floor. P2WSH reveal inputs carry an empty scriptSig (all data lives in the
+    // witness), so each contributes a fixed 41 non-witness bytes: 36-byte
+    // outpoint + 1-byte empty-scriptSig length + 4-byte sequence.
+    strippedTxSize(psbt){
+        const varIntSize = (n) => n < 0xfd ? 1 : n <= 0xffff ? 3 : n <= 0xffffffff ? 5 : 9
+        let size = 4 + 4 // version + locktime
+        size = size + varIntSize(psbt.txInputs.length) + (41 * psbt.txInputs.length)
+        size = size + varIntSize(psbt.txOutputs.length)
+        for (let out of psbt.txOutputs){
+            size = size + 8 + varIntSize(out.script.length) + out.script.length
+        }
+        return size
+    }
+
     estimateSpendingP2shTx(redeemData){
         // Per-chunk embedded value sized to cover the spending tx's worst
         // case at 1 sat/vbyte. Includes tx overhead, the OP_RETURN marker
@@ -766,6 +820,17 @@ class XChainEncoder {
                 Buffer.from(MAGIC_WORD,'utf8'),
                 Buffer.from("p2wsh",'utf8')
             ]))
+
+        // A single-chunk reveal's stripped size (71 B) is below Litecoin's
+        // tx-size-small floor, so the reveal builder pads it up to the chain's
+        // minStandardTxNonWitnessSize with one extra output. Reflect that padded
+        // stripped size here so the fee estimate covers the larger reveal. (In
+        // normal fee regimes the dust floor dominates the embedded value, but
+        // this keeps the estimate honest on high-fee chains.)
+        let strippedFloor = this.network.minStandardTxNonWitnessSize
+        if (strippedFloor && nonWitnessBytes < strippedFloor){
+            nonWitnessBytes = strippedFloor
+        }
 
         // vsize = ceil(total weight / 4) = nonWitnessBytes + ceil(witnessBytes/4)
         let sizeEstimated = nonWitnessBytes

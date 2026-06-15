@@ -270,4 +270,72 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
+
+  // ── REG-06.8: P2WSH single-chunk stripped-size floor ──────────
+  //
+  // A P2WSH reveal that spends a single data chunk is just 1 input + 1
+  // OP_RETURN marker = 71 stripped (non-witness) bytes. Bitcoin Core relays it
+  // (MIN_STANDARD_TX_NONWITNESS_SIZE = 65) but Litecoin Core rejects it as
+  // "tx-size-small" (~85-byte floor) — the payload lives in the witness and
+  // does not count toward stripped size. The encoder must pad the reveal over
+  // the target chain's minStandardTxNonWitnessSize. Both the minimum (75) and
+  // maximum (476) single-chunk compiled-payload sizes must clear the floor.
+
+  describe('REG-06.8: P2WSH single-chunk stripped-size floor', function () {
+
+    async function buildSingleChunkReveal (network, compiledTarget) {
+      // makeActionOfSize(N) returns a raw N-byte ACTION string; script.compile
+      // prepends the push opcode/length, so compiled = N+1 for N<76 and N+3 for
+      // N>=256. Hence compiled 75 ⇒ raw 74, compiled 476 ⇒ raw 473.
+      const rawLen = compiledTarget < 256 ? compiledTarget - 1 : compiledTarget - 3
+      const action = actions.makeActionOfSize(rawLen)
+      const compiled = bitcoin.script.compile([Buffer.from(action.data, 'utf8')]).length
+      assert.strictEqual(compiled, compiledTarget,
+        `compiled payload should be exactly ${compiledTarget} bytes (single chunk)`)
+
+      const encoder = makeEncoder(network)
+      const address = getTestAddress(network)
+      const utxo = stdUtxo()
+
+      const tx1 = await encoder.createTransaction(
+        [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
+        null, null, null, true, 0.00001)
+      const tx1Hex = tx1.psbt.__CACHE.__TX.toHex()
+      const tx1Id = tx1.psbt.__CACHE.__TX.getId()
+
+      const tx2 = await encoder.createTransaction(
+        [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
+        tx1Id, tx1Hex, null, true, 0.00001)
+
+      // A single compiled chunk must produce exactly one P2WSH reveal input.
+      assert.strictEqual(tx2.psbt.txInputs.length, 1,
+        'single-chunk reveal should have exactly one input')
+      return { tx2, encoder }
+    }
+
+    for (const compiled of [75, 476]) {
+      it(`Litecoin reveal (compiled ${compiled}B) clears the tx-size-small floor`, async function () {
+        const { tx2, encoder } = await buildSingleChunkReveal('litecoin-regtest', compiled)
+        const floor = encoder.network.minStandardTxNonWitnessSize
+        assert.strictEqual(floor, 85, 'litecoin floor should be 85')
+        // byteLength(false) = stripped (non-witness) serialization — the size a
+        // node measures against MIN_STANDARD_TX_NONWITNESS_SIZE.
+        const stripped = tx2.psbt.__CACHE.__TX.byteLength(false)
+        assert.ok(stripped >= floor,
+          `stripped size ${stripped} must be >= litecoin floor ${floor}`)
+      })
+    }
+
+    it('Bitcoin single-chunk reveal is unchanged (71B, above its 65B floor, no padding)', async function () {
+      const { tx2, encoder } = await buildSingleChunkReveal('bitcoin-regtest', 75)
+      const floor = encoder.network.minStandardTxNonWitnessSize
+      assert.strictEqual(floor, 65, 'bitcoin floor should be 65')
+      const stripped = tx2.psbt.__CACHE.__TX.byteLength(false)
+      assert.strictEqual(stripped, 71,
+        'bitcoin single-chunk reveal stays at 71 stripped bytes (already above floor)')
+      assert.ok(stripped >= floor)
+      assert.strictEqual(tx2.psbt.txOutputs.length, 1,
+        'bitcoin reveal carries only the OP_RETURN marker — no size padding')
+    })
+  })
 })

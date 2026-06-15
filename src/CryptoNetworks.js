@@ -23,13 +23,19 @@ const bitcoin = require('bitcoinjs-lib');
 
 class CryptoNetworks {
     static getBitcoinJsNetwork(networkName){
+        // minStandardTxNonWitnessSize: the minimum stripped (non-witness) byte
+        // count a transaction must serialize to before a node will relay it as
+        // standard. Bitcoin Core uses 65 (MIN_STANDARD_TX_NONWITNESS_SIZE);
+        // Litecoin Core raised it to ~85, so a tx that relays on Bitcoin can be
+        // rejected as "tx-size-small" on Litecoin. The P2WSH reveal builder pads
+        // its stripped size up to this floor (see XChainEncoder).
         switch(networkName){
             case "bitcoin-mainnet":
-                return { ...bitcoin.networks.bitcoin, dustThreshold: 546 }
+                return { ...bitcoin.networks.bitcoin, dustThreshold: 546, minStandardTxNonWitnessSize: 65 }
             case "bitcoin-testnet":
-                return { ...bitcoin.networks.testnet, dustThreshold: 546 }
+                return { ...bitcoin.networks.testnet, dustThreshold: 546, minStandardTxNonWitnessSize: 65 }
             case "bitcoin-regtest":
-                return { ...bitcoin.networks.regtest, dustThreshold: 546 }
+                return { ...bitcoin.networks.regtest, dustThreshold: 546, minStandardTxNonWitnessSize: 65 }
             case "dogecoin-mainnet":
                 return {
                     "messagePrefix": '\x19Dogecoin Signed Message:\n',
@@ -84,7 +90,8 @@ class CryptoNetworks {
                     "pubKeyHash": 0x30,
                     "scriptHash": 0x32,
                     "wif": 0xb0,
-                    "dustThreshold": 5460
+                    "dustThreshold": 5460,
+                    "minStandardTxNonWitnessSize": 85
                 }
             case "litecoin-testnet":
                 return {
@@ -97,7 +104,8 @@ class CryptoNetworks {
                     "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
                     "wif": 0xef,
-                    "dustThreshold": 5460
+                    "dustThreshold": 5460,
+                    "minStandardTxNonWitnessSize": 85
                 }
             case "litecoin-regtest":
                 return {
@@ -110,7 +118,8 @@ class CryptoNetworks {
                     "pubKeyHash": 0x6f,
                     "scriptHash": 0xc4,
                     "wif": 0xef,
-                    "dustThreshold": 5460
+                    "dustThreshold": 5460,
+                    "minStandardTxNonWitnessSize": 85
                 }
             default:
                 throw new TypeError(`Unknown network: "${networkName}". Supported: bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest`)
