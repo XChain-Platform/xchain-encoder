@@ -202,6 +202,10 @@ describe('XChainEncoder.createTransaction()', () => {
       // This fee is far above the relative fee-rate cap by design; the cap has
       // its own suite (XChainEncoder.feeRateCap.test.js), disable it here.
       encoder.maxFeeRateMultiplier = null
+      // Isolate the custom-fee passthrough from dogecoin-regtest's 100000-koinu
+      // dust floor (exercised by the dust-floor tests below); a 50000 fee would
+      // otherwise be floored up to dust and mask the value being tested.
+      encoder.dustAmount = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const customFee = 50000
 
@@ -316,6 +320,10 @@ describe('XChainEncoder.createTransaction()', () => {
   describe('change output', () => {
     it('adds change output when there is leftover and change address given', async () => {
       const encoder = makeEncoder()
+      // Isolate the change math from dogecoin-regtest's 100000-koinu dust floor
+      // so the 10000 custom fee flows into change verbatim (dust floor has its
+      // own suite).
+      encoder.dustAmount = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(

@@ -62,6 +62,11 @@ function makeEncoder (maxFeeRateKb = null, maxFeeRateMultiplier = undefined) {
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001
   }
+  // dogecoin-regtest's dust floor is 100000 koinu — orders of magnitude above
+  // the sub-dust fees these rate-cap probes produce (a ~131-byte tx capped at
+  // ~100 sat/byte pays ~13100). The dust floor is exercised by its own suite;
+  // override it here so the rate-cap behaviour under test is observable.
+  encoder.dustAmount = 546
   return encoder
 }
 
