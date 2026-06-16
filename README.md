@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Copyright © 2025–2026 Dankest, LLC -->
+<!-- Copyright © 2025-2026 Dankest, LLC -->
 
 # XChain Platform Encoder
 
@@ -18,7 +18,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 
 ## Features
 
-- **Four encoding formats** — OP_RETURN (76B), P2SH (476B), P2WSH (3,571B), and multisig (~61B/key); auto-selected by payload size
+- **Four encoding formats** — OP_RETURN (76B), P2SH (476B), P2WSH (476B), and multisig (~61B/key); auto-selected by payload size
 - **AES-128-CTR obfuscation** — derives key and IV from the first input's txid; `XCHN` magic prefix on all payloads
 - **Two-transaction P2SH/P2WSH** — automatic tx1 (fund) → tx2 (spend/reveal) orchestration with marker OP_RETURN
 - **UTXO selection** — largest-first selection, duplicate removal, optional unconfirmed filtering, automatic change output
@@ -123,7 +123,7 @@ npm run api
 
 ---
 
-**Copyright &copy; 2025–2026 Dankest, LLC**
+**Copyright &copy; 2025-2026 Dankest, LLC**
 
 **Based on XChain Platform by Dankest, LLC &ndash; https://dankest.llc**
 
@@ -138,9 +138,9 @@ See the [licensing overview](https://docs.xchain.io/legal/licensing).
 
 XChain Platform is **open source**, dual-licensed under:
 
-- the **[GNU Affero General Public License v3.0](./LICENSE.md)** (`AGPL-3.0-or-later`) — free for everyone, and
+- the **[GNU Affero General Public License v3.0](./LICENSE.md)** (`AGPL-3.0-or-later`), free for everyone, and
 - a **[commercial license](https://docs.xchain.io/legal/commercial-license)** for companies that need to keep modifications private.
 
-See the **[licensing overview](https://docs.xchain.io/legal/licensing)** for which one applies to you. "XChain" is a trademark of Dankest, LLC — see the **[Trademark Policy](https://docs.xchain.io/legal/trademark)**.
+See the **[licensing overview](https://docs.xchain.io/legal/licensing)** for which one applies to you. "XChain" is a trademark of Dankest, LLC. See the **[Trademark Policy](https://docs.xchain.io/legal/trademark)**.
 
-Copyright © 2025–2026 Dankest, LLC.
+Copyright © 2025-2026 Dankest, LLC.
