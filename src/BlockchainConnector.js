@@ -116,11 +116,19 @@ class BlockchainConnector {
             } else if (responseData.error?.code === -5) {
                 // RPC -5: tx not in mempool and not retrievable. For confirmed
                 // transactions this typically means the coin node lacks txindex.
-                throw new Error(`Transaction ${txid} not found — the coin node may require txindex=1 to retrieve confirmed transactions`);
+                throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
             } else {
                 throw new Error('Error getting transaction hex');
             }
         } catch (error) {
+            // LTC/DOGE return HTTP 500 for RPC-level errors so axios throws before
+            // the success branch above is reached. Mirror sendRawTransaction: inspect
+            // the node's JSON-RPC error body off error.response so the -5 txindex
+            // hint is surfaced on all chains, not only BTC v28 (which returns HTTP 200).
+            const body = error.response?.data;
+            if (body && body.error?.code === -5) {
+                throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
+            }
             console.error('Error:', error);
             throw error;
         }
