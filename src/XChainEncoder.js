@@ -31,13 +31,13 @@ const { MAX_COMPILED_ACTION_DATA_LENGTH, validateUtxoArray } = require('./valida
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
 // Each data chunk is pushed as a SINGLE script element inside the witness
-// script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE (520 bytes) — the
-// same limit that caps the P2SH chunk — NOT by the 3600-byte total witness-
-// script policy limit. A larger chunk (e.g. the former 3571) builds a witness
-// script the node rejects at spend time with "Push value size limit exceeded".
-// 520 - 44 overhead = 476-byte max chunk, identical to P2SH.
+// script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE (520 bytes),
+// the same limit that caps the P2SH chunk. It is NOT bound by the 3600-byte
+// total witness-script policy limit. A larger chunk (e.g. the former 3571)
+// builds a witness script the node rejects at spend time with "Push value
+// size limit exceeded". 520 - 44 overhead = 476-byte max chunk, identical to P2SH.
 const PW2SH_SIZE = 520
-const MULTISIGN_SIZE = 69 // dataToPubkey handles at most 32 bytes per slice; chunk = magic(4) + data(N), split at byte 32 → max chunk = 64 → max data = 60 → 60 + 4(magic) + 5(overhead) = 69
+const MULTISIGN_SIZE = 69 // 9 bytes overhead (1 OP_CHECKMULTISIG + 1 m + 1 n + 2 key-length bytes + 4 magic) + 60 raw data bytes = 69 total bytes per chunk
 const MAGIC_WORD = "XCHN"
 
 const SATOSHI_UNIT = 100000000
@@ -80,7 +80,7 @@ class XChainEncoder {
         try {
             const script = bitcoin.script.decompile(Buffer.from(utxo.scriptPubKey, 'hex'));
             
-            return script[0] === 0x00; // Verificar si es un script de versión 0
+            return script[0] === 0x00; // Check whether this is a version-0 witness script (segwit)
         } catch (error) {
             // If there is an error trying to get the script, let's assume is not segwit
             return false;
@@ -103,7 +103,7 @@ class XChainEncoder {
         let nextDataChunk = null
         switch (encoding){
             case Encoding.OP_RETURN:
-                chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //There will be many OP_RETURNS with the data inside, and this data will have the magic word appended on the beginning
+                chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //Single OP_RETURN output: 80-byte limit minus 4-byte magic word = 76 bytes of payload
 
                 // A single transaction may carry at most ONE OP_RETURN output:
                 // Bitcoin Core (>=v0.12) rejects multi-OP_RETURN transactions as
@@ -112,8 +112,8 @@ class XChainEncoder {
                 // produces a structurally valid PSBT that always fails to relay,
                 // silently burning the fee UTXOs. The auto-selection path above
                 // avoids this by falling back to P2SH; the explicit-encoding path
-                // must reject loudly at construction time instead. One chunk =
-                // OP_RETURN_SIZE - magic word (76 bytes) of payload.
+                // must reject loudly at construction time instead. One chunk fits
+                // OP_RETURN_SIZE (80) minus the 4-byte magic word = 76 bytes of payload.
                 if (data.length > chunksSize) {
                     throw new RangeError(
                         `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
@@ -132,7 +132,7 @@ class XChainEncoder {
             case Encoding.P2SH:
             case Encoding.P2WSH:
                 /* REDEEM SCRIPT
-                data_chunk (max 480 bytes)
+                data_chunk (max 476 bytes, i.e. 520 - 44 overhead)
                 +
                 OP_DROP //1 byte
                 +
@@ -266,7 +266,7 @@ class XChainEncoder {
                 try {
                     nodeFeePerBytes = await this.connector.getFeePerKilobyte(1)/1000
                 } catch (err) {
-                    // The node cannot produce an estimate (e.g. a quiet testnet —
+                    // The node cannot produce an estimate (e.g. a quiet testnet,
                     // exactly the case where callers must pass feePerKb to begin
                     // with). The relative cap has no anchor; fall back to the
                     // absolute MAX_FEE_RATE_KB cap below, if configured.
@@ -315,7 +315,7 @@ class XChainEncoder {
         // Enforce the same compiled-push ceiling the indexing decoder applies
         // (MAX_ACTION_DATA_LENGTH). The decoder measures the compiled on-chain
         // push and drops anything larger, so a transaction above this size
-        // would be silently dropped by every node — reject it at encode time.
+        // would be silently dropped by every node; reject it at encode time.
         if (finalDataBuffer.length > MAX_COMPILED_ACTION_DATA_LENGTH) {
             throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${MAX_COMPILED_ACTION_DATA_LENGTH} bytes (compiled on-chain ACTION push)`)
         }
@@ -521,7 +521,7 @@ class XChainEncoder {
                         voutPsbtIndex = voutPsbtIndex + 1                   
                     } else {
                         // Size this P2WSH data output to fund its share of the
-                        // reveal (spending) transaction's fee — mirroring the
+                        // reveal (spending) transaction's fee, mirroring the
                         // P2SH branch above. A flat dust value (546) leaves the
                         // multi-input reveal tx below the node's min-relay-fee
                         // floor (observed: 1638 sat across 3 dust outputs vs a
@@ -544,7 +544,7 @@ class XChainEncoder {
                         // 85-byte floor. The reveal builder clears the floor with
                         // one extra small payment output (see the p2shHash branch
                         // and addRevealSizeFloorPadding below), so fund that
-                        // output's value here — one dust — otherwise the reveal
+                        // output's value here (one dust); otherwise the reveal
                         // has no satoshis left to create it after the fee floor.
                         let strippedFloor = this.network.minStandardTxNonWitnessSize
                         let chunkCount = preparedData["dataBufferArray"].length
@@ -561,7 +561,7 @@ class XChainEncoder {
                         // over-credited. Without this, changeSatoshis below is
                         // computed as input - 0 - fee, so the data outputs are
                         // funded "for free" and total outputs exceed total
-                        // inputs — bitcoinjs rejects tx1 with "Outputs are
+                        // inputs; bitcoinjs rejects tx1 with "Outputs are
                         // spending more than Inputs". Mirrors the P2SH and
                         // MULTISIGN branches, which already track their outputs.
                         outputSatoshis = outputSatoshis + spendingP2wshEstimatedFee
@@ -702,7 +702,7 @@ class XChainEncoder {
         // Reject a caller-supplied absolute fee whose effective rate exceeds the
         // fee-rate cap for a transaction of this estimated size. Unlike feePerKb
         // (clamped above), an explicit fee is an exact amount the caller believes
-        // they are paying — silently lowering it would change what they sign, so
+        // they are paying. Silently lowering it would change what they sign, so
         // refuse loudly instead. Without this, fee values up to the gross
         // validator limit drain every selected input into miner fee.
         if (fee != null && fee !== false && capFeePerBytes != null){
@@ -716,7 +716,7 @@ class XChainEncoder {
         if (estimatedFee < this.dustAmount){
             estimatedFee = this.dustAmount
         }
-        
+
         let changeSatoshis = inputSatoshis - outputSatoshis - estimatedFee
 
         if (!Number.isFinite(changeSatoshis)) {
@@ -735,7 +735,7 @@ class XChainEncoder {
         }
 
         // A P2WSH reveal that spends a single data chunk is just 1 input + 1
-        // OP_RETURN marker — 71 stripped (non-witness) bytes. Bitcoin Core
+        // OP_RETURN output: 71 stripped (non-witness) bytes. Bitcoin Core
         // relays it (floor 65), but Litecoin Core rejects it as "tx-size-small"
         // (floor ~85): the payload lives in the witness and does not count
         // toward stripped size. Lift the reveal over the chain's floor with one
@@ -757,10 +757,10 @@ class XChainEncoder {
         return {"psbt":psbt,"encoding":preparedData["encoding"]}
     }
 
-    // Stripped (non-witness) serialized byte count of a PSBT's underlying tx —
-    // the size a node measures against its MIN_STANDARD_TX_NONWITNESS_SIZE relay
-    // floor. P2WSH reveal inputs carry an empty scriptSig (all data lives in the
-    // witness), so each contributes a fixed 41 non-witness bytes: 36-byte
+    // Stripped (non-witness) serialized byte count of a PSBT's underlying tx.
+    // This is the size a node measures against its MIN_STANDARD_TX_NONWITNESS_SIZE
+    // relay floor. P2WSH reveal inputs carry an empty scriptSig (all data lives in
+    // the witness), so each contributes a fixed 41 non-witness bytes: 36-byte
     // outpoint + 1-byte empty-scriptSig length + 4-byte sequence.
     strippedTxSize(psbt){
         const varIntSize = (n) => n < 0xfd ? 1 : n <= 0xffff ? 3 : n <= 0xffffffff ? 5 : 9
@@ -777,7 +777,7 @@ class XChainEncoder {
         // Per-chunk embedded value sized to cover the spending tx's worst
         // case at 1 sat/vbyte. Includes tx overhead, the OP_RETURN marker
         // output, the P2SH input bringing this chunk's redeem script (sig +
-        // compressed pubkey + redeem script push — see estimateP2shInputWithRedeem),
+        // compressed pubkey + redeem script push; see estimateP2shInputWithRedeem),
         // plus a small safety margin to absorb DER signature length jitter so the
         // broadcast never lands fractionally under the node's min relay fee floor.
         let sizeEstimated =
@@ -798,7 +798,7 @@ class XChainEncoder {
         // and carries the reveal payload (sig + compressed pubkey + witness
         // script) in the witness, which is weight-1 (i.e. ÷4 toward vbytes).
         // That makes a P2WSH reveal materially cheaper than the equivalent P2SH
-        // reveal — sizing it with estimateSpendingP2shTx would over-fund ~4x.
+        // reveal: sizing it with estimateSpendingP2shTx would over-fund ~4x.
         let witnessScriptPush = witnessData.length < 76   ? 1
                               : witnessData.length < 256  ? 2
                               :                             3
