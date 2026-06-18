@@ -33,7 +33,11 @@ const {
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// Regression expectations encode BITCOIN fee semantics (explicit fees honored
+// verbatim, e.g. fee=50000; 546 dust). The network was mislabeled
+// 'dogecoin-regtest' (dust 100000), which floored sub-100000 fees and broke the
+// verbatim/cap assertions. Bitcoin-regtest matches the semantics under test.
+const NETWORK = 'bitcoin-regtest'
 
 describe('REG-03: Fee & UTXO Selection', function () {
 
@@ -240,7 +244,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const resultUncapped = await uncapped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0 // 1 BTC/kB — very high
+        null, null, null, true, 1.0 // 1 BTC/kB (very high)
       )
 
       // Capped encoder (maxFeeRateKb = 1000 sat/kB)

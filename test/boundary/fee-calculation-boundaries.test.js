@@ -30,9 +30,16 @@ const {
   buildRawTxHex
 } = require('../integration/helpers/utxoFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// These boundary tests encode BITCOIN fee semantics (dust = 546, sub-dust fees
+// floored to 546, explicit fees honored). The default network was mislabeled
+// 'dogecoin-regtest', whose dust threshold is 100000 (Dogecoin's min-fee is much
+// higher), so every 546-expectation failed. Use bitcoin-regtest to match the
+// expectations the assertions actually encode. DOGE's high-dust floor is covered
+// by its own case below.
+const NETWORK = 'bitcoin-regtest'
 const BTC_DUST = 546
 const LTC_DUST = 5460
+const DOGE_DUST = 100000
 
 describe('Fee Calculation Boundaries', () => {
 
@@ -71,6 +78,23 @@ describe('Fee Calculation Boundaries', () => {
       const impliedFee = 100000000 - changeOutput.value
       assert.strictEqual(impliedFee, LTC_DUST,
         `LTC fee should be floored to ${LTC_DUST}, got ${impliedFee}`)
+    })
+
+    it('DOGE: fee floors to 100000 sats (Dogecoin high dust threshold)', async () => {
+      const encoder = makeEncoder('dogecoin-regtest')
+      const address = getTestAddress('dogecoin-regtest')
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, null, false, null, address,
+        null, null, null, true, 0
+      )
+
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.strictEqual(impliedFee, DOGE_DUST,
+        `DOGE fee should be floored to ${DOGE_DUST}, got ${impliedFee}`)
     })
   })
 

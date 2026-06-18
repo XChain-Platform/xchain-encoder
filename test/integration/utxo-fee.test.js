@@ -34,7 +34,13 @@ const {
 } = require('./helpers/utxoFactory')
 const actions = require('./helpers/actionFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// These integration cases encode BITCOIN fee semantics (explicit fees honored
+// verbatim, sub-estimate fees, 546 dust). The network was mislabeled
+// 'dogecoin-regtest' (dust 100000), so any fee below 100000 was floored and the
+// "verbatim"/cap-comparison assertions failed. Bitcoin-regtest matches the
+// semantics these assertions actually test. (DOGE's high-dust floor is covered
+// in test/boundary/fee-calculation-boundaries.test.js.)
+const NETWORK = 'bitcoin-regtest'
 
 describe('Category D: UTXO & Fee Integration', () => {
 
