@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Unit tests for src/validator.js — centralized createTransaction input
+ * Unit tests for src/validator.js: centralized createTransaction input
  * validation. Every validator returns the coerced value or throws
  * TypeError/RangeError. validateCustomOutput / validateFeeQuote are exercised
  * through their array/validateAll wrappers (not individually exported).

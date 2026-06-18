@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Chaos Engineering — Category A: Network & Dependency Failures
+ * Chaos Engineering: Category A: Network & Dependency Failures
  *
  * Tests encoder resilience when BlockchainConnector and UtxoTracker
  * experience connection failures, invalid responses, intermittent

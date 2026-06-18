@@ -435,7 +435,7 @@ describe('XChainEncoder.createTransaction()', () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      // Pass an object (not array) — should be silently skipped
+      // Pass an object (not array); should be silently skipped
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, { address: TEST_ADDRESS, value: 1000 },
         'test', null, 10000, false, null, TEST_ADDRESS,
@@ -505,9 +505,9 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── P2SH encoding path (tx1 — funding) ──────────────────────────
+  // ── P2SH encoding path (tx1: funding) ───────────────────────────
 
-  describe('P2SH encoding path (tx1 — funding)', () => {
+  describe('P2SH encoding path (tx1: funding)', () => {
     it('creates P2SH output for large data', async () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -545,9 +545,9 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── P2SH encoding path (tx2 — spending) ─────────────────────────
+  // ── P2SH encoding path (tx2: spending) ──────────────────────────
 
-  describe('P2SH encoding path (tx2 — spending)', () => {
+  describe('P2SH encoding path (tx2: spending)', () => {
     it('creates tx2 with P2SH input and OP_RETURN marker', async () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -609,7 +609,7 @@ describe('XChainEncoder.createTransaction()', () => {
       // Find the multisig output by its script shape (a bare p2ms script ends
       // in OP_CHECKMULTISIG). Its value is the relay-fee dust floor computed
       // from the actual script size, which is larger than the flat P2PKH
-      // dustAmount (546) — so we must not match on dustAmount here.
+      // dustAmount (546), so we must not match on dustAmount here.
       const msOutput = result.psbt.txOutputs.find(o => {
         const d = bitcoin.script.decompile(o.script)
         return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
@@ -652,7 +652,7 @@ describe('XChainEncoder.createTransaction()', () => {
     // The MULTISIGN data output carries real value (a relay-fee dust floor),
     // so that value MUST be counted toward the running output total before
     // change is computed. If it isn't, change is over-credited by exactly the
-    // data-output value and total outputs exceed total inputs — bitcoinjs-lib
+    // data-output value and total outputs exceed total inputs: bitcoinjs-lib
     // rejects the tx at extractTransaction ("Outputs are spending more than
     // Inputs") and the network rejects it as invalid.
     it('builds a valid tx where total outputs do not exceed inputs', async () => {
@@ -682,7 +682,7 @@ describe('XChainEncoder.createTransaction()', () => {
     // A payload whose last chunk holds ≤28 data bytes produces a final
     // magic(4)+data buffer of ≤32 bytes. Before each chunk was padded to a
     // full 64-byte slot, obfuscatedData.slice(32) was empty, so dataToPubkey()
-    // returned an all-zero x-coordinate (0x02 || 0x00×32) — a secp256k1 x=0
+    // returned an all-zero x-coordinate (0x02 || 0x00×32), a secp256k1 x=0
     // point that p2ms() rejects at construction time, surfacing as a 500.
     // This payload compiles to 88 bytes → chunks of 60 + 28, exercising that
     // path end-to-end. TXID_MS_SHORT is brute-forced so every obfuscated
@@ -704,7 +704,7 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
       // Two MULTISIGN outputs (one per 64-byte chunk), each a well-formed
-      // 1-of-3 p2ms script — proving both chunks' pubkey halves are valid points.
+      // 1-of-3 p2ms script, proving both chunks' pubkey halves are valid points.
       const msOutputs = result.psbt.txOutputs.filter(o => {
         const d = bitcoin.script.decompile(o.script)
         return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
@@ -762,7 +762,7 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.ok(large > small)
       // Delta is at least the raw data delta (300); the larger redeem may
       // cross the OP_PUSHDATA2 (256) and scriptSig-varint (253) boundaries,
-      // each adding bytes — so we assert monotonicity, not exact equality.
+      // each adding bytes, so we assert monotonicity, not exact equality.
       assert.ok(large - small >= 300)
     })
   })

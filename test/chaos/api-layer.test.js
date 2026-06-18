@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Chaos Engineering — Category F: API Layer Failures
+ * Chaos Engineering: Category F: API Layer Failures
  *
  * Tests validator resilience with malformed params and documents
  * the psbt.toHex() exposure in api.js (outside try/catch).

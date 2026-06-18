@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Smoke Tests — xchain-encoder
+ * Smoke Tests: xchain-encoder
  *
  * Fast health-check suite that verifies the encoder's core building blocks
  * are operational. No coin node, no network calls, no external services.
@@ -184,7 +184,7 @@ describe('S4: PSBT Creation', () => {
 })
 
 // ---------------------------------------------------------------------------
-// S5: prepareData — All Encoding Types
+// S5: prepareData: All Encoding Types
 // ---------------------------------------------------------------------------
 describe('S5: prepareData', () => {
   const bitcoin = require('bitcoinjs-lib')

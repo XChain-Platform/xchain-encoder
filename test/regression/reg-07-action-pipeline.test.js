@@ -59,9 +59,9 @@ async function encodeAndExtract (actionObj, opts = {}) {
 
 describe('REG-07: Action Pipeline Regression', function () {
 
-  // ── REG-07.1: SEND — baseline ─────────────────────────────────
+  // ── REG-07.1: SEND baseline ───────────────────────────────────
 
-  describe('REG-07.1: SEND — baseline round-trip', function () {
+  describe('REG-07.1: SEND baseline round-trip', function () {
     it('SEND|0|JDOG|1|<addr> encodes and decodes exactly', async function () {
       const action = actions.makeSend('JDOG', '1')
       const { payload, decompiled } = await encodeAndExtract(action)
@@ -80,9 +80,9 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.2: ISSUE — P2SH path ──────────────────────────────
+  // ── REG-07.2: ISSUE P2SH path ────────────────────────────────
 
-  describe('REG-07.2: ISSUE — P2SH path', function () {
+  describe('REG-07.2: ISSUE P2SH path', function () {
     it('full ISSUE (25+ fields) auto-selects P2SH', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -107,7 +107,7 @@ describe('REG-07: Action Pipeline Regression', function () {
 
   // ── REG-07.3: MULTISEND v2 ───────────────────────────────────
 
-  describe('REG-07.3: MULTISEND v2 — multiple recipients', function () {
+  describe('REG-07.3: MULTISEND v2 (multiple recipients)', function () {
     it('two TICK|AMOUNT|DEST triplets preserved', async function () {
       // Use short addresses to keep payload within OP_RETURN limit
       const action = actions.makeMultiSendV2([
@@ -122,9 +122,9 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.4: ORDER — DEX round-trip ──────────────────────────
+  // ── REG-07.4: ORDER DEX round-trip ────────────────────────────
 
-  describe('REG-07.4: ORDER — DEX round-trip', function () {
+  describe('REG-07.4: ORDER DEX round-trip', function () {
     it('ORDER|0|BUY|JDOG|100|BRRR|50|0 survives encoding', async function () {
       const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
       const { decompiled } = await encodeAndExtract(action)
@@ -132,9 +132,9 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.5: BROADCAST — oversized OP_RETURN rejected ─────────
+  // ── REG-07.5: BROADCAST oversized OP_RETURN rejected ───────────
 
-  describe('REG-07.5: BROADCAST — oversized OP_RETURN rejected', function () {
+  describe('REG-07.5: BROADCAST oversized OP_RETURN rejected', function () {
     it('long broadcast forced to OP_RETURN is rejected', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -171,9 +171,9 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.6: FILE — P2WSH path ──────────────────────────────
+  // ── REG-07.6: FILE P2WSH path ────────────────────────────────
 
-  describe('REG-07.6: FILE — P2WSH path (bitcoin-regtest)', function () {
+  describe('REG-07.6: FILE P2WSH path (bitcoin-regtest)', function () {
     it('large FILE uses P2WSH on segwit-capable network', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
@@ -190,9 +190,9 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.7: BATCH — semicolon delimiter ─────────────────────
+  // ── REG-07.7: BATCH semicolon delimiter ───────────────────────
 
-  describe('REG-07.7: BATCH — semicolon delimiter', function () {
+  describe('REG-07.7: BATCH semicolon delimiter', function () {
     it('semicolon-separated commands preserved verbatim', async function () {
       const action = actions.makeBatch([
         actions.makeSend('JDOG', '1'),

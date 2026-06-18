@@ -62,7 +62,7 @@ describe('TxSizeEstimator', () => {
     //             + redeemPush + redeem
     //   redeemPush = 1  (<76 bytes), 2 (76..255), or 3 (256..65535)
     //   scriptSig-varint = 1 if scriptSig <253, else 3
-    // (The reveal scriptSig pushes sig, pubkey, then the redeem script — the
+    // (The reveal scriptSig pushes sig, pubkey, then the redeem script; the
     //  pubkey push was previously omitted, undercounting every estimate by 34.)
 
     it('returns 149 for empty redeem (scriptSig=108, varint=1)', () => {

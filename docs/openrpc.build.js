@@ -52,7 +52,7 @@ const METHODS = [
             { name: 'unconfirmed', schema: bool('allow spending unconfirmed UTXOs') },
             { name: 'encoding', schema: str('force encoding', { enum: ['OP_RETURN', 'MULTISIGN', 'P2SH', 'P2WSH'] }) },
             { name: 'change', schema: str('change address (defaults to sender)') },
-            { name: 'p2shHash', schema: str('funding txid — switches to the P2SH/P2WSH reveal (tx2) flow') },
+            { name: 'p2shHash', schema: str('funding txid: switches to the P2SH/P2WSH reveal (tx2) flow') },
             { name: 'p2shHex', schema: str('funding tx raw hex (required with p2shHash)') },
             { name: 'compressedPubKey', schema: str('compressed public key when pubkey is an address') },
         ],
@@ -78,7 +78,7 @@ const spec = {
         title: 'XChain Encoder API',
         version: '1.0.0',
         description: 'Stateless JSON-RPC 2.0 service (POST /) that builds unsigned PSBTs embedding '
-            + 'XChain ACTION payloads into BTC/LTC/DOGE transactions. One instance per chain — the public '
+            + 'XChain ACTION payloads into BTC/LTC/DOGE transactions. One instance per chain. The public '
             + 'deployment is path-routed per coin: https://encoder.xchain.io/{COIN}/ (COIN = BTC/TBTC, '
             + 'LTC/TLTC, DOGE/TDOGE). Auth is optional: when the operator configures an API key, requests '
             + 'need an x-api-key header; the public instances run open. Errors follow JSON-RPC 2.0 '

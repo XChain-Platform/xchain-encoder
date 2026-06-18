@@ -49,7 +49,7 @@ async function soak () {
   const encoder = makeEncoder(scenario.network)
 
   console.log(`\nxchain-encoder soak test`)
-  console.log(`  Scenario:  ${scenario.id} — ${scenario.label}`)
+  console.log(`  Scenario:  ${scenario.id}: ${scenario.label}`)
   console.log(`  Duration:  ${DURATION_SECS}s`)
   console.log(`  Window:    ${WINDOW_SECS}s\n`)
 

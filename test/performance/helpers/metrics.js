@@ -15,7 +15,7 @@ const fs = require('fs')
 const path = require('path')
 
 // ---------------------------------------------------------------------------
-// Histogram — nanosecond-precision latency recorder
+// Histogram: nanosecond-precision latency recorder
 // ---------------------------------------------------------------------------
 
 class Histogram {
@@ -90,7 +90,7 @@ class Histogram {
 }
 
 // ---------------------------------------------------------------------------
-// MemoryTracker — periodic heap snapshots
+// MemoryTracker: periodic heap snapshots
 // ---------------------------------------------------------------------------
 
 class MemoryTracker {
@@ -148,7 +148,7 @@ class MemoryTracker {
 }
 
 // ---------------------------------------------------------------------------
-// GcTracker — GC pause observer
+// GcTracker: GC pause observer
 // ---------------------------------------------------------------------------
 
 class GcTracker {
@@ -195,7 +195,7 @@ class GcTracker {
 }
 
 // ---------------------------------------------------------------------------
-// EldTracker — Event Loop Delay histogram
+// EldTracker: Event Loop Delay histogram
 // ---------------------------------------------------------------------------
 
 class EldTracker {

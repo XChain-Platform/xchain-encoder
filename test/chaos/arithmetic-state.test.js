@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Chaos Engineering — Category D: Arithmetic & State Corruption
+ * Chaos Engineering: Category D: Arithmetic & State Corruption
  *
  * Tests fee calculation overflow, insufficient UTXOs producing
  * invalid PSBTs, concurrent state mutation, and UTXO array reuse.
@@ -45,7 +45,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
         null, null, null, true, 0.00001
       )
 
-      // Encoder does NOT throw — this is the silent fund loss scenario
+      // Encoder does NOT throw; this is the silent fund loss scenario
       assert.ok(result.psbt instanceof bitcoin.Psbt)
       const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
       assert.strictEqual(changeOutputs.length, 0,

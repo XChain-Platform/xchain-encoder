@@ -9,7 +9,7 @@
 // contact legal@dankest.llc.
 
 // Additional tests targeting the branches in XChainEncoder.js not yet
-// covered by the existing test files — specifically:
+// covered by the existing test files, specifically:
 //   - P2WSH encoding: tx1 (funding), tx2 (spending), segwit-unsupported guard
 //   - Non-segwit (P2PKH) UTXO path that calls connector.getTransactionHex
 //   - feeQuote injection into customOutputs
@@ -105,7 +105,7 @@ function makeEncoder (network) {
 // Non-segwit (legacy P2PKH) UTXO path
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — non-segwit UTXO path', () => {
+describe('XChainEncoder.createTransaction(): non-segwit UTXO path', () => {
   it('calls connector.getTransactionHex for a P2PKH UTXO', async () => {
     const encoder = makeEncoder()
     let hexFetched = false
@@ -165,10 +165,10 @@ describe('XChainEncoder.createTransaction() — non-segwit UTXO path', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// P2WSH encoding path (tx1 — funding)
+// P2WSH encoding path (tx1: funding)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — P2WSH tx1 (funding)', () => {
+describe('XChainEncoder.createTransaction(): P2WSH tx1 (funding)', () => {
   it('throws TypeError when P2WSH is used on a no-segwit network', async () => {
     // dogecoin-regtest has supportsSegwit=false
     const encoder = makeEncoder('dogecoin-regtest')
@@ -236,10 +236,10 @@ describe('XChainEncoder.createTransaction() — P2WSH tx1 (funding)', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// P2WSH encoding path (tx2 — spending)
+// P2WSH encoding path (tx2: spending)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — P2WSH tx2 (spending)', () => {
+describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
   it('creates P2WSH input with witnessScript and OP_RETURN marker', async () => {
     const encoder = makeEncoder('bitcoin-regtest')
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -304,7 +304,7 @@ describe('XChainEncoder.createTransaction() — P2WSH tx2 (spending)', () => {
 // Payload too large guard
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — payload size guard', () => {
+describe('XChainEncoder.createTransaction(): payload size guard', () => {
   it('throws RangeError when compiled payload exceeds MAX_COMPILED_ACTION_DATA_LENGTH (8192)', async () => {
     const encoder = makeEncoder()
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -326,7 +326,7 @@ describe('XChainEncoder.createTransaction() — payload size guard', () => {
 // feeQuote injection
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — feeQuote injection', () => {
+describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
   it('adds feeQuote as an extra output when address and amount > 0', async () => {
     const encoder = makeEncoder()
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -358,7 +358,7 @@ describe('XChainEncoder.createTransaction() — feeQuote injection', () => {
       feeQuote
     )
 
-    // Only OP_RETURN (0) + change — no feeQuote output
+    // Only OP_RETURN (0) + change (no feeQuote output)
     assert.strictEqual(result.psbt.txOutputs.length, 2)
   })
 
@@ -375,7 +375,7 @@ describe('XChainEncoder.createTransaction() — feeQuote injection', () => {
       feeQuote
     )
 
-    // No feeQuote output — just OP_RETURN + change
+    // No feeQuote output; just OP_RETURN + change
     assert.strictEqual(result.psbt.txOutputs.length, 2)
   })
 })
@@ -384,9 +384,9 @@ describe('XChainEncoder.createTransaction() — feeQuote injection', () => {
 // maxFeeRateKb cap
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — maxFeeRateKb cap', () => {
+describe('XChainEncoder.createTransaction() - maxFeeRateKb cap', () => {
   it('caps the fee rate when connector returns a rate above maxFeeRateKb', async () => {
-    // Create encoder with maxFeeRateKb = 1 (sat/kB — very low cap)
+    // Create encoder with maxFeeRateKb = 1 (sat/kB, very low cap)
     const encoder = new XChainEncoder(
       'dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 1
     )
@@ -411,7 +411,7 @@ describe('XChainEncoder.createTransaction() — maxFeeRateKb cap', () => {
     const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
     const impliedFee = 100000000 - changeOutput.value
     // maxFeeRateKb=1 sat/kB → maxFeePerBytes = 1/1000/100000000 BTC/byte
-    // That's tiny — 0.00000000001 BTC/byte — floor kicks in at dustAmount
+    // That's tiny (0.00000000001 BTC/byte); floor kicks in at dustAmount
     assert.ok(impliedFee < 100000000 * 0.01,
       `fee ${impliedFee} should be well under 1% of input with cap applied`)
   })
@@ -421,7 +421,7 @@ describe('XChainEncoder.createTransaction() — maxFeeRateKb cap', () => {
 // Change output edge cases
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — change edge cases', () => {
+describe('XChainEncoder.createTransaction() - change edge cases', () => {
   it('does not add change output when changeSatoshis is 0', async () => {
     const encoder = makeEncoder()
     // fee == input value is drain-shaped on purpose (to zero the change); the
@@ -451,7 +451,7 @@ describe('XChainEncoder.createTransaction() — change edge cases', () => {
     // Fee absorbs almost everything leaving just below dust
     const fee = 100000000 - 100 // leaves 100 sats = below dustAmount (546)
 
-    // Should not throw — change below dust with no change address is fine (burned as fee)
+    // Should not throw; change below dust with no change address is fine (burned as fee)
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null,
       'test', null, fee, false, null, null, // no change address
@@ -466,7 +466,7 @@ describe('XChainEncoder.createTransaction() — change edge cases', () => {
 // Invalid fee
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — invalid fee', () => {
+describe('XChainEncoder.createTransaction() - invalid fee', () => {
   it('throws RangeError for a NaN fee string', async () => {
     const encoder = makeEncoder()
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -497,7 +497,7 @@ describe('XChainEncoder.createTransaction() — invalid fee', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// estimateSpendingP2wshTx — all push-size brackets
+// estimateSpendingP2wshTx: all push-size brackets
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
@@ -570,7 +570,7 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
 // unconfirmed=false depletes all UTXOs (line 325), changeSatoshis non-finite
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — remaining branch coverage', () => {
+describe('XChainEncoder.createTransaction() - remaining branch coverage', () => {
   it('throws RangeError when customOutputs[i].value is not a valid satoshi amount', async () => {
     const encoder = makeEncoder()
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -637,7 +637,7 @@ describe('XChainEncoder.createTransaction() — remaining branch coverage', () =
 // rawData parameter path
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('XChainEncoder.createTransaction() — rawData parameter', () => {
+describe('XChainEncoder.createTransaction() - rawData parameter', () => {
   it('accepts rawData and includes it in the compiled payload', async () => {
     const encoder = makeEncoder()
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -650,7 +650,7 @@ describe('XChainEncoder.createTransaction() — rawData parameter', () => {
       null, null, null, true, 0.00001
     )
 
-    // Should build successfully — the rawData is compiled in via 'binary' encoding
+    // Should build successfully; the rawData is compiled in via 'binary' encoding
     assert.ok(result.psbt, 'should return a valid PSBT')
     assert.ok(result.encoding, 'should return an encoding')
   })

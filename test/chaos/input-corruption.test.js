@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Chaos Engineering — Category B: Input & Data Corruption
+ * Chaos Engineering: Category B: Input & Data Corruption
  *
  * Tests encoder resilience when receiving malformed UTXOs, degenerate
  * obfuscation keys, maximum payloads, corrupted scriptPubKeys, and
@@ -114,7 +114,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       const encoder = makeEncoder(DOGE)
       const utxo = { ...makeSegwitUtxo(TXID_A, 0, 1), value: '0xff' }
 
-      // parseInt('0xff', 10) === 0 — passes NaN check, contributes 0 sats
+      // parseInt('0xff', 10) === 0, passes NaN check, contributes 0 sats
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
         actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
@@ -188,7 +188,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   // ── B-4: Maximum payload stress ───────────────────────────────
 
   // The encoder caps the *compiled* on-chain push at MAX_COMPILED_ACTION_DATA_LENGTH
-  // (8192) — the same ceiling the indexing decoder enforces. An 8189-byte payload
+  // (8192), the same ceiling the indexing decoder enforces. An 8189-byte payload
   // compiles to 8189 + 3 (OP_PUSHDATA2 prefix) = 8192 (the limit); 8190 bytes
   // compiles to 8193 and is rejected, because the decoder would otherwise silently
   // drop it on chain. (createTransaction enforces the compiled ceiling directly;

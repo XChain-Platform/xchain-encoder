@@ -111,7 +111,7 @@ describe('TxSizeEstimator Boundaries', () => {
         index: 0,
         sequence: 0xffffffff,
         witnessUtxo: {
-          script: Buffer.from('51', 'hex'), // OP_1 — not P2WPKH or P2WSH
+          script: Buffer.from('51', 'hex'), // OP_1 (not P2WPKH or P2WSH)
           value: 100000
         }
       }

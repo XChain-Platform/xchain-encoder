@@ -39,7 +39,7 @@ const ITERS = parseInt(param('--iters', '1000'), 10)
 async function runScenario (scenario, iters, warmupIters) {
   const encoder = makeEncoder(scenario.network)
 
-  // Warmup — JIT compilation, discard results
+  // Warmup: JIT compilation, discard results
   for (let i = 0; i < warmupIters; i++) {
     const utxos = scenario.makeUtxos()
     await encoder.createTransaction(

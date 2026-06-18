@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Chaos Engineering — Category C: Library & Crypto Failures
+ * Chaos Engineering: Category C: Library & Crypto Failures
  *
  * Tests encoder resilience when bitcoinjs-lib and Node.js crypto
  * internals fail. Uses monkey-patching with strict save/restore.
@@ -191,7 +191,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
   })
 
   // ── C-5: Cross-network pubkey for P2SH ────────────────────────
-  // No monkey-patching needed — uses real encoder with bech32 address
+  // No monkey-patching needed; uses real encoder with bech32 address
 
   describe('C-5: Cross-network / invalid pubkey for P2SH encoding', () => {
     it('bech32 address as pubkey → fromBase58Check throws', async () => {

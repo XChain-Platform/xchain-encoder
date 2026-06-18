@@ -43,7 +43,7 @@ function stdUtxo () {
 
 /**
  * Create tx1 + tx2 pair for P2SH or P2WSH encoding.
- * NOTE: __CACHE.__TX is a bitcoinjs-lib internal — matches existing test patterns.
+ * NOTE: __CACHE.__TX is a bitcoinjs-lib internal; matches existing test patterns.
  */
 async function createTxPair (action, opts = {}) {
   const network = opts.network || NETWORK_P2SH
@@ -276,7 +276,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   // A P2WSH reveal that spends a single data chunk is just 1 input + 1
   // OP_RETURN marker = 71 stripped (non-witness) bytes. Bitcoin Core relays it
   // (MIN_STANDARD_TX_NONWITNESS_SIZE = 65) but Litecoin Core rejects it as
-  // "tx-size-small" (~85-byte floor) — the payload lives in the witness and
+  // "tx-size-small" (~85-byte floor) because the payload lives in the witness and
   // does not count toward stripped size. The encoder must pad the reveal over
   // the target chain's minStandardTxNonWitnessSize. Both the minimum (75) and
   // maximum (476) single-chunk compiled-payload sizes must clear the floor.
@@ -318,7 +318,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
         const { tx2, encoder } = await buildSingleChunkReveal('litecoin-regtest', compiled)
         const floor = encoder.network.minStandardTxNonWitnessSize
         assert.strictEqual(floor, 85, 'litecoin floor should be 85')
-        // byteLength(false) = stripped (non-witness) serialization — the size a
+        // byteLength(false) = stripped (non-witness) serialization: the size a
         // node measures against MIN_STANDARD_TX_NONWITNESS_SIZE.
         const stripped = tx2.psbt.__CACHE.__TX.byteLength(false)
         assert.ok(stripped >= floor,
@@ -335,7 +335,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
         'bitcoin single-chunk reveal stays at 71 stripped bytes (already above floor)')
       assert.ok(stripped >= floor)
       assert.strictEqual(tx2.psbt.txOutputs.length, 1,
-        'bitcoin reveal carries only the OP_RETURN marker — no size padding')
+        'bitcoin reveal carries only the OP_RETURN marker, no size padding')
     })
   })
 })

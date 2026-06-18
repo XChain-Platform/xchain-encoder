@@ -194,7 +194,7 @@ describe('XChainEncoder.prepareData()', () => {
     it('uses the same 476-byte chunk size as P2SH (bounded by the 520-byte push limit)', () => {
       // Each chunk is pushed as a SINGLE script element inside the witness
       // script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE (520),
-      // exactly like P2SH — NOT by the larger total witness-script policy
+      // exactly like P2SH, NOT by the larger total witness-script policy
       // limit. A 476-byte payload is the largest that fits one chunk.
       const data = Buffer.alloc(chunkDataSize, 0xFF)
       const result = encoder.prepareData(data, 'P2WSH', REGTEST_ADDRESS)
@@ -269,7 +269,7 @@ describe('XChainEncoder.prepareData()', () => {
       const cases = [
         { compiled: 61,  chunks: 2, note: '1 data byte in last chunk (first multi-chunk boundary)' },
         { compiled: 88,  chunks: 2, note: 'last chunk = magic(4) + 28 = 32 bytes (pubkey2 would be empty before fix)' },
-        { compiled: 120, chunks: 2, note: 'exact multiple of 60 — baseline, both chunks already full' }
+        { compiled: 120, chunks: 2, note: 'exact multiple of 60 (baseline: both chunks already full)' }
       ]
       for (const { compiled, chunks, note } of cases) {
         it(`compiled=${compiled}: ${note}`, () => {

@@ -84,7 +84,7 @@ describe('Category B: Encoding Type Integration', () => {
 
   // ── B-2: P2SH tx1 (funding output) ─────────────────────────────
 
-  describe('B-2: P2SH tx1 — funding output', () => {
+  describe('B-2: P2SH tx1 (funding output)', () => {
     it('creates P2SH output with value >= dustAmount', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -137,7 +137,7 @@ describe('Category B: Encoding Type Integration', () => {
 
   // ── B-3: P2SH tx2 (spending input) ─────────────────────────────
 
-  describe('B-3: P2SH tx2 — spending input with redeemScript', () => {
+  describe('B-3: P2SH tx2 (spending input with redeemScript)', () => {
     it('creates tx2 with P2SH input and OP_RETURN marker', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -208,9 +208,9 @@ describe('Category B: Encoding Type Integration', () => {
 
   // ── B-4: P2WSH tx1 (funding output) ────────────────────────────
 
-  describe('B-4: P2WSH tx1 — funding output', () => {
+  describe('B-4: P2WSH tx1 (funding output)', () => {
     it('creates P2WSH output when explicitly requested', async () => {
-      // P2WSH requires bech32 network config — use bitcoin-regtest (Dogecoin lacks bech32)
+      // P2WSH requires bech32 network config; use bitcoin-regtest (Dogecoin lacks bech32)
       const p2wshNetwork = 'bitcoin-regtest'
       const encoder = makeEncoder(p2wshNetwork)
       const address = getTestAddress(p2wshNetwork)
@@ -240,9 +240,9 @@ describe('Category B: Encoding Type Integration', () => {
 
   // ── B-5: P2WSH tx2 (spending input) ────────────────────────────
 
-  describe('B-5: P2WSH tx2 — witness input', () => {
+  describe('B-5: P2WSH tx2 (witness input)', () => {
     it('creates tx2 with witnessScript containing ACTION data', async () => {
-      // P2WSH requires bech32 — use bitcoin-regtest
+      // P2WSH requires bech32; use bitcoin-regtest
       const p2wshNetwork = 'bitcoin-regtest'
       const encoder = makeEncoder(p2wshNetwork)
       const address = getTestAddress(p2wshNetwork)

@@ -18,7 +18,7 @@
  *   - a malformed/short key fails closed (controlled throw, no hang/partial
  *     cipher),
  *   - the payload is actually transformed (never emitted in the clear),
- *   - the output is bound to the TXID — a different TXID does NOT recover
+ *   - the output is bound to the TXID: a different TXID does NOT recover
  *     the plaintext (no trivial deobfuscation without the key material).
  */
 
@@ -51,7 +51,7 @@ describe('Security: obfuscation key binding', () => {
         assert.strictEqual(out.length, data.length, 'CTR mode preserves length')
     })
 
-    it('binds the ciphertext to the TXID — a different TXID does not recover it', async () => {
+    it('binds the ciphertext to the TXID: a different TXID does not recover it', async () => {
         const data = Buffer.from('confidential action payload', 'utf8')
         const out = await encoder.obfuscate(data, TXID_1)
 

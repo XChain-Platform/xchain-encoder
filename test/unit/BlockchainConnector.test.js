@@ -423,7 +423,7 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
     axios.post = async (url, data) => {
       callCount++
       if (callCount === 1) {
-        // estimatesmartfee — no feerate
+        // estimatesmartfee returned no feerate
         return { data: { result: {} } }
       }
       // getblockchaininfo for isRegtest

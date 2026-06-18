@@ -13,7 +13,7 @@
  **********************************************************************
  * Drift guard: docs/openrpc.json must list exactly the methods exposed by
  * the jsonRpcController in src/api.js. If a method is added/removed/renamed,
- * regenerate the spec (node docs/openrpc.build.js) — this fails until both
+ * regenerate the spec (node docs/openrpc.build.js); this fails until both
  * sides match.
  */
 

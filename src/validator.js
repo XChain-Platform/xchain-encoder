@@ -28,7 +28,7 @@
 // ceiling directly rather than this single-push approximation.
 const MAX_DATA_BYTES = 8189
 // Maximum *compiled* on-chain ACTION push, in bytes. Must equal the decoder's
-// MAX_ACTION_DATA_LENGTH — a transaction whose compiled push exceeds this is
+// MAX_ACTION_DATA_LENGTH: a transaction whose compiled push exceeds this is
 // silently dropped by every indexing node. Canonical source of truth:
 // xchain-documentation/protocol/constants.js (MAX_ACTION_DATA_LENGTH). The
 // cross-service regression suite asserts these stay equal.
@@ -80,7 +80,7 @@ function compiledPushSize(byteLength) {
 function validateCombinedDataLength(data, rawData) {
     if (data == null) return
     const dataBytes = Buffer.byteLength(data, 'utf8')
-    // Match XChainEncoder.js — rawData is bytes-as-string (Latin-1), so the
+    // Match XChainEncoder.js: rawData is bytes-as-string (Latin-1), so the
     // on-chain byte count is the string length, not the UTF-8 encoding length.
     const rawBytes = rawData != null ? Buffer.byteLength(rawData, 'binary') : 0
     // When both fields are present, prepareData compiles them as two separate

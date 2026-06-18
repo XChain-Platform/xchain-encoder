@@ -13,7 +13,7 @@
  **********************************************************************
  * REG-04: Validator Functions
  *
- * Primary dedicated coverage for src/validator.js — filling the identified
+ * Primary dedicated coverage for src/validator.js, filling the identified
  * gap where no existing test file imports the validator directly. Tests each
  * exported validate* function individually plus validateAll() as integration.
  * Purely synchronous (no encoder instantiation needed).

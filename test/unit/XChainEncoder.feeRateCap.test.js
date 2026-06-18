@@ -13,7 +13,7 @@
 // Bug: with MAX_FEE_RATE_KB unset (the default), a caller-supplied fee or
 // feePerKb had no upper bound short of the gross 2.1T-sat validator limit, so
 // a malicious or buggy caller could set them high enough that every selected
-// input is drained into miner fee — the user signs the PSBT none the wiser.
+// input is drained into miner fee; the user signs the PSBT none the wiser.
 //
 // Fix: caller-supplied rates are capped at maxFeeRateMultiplier × the node's
 // own estimatesmartfee(1) estimate (default 100×). feePerKb is clamped; an
@@ -62,7 +62,7 @@ function makeEncoder (maxFeeRateKb = null, maxFeeRateMultiplier = undefined) {
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001
   }
-  // dogecoin-regtest's dust floor is 100000 koinu — orders of magnitude above
+  // dogecoin-regtest's dust floor is 100000 koinu, orders of magnitude above
   // the sub-dust fees these rate-cap probes produce (a ~131-byte tx capped at
   // ~100 sat/byte pays ~13100). The dust floor is exercised by its own suite;
   // override it here so the rate-cap behaviour under test is observable.
@@ -96,7 +96,7 @@ describe('XChainEncoder fee-rate cap', () => {
 
   it('accepts a generous but plausible absolute fee (priority/RBF headroom)', async () => {
     const encoder = makeEncoder()
-    const fee = 10000 // ~76 sat/byte vs a 1 sat/byte estimate — under the 100× cap
+    const fee = 10000 // ~76 sat/byte vs a 1 sat/byte estimate; under the 100× cap
     const result = await create(encoder, { fee })
     assert.strictEqual(paidFee(result), fee)
   })
@@ -143,7 +143,7 @@ describe('XChainEncoder fee-rate cap', () => {
 
   it('multiplier 0 disables the relative cap', async () => {
     const encoder = makeEncoder(null, 0)
-    const fee = 50000 // 382 sat/byte — above the default cap
+    const fee = 50000 // 382 sat/byte, above the default cap
     const result = await create(encoder, { fee })
     assert.strictEqual(paidFee(result), fee)
   })

@@ -15,11 +15,11 @@
  *
  * The encoder is handed untrusted request parameters (UTXOs, addresses,
  * ACTION data, fees, encodings). src/validator.js is the gate that must
- * reject hostile input with a typed error — or coerce it to a safe
- * primitive — before any of it reaches bitcoinjs-lib or the PSBT builder.
+ * reject hostile input with a typed error, or coerce it to a safe
+ * primitive, before any of it reaches bitcoinjs-lib or the PSBT builder.
  * These tests attack that gate: malformed types, injection-shaped strings,
  * over-limit sizes, and degenerate numbers. The invariant throughout is
- * "rejected with TypeError/RangeError, OR returned as a clean primitive —
+ * "rejected with TypeError/RangeError, OR returned as a clean primitive;
  * never the raw attacker string passed through".
  */
 
@@ -181,7 +181,7 @@ describe('Security: validateCustomOutputs / validateFeeQuote', () => {
         assert.throws(() => V.validateCustomOutputs([{ address: 'addr', value: -1 }]), RangeError)
     })
 
-    it('rejects a feeQuote with non-positive or over-max amount (via validateAll — feeQuote is internal-only)', () => {
+    it('rejects a feeQuote with non-positive or over-max amount (via validateAll, feeQuote is internal-only)', () => {
         assert.throws(() => V.validateAll({ feeQuote: { address: 'a', amount: 0 } }), RangeError)
         assert.throws(() => V.validateAll({ feeQuote: { address: 'a', amount: V.MAX_FEE_SATOSHIS + 1 } }), RangeError)
         assert.throws(() => V.validateAll({ feeQuote: { address: '', amount: 10 } }), TypeError)
@@ -224,7 +224,7 @@ describe('Security: validateAll end-to-end', () => {
 
 describe('Security: validation integrity (regex anchors + set membership)', () => {
     // These pin exact behaviour so a weakened guard (a dropped regex anchor or a
-    // corrupted encoding whitelist) cannot pass silently — the kinds of change a
+    // corrupted encoding whitelist) cannot pass silently. These are the kinds of change a
     // refactor or a malicious edit could introduce.
 
     it('accepts each canonical encoding by exact name and rejects the empty string', () => {

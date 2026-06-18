@@ -15,7 +15,7 @@
  *
  * Verifies that realistic pipe-delimited ACTION strings survive the full
  * createTransaction() pipeline: script compilation → prepareData() chunking →
- * obfuscation → PSBT construction — and can be extracted back to the
+ * obfuscation → PSBT construction, and can be extracted back to the
  * original ACTION string.
  */
 
@@ -278,7 +278,7 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       it(`${name} action string survives encoding round-trip`, async () => {
         const action = factory()
 
-        // Some actions may exceed OP_RETURN — skip fidelity check for those
+        // Some actions may exceed OP_RETURN; skip fidelity check for those
         // (they're tested separately as P2SH). For this sweep, just verify
         // the encoder doesn't throw and returns a valid result.
         const encoder = makeEncoder(NETWORK)

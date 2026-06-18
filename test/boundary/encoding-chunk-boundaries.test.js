@@ -51,7 +51,7 @@ function standardUtxo (txid = TXID_A) {
   return makeSegwitUtxo(txid, 0, 100000000)
 }
 
-describe('Encoding Chunk Boundaries — Full Pipeline', () => {
+describe('Encoding Chunk Boundaries: Full Pipeline', () => {
 
   // ── OP_RETURN auto-select threshold ─────────────────────────────
 
@@ -243,7 +243,7 @@ describe('Encoding Chunk Boundaries — Full Pipeline', () => {
   // ── P2WSH chunk-split threshold ─────────────────────────────────
 
   describe('P2WSH real-world boundary (bitcoin-regtest only)', () => {
-    // PW2SH_SIZE = 520, giving a chunk capacity of 476 bytes — the SAME as
+    // PW2SH_SIZE = 520, giving a chunk capacity of 476 bytes, the same as
     // P2SH. Each data chunk is pushed as a single script element inside the
     // witness script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE
     // (520), NOT by the larger total witness-script policy limit. (A bigger
@@ -373,7 +373,7 @@ describe('Encoding Chunk Boundaries — Full Pipeline', () => {
           o.value === encoder.dustAmount)
         assert.strictEqual(msOutputs.length, 2, 'should have 2 multisig outputs')
       } catch (err) {
-        // EC point failure for the second chunk is acceptable — the key point is
+        // EC point failure for the second chunk is acceptable; the key point is
         // it no longer fails because of an oversized pubkey (the original bug).
         assert.ok(!err.message.includes('isPoint') ||
           err.message.includes('Expected property "pubkeys.0"') ||

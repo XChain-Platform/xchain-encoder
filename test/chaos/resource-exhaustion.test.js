@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Chaos Engineering — Category E: Resource Exhaustion
+ * Chaos Engineering: Category E: Resource Exhaustion
  *
  * Tests encoder behavior under memory pressure (large payloads)
  * and high UTXO counts (500 legacy UTXOs requiring RPC calls).
@@ -74,7 +74,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
   // ── E-2: 500 UTXOs ───────────────────────────────────────────
 
   describe('E-2: High UTXO count processing', () => {
-    it('500 segwit UTXOs of 100 sats each — all consumed, completes in <10s', async () => {
+    it('500 segwit UTXOs of 100 sats each, all consumed, completes in <10s', async () => {
       const encoder = makeEncoder(DOGE)
       const utxos = []
       for (let i = 0; i < 500; i++) {
@@ -95,7 +95,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
       assert.ok(elapsed < 10000, `should complete in <10s, took ${elapsed}ms`)
     })
 
-    it('500 legacy UTXOs — getTransactionHex called for each consumed', async () => {
+    it('500 legacy UTXOs: getTransactionHex called for each consumed', async () => {
       const encoder = makeEncoder(DOGE)
       const rawHex = buildRawTxHex(100, DOGE)
       let hexCallCount = 0
