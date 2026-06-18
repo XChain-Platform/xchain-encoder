@@ -105,16 +105,18 @@ class XChainEncoder {
             case Encoding.OP_RETURN:
                 chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //Single OP_RETURN output: 80-byte limit minus 4-byte magic word = 76 bytes of payload
 
-                // A single transaction may carry at most ONE OP_RETURN output:
-                // Bitcoin Core (>=v0.12) rejects multi-OP_RETURN transactions as
-                // non-standard ("multi-op-return") at broadcast. Splitting an
-                // oversized payload across several OP_RETURN outputs therefore
-                // produces a structurally valid PSBT that always fails to relay,
-                // silently burning the fee UTXOs. The auto-selection path above
-                // avoids this by falling back to P2SH; the explicit-encoding path
-                // must reject loudly at construction time instead. One chunk fits
-                // OP_RETURN_SIZE (80) minus the 4-byte magic word = 76 bytes of payload.
-                if (data.length > chunksSize) {
+                // Bitcoin Core (>=v0.12) rejects transactions with more than one
+                // OP_RETURN output as non-standard ("multi-op-return"). Splitting an
+                // oversized payload across several OP_RETURN outputs produces a
+                // structurally valid PSBT that always fails to relay, silently
+                // burning the fee UTXOs. The auto-selection path above avoids this
+                // by falling back to P2SH; the explicit-encoding path must reject
+                // loudly at construction time instead.
+                //
+                // singleOpReturnPolicy (from CryptoNetworks): true = enforce the
+                // single-output 80-byte ceiling (Bitcoin networks); false = allow
+                // larger payloads as the chain permits (LTC, DOGE).
+                if (this.network.singleOpReturnPolicy !== false && data.length > chunksSize) {
                     throw new RangeError(
                         `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
                         `got ${data.length}. Use P2SH for larger payloads.`

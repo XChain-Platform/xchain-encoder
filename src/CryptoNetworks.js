@@ -7,7 +7,7 @@
  *
  * This file is part of XChain Platform. Licensed under the GNU Affero
  * General Public License v3.0 or later; see LICENSE.md. A commercial
- * license (without AGPL source-disclosure terms) is available —
+ * license (without AGPL source-disclosure terms) is available -
  * contact legal@dankest.llc.
  *
  **********************************************************************
@@ -31,11 +31,11 @@ class CryptoNetworks {
         // its stripped size up to this floor (see XChainEncoder).
         switch(networkName){
             case "bitcoin-mainnet":
-                return { ...bitcoin.networks.bitcoin, dustThreshold: 546, minStandardTxNonWitnessSize: 65 }
+                return { ...bitcoin.networks.bitcoin, dustThreshold: 546, minStandardTxNonWitnessSize: 65, singleOpReturnPolicy: true }
             case "bitcoin-testnet":
-                return { ...bitcoin.networks.testnet, dustThreshold: 546, minStandardTxNonWitnessSize: 65 }
+                return { ...bitcoin.networks.testnet, dustThreshold: 546, minStandardTxNonWitnessSize: 65, singleOpReturnPolicy: true }
             case "bitcoin-regtest":
-                return { ...bitcoin.networks.regtest, dustThreshold: 546, minStandardTxNonWitnessSize: 65 }
+                return { ...bitcoin.networks.regtest, dustThreshold: 546, minStandardTxNonWitnessSize: 65, singleOpReturnPolicy: true }
             case "dogecoin-mainnet":
                 return {
                     "messagePrefix": '\x19Dogecoin Signed Message:\n',
@@ -47,7 +47,9 @@ class CryptoNetworks {
                     "scriptHash": 0x16,
                     "wif": 0x9e,
                     "dustThreshold": 100000,
-                    "supportsSegwit": false
+                    "supportsSegwit": false,
+                    // DOGE allows larger/multiple OP_RETURN outputs; no single-output size guard
+                    "singleOpReturnPolicy": false
                 }
             case "dogecoin-testnet":
                 return {
@@ -60,12 +62,13 @@ class CryptoNetworks {
                     "scriptHash": 0xc4,
                     "wif": 0xf1,
                     "dustThreshold": 100000,
-                    "supportsSegwit": false
+                    "supportsSegwit": false,
+                    "singleOpReturnPolicy": false
                 }
             case "dogecoin-regtest":
                 // Dogecoin v1.14.x regtest reuses Bitcoin-testnet prefixes
                 // (pubKeyHash 0x6f, WIF 0xef, bip32 0x043587cf/0x04358394).
-                // NOT Dogecoin-testnet prefixes (0x71/0xf1) — encoder would
+                // NOT Dogecoin-testnet prefixes (0x71/0xf1); the encoder would
                 // produce addresses the running node treats as invalid.
                 return {
                     "messagePrefix": '\x19Dogecoin Signed Message:\n',
@@ -77,7 +80,8 @@ class CryptoNetworks {
                     "scriptHash": 0xc4,
                     "wif": 0xef,
                     "dustThreshold": 100000,
-                    "supportsSegwit": false
+                    "supportsSegwit": false,
+                    "singleOpReturnPolicy": false
                 }
             case "litecoin-mainnet":
                 return {
@@ -85,13 +89,15 @@ class CryptoNetworks {
                     "bech32": 'ltc',
                     "bip32": {
                        "public": 0x019da462,
-                       "private": 0x019d9cfe 
+                       "private": 0x019d9cfe
                     },
                     "pubKeyHash": 0x30,
                     "scriptHash": 0x32,
                     "wif": 0xb0,
                     "dustThreshold": 5460,
-                    "minStandardTxNonWitnessSize": 85
+                    "minStandardTxNonWitnessSize": 85,
+                    // LTC permits larger/multiple OP_RETURN outputs; no single-output size guard
+                    "singleOpReturnPolicy": false
                 }
             case "litecoin-testnet":
                 return {
@@ -105,7 +111,8 @@ class CryptoNetworks {
                     "scriptHash": 0xc4,
                     "wif": 0xef,
                     "dustThreshold": 5460,
-                    "minStandardTxNonWitnessSize": 85
+                    "minStandardTxNonWitnessSize": 85,
+                    "singleOpReturnPolicy": false
                 }
             case "litecoin-regtest":
                 return {
@@ -119,7 +126,8 @@ class CryptoNetworks {
                     "scriptHash": 0xc4,
                     "wif": 0xef,
                     "dustThreshold": 5460,
-                    "minStandardTxNonWitnessSize": 85
+                    "minStandardTxNonWitnessSize": 85,
+                    "singleOpReturnPolicy": false
                 }
             default:
                 throw new TypeError(`Unknown network: "${networkName}". Supported: bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest`)
@@ -140,7 +148,11 @@ class CryptoNetworks {
             case "dogecoin-mainnet":
                 return 6000000
             case "dogecoin-testnet":
-                return 19900000
+                // DOGE testnet mints min-difficulty blocks ~every 20s, so the
+                // chain runs tens of millions of blocks ahead of the other
+                // networks. Anchor near the current tip to avoid indexing ~42M
+                // pre-launch blocks (which bloated the decoder DB to ~13.8GB).
+                return 62500000
             // All regtest networks start parsing at block 0
             default:
                 return 0

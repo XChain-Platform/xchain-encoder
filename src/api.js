@@ -7,7 +7,7 @@
  *
  * This file is part of XChain Platform. Licensed under the GNU Affero
  * General Public License v3.0 or later; see LICENSE.md. A commercial
- * license (without AGPL source-disclosure terms) is available —
+ * license (without AGPL source-disclosure terms) is available -
  * contact legal@dankest.llc.
  *
  **********************************************************************
@@ -52,10 +52,10 @@ const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFee
 const API_KEY = process.env.API_KEY
 const CORS_ORIGIN = process.env.CORS_ORIGIN
 
-// API key authentication is OPTIONAL (see components/encoder/README.md — default Disabled).
+// API key authentication is OPTIONAL (see components/encoder/README.md, default: Disabled).
 // When API_KEY is unset the encoder runs open; setting it opts into x-api-key enforcement.
 if (!API_KEY) {
-    console.warn('NOTICE: API_KEY not set — encoder API authentication is DISABLED (open access).')
+    console.warn('NOTICE: API_KEY not set. Encoder API authentication is DISABLED (open access).')
 }
 
 const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER);
@@ -69,7 +69,7 @@ app.use(helmet());
 // Allow JSON requests with size limit
 app.use(bodyParser.json({ limit: '1mb' }));
 
-// API key authentication — only enforced when API_KEY is configured.
+// API key authentication (only enforced when API_KEY is configured).
 if (API_KEY) {
     app.use((req, res, next) => {
         // The machine-readable spec stays public even on keyed deploys.
@@ -104,8 +104,26 @@ const jsonRpcController = {
     async ping() {
         return {status:"success", version: ENCODER_VERSION};
     },
+    // Probes hard dependencies (UTXO tracker) and returns their reachability /
+    // sync state. Unlike ping, a health failure means the encoder cannot serve
+    // requests correctly. Fields: tracker_reachable (bool), tracker_synced
+    // (bool), tracker_lag (number|null).
+    async health() {
+        let tracker_reachable = false
+        let tracker_synced = false
+        let tracker_lag = null
+        try {
+            const status = await encoder.utxoTrackerConnector.getSyncStatus()
+            tracker_reachable = true
+            tracker_synced = !!status.synced
+            tracker_lag = status.lag !== undefined ? status.lag : null
+        } catch (_err) {
+            // tracker unreachable; fields stay at defaults
+        }
+        return { tracker_reachable, tracker_synced, tracker_lag }
+    },
     // Suggested fee tiers (base-unit per vByte: sat/koinu/litoshi) from the node's
-    // estimatesmartfee at decreasing confirmation targets — low=slow/cheap (6
+    // estimatesmartfee at decreasing confirmation targets: low=slow/cheap (6
     // blocks) … high=next block (1). getFeePerKilobyte returns coin/kB; *1e5
     // converts to base-unit/byte (1e8 base-units per coin ÷ 1000 bytes per kB).
     // Floored at 1 so a tier is never 0. Read-only; no params.
