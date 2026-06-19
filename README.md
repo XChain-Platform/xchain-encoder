@@ -6,7 +6,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.6.1-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-769%2B%20passing-brightgreen" alt="Tests">
-  <img src="https://img.shields.io/badge/node-%3E%3D18-green" alt="Node">
+  <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-Dankest%20Community-orange" alt="License">
 </p>
 
@@ -14,24 +14,24 @@
   <img src="https://img.shields.io/badge/coverage-unit%20%7C%20integration%20%7C%20e2e%20%7C%20boundary%20%7C%20chaos%20%7C%20mutation%20%7C%20regression%20%7C%20smoke-brightgreen" alt="Coverage">
 </p>
 
-PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of UTXOs, and a public key, and returns an unsigned Partially Signed Bitcoin Transaction (PSBT) ready for the caller to sign and broadcast. The encoder is fully stateless — no database, no persistent connections, every call is independent.
+PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of UTXOs, and a public key, and returns an unsigned Partially Signed Bitcoin Transaction (PSBT) ready for the caller to sign and broadcast. The encoder is fully stateless: no database, no persistent connections, every call is independent.
 
 ## Features
 
-- **Four encoding formats** — OP_RETURN (76B), P2SH (476B), P2WSH (476B), and multisig (~61B/key); auto-selected by payload size
-- **AES-128-CTR obfuscation** — derives key and IV from the first input's txid; `XCHN` magic prefix on all payloads
-- **Two-transaction P2SH/P2WSH** — automatic tx1 (fund) → tx2 (spend/reveal) orchestration with marker OP_RETURN
-- **UTXO selection** — largest-first selection, duplicate removal, optional unconfirmed filtering, automatic change output
-- **Fee estimation** — byte-accurate transaction size estimation per format via `TxSizeEstimator`; dust floor enforcement
-- **Fee rate caps** — caller-supplied `fee`/`feePerKb` is capped at `MAX_FEE_RATE_MULTIPLIER` × the node's own fee estimate (default 100×), so a hostile or buggy request cannot drain inputs into miner fee; `MAX_FEE_RATE_KB` adds an optional absolute cap
-- **Input validation** — centralized parameter validation (`validator.js`) with typed errors for all 15 `createTransaction` parameters
-- **Multi-chain support** — Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
-- **Replace-By-Fee** — optional RBF signaling via sequence number
-- **Custom outputs** — arbitrary address/value outputs (e.g., COINPay native coin payments)
-- **Token-gated content support** — encodes [FILE v1](https://github.com/XChain-platform/xchain-documentation/blob/master/protocol/actions/FILE.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
-- **JSON-RPC API** — Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
-- **Browser bundle** — Browserify build for client-side PSBT generation without a server
-- **769+ tests** — unit, integration, e2e, boundary, chaos, mutation, regression, smoke, performance
+- **Four encoding formats**: OP_RETURN (76B), P2SH (476B), P2WSH (476B), and multisig (~61B/key); auto-selected by payload size
+- **AES-128-CTR obfuscation**: derives key and IV from the first input's txid; `XCHN` magic prefix on all payloads
+- **Two-transaction P2SH/P2WSH**: automatic tx1 (fund) -> tx2 (spend/reveal) orchestration with marker OP_RETURN
+- **UTXO selection**: largest-first selection, duplicate removal, optional unconfirmed filtering, automatic change output
+- **Fee estimation**: byte-accurate transaction size estimation per format via `TxSizeEstimator`; dust floor enforcement
+- **Fee rate caps**: caller-supplied `fee`/`feePerKb` is capped at `MAX_FEE_RATE_MULTIPLIER` x the node's own fee estimate (default 100x), so a hostile or buggy request cannot drain inputs into miner fee; `MAX_FEE_RATE_KB` adds an optional absolute cap
+- **Input validation**: centralized parameter validation (`validator.js`) with typed errors for all 15 `createTransaction` parameters
+- **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
+- **Replace-By-Fee**: optional RBF signaling via sequence number
+- **Custom outputs**: arbitrary address/value outputs (e.g., COINPay native coin payments)
+- **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-platform/xchain-documentation/blob/master/protocol/actions/FILE.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
+- **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
+- **Browser bundle**: Browserify build for client-side PSBT generation without a server
+- **769+ tests**: unit, integration, e2e, boundary, chaos, mutation, regression, smoke, performance
 
 ## Documentation
 
@@ -71,15 +71,15 @@ npm run api
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `NETWORK` | Yes | — | Coin and network (`bitcoin-mainnet`, `dogecoin-testnet`, `litecoin-regtest`, etc.) |
-| `NODE_URL` | Yes | — | Coin node RPC host (e.g., `127.0.0.1`) |
-| `NODE_PORT` | Yes | — | Coin node RPC port |
-| `NODE_USER` | Yes | — | RPC username |
-| `NODE_PASSWORD` | Yes | — | RPC password |
+| `NETWORK` | Yes | (none) | Coin and network (`bitcoin-mainnet`, `dogecoin-testnet`, `litecoin-regtest`, etc.) |
+| `NODE_URL` | Yes | (none) | Coin node RPC host (e.g., `127.0.0.1`) |
+| `NODE_PORT` | Yes | (none) | Coin node RPC port |
+| `NODE_USER` | Yes | (none) | RPC username |
+| `NODE_PASSWORD` | Yes | (none) | RPC password |
 | `ENCODER_API_PORT` | No | `3000` | JSON-RPC API port |
 | `DUST_AMOUNT` | No | Network default | Minimum output value in satoshis |
-| `UTXO_TRACKER_URL` | No | — | xchain-utxo-tracker service host |
-| `UTXO_TRACKER_API_PORT` | No | — | xchain-utxo-tracker service port |
+| `UTXO_TRACKER_URL` | No | (none) | xchain-utxo-tracker service host |
+| `UTXO_TRACKER_API_PORT` | No | (none) | xchain-utxo-tracker service port |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
@@ -91,7 +91,7 @@ npm run api
 | Command | Description |
 |---|---|
 | `npm run api` | Start the JSON-RPC API server |
-| `npm run build` | Production browser bundle (minified) → `dist/xchain_encoder.min.js` |
+| `npm run build` | Production browser bundle (minified) -> `dist/xchain_encoder.min.js` |
 | `npm run build:dev` | Development browser bundle (unminified) |
 | `npm run smoke-test` | Smoke tests (~10 tests, <1s) |
 | `npm run test:unit` | Unit tests (114 tests) |
