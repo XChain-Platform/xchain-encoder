@@ -148,8 +148,14 @@ describe('E2E-6: Multi-Chain Validation', () => {
       )
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
-      const msOutput = result.psbt.txOutputs.find(o => o.value === 546)
-      assert.ok(msOutput, 'Bitcoin multisig output should be 546 sats')
+      // A bare 1-of-3 multisig output is larger than a P2PKH, so it is funded at
+      // max(chain dust 546, bare-multisig dust ~786); assert it clears the floor.
+      const msOutput = result.psbt.txOutputs.find(o => {
+        const d = bitcoin.script.decompile(o.script)
+        return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
+      })
+      assert.ok(msOutput && msOutput.value >= 546,
+        'Bitcoin multisig output should clear the 546-sat dust floor')
     })
   })
 

@@ -96,9 +96,11 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       // rejects multi-OP_RETURN transactions as non-standard at broadcast.
       // A payload larger than one 76-byte chunk must be rejected at
       // construction instead of producing a PSBT that never relays.
+      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
+      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
       const bigData = 'X'.repeat(200)
       await assert.rejects(
-        encode(bigData, { encoding: 'OP_RETURN' }),
+        encode(bigData, { encoding: 'OP_RETURN', network: 'bitcoin-regtest' }),
         RangeError
       )
     })
@@ -194,8 +196,10 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
   // ── E2E-3.9: P2WSH handles very large data ───────────────────
 
   describe('E2E-3.9: P2WSH handles larger-than-P2SH payload', () => {
-    it('1000-byte file data fits in single P2WSH chunk', async () => {
-      // bitcoinjs-lib enforces 3600-byte witness script limit
+    it('1000-byte file data splits across multiple P2WSH chunks', async () => {
+      // Each data chunk is a single witness-script element, bound by consensus
+      // MAX_SCRIPT_ELEMENT_SIZE (520) -> 476-byte capacity. A ~1050-byte file
+      // therefore spans multiple P2WSH outputs, each a valid v0 witness program.
       const action = actions.makeFileLarge() // ~1050 bytes
       const result = await encode(action.data, {
         encoding: 'P2WSH',
@@ -209,7 +213,8 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
       })
-      assert.strictEqual(p2wshOutputs.length, 1, 'should fit in single P2WSH chunk')
+      assert.ok(p2wshOutputs.length >= 2,
+        `~1050 bytes should split into multiple P2WSH chunks (got ${p2wshOutputs.length})`)
     })
   })
 })

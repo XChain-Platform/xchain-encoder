@@ -205,9 +205,11 @@ describe('E2E-9: Round-Trip Verification', () => {
       // rejects multi-OP_RETURN transactions as non-standard at broadcast.
       // A payload larger than one 76-byte chunk must be rejected at
       // construction. Large payloads round-trip via the P2SH path instead.
+      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
+      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
       const bigData = 'X'.repeat(200)
-      const encoder = makeEncoder('dogecoin-regtest')
-      const address = getTestAddress('dogecoin-regtest')
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
       const utxo = stdUtxo()
 
       await assert.rejects(

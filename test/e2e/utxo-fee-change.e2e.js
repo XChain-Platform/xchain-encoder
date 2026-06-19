@@ -33,7 +33,10 @@ const {
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// BTC semantics: the change/fee assertions assume the supplied fee (10000) is
+// honored. DOGE floors sub-100000 fees, which would skew these. The dust-floor
+// tests below read encoder.dustAmount dynamically, so they hold on bitcoin too.
+const NETWORK = 'bitcoin-regtest'
 
 describe('E2E-5: UTXO, Fee, and Change Integration', () => {
 

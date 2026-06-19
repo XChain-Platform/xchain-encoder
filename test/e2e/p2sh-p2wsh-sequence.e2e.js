@@ -212,13 +212,19 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       // P2WSH witnessScript: [data_chunk] OP_DROP OP_DUP OP_HASH160 ...
       const input = tx2.psbt.data.inputs[0]
       const decompiled = bitcoin.script.decompile(input.witnessScript)
-      const dataChunk = decompiled[0]
-
-      assert.ok(Buffer.isBuffer(dataChunk))
+      assert.ok(Buffer.isBuffer(decompiled[0]))
       assert.strictEqual(decompiled[1], bitcoin.opcodes.OP_DROP)
 
-      // dataChunk is the raw compiled ACTION data
-      const innerDecompiled = decompilePayload(dataChunk)
+      // makeFileLarge exceeds one 476-byte chunk, so the compiled ACTION script
+      // is split across multiple reveal inputs; concatenate each input's chunk in
+      // order to recover the full payload before decompiling (a single chunk is a
+      // truncated script and decompiles to null).
+      const fullCompiled = Buffer.concat(
+        tx2.psbt.data.inputs
+          .filter(i => i.witnessScript)
+          .map(i => bitcoin.script.decompile(i.witnessScript)[0])
+      )
+      const innerDecompiled = decompilePayload(fullCompiled)
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })

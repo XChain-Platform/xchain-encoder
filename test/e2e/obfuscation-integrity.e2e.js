@@ -233,9 +233,12 @@ describe('E2E-4: Obfuscation Integrity', () => {
       // rejects multi-OP_RETURN transactions as non-standard at broadcast.
       // A payload larger than one 76-byte chunk must be rejected at
       // construction rather than split into independently-obfuscated outputs.
+      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
+      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
       const bigData = 'Y'.repeat(200)
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
+      const orNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(orNet)
+      const address = getTestAddress(orNet)
       const utxo = stdUtxo()
 
       await assert.rejects(
