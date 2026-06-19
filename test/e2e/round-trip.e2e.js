@@ -183,12 +183,16 @@ describe('E2E-9: Round-Trip Verification', () => {
       )
 
       // P2WSH witnessScript: [data_chunk] OP_DROP OP_DUP OP_HASH160 ...
-      // Data chunk is raw (unobfuscated) compiled ACTION script
-      const input = tx2.psbt.data.inputs[0]
-      const decompiled = bitcoin.script.decompile(input.witnessScript)
-      const dataChunk = decompiled[0]
-
-      const innerDecompiled = decompilePayload(dataChunk)
+      // The data chunk is raw (unobfuscated) compiled ACTION script. A large
+      // FILE exceeds one 476-byte chunk, so it is split across multiple reveal
+      // inputs; concatenate each input's chunk in order to recover the full
+      // compiled payload before decompiling (a single chunk is truncated).
+      const fullCompiled = Buffer.concat(
+        tx2.psbt.data.inputs
+          .filter(input => input.witnessScript)
+          .map(input => bitcoin.script.decompile(input.witnessScript)[0])
+      )
+      const innerDecompiled = decompilePayload(fullCompiled)
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })

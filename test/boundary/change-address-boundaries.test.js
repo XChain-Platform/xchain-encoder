@@ -31,7 +31,11 @@ const {
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// BTC semantics: the main-network dust tests assert the 546-sat threshold and
+// honor the supplied fee. DOGE dust is 100000 (not 546) and DOGE floors
+// sub-100000 fees, so this suite runs on bitcoin-regtest; LTC dust (5460) has
+// its own tests below using a local litecoin-regtest encoder.
+const NETWORK = 'bitcoin-regtest'
 const BTC_DUST = 546
 const LTC_DUST = 5460
 
@@ -112,9 +116,9 @@ describe('Change Address Boundaries', () => {
     })
   })
 
-  // ── Dust threshold exact boundary (BTC/DOGE: 546) ──────────────
+  // ── Dust threshold exact boundary (BTC: 546) ───────────────────
 
-  describe('dust threshold boundary (BTC/DOGE: 546)', () => {
+  describe('dust threshold boundary (BTC: 546)', () => {
     it('changeSatoshis = 546 (= dustAmount): no throw with null change', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)

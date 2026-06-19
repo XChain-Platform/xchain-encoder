@@ -28,7 +28,9 @@ const {
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// BTC semantics: the change/fee assertions assume the supplied fee (10000) is
+// honored. DOGE floors sub-100000 fees (covered in the fee-cap tests).
+const NETWORK = 'bitcoin-regtest'
 
 describe('Custom Output Boundaries', () => {
 

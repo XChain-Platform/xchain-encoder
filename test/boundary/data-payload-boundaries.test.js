@@ -32,7 +32,9 @@ const {
   MAGIC_WORD
 } = require('../integration/helpers/deobfuscate')
 
-const NETWORK = 'dogecoin-regtest'
+// BTC semantics: the forced-OP_RETURN over-capacity test expects a rejection,
+// which only applies on chains with singleOpReturnPolicy=true (bitcoin).
+const NETWORK = 'bitcoin-regtest'
 
 function standardUtxo () {
   return makeSegwitUtxo(TXID_A, 0, 100000000)

@@ -244,7 +244,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
           null, null, null, true, 0.00001
         ),
-        /no utxos|splice is not a function|not a function/i
+        /no utxos|must be an array|splice is not a function|not a function/i
       )
     })
   })

@@ -26,6 +26,14 @@ const METHODS = [
         result: { name: 'pong', schema: { type: 'object', properties: { status: str('"success"'), version: str('encoder semver') } } },
     },
     {
+        name: 'health',
+        summary: 'Probe hard dependencies (UTXO tracker) and report reachability and sync state.',
+        description: 'Unlike ping, a health failure means the encoder cannot serve requests correctly. '
+            + 'When the tracker is unreachable the fields stay at their defaults (false / null).',
+        params: [],
+        result: { name: 'health', schema: { type: 'object', properties: { tracker_reachable: bool('UTXO tracker reachable'), tracker_synced: bool('tracker reports itself synced'), tracker_lag: { type: ['integer', 'null'], description: 'tracker block lag, or null when unknown/unreachable' } } } },
+    },
+    {
         name: 'estimate_fee',
         summary: 'Suggested fee tiers in base-units per vByte (sat/koinu/litoshi) from the node\'s estimatesmartfee.',
         params: [],

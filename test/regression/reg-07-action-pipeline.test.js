@@ -136,8 +136,11 @@ describe('REG-07: Action Pipeline Regression', function () {
 
   describe('REG-07.5: BROADCAST oversized OP_RETURN rejected', function () {
     it('long broadcast forced to OP_RETURN is rejected', async function () {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
+      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
+      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      const orNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(orNet)
+      const address = getTestAddress(orNet)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeBroadcastLong()
 

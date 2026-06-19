@@ -140,8 +140,10 @@ describe('CryptoNetworks', () => {
       assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-mainnet'), 6000000)
     })
 
-    it('returns 19900000 for dogecoin-testnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 19900000)
+    it('returns 62500000 for dogecoin-testnet', () => {
+      // DOGE testnet mints min-difficulty blocks ~every 20s, so getFirstBlock
+      // anchors near the current tip to avoid indexing ~42M pre-launch blocks.
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 62500000)
     })
 
     it('returns 0 for bitcoin-regtest', () => {

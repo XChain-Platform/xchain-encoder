@@ -256,17 +256,24 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   // ── REG-06.7: P2WSH data fidelity ────────────────────────────
 
   describe('REG-06.7: P2WSH data fidelity', function () {
-    it('witnessScript data chunk decompiles back to original ACTION string', async function () {
+    it('witnessScript data chunks reassemble to the original ACTION string', async function () {
       const action = actions.makeFileLarge()
       const { tx2 } = await createTxPair(action, {
         encoding: 'P2WSH',
         network: NETWORK_P2WSH
       })
 
-      const input = tx2.psbt.data.inputs[0]
-      const d = bitcoin.script.decompile(input.witnessScript)
-      const dataChunk = d[0]
-      const innerDecompiled = decompilePayload(dataChunk)
+      // Each reveal input carries one raw data chunk as the first witnessScript
+      // element. makeFileLarge exceeds one 476-byte chunk, so the compiled
+      // ACTION script is split across multiple inputs; concatenate the chunks in
+      // order to recover the full compiled payload before decompiling. (Taking a
+      // single chunk would decompile a truncated script and return null.)
+      const fullCompiled = Buffer.concat(
+        tx2.psbt.data.inputs
+          .filter(input => input.witnessScript)
+          .map(input => bitcoin.script.decompile(input.witnessScript)[0])
+      )
+      const innerDecompiled = decompilePayload(fullCompiled)
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })

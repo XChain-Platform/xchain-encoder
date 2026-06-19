@@ -3,7 +3,7 @@
   "info": {
     "title": "XChain Encoder API",
     "version": "1.0.0",
-    "description": "Stateless JSON-RPC 2.0 service (POST /) that builds unsigned PSBTs embedding XChain ACTION payloads into BTC/LTC/DOGE transactions. One instance per chain — the public deployment is path-routed per coin: https://encoder.xchain.io/{COIN}/ (COIN = BTC/TBTC, LTC/TLTC, DOGE/TDOGE). Auth is optional: when the operator configures an API key, requests need an x-api-key header; the public instances run open. Errors follow JSON-RPC 2.0 ({code, message}): -32602 invalid params, -32603 internal, -32001 unauthorized, -32029 rate limited. See the registry at https://docs.xchain.io/protocol/Error_Codes.md. LLM-friendly docs: https://docs.xchain.io/llms.txt",
+    "description": "Stateless JSON-RPC 2.0 service (POST /) that builds unsigned PSBTs embedding XChain ACTION payloads into BTC/LTC/DOGE transactions. One instance per chain. The public deployment is path-routed per coin: https://encoder.xchain.io/{COIN}/ (COIN = BTC/TBTC, LTC/TLTC, DOGE/TDOGE). Auth is optional: when the operator configures an API key, requests need an x-api-key header; the public instances run open. Errors follow JSON-RPC 2.0 ({code, message}): -32602 invalid params, -32603 internal, -32001 unauthorized, -32029 rate limited. See the registry at https://docs.xchain.io/protocol/Error_Codes.md. LLM-friendly docs: https://docs.xchain.io/llms.txt",
     "license": {
       "name": "AGPL-3.0-or-later",
       "url": "https://docs.xchain.io/legal/LICENSING.md"
@@ -46,6 +46,36 @@
             "version": {
               "type": "string",
               "description": "encoder semver"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "health",
+      "summary": "Probe hard dependencies (UTXO tracker) and report reachability and sync state.",
+      "description": "Unlike ping, a health failure means the encoder cannot serve requests correctly. When the tracker is unreachable the fields stay at their defaults (false / null).",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "health",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tracker_reachable": {
+              "type": "boolean",
+              "description": "UTXO tracker reachable"
+            },
+            "tracker_synced": {
+              "type": "boolean",
+              "description": "tracker reports itself synced"
+            },
+            "tracker_lag": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "tracker block lag, or null when unknown/unreachable"
             }
           }
         }
@@ -204,7 +234,7 @@
           "required": false,
           "schema": {
             "type": "string",
-            "description": "funding txid — switches to the P2SH/P2WSH reveal (tx2) flow"
+            "description": "funding txid: switches to the P2SH/P2WSH reveal (tx2) flow"
           }
         },
         {

@@ -30,7 +30,10 @@ const {
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
 
-const NETWORK = 'dogecoin-regtest'
+// BTC semantics throughout (segwit UTXOs, 21M-BTC supply, fee honored at the
+// supplied value). DOGE floors sub-100000 fees, which would skew the change
+// assertions; DOGE fee-floor behavior is covered in the fee-cap tests.
+const NETWORK = 'bitcoin-regtest'
 
 describe('UTXO Value Boundaries', () => {
 

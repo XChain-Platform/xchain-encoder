@@ -122,8 +122,11 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     // chunk must therefore be rejected at construction, not split into outputs
     // that always fail to relay.
     it('76-char data (compiled=78) → rejected (would exceed single output)', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
+      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
+      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      const orNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(orNet)
+      const address = getTestAddress(orNet)
 
       await assert.rejects(
         encoder.createTransaction(
@@ -136,8 +139,10 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('150-char data (compiled=152) → rejected', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
+      // single-OP_RETURN rejection only fires where singleOpReturnPolicy=true (bitcoin)
+      const orNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(orNet)
+      const address = getTestAddress(orNet)
 
       await assert.rejects(
         encoder.createTransaction(
@@ -150,8 +155,10 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('151-char data (compiled=153) → rejected', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
+      // single-OP_RETURN rejection only fires where singleOpReturnPolicy=true (bitcoin)
+      const orNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(orNet)
+      const address = getTestAddress(orNet)
 
       await assert.rejects(
         encoder.createTransaction(

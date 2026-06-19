@@ -228,9 +228,22 @@ describe('REG-05: Multi-Chain Network Configs', function () {
           null, null, COMPRESSED_PUBKEY, true, 0.00001
         )
 
-        const msOutput = result.psbt.txOutputs.find(o => o.value === expectedDust)
-        assert.ok(msOutput,
-          `${network} should have MULTISIGN output at dust value ${expectedDust}`)
+        // MULTISIGN data outputs are funded at max(chain dust floor, bare-
+        // multisig dust). A 1-of-3 bare multisig output is larger than a P2PKH,
+        // so its real dust floor can exceed the flat value (e.g. ~786 > 546 on
+        // BTC; see XChainEncoder bareMultisigDust). Assert each data output
+        // clears the chain dust floor, mirroring the P2SH sibling above.
+        const msOutputs = result.psbt.txOutputs.filter(o => {
+          if (o.value <= 0) return false
+          const d = bitcoin.script.decompile(o.script)
+          return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
+        })
+        assert.ok(msOutputs.length >= 1,
+          `${network} should have at least one MULTISIGN data output`)
+        for (const o of msOutputs) {
+          assert.ok(o.value >= expectedDust,
+            `${network} MULTISIGN output ${o.value} should be >= ${expectedDust}`)
+        }
       })
     }
   })
