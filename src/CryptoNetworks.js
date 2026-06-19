@@ -137,22 +137,24 @@ class CryptoNetworks {
     static getFirstBlock(networkName){
         //TODO: this should get a config file from a server
         switch(networkName){
+            // Kept in sync with xchain-decoder/src/CryptoNetworks.js (the canonical
+            // start heights). Re-pinned near tip pre-launch (2026-06-19); dogecoin-mainnet
+            // sits just below its first live anchor (6,243,921) so anchors are kept.
             case "bitcoin-mainnet":
-                return 900000
+                return 950000
             case "bitcoin-testnet":
-                return 100000
+                return 138000
             case "litecoin-mainnet":
-                return 3000000
+                return 3120000
             case "litecoin-testnet":
-                return 4470000
+                return 4765000
             case "dogecoin-mainnet":
-                return 6000000
+                return 6240000
             case "dogecoin-testnet":
-                // DOGE testnet mints min-difficulty blocks ~every 20s, so the
-                // chain runs tens of millions of blocks ahead of the other
-                // networks. Anchor near the current tip to avoid indexing ~42M
-                // pre-launch blocks (which bloated the decoder DB to ~13.8GB).
-                return 62500000
+                // DOGE testnet mints min-difficulty blocks ~every 20s, so the chain runs
+                // tens of millions of blocks ahead of the other networks. Anchor near the
+                // current tip; it climbs above this over time. (Was 62,500,000.)
+                return 64800000
             // All regtest networks start parsing at block 0
             default:
                 return 0

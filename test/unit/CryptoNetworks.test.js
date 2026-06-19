@@ -120,30 +120,30 @@ describe('CryptoNetworks', () => {
   })
 
   describe('.getFirstBlock()', () => {
-    it('returns 900000 for bitcoin-mainnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-mainnet'), 900000)
+    it('returns 950000 for bitcoin-mainnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-mainnet'), 950000)
     })
 
-    it('returns 100000 for bitcoin-testnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-testnet'), 100000)
+    it('returns 138000 for bitcoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-testnet'), 138000)
     })
 
-    it('returns 3000000 for litecoin-mainnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-mainnet'), 3000000)
+    it('returns 3120000 for litecoin-mainnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-mainnet'), 3120000)
     })
 
-    it('returns 4470000 for litecoin-testnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-testnet'), 4470000)
+    it('returns 4765000 for litecoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-testnet'), 4765000)
     })
 
-    it('returns 6000000 for dogecoin-mainnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-mainnet'), 6000000)
+    it('returns 6240000 for dogecoin-mainnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-mainnet'), 6240000)
     })
 
-    it('returns 62500000 for dogecoin-testnet', () => {
+    it('returns 64800000 for dogecoin-testnet', () => {
       // DOGE testnet mints min-difficulty blocks ~every 20s, so getFirstBlock
-      // anchors near the current tip to avoid indexing ~42M pre-launch blocks.
-      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 62500000)
+      // anchors near the current tip; the chain climbs above this over time.
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 64800000)
     })
 
     it('returns 0 for bitcoin-regtest', () => {
