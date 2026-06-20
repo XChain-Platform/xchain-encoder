@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.10] - 2026-06-20
+
 ### Added
 - `src/validator.js`, `src/api.js` — raw-transaction hex inputs are now shape- and length-validated before any expensive work. `broadcast_tx` previously checked only truthiness of `tx_hex` and forwarded it verbatim to the coin node's `sendrawtransaction` (bounded by the 1 MB body limit and the rate limiter, so not exploitable — but a malformed payload cost a node round-trip and surfaced an opaque node parse error), and `validateP2shParams` required `p2shHex` be non-empty but applied no length cap before it reached `Transaction.fromHex`/`Buffer.from`. A new `validateRawTxHex()` (shared `MAX_RAW_TX_HEX_LENGTH = 400,000` chars ≈ a 200 KB transaction, double the ~100 KB standard-tx ceiling, plus an even-length-hex shape check) now guards `broadcast_tx` with a precise `-32602` reason, and `validateP2shParams` enforces the same shape + cap on `p2shHex`. Defensive hardening only — both paths were already bounded by the body-parser limit; this sheds garbage early and names the rejection. Unit tests cover shape rejections (non-string/empty/odd-length/non-hex), the over-cap rejection, and at-cap acceptance for both validators.
 
