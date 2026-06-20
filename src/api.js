@@ -31,6 +31,7 @@ const rateLimit = require('express-rate-limit');
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 const validator = require('./validator')
+const { upstreamErrorMessage } = require('./errorSanitize')
 const { version: ENCODER_VERSION } = require('../package.json')
 
 
@@ -204,7 +205,7 @@ const jsonRpcController = {
             return { txid: txid }
         } catch (err) {
             console.error('Broadcast error:', err)
-            const e = new Error(err.message || 'Transaction broadcast failed')
+            const e = new Error(upstreamErrorMessage(err, 'Transaction broadcast failed'))
             e.code = -32603
             throw e
         }
@@ -223,7 +224,7 @@ const jsonRpcController = {
             return result
         } catch (err) {
             console.error('UTXO fetch error:', err)
-            const e = new Error(err.message || 'UTXO fetch failed')
+            const e = new Error(upstreamErrorMessage(err, 'UTXO fetch failed'))
             e.code = -32603
             throw e
         }
