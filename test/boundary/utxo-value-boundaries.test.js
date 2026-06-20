@@ -195,6 +195,27 @@ describe('UTXO Value Boundaries', () => {
         'bitcoinjs-lib rejects change output value exceeding Satoshi type limits'
       )
     })
+
+    it('full-precision string value above MAX_SAFE_INTEGER is rejected loudly (DOGE consolidation)', async () => {
+      // The utxo-tracker hands the encoder a full-precision decimal string, so a
+      // DOGE consolidation UTXO above 2^53-1 sats (~90.07M DOGE) reaches the
+      // encoder intact. parseInt would silently round it and skew the fee/change
+      // math; the encoder must reject it instead of losing precision.
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const bigSats = '10000000100000000' // 100,000,001 DOGE in sats, > MAX_SAFE_INTEGER
+      const utxo = makeSegwitUtxo(TXID_A, 0, bigSats)
+
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, null,
+          'SEND|0|X|1|a', null, 10000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        /precision loss/i,
+        'encoder rejects a satoshi value that cannot be represented without precision loss'
+      )
+    })
   })
 
   // ── Unconfirmed filtering edge case ─────────────────────────────

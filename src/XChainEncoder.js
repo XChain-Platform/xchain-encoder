@@ -26,7 +26,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, validateUtxoArray } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, validateUtxoArray, parseSatoshiAmount } = require('./validator')
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
@@ -623,10 +623,7 @@ class XChainEncoder {
         if (customOutputs && Array.isArray(customOutputs)) {
             for (let i = 0; i < customOutputs.length; i++) {
                 const output = customOutputs[i]
-                const outputValue = parseInt(output.value, 10)
-                if (isNaN(outputValue) || outputValue < 0) {
-                    throw new RangeError(`customOutputs[${i}].value is not a valid satoshi amount`)
-                }
+                const outputValue = parseSatoshiAmount(output.value, `customOutputs[${i}].value`)
                 psbt.addOutput({
                     address: output.address,
                     value:   outputValue
@@ -652,10 +649,7 @@ class XChainEncoder {
             let nextUtxoIndex = 0
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
-                nextUtxo.value = parseInt(nextUtxo.value, 10)
-                if (isNaN(nextUtxo.value) || nextUtxo.value < 0) {
-                    throw new RangeError(`utxos[${nextUtxoIndex}].value is not a valid satoshi amount`)
-                }
+                nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`)
                 
                 //if (!txidFirstInput){
                 //    txidFirstInput = nextUtxo["txid"]

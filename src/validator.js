@@ -49,6 +49,24 @@ const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH'])
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 
+// Parse a satoshi amount into a JS integer, rejecting any value that cannot be
+// represented exactly. The utxo-tracker emits full-precision decimal strings
+// (readBigUInt64BE().toString()), so a 64-bit value reaches the encoder intact;
+// a plain parseInt then silently rounds anything above Number.MAX_SAFE_INTEGER
+// (2^53-1 ~= 9.007e15 sats). For BTC/LTC this is unreachable (21M cap = 2.1e15
+// sats), but DOGE has no supply cap, so a single consolidation UTXO can exceed
+// it and corrupt the fee/change math. Reject loudly instead of rounding.
+function parseSatoshiAmount(raw, label) {
+    const num = parseInt(raw, 10)
+    if (isNaN(num) || num < 0) {
+        throw new RangeError(`${label} must be a non-negative integer`)
+    }
+    if (!Number.isSafeInteger(num)) {
+        throw new RangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss`)
+    }
+    return num
+}
+
 function validatePubkey(pubkey) {
     if (pubkey == null) return null
     if (typeof pubkey !== 'string' || pubkey.length === 0) {
@@ -154,11 +172,7 @@ function validateUtxoEntry(entry, index) {
     }
     entry.vout = vout
 
-    const value = parseInt(entry.value, 10)
-    if (isNaN(value) || value < 0) {
-        throw new RangeError(`utxos[${index}].value must be a non-negative integer`)
-    }
-    entry.value = value
+    entry.value = parseSatoshiAmount(entry.value, `utxos[${index}].value`)
 
     if (typeof entry.scriptPubKey !== 'string' || entry.scriptPubKey.length === 0) {
         throw new TypeError(`utxos[${index}].scriptPubKey must be a non-empty string`)
@@ -193,11 +207,7 @@ function validateCustomOutput(output, index) {
     if (output.address.length > 100) {
         throw new TypeError(`customOutputs[${index}].address exceeds maximum length (100)`)
     }
-    const value = parseInt(output.value, 10)
-    if (isNaN(value) || value < 0) {
-        throw new RangeError(`customOutputs[${index}].value must be a non-negative integer`)
-    }
-    output.value = value
+    output.value = parseSatoshiAmount(output.value, `customOutputs[${index}].value`)
     return output
 }
 
@@ -345,6 +355,7 @@ module.exports = {
     validateCompressedPubKey,
     validateChange,
     validateAll,
+    parseSatoshiAmount,
     MAX_RAW_TX_HEX_LENGTH,
     MAX_DATA_BYTES,
     MAX_COMPILED_ACTION_DATA_LENGTH,

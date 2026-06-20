@@ -581,7 +581,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
         'test', null, 10000, false, null, TEST_ADDRESS,
         null, null, null, true, 0.00001
       ),
-      { name: 'RangeError', message: /customOutputs\[0\].value is not a valid satoshi amount/ }
+      { name: 'RangeError', message: /customOutputs\[0\].value must be a non-negative integer/ }
     )
   })
 
@@ -595,7 +595,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
         'test', null, 10000, false, null, TEST_ADDRESS,
         null, null, null, true, 0.00001
       ),
-      { name: 'RangeError', message: /customOutputs\[0\].value is not a valid satoshi amount/ }
+      { name: 'RangeError', message: /customOutputs\[0\].value must be a non-negative integer/ }
     )
   })
 
@@ -610,7 +610,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
         'test', null, 10000, false, null, TEST_ADDRESS,
         null, null, null, true, 0.00001
       ),
-      { name: 'RangeError', message: /utxos\[0\].value is not a valid satoshi amount/ }
+      { name: 'RangeError', message: /utxos\[0\].value must be a non-negative integer/ }
     )
   })
 
