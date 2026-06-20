@@ -18,7 +18,6 @@
  * 
  ********************************************************************/
 
-// Load required libraries
 const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const bs58check = require('bs58check')
@@ -80,9 +79,8 @@ class XChainEncoder {
         try {
             const script = bitcoin.script.decompile(Buffer.from(utxo.scriptPubKey, 'hex'));
             
-            return script[0] === 0x00; // Check whether this is a version-0 witness script (segwit)
+            return script[0] === 0x00; // version-0 witness output (segwit)
         } catch (error) {
-            // If there is an error trying to get the script, let's assume is not segwit
             return false;
         }
     }
@@ -166,20 +164,13 @@ class XChainEncoder {
                     nextDataChunk = data.subarray(i,i+chunksSize)
                     
                     let nextDataBuffer = bitcoin.script.compile([
-                        nextDataChunk, 
+                        nextDataChunk,
                         bitcoin.opcodes.OP_DROP,
                         bitcoin.opcodes.OP_DUP,
                         bitcoin.opcodes.OP_HASH160,
                         pubkeyFromBase58,
                         bitcoin.opcodes.OP_EQUALVERIFY,
                         bitcoin.opcodes.OP_CHECKSIG,
-                        
-                        /*
-                        //Add this to prevent malleability
-                        i,
-                        bitcoin.opcodes.OP_DEPTH,
-                        0,
-                        bitcoin.opcodes.OP_EQUAL,*/
                     ])
                     
                     dataBufferArray.push(nextDataBuffer)
@@ -236,7 +227,6 @@ class XChainEncoder {
         return encryptedData
     }
     
-    //This function transforms a raw data into something similar to a pubkey
     async dataToPubkey(data){
         let bufferArray = [Buffer.from("02","hex"),data]
         let bufferFill = null
@@ -249,7 +239,6 @@ class XChainEncoder {
         return Buffer.concat(bufferArray)
     }
     
-    //This function will create a transaction for the xchain platform
     async createTransaction(utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
       encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null,
       unconfirmed=true, feePerKb=null, dust=null, feeQuote=null){
@@ -329,7 +318,6 @@ class XChainEncoder {
         let psbt = null
         
         let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
-        //let txidFirstInput = null
         let inputSatoshis = 0
 
         if ((utxos == null) || (utxos.length == 0)){
@@ -382,7 +370,6 @@ class XChainEncoder {
             throw new Error("no utxos were provided and no utxos found on the blockchain")
         }
 
-        //Order the utxos from the biggest value to the smallest
         utxos.sort((a,b)=> b.value - a.value)
         let txidFirstInput = utxos[0]["txid"] //The first utxo will always be used as the first input
         
@@ -633,8 +620,7 @@ class XChainEncoder {
             }
         }
 
-        //the output for the change address. The most expensive type of address: taproot
-        estimatedTxSize = estimatedTxSize + 43
+        estimatedTxSize = estimatedTxSize + 43 // change output (worst case: taproot)
 
         let estimatedFee = 0
         if (fee != null && fee !== false) {
@@ -650,11 +636,7 @@ class XChainEncoder {
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
                 nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`)
-                
-                //if (!txidFirstInput){
-                //    txidFirstInput = nextUtxo["txid"]
-                //}
-                
+
                 if (this.isSegwitUTXO(nextUtxo)){
                     let nextInput = {
                         hash: nextUtxo.txid,
@@ -666,7 +648,6 @@ class XChainEncoder {
                         }
                     }
                     psbt.addInput(nextInput)
-                    
                     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
                     inputSatoshis = inputSatoshis + nextUtxo.value
                 } else {
@@ -678,23 +659,22 @@ class XChainEncoder {
                         nonWitnessUtxo: Buffer.from(wholeUtxoHex, 'hex')
                     }
                     psbt.addInput(nextInput)
-                    
-                    estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)                    
+                    estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
                     inputSatoshis = inputSatoshis + nextUtxo.value
                 }
-                
+
                 if (fee == null || fee === false) {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
                 }
-                
+
                 if (inputSatoshis > outputSatoshis + estimatedFee){
                     break
                 }
-                
+
                 nextUtxoIndex = nextUtxoIndex + 1
             }
         }
-        
+
         // Reject a caller-supplied absolute fee whose effective rate exceeds the
         // fee-rate cap for a transaction of this estimated size. Unlike feePerKb
         // (clamped above), an explicit fee is an exact amount the caller believes
@@ -708,7 +688,6 @@ class XChainEncoder {
             }
         }
 
-        //The fee can't be less than the network dust limit
         if (estimatedFee < this.dustAmount){
             estimatedFee = this.dustAmount
         }

@@ -18,7 +18,6 @@
  *
  ********************************************************************/
 
-// Load required libraries
 const dotenv = require('dotenv')
 dotenv.config()
 
@@ -61,13 +60,10 @@ if (!API_KEY) {
 
 const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER);
 
-// Create the app
 const app = express();
 
-// Use Helmet to increase security
 app.use(helmet());
 
-// Allow JSON requests with size limit
 app.use(bodyParser.json({ limit: '1mb' }));
 
 // API key authentication (only enforced when API_KEY is configured).
@@ -86,7 +82,6 @@ if (API_KEY) {
     })
 }
 
-// Rate limiting
 const limiter = rateLimit({
     windowMs: 60 * 1000,
     limit: parseInt(process.env.ENCODER_RATE_LIMIT_RPM, 10) || 60,
@@ -101,7 +96,6 @@ app.use(cors(CORS_ORIGIN ? { origin: CORS_ORIGIN } : { origin: false }));
 
 
 const jsonRpcController = {
-    // Function to check if the encoder is up; also reports the running version.
     async ping() {
         return {status:"success", version: ENCODER_VERSION};
     },
@@ -144,9 +138,7 @@ const jsonRpcController = {
         }
         return out;
     },
-    // Function to create transactions hex for a given data and encoding type
     async create_tx(rawParams) {
-        // Validate and sanitize all parameters
         let params
         try {
             params = validator.validateAll(rawParams)
@@ -177,11 +169,8 @@ const jsonRpcController = {
         }
 
         psbt["psbt"] = psbt["psbt"].toHex()
-
-        // Return the transaction
         return psbt;
     },
-    // Function to broadcast a signed transaction to the coin node
     async broadcast_tx(rawParams) {
         let tx_hex = rawParams && rawParams.tx_hex
         if (!tx_hex) {
