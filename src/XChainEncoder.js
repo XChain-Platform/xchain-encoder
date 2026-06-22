@@ -103,18 +103,16 @@ class XChainEncoder {
             case Encoding.OP_RETURN:
                 chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //Single OP_RETURN output: 80-byte limit minus 4-byte magic word = 76 bytes of payload
 
-                // Bitcoin Core (>=v0.12) rejects transactions with more than one
-                // OP_RETURN output as non-standard ("multi-op-return"). Splitting an
-                // oversized payload across several OP_RETURN outputs produces a
-                // structurally valid PSBT that always fails to relay, silently
-                // burning the fee UTXOs. The auto-selection path above avoids this
-                // by falling back to P2SH; the explicit-encoding path must reject
-                // loudly at construction time instead.
+                // All supported chains (BTC, LTC, DOGE) inherit Bitcoin Core's
+                // IsStandardTx rule that rejects any transaction with more than one
+                // nulldata/OP_RETURN output as non-standard ("multi-op-return"). A split
+                // payload builds a structurally valid PSBT that fails silently at broadcast
+                // and burns the fee UTXOs. The auto-selection path avoids this by falling
+                // back to P2SH; the explicit-encoding path must reject loudly here instead.
                 //
                 // singleOpReturnPolicy (from CryptoNetworks): true = enforce the
-                // single-output 80-byte ceiling (Bitcoin networks); false = allow
-                // larger payloads as the chain permits (LTC, DOGE).
-                if (this.network.singleOpReturnPolicy !== false && data.length > chunksSize) {
+                // single-output 80-byte ceiling (all networks).
+                if (this.network.singleOpReturnPolicy && data.length > chunksSize) {
                     throw new RangeError(
                         `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
                         `got ${data.length}. Use P2SH for larger payloads.`

@@ -48,8 +48,12 @@ class CryptoNetworks {
                     "wif": 0x9e,
                     "dustThreshold": 100000,
                     "supportsSegwit": false,
-                    // DOGE allows larger/multiple OP_RETURN outputs; no single-output size guard
-                    "singleOpReturnPolicy": false
+                    // Dogecoin Core inherits Bitcoin's IsStandardTx rule that rejects any
+                    // transaction with more than one nulldata (OP_RETURN) output. DOGE raises
+                    // the per-output datacarrier size limit but not the output count. A
+                    // multi-OP_RETURN PSBT is structurally valid but non-relayable and would
+                    // silently burn fee UTXOs. Enforce the single-output ceiling at build time.
+                    "singleOpReturnPolicy": true
                 }
             case "dogecoin-testnet":
                 return {
@@ -63,7 +67,8 @@ class CryptoNetworks {
                     "wif": 0xf1,
                     "dustThreshold": 100000,
                     "supportsSegwit": false,
-                    "singleOpReturnPolicy": false
+                    // Same single-nulldata relay rule as DOGE mainnet; see dogecoin-mainnet note.
+                    "singleOpReturnPolicy": true
                 }
             case "dogecoin-regtest":
                 // Dogecoin v1.14.x regtest reuses Bitcoin-testnet prefixes
@@ -81,7 +86,8 @@ class CryptoNetworks {
                     "wif": 0xef,
                     "dustThreshold": 100000,
                     "supportsSegwit": false,
-                    "singleOpReturnPolicy": false
+                    // Same single-nulldata relay rule as DOGE mainnet; see dogecoin-mainnet note.
+                    "singleOpReturnPolicy": true
                 }
             case "litecoin-mainnet":
                 return {
@@ -96,8 +102,10 @@ class CryptoNetworks {
                     "wif": 0xb0,
                     "dustThreshold": 5460,
                     "minStandardTxNonWitnessSize": 85,
-                    // LTC permits larger/multiple OP_RETURN outputs; no single-output size guard
-                    "singleOpReturnPolicy": false
+                    // Litecoin Core is a Bitcoin Core fork and retains the single-nulldata
+                    // standardness rule. A multi-OP_RETURN transaction is relayable on neither
+                    // LTC nor BTC; enforce the build-time ceiling identically to Bitcoin.
+                    "singleOpReturnPolicy": true
                 }
             case "litecoin-testnet":
                 return {
@@ -112,7 +120,8 @@ class CryptoNetworks {
                     "wif": 0xef,
                     "dustThreshold": 5460,
                     "minStandardTxNonWitnessSize": 85,
-                    "singleOpReturnPolicy": false
+                    // Same single-nulldata relay rule as LTC mainnet; see litecoin-mainnet note.
+                    "singleOpReturnPolicy": true
                 }
             case "litecoin-regtest":
                 return {
@@ -127,7 +136,8 @@ class CryptoNetworks {
                     "wif": 0xef,
                     "dustThreshold": 5460,
                     "minStandardTxNonWitnessSize": 85,
-                    "singleOpReturnPolicy": false
+                    // Same single-nulldata relay rule as LTC mainnet; see litecoin-mainnet note.
+                    "singleOpReturnPolicy": true
                 }
             default:
                 throw new TypeError(`Unknown network: "${networkName}". Supported: bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest`)
