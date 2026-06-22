@@ -328,9 +328,12 @@ function validateAll(params) {
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
     const change = validateChange(params.change)
 
-    // Pass through rbf and unconfirmed without strict validation (booleans with loose coercion is existing behavior)
-    const rbf = params.rbf
-    const unconfirmed = params.unconfirmed
+    // Coerce rbf and unconfirmed to strict booleans. Passing a truthy non-boolean
+    // (e.g. the string "yes" or an object) would silently flip RBF signaling or
+    // unconfirmed-UTXO selection on a money protocol, so we normalize here rather
+    // than forwarding the raw value. Absent params become false (not undefined).
+    const rbf = params.rbf !== undefined && params.rbf !== null ? Boolean(params.rbf) : undefined
+    const unconfirmed = params.unconfirmed !== undefined && params.unconfirmed !== null ? Boolean(params.unconfirmed) : undefined
 
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,

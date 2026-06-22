@@ -126,6 +126,14 @@ class UtxoTracker {
                 }
                 return result
             } else {
+                // Surface the structured error the tracker returned (e.g. ADDRESS_TOO_LARGE,
+                // INVALID_CURSOR) rather than discarding it. The tracker maps these to
+                // meaningful error codes/messages at the JSON-RPC layer; losing them here
+                // makes the operator see the same opaque message for every failure mode.
+                const rpcError = responseData.error
+                if (rpcError && (rpcError.message || rpcError.code)) {
+                    throw new Error(`Error getting utxos: ${rpcError.code ? `[${rpcError.code}] ` : ''}${rpcError.message || 'unknown error'}`)
+                }
                 throw new Error('Error getting utxos: empty result')
             }
         } catch (error) {
