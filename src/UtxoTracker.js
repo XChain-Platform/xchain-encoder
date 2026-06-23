@@ -85,56 +85,85 @@ class UtxoTracker {
             throw error;
         }
 
+        // Paginate to handle addresses with more UTXOs than the tracker's
+        // MAX_ADDRESS_OUTPUTS limit. Each page passes limit=10000 and threads
+        // the nextCursor from the previous response via an `after` param until
+        // the tracker signals no more pages by returning an empty/absent cursor.
+        const PAGE_LIMIT = 10000
+        const allUtxos = []
+        let cursor = undefined
         try {
-            const data = {
-                jsonrpc: '2.0',
-                method: 'get_utxos',
-                params: { address: address },
-                id: 1
-            };
-
-            // Make the request to the node
-            const response = await axios.post(this.url, data, {
-                timeout: TRACKER_TIMEOUT
-            });
-
-            const responseData = response.data;
-
-            // Verify structure and return result
-            if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
-                const result = responseData.result
-                if (!Array.isArray(result.utxos)) {
-                    throw new TypeError('UTXO tracker result missing utxos array')
+            while (true) {
+                const params = { address, limit: PAGE_LIMIT }
+                if (cursor !== undefined) {
+                    params.after = cursor
                 }
-                for (let i = 0; i < result.utxos.length; i++) {
-                    const u = result.utxos[i]
-                    if (typeof u !== 'object' || u === null ||
-                        typeof u.txid !== 'string' ||
-                        typeof u.vout === 'undefined' ||
-                        typeof u.value === 'undefined') {
-                        throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}`)
+
+                const data = {
+                    jsonrpc: '2.0',
+                    method: 'get_utxos',
+                    params,
+                    id: 1
+                };
+
+                // Make the request to the node
+                const response = await axios.post(this.url, data, {
+                    timeout: TRACKER_TIMEOUT
+                });
+
+                const responseData = response.data;
+
+                // Verify structure or surface the tracker's structured error.
+                if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
+                    const result = responseData.result
+                    if (!Array.isArray(result.utxos)) {
+                        throw new TypeError('UTXO tracker result missing utxos array')
                     }
-                    if (!HEX_64_RE.test(u.txid)) {
-                        throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}: txid must be a 64-character hex string`)
+                    // pageOffset is the count before this page so globalIdx
+                    // across pages matches what a single-page caller would see.
+                    const pageOffset = allUtxos.length
+                    for (let i = 0; i < result.utxos.length; i++) {
+                        const u = result.utxos[i]
+                        const globalIdx = pageOffset + i
+                        if (typeof u !== 'object' || u === null ||
+                            typeof u.txid !== 'string' ||
+                            typeof u.vout === 'undefined' ||
+                            typeof u.value === 'undefined') {
+                            throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}`)
+                        }
+                        if (!HEX_64_RE.test(u.txid)) {
+                            throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: txid must be a 64-character hex string`)
+                        }
+                        if (typeof u.scriptPubKey !== 'string' || u.scriptPubKey.length === 0) {
+                            throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: scriptPubKey must be a non-empty string`)
+                        }
+                        if (u.confirmations == null) {
+                            u.confirmations = 0
+                        }
+                        allUtxos.push(u)
                     }
-                    if (typeof u.scriptPubKey !== 'string' || u.scriptPubKey.length === 0) {
-                        throw new TypeError(`UTXO tracker returned malformed utxo at index ${i}: scriptPubKey must be a non-empty string`)
+
+                    // Continue only if the tracker signals another page.
+                    const nextCursor = result.nextCursor
+                    if (nextCursor) {
+                        cursor = nextCursor
+                    } else {
+                        // No more pages; return accumulated result with utxos merged.
+                        return { ...result, utxos: allUtxos }
                     }
-                    if (u.confirmations == null) {
-                        u.confirmations = 0
+                } else {
+                    // Surface the structured error the tracker returned (e.g. ADDRESS_TOO_LARGE,
+                    // INVALID_CURSOR) rather than discarding it. The tracker maps these to
+                    // meaningful error codes/messages at the JSON-RPC layer; losing them here
+                    // makes the operator see the same opaque message for every failure mode.
+                    // Prefer err.data.code (string code forwarded by the tracker) over err.code.
+                    const rpcError = responseData.error
+                    if (rpcError && (rpcError.message || rpcError.code || rpcError.data?.code)) {
+                        const code = rpcError.data?.code || rpcError.code
+                        throw new Error(`Error getting utxos: ${code ? `[${code}] ` : ''}${rpcError.message || 'unknown error'}`)
                     }
+                    throw new Error('Error getting utxos: empty result')
                 }
-                return result
-            } else {
-                // Surface the structured error the tracker returned (e.g. ADDRESS_TOO_LARGE,
-                // INVALID_CURSOR) rather than discarding it. The tracker maps these to
-                // meaningful error codes/messages at the JSON-RPC layer; losing them here
-                // makes the operator see the same opaque message for every failure mode.
-                const rpcError = responseData.error
-                if (rpcError && (rpcError.message || rpcError.code)) {
-                    throw new Error(`Error getting utxos: ${rpcError.code ? `[${rpcError.code}] ` : ''}${rpcError.message || 'unknown error'}`)
-                }
-                throw new Error('Error getting utxos: empty result')
             }
         } catch (error) {
             console.error('Error fetching UTXOs:', error);

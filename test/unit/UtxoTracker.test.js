@@ -211,7 +211,8 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
     const t = makeTracker()
     await t.getUtxosFromAddress(ADDRESS)
     assert.strictEqual(capturedPayload.method, 'get_utxos')
-    assert.deepStrictEqual(capturedPayload.params, { address: ADDRESS })
+    assert.strictEqual(capturedPayload.params.address, ADDRESS)
+    assert.strictEqual(typeof capturedPayload.params.limit, 'number', 'params must include a numeric limit for pagination')
   })
 
   it('returns the result object on success', async () => {

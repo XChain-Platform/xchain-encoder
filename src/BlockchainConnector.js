@@ -197,8 +197,11 @@ class BlockchainConnector {
 
             const responseData = response.data;
 
-            // Verify if there is a result and return the hex
-            if (responseData.result && responseData.result.feerate) {
+            // Verify if there is a result and return the hex.
+            // Guard on > 0 so a zero or negative sentinel returned by the node
+            // (e.g. estimatesmartfee not enough data, feerate:-1) falls through
+            // to the regtest relayfee fallback rather than being silently returned.
+            if (responseData.result && Number(responseData.result.feerate) > 0) {
                 return responseData.result.feerate;
             } else {
                 if (await this.isRegtest()){
@@ -224,6 +227,26 @@ class BlockchainConnector {
                 }
             }
         } catch (error) {
+            // On a fresh regtest chain estimatesmartfee can error (not enough
+            // data) rather than just returning feerate:-1. Try the relayfee
+            // fallback before propagating so regtest builds still get a valid
+            // fee rate even when the RPC layer returns an error body.
+            try {
+                if (await this.isRegtest()) {
+                    try {
+                        const info = await this.getNetworkInfo();
+                        const relayfee = Number(info && info.relayfee);
+                        if (relayfee > 0) {
+                            return relayfee;
+                        }
+                    } catch (_) {
+                        // Fall through to the rethrow below.
+                    }
+                    return 0.00001000;
+                }
+            } catch (_) {
+                // isRegtest() itself failed; fall through to rethrow.
+            }
             console.error('Error:', error);
             throw error;
         }
