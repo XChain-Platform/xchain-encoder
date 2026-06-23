@@ -202,6 +202,22 @@ class BlockchainConnector {
                 return responseData.result.feerate;
             } else {
                 if (await this.isRegtest()){
+                    // estimatesmartfee has no data on a fresh regtest chain.
+                    // Fall back to the node's OWN min-relay fee rather than a
+                    // single BTC-denominated literal: 0.00001 is below
+                    // Dogecoin's 0.001/kB floor, so a DOGE regtest broadcast
+                    // built on it is rejected. getnetworkinfo.relayfee is
+                    // coin-correct (DOGE 0.001, BTC/LTC 0.00001) and reflects
+                    // whatever the node is actually configured with.
+                    try {
+                        const info = await this.getNetworkInfo();
+                        const relayfee = Number(info && info.relayfee);
+                        if (relayfee > 0) {
+                            return relayfee;
+                        }
+                    } catch (e) {
+                        // Fall through to the conservative default below.
+                    }
                     return 0.00001000
                 } else {
                     throw new Error('Error getting smart fee from node');
