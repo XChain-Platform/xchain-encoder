@@ -377,13 +377,33 @@ class XChainEncoder {
         
         //Prepare the Data
         let preparedData = this.prepareData(finalDataBuffer, encoding, pubkey)
-        
+
+        // P2SH/P2WSH is a two-tx flow: this funding tx (p2shHash null) creates the
+        // P2SH/P2WSH outputs, and a later reveal tx (p2shHash set) spends them and
+        // is the tx the indexer treats as the action. customOutputs (e.g. the
+        // native-fee protocol-fee output) must therefore be EMITTED on the reveal,
+        // not here on the funding tx. But the reveal's only inputs are these funding
+        // outputs, so the funding outputs must carry enough value for the reveal to
+        // pay both its miner fee and those reveal-side customOutputs. We fold the
+        // customOutputs total into the FIRST funding output here, and skip emitting
+        // customOutputs on this funding tx below (see the customOutputs block). On
+        // the reveal (p2shHash set) customOutputs ARE emitted, funded by this value,
+        // so they are paid exactly once. Single-tx encodings (OP_RETURN/MULTISIGN)
+        // are unaffected: they emit customOutputs directly on their only tx.
+        const isP2shFamily = preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH
+        let revealCustomOutputsValue = 0
+        if (!p2shHash && isP2shFamily && customOutputs && Array.isArray(customOutputs)){
+            for (let i = 0; i < customOutputs.length; i++){
+                revealCustomOutputsValue += parseSatoshiAmount(customOutputs[i].value, `customOutputs[${i}].value`)
+            }
+        }
+
         let outputSatoshis = 0
         let voutPsbtIndex = 0
         let obfuscatedData
-        
+
         let estimatedTxSize = 0
-        
+
         for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
             let nextDataBuffer = preparedData["dataBufferArray"][nextDataBufferIndex]
             
@@ -446,11 +466,18 @@ class XChainEncoder {
                     } else {
                         let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
                         let spendingP2shEstimatedFee = Math.trunc((spendingP2shEstimatedSize * feePerBytes) * SATOSHI_UNIT)
-                    
+
                         if (spendingP2shEstimatedFee < finalDust){
                             spendingP2shEstimatedFee = finalDust
                         }
-                    
+
+                        // Over-fund the first funding output by the reveal-side
+                        // customOutputs total so the reveal can pay them (consumed once).
+                        if (revealCustomOutputsValue > 0){
+                            spendingP2shEstimatedFee += revealCustomOutputsValue
+                            revealCustomOutputsValue = 0
+                        }
+
                         psbt.addOutput({
                             address: bitcoin.payments.p2sh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
                             value:spendingP2shEstimatedFee
@@ -540,6 +567,13 @@ class XChainEncoder {
                             spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + finalDust
                         }
 
+                        // Over-fund the first funding output by the reveal-side
+                        // customOutputs total so the reveal can pay them (consumed once).
+                        if (revealCustomOutputsValue > 0){
+                            spendingP2wshEstimatedFee += revealCustomOutputsValue
+                            revealCustomOutputsValue = 0
+                        }
+
                         psbt.addOutput({
                             address: bitcoin.payments.p2wsh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
                             value:spendingP2wshEstimatedFee
@@ -604,8 +638,15 @@ class XChainEncoder {
             }
         }
 
-        // Process custom outputs (e.g., COINPay native coin payment outputs)
-        if (customOutputs && Array.isArray(customOutputs)) {
+        // Process custom outputs (e.g., COINPay native coin payment outputs, or
+        // the native-fee protocol-fee output). On a P2SH/P2WSH FUNDING tx
+        // (p2shHash null) these are NOT emitted here: their value was folded into
+        // the funding outputs above so the reveal can pay them, and the reveal
+        // (p2shHash set) emits them. Emitting here too would put the output on the
+        // wrong tx (the indexer reads the reveal) and double-pay. Single-tx
+        // encodings and the reveal itself fall through and emit normally.
+        const skipCustomOutputs = !p2shHash && isP2shFamily
+        if (!skipCustomOutputs && customOutputs && Array.isArray(customOutputs)) {
             for (let i = 0; i < customOutputs.length; i++) {
                 const output = customOutputs[i]
                 const outputValue = parseSatoshiAmount(output.value, `customOutputs[${i}].value`)
