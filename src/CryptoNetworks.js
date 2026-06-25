@@ -13,163 +13,45 @@
  **********************************************************************
  *
  * XChain Encoder - Crypto Networks Class
- * 
- * This file handles getting a bitcoinJS config for a specific network
- * 
+ *
+ * Thin adapter over the canonical coin registry (src/coins). The bitcoinjs
+ * network object and the indexing start height now come from the single source
+ * of truth instead of an in-file switch. The legacy getFirstBlock TODO ("this
+ * config data should come from xchain-hub") is resolved: the canonical files are
+ * the hub-authored source, vendored into each service.
+ *
  ********************************************************************/
 
-// Load required libraries
-const bitcoin = require('bitcoinjs-lib');
+const coins = require('./coins');
+
+const SUPPORTED = 'bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, ' +
+    'dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest';
+
+// Split a "<fullname>-<network>" key (e.g. "bitcoin-mainnet") into a canonical
+// {tick, net} pair, or null when it names no known coin/network.
+function parseNetworkName(networkName){
+    const s = String(networkName);
+    const i = s.lastIndexOf('-');
+    if(i < 0) return null;
+    const tick = coins.FULL_NAME_TO_TICK[s.slice(0, i)];
+    const net  = s.slice(i + 1);
+    if(!tick || !coins.NETWORKS.includes(net)) return null;
+    return { tick, net };
+}
 
 class CryptoNetworks {
+    // bitcoinjs-lib network object (+ XChain relay overlays) for a network key.
     static getBitcoinJsNetwork(networkName){
-        // minStandardTxNonWitnessSize: the minimum stripped (non-witness) byte
-        // count a transaction must serialize to before a node will relay it as
-        // standard. Bitcoin Core uses 65 (MIN_STANDARD_TX_NONWITNESS_SIZE);
-        // Litecoin Core raised it to ~85, so a tx that relays on Bitcoin can be
-        // rejected as "tx-size-small" on Litecoin. The P2WSH reveal builder pads
-        // its stripped size up to this floor (see XChainEncoder).
-        switch(networkName){
-            case "bitcoin-mainnet":
-                return { ...bitcoin.networks.bitcoin, dustThreshold: 546, minStandardTxNonWitnessSize: 65, singleOpReturnPolicy: true }
-            case "bitcoin-testnet":
-                return { ...bitcoin.networks.testnet, dustThreshold: 546, minStandardTxNonWitnessSize: 65, singleOpReturnPolicy: true }
-            case "bitcoin-regtest":
-                return { ...bitcoin.networks.regtest, dustThreshold: 546, minStandardTxNonWitnessSize: 65, singleOpReturnPolicy: true }
-            case "dogecoin-mainnet":
-                return {
-                    "messagePrefix": '\x19Dogecoin Signed Message:\n',
-                    "bip32": {
-                       "public": 0x02facafd,
-                       "private": 0x02fac398
-                    },
-                    "pubKeyHash": 0x1e,
-                    "scriptHash": 0x16,
-                    "wif": 0x9e,
-                    "dustThreshold": 100000,
-                    "supportsSegwit": false,
-                    // Dogecoin Core inherits Bitcoin's IsStandardTx rule that rejects any
-                    // transaction with more than one nulldata (OP_RETURN) output. DOGE raises
-                    // the per-output datacarrier size limit but not the output count. A
-                    // multi-OP_RETURN PSBT is structurally valid but non-relayable and would
-                    // silently burn fee UTXOs. Enforce the single-output ceiling at build time.
-                    "singleOpReturnPolicy": true
-                }
-            case "dogecoin-testnet":
-                return {
-                    "messagePrefix": '\x19Dogecoin Signed Message:\n',
-                    "bip32": {
-                       "public": 0x0432a9a8,
-                       "private": 0x0432a243
-                    },
-                    "pubKeyHash": 0x71,
-                    "scriptHash": 0xc4,
-                    "wif": 0xf1,
-                    "dustThreshold": 100000,
-                    "supportsSegwit": false,
-                    // Same single-nulldata relay rule as DOGE mainnet; see dogecoin-mainnet note.
-                    "singleOpReturnPolicy": true
-                }
-            case "dogecoin-regtest":
-                // Dogecoin v1.14.x regtest reuses Bitcoin-testnet prefixes
-                // (pubKeyHash 0x6f, WIF 0xef, bip32 0x043587cf/0x04358394).
-                // NOT Dogecoin-testnet prefixes (0x71/0xf1); the encoder would
-                // produce addresses the running node treats as invalid.
-                return {
-                    "messagePrefix": '\x19Dogecoin Signed Message:\n',
-                    "bip32": {
-                       "public": 0x043587cf,
-                       "private": 0x04358394
-                    },
-                    "pubKeyHash": 0x6f,
-                    "scriptHash": 0xc4,
-                    "wif": 0xef,
-                    "dustThreshold": 100000,
-                    "supportsSegwit": false,
-                    // Same single-nulldata relay rule as DOGE mainnet; see dogecoin-mainnet note.
-                    "singleOpReturnPolicy": true
-                }
-            case "litecoin-mainnet":
-                return {
-                    "messagePrefix": '\x19Litecoin Signed Message:\n',
-                    "bech32": 'ltc',
-                    "bip32": {
-                       "public": 0x019da462,
-                       "private": 0x019d9cfe
-                    },
-                    "pubKeyHash": 0x30,
-                    "scriptHash": 0x32,
-                    "wif": 0xb0,
-                    "dustThreshold": 5460,
-                    "minStandardTxNonWitnessSize": 85,
-                    // Litecoin Core is a Bitcoin Core fork and retains the single-nulldata
-                    // standardness rule. A multi-OP_RETURN transaction is relayable on neither
-                    // LTC nor BTC; enforce the build-time ceiling identically to Bitcoin.
-                    "singleOpReturnPolicy": true
-                }
-            case "litecoin-testnet":
-                return {
-                    "messagePrefix": '\x19Litecoin Signed Message:\n',
-                    "bech32": 'tltc',
-                    "bip32": {
-                       "public": 0x0436f6e1,
-                       "private": 0x0436ef7d
-                    },
-                    "pubKeyHash": 0x6f,
-                    "scriptHash": 0xc4,
-                    "wif": 0xef,
-                    "dustThreshold": 5460,
-                    "minStandardTxNonWitnessSize": 85,
-                    // Same single-nulldata relay rule as LTC mainnet; see litecoin-mainnet note.
-                    "singleOpReturnPolicy": true
-                }
-            case "litecoin-regtest":
-                return {
-                    "messagePrefix": '\x19Litecoin Signed Message:\n',
-                    "bech32": 'rltc',
-                    "bip32": {
-                       "public": 0x0436f6e1,
-                       "private": 0x0436ef7d
-                    },
-                    "pubKeyHash": 0x6f,
-                    "scriptHash": 0xc4,
-                    "wif": 0xef,
-                    "dustThreshold": 5460,
-                    "minStandardTxNonWitnessSize": 85,
-                    // Same single-nulldata relay rule as LTC mainnet; see litecoin-mainnet note.
-                    "singleOpReturnPolicy": true
-                }
-            default:
-                throw new TypeError(`Unknown network: "${networkName}". Supported: bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest`)
-        }
+        const p = parseNetworkName(networkName);
+        if(!p) throw new TypeError(`Unknown network: "${networkName}". Supported: ${SUPPORTED}`);
+        return coins.getCoinConfig(p.tick, p.net).net;
     }
-    
+
+    // Indexing start height (not part of any consensus hash). Unknown/regtest -> 0.
     static getFirstBlock(networkName){
-        //TODO: this should get a config file from a server
-        switch(networkName){
-            // Kept in sync with xchain-decoder/src/CryptoNetworks.js (the canonical
-            // start heights). Re-pinned near tip pre-launch (2026-06-19); dogecoin-mainnet
-            // sits just below its first live anchor (6,243,921) so anchors are kept.
-            case "bitcoin-mainnet":
-                return 950000
-            case "bitcoin-testnet":
-                return 138000
-            case "litecoin-mainnet":
-                return 3120000
-            case "litecoin-testnet":
-                return 4765000
-            case "dogecoin-mainnet":
-                return 6240000
-            case "dogecoin-testnet":
-                // DOGE testnet mints min-difficulty blocks ~every 20s, so the chain runs
-                // tens of millions of blocks ahead of the other networks. Anchor near the
-                // current tip; it climbs above this over time. (Was 62,500,000.)
-                return 64800000
-            // All regtest networks start parsing at block 0
-            default:
-                return 0
-        }
+        const p = parseNetworkName(networkName);
+        return p ? coins.getCoinConfig(p.tick, p.net).firstBlock : 0;
     }
 }
 
-module.exports = CryptoNetworks
+module.exports = CryptoNetworks;
