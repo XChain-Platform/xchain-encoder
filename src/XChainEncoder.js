@@ -727,6 +727,20 @@ class XChainEncoder {
             }
         }
 
+        // Absolute burn backstop that holds even when the operator disables the
+        // rate cap (capFeePerBytes == null) and even when a change address is
+        // supplied (which skips the burn guard below). An explicit fee above 100x
+        // the node-derived fair fee for this size is almost certainly an error that
+        // would drain every selected input to the miner, so refuse it. 100x matches
+        // the default MAX_FEE_RATE_MULTIPLIER, so default deployments are unaffected.
+        if (fee != null && fee !== false && feePerBytes != null){
+            const fairFee = Math.ceil(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
+            const hardCeiling = Math.max(this.dustAmount, fairFee * 100)
+            if (estimatedFee > hardCeiling){
+                throw new RangeError(`fee ${estimatedFee} exceeds 100x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
+            }
+        }
+
         if (estimatedFee < this.dustAmount){
             estimatedFee = this.dustAmount
         }
