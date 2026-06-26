@@ -36,6 +36,18 @@ describe('XChainEncoder.isSegwitUTXO()', () => {
     assert.strictEqual(encoder.isSegwitUTXO({ scriptPubKey: script }), true)
   })
 
+  it('returns true for P2TR (version 1, 32-byte x-only key)', () => {
+    // OP_1 PUSH_32 <32-byte-key>. Taproot is witness v1; the co-signer needs
+    // this recognized so the encoder sets witnessUtxo (not nonWitnessUtxo).
+    const script = '5120' + 'ef'.repeat(32)
+    assert.strictEqual(encoder.isSegwitUTXO({ scriptPubKey: script }), true)
+  })
+
+  it('returns false for a bare OP_1 (not a witness program)', () => {
+    // OP_1 alone is not [version][2..40 push]; must not be mistaken for segwit.
+    assert.strictEqual(encoder.isSegwitUTXO({ scriptPubKey: '51' }), false)
+  })
+
   it('returns false for P2PKH', () => {
     // OP_DUP OP_HASH160 PUSH_20 <hash> OP_EQUALVERIFY OP_CHECKSIG
     const script = '76a914' + 'ab'.repeat(20) + '88ac'

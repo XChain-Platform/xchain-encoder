@@ -78,8 +78,16 @@ class XChainEncoder {
     isSegwitUTXO(utxo) {
         try {
             const script = bitcoin.script.decompile(Buffer.from(utxo.scriptPubKey, 'hex'));
-            
-            return script[0] === 0x00; // version-0 witness output (segwit)
+            // A witness program is exactly [version opcode][2..40 byte push]: OP_0
+            // (0x00) for v0 (P2WPKH/P2WSH), OP_1..OP_16 (0x51..0x60) for v1..v16.
+            // Taproot is v1, so the old v0-only check (script[0] === 0x00) treated
+            // P2TR UTXOs as legacy and set nonWitnessUtxo instead of witnessUtxo -
+            // but Taproot signing (and the MuSig2 co-signer) require witnessUtxo.
+            if (!script || script.length !== 2 || !Buffer.isBuffer(script[1])) return false;
+            const version = script[0];
+            const isWitnessVersion = version === bitcoin.opcodes.OP_0 ||
+                (version >= bitcoin.opcodes.OP_1 && version <= bitcoin.opcodes.OP_16);
+            return isWitnessVersion && script[1].length >= 2 && script[1].length <= 40;
         } catch (error) {
             return false;
         }

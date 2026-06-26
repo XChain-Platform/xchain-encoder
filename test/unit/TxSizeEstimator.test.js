@@ -132,6 +132,19 @@ describe('TxSizeEstimator', () => {
         assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 105)
       })
 
+      it('returns 58 for P2TR (5120 prefix)', () => {
+        // P2TR scriptPubKey: OP_1 <32-byte x-only key>
+        const key = Buffer.alloc(32, 0xef)
+        const script = Buffer.concat([Buffer.from('5120', 'hex'), key])
+        const utxo = {
+          hash: Buffer.alloc(32),
+          index: 0,
+          sequence: 0xffffffff,
+          witnessUtxo: { script, value: 100000 }
+        }
+        assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 58)
+      })
+
       it('returns 350 (fallback) for unknown segwit script', () => {
         // A segwit script that is neither P2WPKH nor P2WSH
         const script = Buffer.from('0051', 'hex')

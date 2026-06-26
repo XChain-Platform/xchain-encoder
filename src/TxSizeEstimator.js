@@ -105,6 +105,12 @@ class TxSizeEstimator {
                 // P2WSH: 0020{32-byte hash} - Assuming 2-3 Multisig
                 return 105
             }
+            if (scriptHex.startsWith('5120')) {
+                // P2TR: 5120{32-byte x-only key}. Key-path spend = 1 Schnorr
+                // witness (~57.5 vbytes incl. prevout + sequence). Without this it
+                // fell through to the 350 fallback and wildly over-estimated fees.
+                return 58
+            }
         }
 
         // 3. Classification and Estimation for Legacy
