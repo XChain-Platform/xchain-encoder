@@ -147,15 +147,17 @@ describe('XChainEncoder.createTransaction(): non-segwit UTXO path', () => {
     // disable the cap for this test.
     encoder.maxFeeRateMultiplier = null
     // Two P2PKH UTXOs that must be combined. Sorted largest-first:
-    // utxo2 (200000) then utxo1 (100000). With a 250000-sat explicit fee,
-    // inputSatoshis after utxo2 alone = 200000, which is not > 0 + 250000,
-    // so the loop continues and picks up utxo1 too (combined = 300000 > 250000).
-    const utxo1 = makeP2pkhUtxo(TXID_A, 0, 100000)
-    const utxo2 = makeP2pkhUtxo(TXID_B, 1, 200000)
+    // utxo2 (80000) then utxo1 (50000). With a 90000-sat explicit fee (kept
+    // under the fixed 100x-fair-fee burn backstop, whose ceiling here is
+    // dogecoin-regtest's 100000-koinu dust floor), inputSatoshis after utxo2
+    // alone = 80000, which is not > 0 + 90000, so the loop continues and
+    // picks up utxo1 too (combined = 130000 > 90000).
+    const utxo1 = makeP2pkhUtxo(TXID_A, 0, 50000)
+    const utxo2 = makeP2pkhUtxo(TXID_B, 1, 80000)
 
     const result = await encoder.createTransaction(
       [utxo1, utxo2], TEST_ADDRESS, null,
-      'test', null, 250000, false, null, TEST_ADDRESS,
+      'test', null, 90000, false, null, TEST_ADDRESS,
       null, null, null, true, 0.00001
     )
 
@@ -427,9 +429,12 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
     // fee == input value is drain-shaped on purpose (to zero the change); the
     // relative fee-rate cap would reject it, so disable the cap for this test.
     encoder.maxFeeRateMultiplier = null
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-    // Set fee = input value so change = 0
-    const fee = 100000000
+    // dogecoin-regtest's dust floor is 100000 koinu, which is also the fixed
+    // burn backstop's effective ceiling here (100x the ~131-sat fair fee is
+    // smaller than the dust floor, so the floor wins the max()). Keep the
+    // UTXO and fee at that ceiling so the fee is not rejected or floored up.
+    const utxo = makeSegwitUtxo(TXID_A, 0, 100000)
+    const fee = 100000
 
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null,
@@ -444,12 +449,14 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
 
   it('does not throw when changeSatoshis <= dustAmount and no change address', async () => {
     const encoder = makeEncoder()
-    // Near-total fee absorption is drain-shaped on purpose (to leave sub-dust
-    // change); the relative fee-rate cap would reject it, so disable the cap.
+    // Leaving sub-dust change is drain-shaped on purpose; the relative
+    // fee-rate cap would reject it, so disable the cap.
     encoder.maxFeeRateMultiplier = null
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-    // Fee absorbs almost everything leaving just below dust
-    const fee = 100000000 - 100 // leaves 100 sats = below dustAmount (546)
+    // Fee at the dust-floor/burn-backstop ceiling (see comment above), with a
+    // slightly larger UTXO so change lands under dogecoin-regtest's
+    // 100000-koinu dust floor.
+    const utxo = makeSegwitUtxo(TXID_A, 0, 150000)
+    const fee = 100000 // leaves 50000 sats change, below the 100000 dust floor
 
     // Should not throw; change below dust with no change address is fine (burned as fee)
     const result = await encoder.createTransaction(

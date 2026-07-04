@@ -199,15 +199,18 @@ describe('XChainEncoder.createTransaction()', () => {
   describe('fee handling', () => {
     it('uses custom fee when provided', async () => {
       const encoder = makeEncoder()
-      // This fee is far above the relative fee-rate cap by design; the cap has
-      // its own suite (XChainEncoder.feeRateCap.test.js), disable it here.
+      // The relative fee-rate cap has its own suite (XChainEncoder.feeRateCap.test.js)
+      // and the absolute burn backstop has its own test below; disable/isolate
+      // both here so only the passthrough behaviour is under test.
       encoder.maxFeeRateMultiplier = null
       // Isolate the custom-fee passthrough from dogecoin-regtest's 100000-koinu
-      // dust floor (exercised by the dust-floor tests below); a 50000 fee would
-      // otherwise be floored up to dust and mask the value being tested.
+      // dust floor (exercised by the dust-floor tests below); a fee at or above
+      // dust would otherwise be floored up and mask the value being tested.
       encoder.dustAmount = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const customFee = 50000
+      // Kept under the 100x-fair-fee burn backstop (fair fee ~131 sats for this
+      // ~131-byte tx, so the backstop ceiling is ~13100 sats).
+      const customFee = 5000
 
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, null,
@@ -218,6 +221,27 @@ describe('XChainEncoder.createTransaction()', () => {
       // Change = input - fee (no other outputs besides OP_RETURN which is 0)
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
       assert.strictEqual(changeOutput.value, 100000000 - customFee)
+    })
+
+    it('throws RangeError when the custom fee exceeds 100x the fair-fee estimate (burn backstop)', async () => {
+      const encoder = makeEncoder()
+      // Disable the relative rate cap so the fixed burn backstop is the only
+      // guard in play; the backstop holds even with the rate cap turned off.
+      encoder.maxFeeRateMultiplier = null
+      encoder.dustAmount = 546
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      // Fair fee is ~131 sats for this ~131-byte tx, so the backstop ceiling
+      // is ~13100 sats; 20000 is comfortably over it.
+      const customFee = 20000
+
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], TEST_ADDRESS, null,
+          'test', null, customFee, false, null, TEST_ADDRESS,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err instanceof RangeError && /100x the estimated fair fee/.test(err.message)
+      )
     })
 
     it('floors fee to dustAmount when computed fee is lower', async () => {

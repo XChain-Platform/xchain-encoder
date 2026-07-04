@@ -141,11 +141,17 @@ describe('XChainEncoder fee-rate cap', () => {
     )
   })
 
-  it('multiplier 0 disables the relative cap', async () => {
+  it('multiplier 0 disables the relative cap, but the fixed 100x burn backstop still applies', async () => {
     const encoder = makeEncoder(null, 0)
     const fee = 50000 // 382 sat/byte, above the default cap
-    const result = await create(encoder, { fee })
-    assert.strictEqual(paidFee(result), fee)
+    // Disabling the operator-configurable relative cap skips the "fee-rate
+    // cap" check, but the fixed backstop (100x the node's fair-fee estimate)
+    // is independent of that setting and still rejects a fee this far out of
+    // proportion to the tx size.
+    await assert.rejects(
+      create(encoder, { fee }),
+      (err) => err instanceof RangeError && /100x the estimated fair fee/.test(err.message)
+    )
   })
 
   it('default-path node estimate is never clamped by its own cap', async () => {
