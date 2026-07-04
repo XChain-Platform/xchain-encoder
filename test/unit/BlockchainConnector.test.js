@@ -397,37 +397,54 @@ describe('BlockchainConnector.sendRawTransaction()', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('BlockchainConnector.getFeePerKilobyte()', () => {
-  it('sends estimatesmartfee with the blocksNumber param', async () => {
-    let capturedPayload
+  // getFeePerKilobyte now consults isRegtest() FIRST (getblockchaininfo): on regtest
+  // it returns the relayfee floor and never calls estimatesmartfee; only non-regtest
+  // nodes reach the estimatesmartfee path. These tests therefore stub the chain.
+  it('sends estimatesmartfee with the blocksNumber param (non-regtest)', async () => {
+    let capturedFeePayload
     axios.post = async (url, data) => {
-      capturedPayload = data
-      return { data: { result: { feerate: 0.00005 } } }
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+      if (data.method === 'estimatesmartfee') { capturedFeePayload = data; return { data: { result: { feerate: 0.00005 } } } }
+      return { data: { result: {} } }
     }
     const c = makeConnector()
     await c.getFeePerKilobyte(6)
-    assert.strictEqual(capturedPayload.method, 'estimatesmartfee')
-    assert.deepStrictEqual(capturedPayload.params, [6])
+    assert.strictEqual(capturedFeePayload.method, 'estimatesmartfee')
+    assert.deepStrictEqual(capturedFeePayload.params, [6])
   })
 
-  it('returns feerate when present', async () => {
-    stubAxiosPost({ data: { result: { feerate: 0.00012345 } } })
+  it('returns feerate when present (non-regtest)', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+      return { data: { result: { feerate: 0.00012345 } } }
+    }
     const c = makeConnector()
     const feerate = await c.getFeePerKilobyte(3)
     assert.strictEqual(feerate, 0.00012345)
   })
 
-  it('falls back to regtest default when feerate is missing and chain is regtest', async () => {
-    // First call: estimatesmartfee → no feerate
-    // Second call: isRegtest → regtest
-    let callCount = 0
+  it('uses the relayfee floor on regtest and never consults estimatesmartfee', async () => {
+    // Regression for the deep-regtest fee-inflation bug: on regtest, even when
+    // estimatesmartfee WOULD return a (large) value, the connector must ignore it
+    // and use the node's relayfee floor. We assert estimatesmartfee is never sent.
+    let smartFeeCalled = false
     axios.post = async (url, data) => {
-      callCount++
-      if (callCount === 1) {
-        // estimatesmartfee returned no feerate
-        return { data: { result: {} } }
-      }
-      // getblockchaininfo for isRegtest
-      return { data: { result: { chain: 'regtest' } } }
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'regtest' } } }
+      if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.00001000 } } }
+      if (data.method === 'estimatesmartfee') { smartFeeCalled = true; return { data: { result: { feerate: 0.1386 } } } }
+      return { data: { result: {} } }
+    }
+    const c = makeConnector()
+    const feerate = await c.getFeePerKilobyte(1)
+    assert.strictEqual(feerate, 0.00001000)
+    assert.strictEqual(smartFeeCalled, false, 'estimatesmartfee must not be consulted on regtest')
+  })
+
+  it('falls back to the regtest default when relayfee is unavailable', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'regtest' } } }
+      if (data.method === 'getnetworkinfo') return { data: { result: {} } }
+      return { data: { result: {} } }
     }
     const c = makeConnector()
     const feerate = await c.getFeePerKilobyte(1)
@@ -435,13 +452,9 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
   })
 
   it('throws when feerate is missing and chain is not regtest', async () => {
-    let callCount = 0
     axios.post = async (url, data) => {
-      callCount++
-      if (callCount === 1) {
-        return { data: { result: {} } }
-      }
-      return { data: { result: { chain: 'main' } } }
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+      return { data: { result: {} } }
     }
     const c = makeConnector()
     await assert.rejects(
@@ -459,12 +472,10 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
     )
   })
 
-  it('throws when result is entirely missing', async () => {
-    let callCount = 0
-    axios.post = async () => {
-      callCount++
-      if (callCount === 1) return { data: { result: null } }
-      return { data: { result: { chain: 'main' } } }
+  it('throws when result is entirely missing (non-regtest)', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+      return { data: { result: null } }
     }
     const c = makeConnector()
     await assert.rejects(

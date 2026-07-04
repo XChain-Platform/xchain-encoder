@@ -61,6 +61,11 @@ class BlockchainConnector {
     }
 
     async isRegtest(){
+        // A connector's node never changes chain over its lifetime, so memoize the
+        // answer. getFeePerKilobyte now consults this on every fee lookup (to force
+        // the relayfee floor on regtest), and without caching that would add a
+        // getblockchaininfo round-trip to every tx build on all networks.
+        if (this._isRegtestCache !== undefined) return this._isRegtestCache;
         const data = {
             jsonrpc: '2.0',
             method: 'getblockchaininfo',
@@ -81,7 +86,8 @@ class BlockchainConnector {
 
             // Verify if there is a result and return it
             if (responseData.result && responseData.result.chain) {
-                return responseData.result.chain == "regtest"
+                this._isRegtestCache = responseData.result.chain == "regtest";
+                return this._isRegtestCache;
             } else {
                 throw new Error('Error getting blockchain info');
             }
@@ -179,6 +185,31 @@ class BlockchainConnector {
 
     async getFeePerKilobyte(blocksNumber) {
         try {
+            // On regtest, ALWAYS use the node's min-relay floor, never estimatesmartfee.
+            // Regtest coins are valueless and the smart estimate reflects accumulated
+            // test-tx history: on a long-lived regtest chain it balloons far above any
+            // sane rate (0.1386/kB = ~13859 sat/vB observed on a deep devhost chain),
+            // and a tx carrying that fee is rejected downstream by the caller's bitcoinjs
+            // checkFees safety cap, breaking every SDK-driven build. The earlier version
+            // only fell back to relayfee when estimatesmartfee returned NO data (a fresh
+            // chain), so a matured regtest chain silently served the inflated estimate.
+            // relayfee is coin-correct (DOGE 0.001, BTC/LTC 0.00001) and reflects the
+            // node's actual config. Checked first so regtest skips estimatesmartfee
+            // entirely (its value is unused there). isRegtest is memoized, so this is
+            // one getblockchaininfo per connector lifetime, not per call.
+            if (await this.isRegtest()){
+                try {
+                    const info = await this.getNetworkInfo();
+                    const relayfee = Number(info && info.relayfee);
+                    if (relayfee > 0) {
+                        return relayfee;
+                    }
+                } catch (e) {
+                    // Fall through to the conservative default below.
+                }
+                return 0.00001000
+            }
+
             const data = {
                 jsonrpc: '2.0',
                 method: 'estimatesmartfee',
@@ -197,34 +228,13 @@ class BlockchainConnector {
 
             const responseData = response.data;
 
-            // Verify if there is a result and return the hex.
-            // Guard on > 0 so a zero or negative sentinel returned by the node
-            // (e.g. estimatesmartfee not enough data, feerate:-1) falls through
-            // to the regtest relayfee fallback rather than being silently returned.
+            // Non-regtest: use estimatesmartfee. Guard on > 0 so a zero/negative
+            // sentinel (feerate:-1, not enough data) is treated as an error rather
+            // than silently returned.
             if (responseData.result && Number(responseData.result.feerate) > 0) {
                 return responseData.result.feerate;
             } else {
-                if (await this.isRegtest()){
-                    // estimatesmartfee has no data on a fresh regtest chain.
-                    // Fall back to the node's OWN min-relay fee rather than a
-                    // single BTC-denominated literal: 0.00001 is below
-                    // Dogecoin's 0.001/kB floor, so a DOGE regtest broadcast
-                    // built on it is rejected. getnetworkinfo.relayfee is
-                    // coin-correct (DOGE 0.001, BTC/LTC 0.00001) and reflects
-                    // whatever the node is actually configured with.
-                    try {
-                        const info = await this.getNetworkInfo();
-                        const relayfee = Number(info && info.relayfee);
-                        if (relayfee > 0) {
-                            return relayfee;
-                        }
-                    } catch (e) {
-                        // Fall through to the conservative default below.
-                    }
-                    return 0.00001000
-                } else {
-                    throw new Error('Error getting smart fee from node');
-                }
+                throw new Error('Error getting smart fee from node');
             }
         } catch (error) {
             // On a fresh regtest chain estimatesmartfee can error (not enough
