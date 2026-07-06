@@ -295,7 +295,13 @@ class XChainEncoder {
             finalDust = dust
         }
         
-        let dataBuffer = Buffer.from(data, 'utf8')
+        // `data` is optional (openrpc.json create_tx data.required=false), and
+        // validateAll passes null through when omitted. Buffer.from(null,'utf8')
+        // throws a Node TypeError, so a spec-valid data-omitted request (e.g. a
+        // payment-only tx built from customOutputs) would fail with an opaque
+        // internal error. Default a missing payload to '' - identical to the
+        // already-supported empty-string case, which compiles cleanly downstream.
+        let dataBuffer = Buffer.from(data == null ? '' : data, 'utf8')
         let dataToCompile = [dataBuffer]
         
         if (rawData != null){

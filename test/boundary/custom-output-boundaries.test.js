@@ -34,53 +34,50 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('Custom Output Boundaries', () => {
 
-  // ── parseInt truncation ─────────────────────────────────────────
+  // ── Non-integer custom output values are rejected ───────────────
+  // Previously parseInt silently truncated a decimal amount ("1.5" -> 1),
+  // paying a different amount than the caller specified and skewing the change
+  // math. The exact-integer parse now rejects any non-integer money value.
 
-  describe('parseInt truncation on custom output values', () => {
-    it('"1.5" value → output has value=1 (truncated, not rounded)', async () => {
+  describe('non-integer custom output values are rejected', () => {
+    const REJECT = /must be a non-negative integer/
+
+    it('"1.5" value is rejected, not truncated to 1', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      const result = await encoder.createTransaction(
+      await assert.rejects(() => encoder.createTransaction(
         [utxo], address, [
           { address, value: '1.5' }
         ],
         'SEND|0|X|1|a', null, 10000, false, null, address,
         null, null, null, true, 0.00001
-      )
-
-      // Find the custom output (not OP_RETURN, not the large change)
-      const outputs = result.psbt.txOutputs
-      const customOutput = outputs.find(o => o.value === 1)
-      assert.ok(customOutput, 'custom output should have value=1 (parseInt("1.5")=1)')
+      ), REJECT)
     })
 
-    it('"999999.9" → output has value=999999', async () => {
+    it('"999999.9" is rejected, not truncated to 999999', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      const result = await encoder.createTransaction(
+      await assert.rejects(() => encoder.createTransaction(
         [utxo], address, [
           { address, value: '999999.9' }
         ],
         'SEND|0|X|1|a', null, 10000, false, null, address,
         null, null, null, true, 0.00001
-      )
-
-      const customOutput = result.psbt.txOutputs.find(o => o.value === 999999)
-      assert.ok(customOutput, 'custom output should have value=999999')
+      ), REJECT)
     })
 
-    it('truncation affects outputSatoshis → change reflects truncated value', async () => {
+    it('a clean integer custom output value still builds correctly', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, [
-          { address, value: '50000.9' }
+          { address, value: '50000' }
         ],
         'SEND|0|X|1|a', null, 10000, false, null, address,
         null, null, null, true, 0.00001
@@ -89,7 +86,7 @@ describe('Custom Output Boundaries', () => {
       const changeOutput = result.psbt.txOutputs.reduce(
         (max, o) => o.value > max.value ? o : max, { value: 0 }
       )
-      // change = 100000000 - 50000 (truncated) - 10000 (fee) = 99940000
+      // change = 100000000 - 50000 - 10000 (fee)
       assert.strictEqual(changeOutput.value, 100000000 - 50000 - 10000)
     })
   })

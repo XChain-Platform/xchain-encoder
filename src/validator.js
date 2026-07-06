@@ -45,19 +45,40 @@ const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
 // rejection instead of a node-side parse error.
 const MAX_RAW_TX_HEX_LENGTH = 400_000
 const RAW_TX_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/
+// Maximum accepted utxos[].scriptPubKey hex length, in characters. Bitcoin's
+// consensus MAX_SCRIPT_SIZE is 10,000 bytes, so 20,000 hex chars is the widest
+// a legitimate output script can be; anything larger is garbage and is rejected
+// before it reaches Buffer.from(...,'hex') / bitcoin.script.decompile.
+const MAX_SCRIPTPUBKEY_HEX_LENGTH = 20_000
 const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH'])
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 
+// Exact-integer parse for satoshi/fee money fields. Unlike parseInt, this
+// rejects decimals, scientific notation, hex, and trailing garbage ("1e8" ->
+// 1, "100.5" -> 100, "5abc" -> 5, "0x20" -> 0) instead of silently truncating
+// to a wrong value on the money path. Returns the exact integer, or NaN if
+// `raw` is not an exact integer representation. Sign and range bounds are left
+// to the caller so each validator keeps its own error type and message.
+function toExactInt(raw) {
+    if (typeof raw === 'number') {
+        return Number.isInteger(raw) ? raw : NaN
+    }
+    if (typeof raw === 'string' && /^-?\d+$/.test(raw.trim())) {
+        return Number(raw.trim())
+    }
+    return NaN
+}
+
 // Parse a satoshi amount into a JS integer, rejecting any value that cannot be
 // represented exactly. The utxo-tracker emits full-precision decimal strings
 // (readBigUInt64BE().toString()), so a 64-bit value reaches the encoder intact;
-// a plain parseInt then silently rounds anything above Number.MAX_SAFE_INTEGER
-// (2^53-1 ~= 9.007e15 sats). For BTC/LTC this is unreachable (21M cap = 2.1e15
-// sats), but DOGE has no supply cap, so a single consolidation UTXO can exceed
-// it and corrupt the fee/change math. Reject loudly instead of rounding.
+// a value above Number.MAX_SAFE_INTEGER (2^53-1 ~= 9.007e15 sats) cannot be held
+// exactly. For BTC/LTC this is unreachable (21M cap = 2.1e15 sats), but DOGE has
+// no supply cap, so a single consolidation UTXO can exceed it and corrupt the
+// fee/change math. Reject loudly instead of rounding.
 function parseSatoshiAmount(raw, label) {
-    const num = parseInt(raw, 10)
+    const num = toExactInt(raw)
     if (isNaN(num) || num < 0) {
         throw new RangeError(`${label} must be a non-negative integer`)
     }
@@ -122,7 +143,7 @@ function validateEncoding(encoding) {
 
 function validateFee(fee) {
     if (fee == null || fee === false) return null
-    const num = parseInt(fee, 10)
+    const num = toExactInt(fee)
     if (isNaN(num)) {
         throw new TypeError(`fee must be a valid integer, got: ${typeof fee === 'string' ? fee : typeof fee}`)
     }
@@ -149,7 +170,7 @@ function validateFeePerKb(feePerKb) {
 
 function validateDust(dust) {
     if (dust == null || dust === false) return null
-    const num = parseInt(dust, 10)
+    const num = toExactInt(dust)
     if (isNaN(num)) {
         throw new TypeError('dust must be a valid integer')
     }
@@ -176,6 +197,18 @@ function validateUtxoEntry(entry, index) {
 
     if (typeof entry.scriptPubKey !== 'string' || entry.scriptPubKey.length === 0) {
         throw new TypeError(`utxos[${index}].scriptPubKey must be a non-empty string`)
+    }
+    // scriptPubKey flows unchecked into Buffer.from(...,'hex') for the PSBT
+    // witnessUtxo.script and into bitcoin.script.decompile in isSegwitUTXO.
+    // Buffer.from(x,'hex') is lenient: it stops at the first invalid character
+    // and drops a trailing odd nibble, so a malformed value ('zz', odd length)
+    // silently yields a truncated script and misclassifies the input. Anchor it
+    // to even-length hex with a sane bound, matching the txid/rawTxHex rigor.
+    if (entry.scriptPubKey.length > MAX_SCRIPTPUBKEY_HEX_LENGTH) {
+        throw new RangeError(`utxos[${index}].scriptPubKey exceeds maximum length (${MAX_SCRIPTPUBKEY_HEX_LENGTH})`)
+    }
+    if (!RAW_TX_HEX_RE.test(entry.scriptPubKey)) {
+        throw new TypeError(`utxos[${index}].scriptPubKey must be an even-length hex string`)
     }
     if (entry.confirmations == null) {
         entry.confirmations = 0
@@ -236,7 +269,7 @@ function validateFeeQuote(feeQuote) {
     if (feeQuote.address.length > 100) {
         throw new TypeError('feeQuote.address exceeds maximum length (100)')
     }
-    const amount = parseInt(feeQuote.amount, 10)
+    const amount = toExactInt(feeQuote.amount)
     if (isNaN(amount) || amount <= 0) {
         throw new RangeError('feeQuote.amount must be a positive integer (satoshis)')
     }
@@ -365,5 +398,6 @@ module.exports = {
     MAX_UTXO_COUNT,
     MAX_CUSTOM_OUTPUTS,
     MAX_FEE_SATOSHIS,
+    MAX_SCRIPTPUBKEY_HEX_LENGTH,
     VALID_ENCODINGS
 }

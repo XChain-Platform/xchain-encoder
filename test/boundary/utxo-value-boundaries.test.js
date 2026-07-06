@@ -95,23 +95,18 @@ describe('UTXO Value Boundaries', () => {
         'string "1000000" should be parsed correctly')
     })
 
-    it('"1.9" string value → parseInt truncates to 1', async () => {
+    it('"1.9" string value is rejected, not truncated to 1', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, '1.9')
 
-      const result = await encoder.createTransaction(
+      // parseInt would have truncated "1.9" to 1 sat and built a nonsensical
+      // (negative-change) tx; the exact-integer parse rejects it up front.
+      await assert.rejects(() => encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, 10000, false, null, address,
         null, null, null, true, 0.00001
-      )
-
-      // parseInt("1.9") = 1. Fee = 10000. changeSatoshis = 1 - 10000 = -9999
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      assert.strictEqual(result.psbt.data.inputs.length, 1)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0,
-        'parseInt truncation: "1.9" → 1 sat, insufficient for fee')
+      ), /must be a non-negative integer/)
     })
   })
 

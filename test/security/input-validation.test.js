@@ -62,16 +62,38 @@ describe('Security: validateUtxoArray / validateUtxoEntry', () => {
         assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: -100, scriptPubKey: '00' }, 0), RangeError)
     })
 
-    it('coerces a numeric-prefixed injection value to a clean integer (never passes the raw string)', () => {
+    it('rejects a numeric-prefixed injection value outright (never coerces trailing garbage)', () => {
+        // A money field must parse exactly: parseInt would truncate
+        // '1000; DROP TABLE' to 1000 and pass a silently-altered amount. Reject
+        // instead, so the raw string never flows downstream in any form.
         const entry = { txid: HEX64, vout: 0, value: '1000; DROP TABLE', scriptPubKey: '00' }
-        V.validateUtxoEntry(entry, 0)
-        assert.strictEqual(entry.value, 1000)
-        assert.strictEqual(typeof entry.value, 'number')
+        assert.throws(() => V.validateUtxoEntry(entry, 0), RangeError)
+    })
+
+    it('rejects non-exact numeric amounts (scientific notation, decimals, hex)', () => {
+        // parseInt silently mis-parsed these on the money path: '1e8' -> 1
+        // (off by 1e8x), '100.5' -> 100, '0x20' -> 0.
+        for (const bad of ['1e8', '100.5', '0x20', '5abc']) {
+            assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: bad, scriptPubKey: '00' }, 0), RangeError, `value ${bad}`)
+        }
+        assert.throws(() => V.validateFee('100.5'), TypeError)
+        assert.throws(() => V.validateDust('1e3'), TypeError)
     })
 
     it('rejects an empty/missing scriptPubKey', () => {
         assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: 1, scriptPubKey: '' }, 0), TypeError)
         assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: 1 }, 0), TypeError)
+    })
+
+    it('rejects a malformed (non-hex / odd-length) scriptPubKey', () => {
+        // Buffer.from(x,'hex') stops at the first invalid char and drops a
+        // trailing odd nibble, so a malformed script silently truncates and can
+        // misclassify the input via isSegwitUTXO. Anchor it to even-length hex.
+        assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: 1, scriptPubKey: 'zz' }, 0), TypeError)
+        assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: 1, scriptPubKey: 'aaa' }, 0), TypeError)
+        assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: 1, scriptPubKey: 'a'.repeat(V.MAX_SCRIPTPUBKEY_HEX_LENGTH + 2) }, 0), RangeError)
+        // A well-formed even-length hex script still passes.
+        assert.doesNotThrow(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: 1, scriptPubKey: '76a914' }, 0))
     })
 
     it('rejects array/null entries masquerading as objects (prototype confusion)', () => {
@@ -137,8 +159,11 @@ describe('Security: validateFee / validateFeePerKb / validateDust', () => {
         assert.throws(() => V.validateFee(V.MAX_FEE_SATOSHIS + 1), RangeError)
     })
 
-    it('coerces a numeric-prefixed fee string to a safe integer (no raw passthrough)', () => {
-        assert.strictEqual(V.validateFee('500; rm -rf'), 500)
+    it('rejects a numeric-prefixed fee string outright (no truncated passthrough)', () => {
+        // parseInt would truncate '500; rm -rf' to 500 and pass a
+        // silently-altered fee; the exact-integer parse rejects it instead.
+        assert.throws(() => V.validateFee('500; rm -rf'), TypeError)
+        assert.strictEqual(V.validateFee('500'), 500)
     })
 
     it('rejects a fully non-numeric fee', () => {
@@ -209,11 +234,20 @@ describe('Security: validateAll end-to-end', () => {
         assert.throws(() => V.validateAll('string'), TypeError)
     })
 
-    it('surfaces the first hostile field and never returns attacker strings raw', () => {
-        const out = V.validateAll({
+    it('rejects a hostile field outright and never returns attacker strings raw', () => {
+        // A trailing-garbage money field is now rejected rather than truncated,
+        // so no attacker-tainted value ever reaches the returned param set.
+        assert.throws(() => V.validateAll({
             utxos: [{ txid: HEX64, vout: 0, value: '2100; DROP', scriptPubKey: '00' }],
             pubkey: 'a'.repeat(34),
             fee: '1000 OR 1=1',
+            encoding: 'OP_RETURN'
+        }), Error)
+        // A clean equivalent request still coerces its numeric strings to numbers.
+        const out = V.validateAll({
+            utxos: [{ txid: HEX64, vout: 0, value: '2100', scriptPubKey: '00' }],
+            pubkey: 'a'.repeat(34),
+            fee: '1000',
             encoding: 'OP_RETURN'
         })
         assert.strictEqual(out.utxos[0].value, 2100)

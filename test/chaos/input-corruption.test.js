@@ -110,31 +110,27 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
 
-    it('hex string value "0xff" → parseInt radix 10 returns 0', async () => {
+    it('hex string value "0xff" is rejected (parseInt would read it as 0)', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = { ...makeSegwitUtxo(TXID_A, 0, 1), value: '0xff' }
 
-      // parseInt('0xff', 10) === 0, passes NaN check, contributes 0 sats
-      const result = await encoder.createTransaction(
+      // parseInt('0xff', 10) === 0 silently zeroed the UTXO; reject instead.
+      await assert.rejects(() => encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
         actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
         null, null, null, true, 0.00001
-      )
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0, '"0xff" parsed as 0 → no change')
+      ), /must be a non-negative integer/)
     })
 
-    it('float string "100.7" → parseInt truncates to 100', async () => {
+    it('float string "100.7" is rejected (parseInt would truncate to 100)', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = { ...makeSegwitUtxo(TXID_A, 0, 1), value: '100.7' }
 
-      const result = await encoder.createTransaction(
+      await assert.rejects(() => encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
         actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
         null, null, null, true, 0.00001
-      )
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
+      ), /must be a non-negative integer/)
     })
   })
 
