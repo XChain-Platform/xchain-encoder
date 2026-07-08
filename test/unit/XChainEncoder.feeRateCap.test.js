@@ -111,13 +111,31 @@ describe('XChainEncoder fee-rate cap', () => {
       `fee ${paidFee(result)} should have been clamped to ~100 sat/byte`)
   })
 
-  it('falls back gracefully when the node cannot estimate (caller feePerKb honored)', async () => {
+  it('clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable', async () => {
     const encoder = makeEncoder()
+    // Node has no smart-fee estimate (fresh node / warming mempool / low
+    // activity) but always exposes its min-relay fee. The cap now anchors on
+    // relayfee so a drain-grade feePerKb is still clamped rather than honored.
     encoder.connector = {
-      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') }
+      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
+      getNetworkInfo: async () => ({ relayfee: 0.00001 }) // 1 sat/byte floor
     }
-    // Quiet-testnet scenario: callers must supply feePerKb because the node has
-    // no estimate; with no anchor (and no MAX_FEE_RATE_KB) the rate is honored.
+    // 0.01 coin/kB = 1000 sat/byte = 1000× the relay floor; the default 100×
+    // multiplier caps it at 100 sat/byte (~13100 for a ~131-byte tx).
+    const result = await create(encoder, { feePerKb: 0.01 })
+    assert.ok(paidFee(result) <= 20000,
+      `fee ${paidFee(result)} should have been clamped via the relayfee anchor, not honored`)
+  })
+
+  it('honors feePerKb only when neither estimatesmartfee nor relayfee is available', async () => {
+    const encoder = makeEncoder()
+    // Last-resort degradation: the node can produce no estimate AND no relayfee
+    // (getNetworkInfo also fails), so there is genuinely no anchor and no
+    // MAX_FEE_RATE_KB; the caller's rate is honored rather than blocking builds.
+    encoder.connector = {
+      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
+      getNetworkInfo: async () => { throw new Error('getnetworkinfo unavailable') }
+    }
     const result = await create(encoder, { feePerKb: 0.01 })
     assert.ok(paidFee(result) >= 100000,
       `fee ${paidFee(result)} should reflect the unclamped 1000 sat/byte rate`)

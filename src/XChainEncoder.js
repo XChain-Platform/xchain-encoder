@@ -275,6 +275,27 @@ class XChainEncoder {
             nodeFeePerBytes = feePerBytes
         }
 
+        // Relative-cap anchor fallback. On non-regtest chains getFeePerKilobyte
+        // THROWS when estimatesmartfee has no data (fresh node, warming mempool,
+        // low activity), so the caller-supplied feePerKb path above leaves
+        // nodeFeePerBytes null. Without an anchor the relative cap can't bound
+        // feePerKb, and if no absolute MAX_FEE_RATE_KB is set either, the whole
+        // fee-drain guard is OFF exactly when a caller supplies its own rate: a
+        // hostile feePerKb then drains every input into miner fee. Fall back to
+        // the node's min-relay fee (always available, coin-correct) as the cap
+        // anchor, matching the regtest path in getFeePerKilobyte. This anchors
+        // ONLY the ceiling, never the fee actually charged; a legitimate rate on
+        // an empty mempool sits well under relayfee x multiplier anyway.
+        if (this.maxFeeRateMultiplier && nodeFeePerBytes == null){
+            try {
+                const info = await this.connector.getNetworkInfo();
+                const relayfee = Number(info && info.relayfee);
+                if (relayfee > 0) nodeFeePerBytes = relayfee / 1000;
+            } catch (err) {
+                console.warn('Fee cap relayfee-anchor fallback failed; feePerKb cap disabled this build:', err.message);
+            }
+        }
+
         // Effective fee-rate ceiling (BTC/byte): the tighter of the absolute
         // MAX_FEE_RATE_KB cap and the relative multiplier × node-estimate cap.
         // Bounds the per-byte rate used for fee estimation AND for sizing the
