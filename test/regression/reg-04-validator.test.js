@@ -579,14 +579,18 @@ describe('REG-04: Validator Functions', function () {
       )
     })
 
-    it('passes through rbf and unconfirmed without coercion', function () {
+    it('coerces rbf and unconfirmed to strict booleans', function () {
+      // Hardened behavior: a truthy non-boolean rbf/unconfirmed (e.g. a string) would
+      // silently flip RBF signaling or unconfirmed-UTXO selection on a money protocol,
+      // so validateAll normalizes both to strict booleans rather than forwarding the raw
+      // value. 'truthy-string' -> true; 0 -> false.
       const result = validateAll({
         data: 'SEND|0|X|1|addr',
         rbf: 'truthy-string',
         unconfirmed: 0
       })
-      assert.strictEqual(result.rbf, 'truthy-string')
-      assert.strictEqual(result.unconfirmed, 0)
+      assert.strictEqual(result.rbf, true)
+      assert.strictEqual(result.unconfirmed, false)
     })
 
     it('validates P2SH pair atomically (rejects partial pair)', function () {

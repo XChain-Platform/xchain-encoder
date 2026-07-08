@@ -94,10 +94,14 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const utxo2 = makeSegwitUtxo(TXID_B, 0, 100000)
       const utxo3 = makeSegwitUtxo(TXID_C, 0, 100000)
 
+      // feePerKb raised so the non-bypassable absolute burn backstop (100x the
+      // fair fee for this size, independent of maxFeeRateMultiplier) accommodates
+      // the deliberately-large explicit fee that this test uses to force
+      // multi-UTXO selection. The explicit fee (150000) is still what gets used.
       const result = await encoder.createTransaction(
         [utxo1, utxo2, utxo3], address, null,
         action.data, null, 150000, false, null, address,
-        null, null, null, true, 0.00001
+        null, null, null, true, 0.0001
       )
 
       assert.ok(result.psbt.txInputs.length >= 2, 'should use multiple UTXOs')
@@ -180,10 +184,13 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
+      // feePerKb raised so the non-bypassable absolute burn backstop (100x the
+      // fair fee, independent of maxFeeRateMultiplier) allows the deliberately-large
+      // explicit fee this test uses to verify the fee is applied verbatim.
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 50000, false, null, address,
-        null, null, null, true, 0.00001
+        null, null, null, true, 0.0001
       )
 
       // Change = input - outputs - fee. With explicit fee=50000:
