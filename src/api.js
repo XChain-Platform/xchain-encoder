@@ -26,6 +26,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
@@ -52,6 +53,16 @@ const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFee
 const API_KEY = process.env.API_KEY
 const CORS_ORIGIN = process.env.CORS_ORIGIN
 
+// Constant-time API-key comparison. A plain `!==` short-circuits at the first
+// mismatching byte, leaking the key through response-time differences;
+// timingSafeEqual needs equal-length buffers, so length is guarded first.
+function keyEquals(provided, expected){
+    const a = Buffer.from(String(provided == null ? '' : provided))
+    const b = Buffer.from(String(expected == null ? '' : expected))
+    if (a.length !== b.length) return false
+    return crypto.timingSafeEqual(a, b)
+}
+
 // API key authentication is OPTIONAL (see components/encoder/README.md, default: Disabled).
 // When API_KEY is unset the encoder runs open; setting it opts into x-api-key enforcement.
 if (!API_KEY) {
@@ -72,7 +83,7 @@ if (API_KEY) {
         // The machine-readable spec stays public even on keyed deploys.
         if (req.method === 'GET' && req.path === '/openrpc.json') return next()
         const key = req.headers['x-api-key']
-        if (key !== API_KEY) {
+        if (!keyEquals(key, API_KEY)) {
             return res.status(401).json({
                 jsonrpc: '2.0', id: null,
                 error: { code: -32001, message: 'Unauthorized' }
