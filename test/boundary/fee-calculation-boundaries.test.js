@@ -221,45 +221,48 @@ describe('Fee Calculation Boundaries', () => {
   // ── Fee > total inputs ──────────────────────────────────────────
 
   describe('fee exceeding total inputs', () => {
-    it('1-sat UTXO with dust-floored fee → negative change, no throw', async () => {
+    // M-8: the dust-floored fee (546) exceeds the 1-sat input, so the encoder
+    // throws INSUFFICIENT_FUNDS instead of returning a PSBT with negative change.
+    it('1-sat UTXO with dust-floored fee throws INSUFFICIENT_FUNDS', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1)
 
-      // fee will be floored to 546; changeSatoshis = 1 - 0 - 546 = -545
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, null, false, null, address,
-        null, null, null, true, 0.0000001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, null,
+          'SEND|0|X|1|a', null, null, false, null, address,
+          null, null, null, true, 0.0000001
+        ),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+                 err.details.available === 1
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0, 'negative change = no output')
     })
 
-    it('multiple small UTXOs all exhausted, still insufficient', async () => {
+    // M-8: even after consuming every available UTXO the total is under the fee,
+    // so the encoder throws INSUFFICIENT_FUNDS rather than return an
+    // unbroadcastable PSBT.
+    it('multiple small UTXOs all exhausted, still insufficient, throws INSUFFICIENT_FUNDS', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
       // 3 UTXOs of 100 sats each = 300 total. With fee = 10000, insufficient.
-      const result = await encoder.createTransaction(
-        [
-          makeSegwitUtxo(TXID_A, 0, 100),
-          makeSegwitUtxo(TXID_B, 0, 100),
-          makeSegwitUtxo(TXID_A, 1, 100)
-        ],
-        address, null,
-        'SEND|0|X|1|a', null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [
+            makeSegwitUtxo(TXID_A, 0, 100),
+            makeSegwitUtxo(TXID_B, 0, 100),
+            makeSegwitUtxo(TXID_A, 1, 100)
+          ],
+          address, null,
+          'SEND|0|X|1|a', null, 10000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+                 err.details.available === 300
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      assert.strictEqual(result.psbt.data.inputs.length, 3,
-        'all 3 UTXOs should be consumed')
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0,
-        'insufficient funds → no change output')
     })
   })
 

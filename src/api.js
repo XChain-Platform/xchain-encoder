@@ -168,8 +168,22 @@ const jsonRpcController = {
                 params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
                 params.feeQuote)
         } catch (err) {
-            // Sanitize: TypeError/RangeError messages are safe (from our validation);
-            // all others get a generic message to prevent internal info leakage
+            // Typed operational errors (no UTXOs, insufficient funds, missing
+            // change address, tracker unavailable) are expected, caller-actionable
+            // conditions with an encoder-authored, credential-free message and a
+            // stable machine-readable code. Forward those so the wallet/SDK can
+            // branch on them: message passes through and `xchainCode` (plus any
+            // details payload) rides in the JSON-RPC error `data.reason`.
+            if (err && err.operational === true) {
+                const e = new Error(err.message)
+                e.code = -32010
+                e.data = Object.assign({ reason: err.xchainCode }, err.details || {})
+                throw e
+            }
+            // Validation errors (TypeError/RangeError) carry safe messages from
+            // our own validation. Everything else is an unexpected internal and is
+            // collapsed to a generic message to prevent leaking internals
+            // (host:port, stack, RPC credentials).
             const isKnown = err instanceof TypeError || err instanceof RangeError
             if (!isKnown) {
                 console.error('Encoder error:', err)
@@ -266,7 +280,12 @@ app.get('/openrpc.json', (req, res) => {
 app.use(jsonRouter({methods: jsonRpcController}))
 
 
-// Start the server
-app.listen(ENCODER_API_PORT, () => {
-  console.log('API listening on port '+ENCODER_API_PORT);
-});
+// Start the server only when run directly (node src/api.js). When required by a
+// test the controller and app are exported without binding a port.
+if (require.main === module) {
+  app.listen(ENCODER_API_PORT, () => {
+    console.log('API listening on port '+ENCODER_API_PORT);
+  });
+}
+
+module.exports = { app, jsonRpcController, encoder }

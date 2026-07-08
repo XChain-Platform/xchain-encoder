@@ -178,26 +178,28 @@ describe('Custom Output Boundaries', () => {
   // ── Custom output value > inputs ────────────────────────────────
 
   describe('custom output value exceeding inputs', () => {
-    it('total custom output > UTXO → negative change, no throw', async () => {
+    // M-8: custom outputs (50000) + fee (10000) exceed the 10000-sat input, so
+    // the encoder throws INSUFFICIENT_FUNDS rather than return an unbroadcastable
+    // PSBT whose outputs exceed its inputs (the pre-M-8 behavior returned it).
+    it('total custom output > UTXO throws INSUFFICIENT_FUNDS', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // UTXO = 10000, custom output = 50000
       const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, [
-          { address, value: 50000 }
-        ],
-        'SEND|0|X|1|a', null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, [
+            { address, value: 50000 }
+          ],
+          'SEND|0|X|1|a', null, 10000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+                 err.details.outputs === 50000 &&
+                 err.details.available === 10000
       )
-
-      // changeSatoshis = 10000 - 50000 - 10000 = -50000
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      const changeOutputs = result.psbt.txOutputs.filter(o =>
-        o.value > 0 && o.value !== 50000)
-      assert.strictEqual(changeOutputs.length, 0,
-        'negative change → no change output')
     })
   })
 

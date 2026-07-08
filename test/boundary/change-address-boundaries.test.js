@@ -80,10 +80,14 @@ describe('Change Address Boundaries', () => {
   // ── changeSatoshis = 1 (minimum positive) ───────────────────────
 
   describe('changeSatoshis = 1 (minimum positive change)', () => {
-    it('change output with value=1 is added when change address provided', async () => {
+    // M-6: sub-dust change (1..dustAmount-1 sats) is folded into the miner fee,
+    // not emitted. A 1-sat output is below every chain's dust threshold and would
+    // make the whole transaction unbroadcastable, so the encoder leaves the
+    // remainder unclaimed instead of building a dead PSBT.
+    it('sub-dust change (value=1) is folded into fee, not emitted, even with a change address', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      // fee = 9999, utxo = 10000 → changeSatoshis = 1
+      // fee = 9999, utxo = 10000 → changeSatoshis = 1 (< 546 dust)
       const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
 
       const result = await encoder.createTransaction(
@@ -93,8 +97,8 @@ describe('Change Address Boundaries', () => {
       )
 
       const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 1)
-      assert.strictEqual(changeOutputs[0].value, 1)
+      assert.strictEqual(changeOutputs.length, 0,
+        '1-sat change is below dust and must be folded into fee, not emitted')
     })
 
     it('does not throw with null change when changeSatoshis = 1 (1 <= dustAmount)', async () => {
@@ -205,40 +209,44 @@ describe('Change Address Boundaries', () => {
     })
   })
 
-  // ── Negative changeSatoshis ─────────────────────────────────────
+  // ── Negative changeSatoshis (M-8: insufficient funds) ───────────
+  // Inputs cannot cover outputs + fee. The encoder must throw a typed
+  // INSUFFICIENT_FUNDS error rather than return an unbroadcastable PSBT whose
+  // outputs exceed its inputs (the pre-M-8 behavior returned it silently).
 
   describe('negative changeSatoshis', () => {
-    it('no throw and no change output when fee exceeds input', async () => {
+    it('throws INSUFFICIENT_FUNDS when fee exceeds input (change address present)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // utxo = 1000, fee = 5000 → changeSatoshis = -4000
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, 5000, false, null, address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, null,
+          'SEND|0|X|1|a', null, 5000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+                 err.details.available === 1000 &&
+                 err.details.required === 5000
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0,
-        'negative changeSatoshis produces no change output')
     })
 
-    it('no throw with null change address and negative changeSatoshis', async () => {
+    it('throws INSUFFICIENT_FUNDS with a null change address too', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1000)
 
-      // change=null, changeSatoshis=-4000 → -4000 > 546 is false → no throw
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, 5000, false, null, null,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, null,
+          'SEND|0|X|1|a', null, 5000, false, null, null,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.operational === true && err.xchainCode === 'INSUFFICIENT_FUNDS'
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
 })

@@ -40,21 +40,24 @@ describe('UTXO Value Boundaries', () => {
   // ── Minimum value UTXOs ─────────────────────────────────────────
 
   describe('minimum value UTXOs', () => {
-    it('1-sat UTXO: added as input, negative change produced silently', async () => {
+    // M-8: a 1-sat input cannot cover the fee, so the encoder throws a typed
+    // INSUFFICIENT_FUNDS error instead of returning an unbroadcastable PSBT
+    // (the pre-M-8 behavior added the input and returned negative change).
+    it('1-sat UTXO: throws INSUFFICIENT_FUNDS (cannot cover fee)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, null,
+          'SEND|0|X|1|a', null, 10000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+                 err.details.available === 1
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      assert.strictEqual(result.psbt.data.inputs.length, 1)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0)
     })
 
     it('value=0 UTXO: parseInt(0)=0, contributes nothing to inputSatoshis', async () => {
@@ -131,7 +134,9 @@ describe('UTXO Value Boundaries', () => {
         'dedup 3 identical → 1 UTXO, sufficient for fee')
     })
 
-    it('3 identical small UTXOs dedup to 1; if insufficient, negative change', async () => {
+    // M-8: after dedup the single 100-sat UTXO cannot cover the 10000 fee, so
+    // the encoder throws INSUFFICIENT_FUNDS rather than return negative change.
+    it('3 identical small UTXOs dedup to 1; insufficient throws INSUFFICIENT_FUNDS', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
@@ -140,17 +145,16 @@ describe('UTXO Value Boundaries', () => {
       const dup2 = makeSegwitUtxo(TXID_A, 0, 100)
       const dup3 = makeSegwitUtxo(TXID_A, 0, 100)
 
-      const result = await encoder.createTransaction(
-        [dup1, dup2, dup3], address, null,
-        'SEND|0|X|1|a', null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [dup1, dup2, dup3], address, null,
+          'SEND|0|X|1|a', null, 10000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+                 err.details.available === 100
       )
-
-      assert.strictEqual(result.psbt.data.inputs.length, 1,
-        'dedup leaves only 1 UTXO')
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0,
-        '100 sats < 10000 fee → no change output')
     })
   })
 

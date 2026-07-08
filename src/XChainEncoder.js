@@ -25,7 +25,9 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, validateUtxoArray, parseSatoshiAmount } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount } = require('./validator')
+const { OperationalError } = require('./errors')
+const { upstreamErrorMessage } = require('./errorSanitize')
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
@@ -52,6 +54,14 @@ const SATOSHI_UNIT = 100000000
 // multiples above the market rate.
 const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
 
+// How long a selected outpoint stays reserved against concurrent selection.
+// Long enough for a caller to sign and broadcast, short enough that an
+// abandoned selection auto-releases without operator intervention. In-memory
+// and best-effort only (the encoder is a single stateless process): this
+// narrows, but cannot fully close, a same-address double-spend race. See the
+// reservation helpers and the selection loop.
+const RESERVATION_TTL_MS = 5 * 60 * 1000
+
 const Encoding = {
     OP_RETURN: "OP_RETURN",
     P2SH: "P2SH",
@@ -73,6 +83,42 @@ class XChainEncoder {
       // Relative fee-rate ceiling: caller-supplied fee/feePerKb may not exceed
       // this multiple of the node's current estimate (0/null disables).
       this.maxFeeRateMultiplier = maxFeeRateMultiplier || null
+      // outpoint ("txid:vout") -> reservation-expiry epoch ms. Guards against
+      // two concurrent create_tx calls for the same address both selecting the
+      // same tracker-fetched UTXOs and emitting conflicting double-spends. Only
+      // engaged for tracker-fetched selections (caller-supplied UTXOs are the
+      // caller's own coin-control). See RESERVATION_TTL_MS.
+      this.outpointReservations = new Map()
+    }
+
+    // A reserved outpoint is one an in-flight selection has claimed and not yet
+    // released. Expired entries are treated as free and lazily evicted here.
+    _isOutpointReserved(key, now) {
+        const expiry = this.outpointReservations.get(key)
+        if (expiry == null) return false
+        if (expiry <= now) {
+            this.outpointReservations.delete(key)
+            return false
+        }
+        return true
+    }
+
+    _reserveOutpoint(key, now) {
+        this.outpointReservations.set(key, now + RESERVATION_TTL_MS)
+    }
+
+    // Sweep expired reservations so the map cannot grow unbounded across a
+    // long-lived process. Called opportunistically at the start of selection.
+    _evictExpiredReservations(now) {
+        for (const [key, expiry] of this.outpointReservations) {
+            if (expiry <= now) this.outpointReservations.delete(key)
+        }
+    }
+
+    // Explicit release of all reservations. The encoder holds no durable state,
+    // so this is primarily a test seam; production relies on the TTL.
+    clearReservations() {
+        this.outpointReservations.clear()
     }
     
     isSegwitUTXO(utxo) {
@@ -353,23 +399,56 @@ class XChainEncoder {
         let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
         let inputSatoshis = 0
 
+        // The P2SH/P2WSH reveal (phase 2) spends phase-1's OWN funding outputs,
+        // reconstructed from p2shHex further below; it never selects spendable
+        // UTXOs. Re-querying the tracker on the reveal is not just wasted work:
+        // the sender address is often already empty (phase 1 moved the funds on
+        // chain), so tracker lag or that empty post-phase-1 view would strand a
+        // mid-flow reveal. Derive inputs from the phase-1 context we were handed
+        // and skip the tracker entirely; fall back to it only if the phase-1 hex
+        // is somehow missing (an invalid reveal call).
+        const isReveal = !!p2shHash
+        let fetchedFromTracker = false
+
         if ((utxos == null) || (utxos.length == 0)){
-            utxos = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
-            utxos = utxos["utxos"]
+            if (isReveal && p2shHex){
+                utxos = []
+            } else {
+                let fetched
+                try {
+                    fetched = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
+                } catch (err) {
+                    // Surface a typed, credential-free operational error. A
+                    // transport failure embeds the tracker's internal host:port,
+                    // so upstreamErrorMessage collapses it to the generic
+                    // fallback; the tracker's own application messages (lag,
+                    // address-too-large) are safe and actionable and pass through.
+                    throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
+                }
+                utxos = fetched["utxos"]
 
-            if ((utxos == null) || (utxos.length == 0)){
-                throw new Error("no utxos were provided and no utxos found on the blockchain")
+                if ((utxos == null) || (utxos.length == 0)){
+                    throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
+                }
+                fetchedFromTracker = true
+
+                //Tracker-fetched UTXOs bypass the caller-API validation path, yet
+                //feed into the same PSBT construction code below. Run each through
+                //the same per-entry checks (64-char hex txid, integer vout/value,
+                //non-empty scriptPubKey hex, confirmations defaulted) so a
+                //malformed tracker output is rejected here instead of throwing
+                //deep inside bitcoinjs-lib's psbt.addInput(). Deliberately
+                //per-entry, NOT validateUtxoArray: the latter also enforces the
+                //caller-facing MAX_UTXO_COUNT cap, which must NOT gate an
+                //internally-fetched set (an address holding more than that many
+                //UTXOs would otherwise be unable to build any transaction). The
+                //SELECTED input count is bounded after selection instead.
+                for (let vi = 0; vi < utxos.length; vi++){
+                    validateUtxoEntry(utxos[vi], vi)
+                }
             }
-
-            //Tracker-fetched UTXOs bypass the caller-API validation path, yet
-            //feed into the same PSBT construction code below. Run them through
-            //the same checks (64-char hex txid, integer vout/value, non-empty
-            //scriptPubKey, confirmations defaulted) so a malformed tracker
-            //output is rejected here instead of throwing deep inside
-            //bitcoinjs-lib's psbt.addInput().
-            validateUtxoArray(utxos)
         }
-        
+
         //Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes, this should be fixed)
         //Also if unconfirmed is false, then all mempool txs will be eliminated
         let utxoIndex = 0
@@ -398,13 +477,17 @@ class XChainEncoder {
 
         //If unconfirmed=false stripped every mempool UTXO and nothing
         //confirmed remains, surface the same error as a never-funded
-        //address rather than crashing on utxos[0] below.
-        if (utxos.length == 0){
-            throw new Error("no utxos were provided and no utxos found on the blockchain")
+        //address rather than crashing on utxos[0] below. The reveal path
+        //legitimately has an empty utxos array here (its inputs come from
+        //p2shHex), so only the funding/single-tx path treats empty as fatal.
+        if (utxos.length == 0 && !isReveal){
+            throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
         }
 
         utxos.sort((a,b)=> b.value - a.value)
-        let txidFirstInput = utxos[0]["txid"] //The first utxo will always be used as the first input
+        //On the reveal path utxos is empty; txidFirstInput is (re)assigned from
+        //p2shHex inside the data loop below before it is ever read.
+        let txidFirstInput = utxos.length ? utxos[0]["txid"] : null //The first utxo will always be used as the first input
         
         if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
             psbt = new bitcoin.Psbt({ network: this.network })
@@ -705,10 +788,31 @@ class XChainEncoder {
             estimatedFee = numFee
         }
         
+        let selectedInputCount = 0
         if (!p2shHash){//The p2sh input is already created before
+            const now = Date.now()
+            this._evictExpiredReservations(now)
             let nextUtxoIndex = 0
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
+
+                // Best-effort double-spend guard: when this set was fetched from
+                // the tracker for the sender address, skip any outpoint another
+                // in-flight create_tx just claimed, and reserve the ones we take.
+                // Two concurrent calls for one address would otherwise both pick
+                // the largest UTXOs and build conflicting double-spends. Reserve
+                // synchronously here (before the getTransactionHex await below)
+                // so a concurrent call observes the claim. Caller-supplied UTXOs
+                // are the caller's own coin-control and are left unreserved.
+                const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
+                if (fetchedFromTracker){
+                    if (this._isOutpointReserved(outpointKey, now)){
+                        nextUtxoIndex = nextUtxoIndex + 1
+                        continue
+                    }
+                    this._reserveOutpoint(outpointKey, now)
+                }
+
                 nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`)
 
                 if (this.isSegwitUTXO(nextUtxo)){
@@ -737,6 +841,8 @@ class XChainEncoder {
                     inputSatoshis = inputSatoshis + nextUtxo.value
                 }
 
+                selectedInputCount = selectedInputCount + 1
+
                 if (fee == null || fee === false) {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
                 }
@@ -746,6 +852,29 @@ class XChainEncoder {
                 }
 
                 nextUtxoIndex = nextUtxoIndex + 1
+            }
+
+            // M-7: the caller-facing MAX_UTXO_COUNT cap is intentionally NOT
+            // applied to the fetched set before selection (a rich address must
+            // stay spendable). Bound the SELECTED input count instead: a tx that
+            // genuinely needs more inputs than this is over standardness size and
+            // would be rejected at broadcast, so fail here with a precise reason.
+            if (selectedInputCount > MAX_UTXO_COUNT){
+                throw new RangeError(`selected input count (${selectedInputCount}) exceeds the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`)
+            }
+
+            // No spendable input was selected on the funding/single-tx path: the
+            // set was empty of usable outputs or every candidate is reserved by a
+            // concurrent selection (L-1). Report insufficient funds here, before
+            // the fee-rate cap math below, which would otherwise reject a fixed
+            // fee against a zero-input transaction's tiny size and mask the real
+            // cause. (The reveal path has p2shHash set and never reaches here.)
+            if (selectedInputCount === 0){
+                throw new OperationalError(
+                    'INSUFFICIENT_FUNDS',
+                    'insufficient funds: no spendable inputs available (all candidates reserved or empty)',
+                    { required: outputSatoshis + estimatedFee, available: 0, outputs: outputSatoshis, fee: estimatedFee }
+                )
             }
         }
 
@@ -786,15 +915,37 @@ class XChainEncoder {
             throw new RangeError('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
         }
 
+        // M-8: reject a genuinely under-funded selection instead of returning an
+        // unbroadcastable PSBT whose outputs exceed its inputs (the caller would
+        // sign it and the network would reject it). Scoped to the funding/single
+        // tx path: the reveal (p2shHash set) funds itself from phase-1 outputs
+        // and never runs input selection, so inputSatoshis is 0 there by design
+        // and a negative "change" is expected and harmless.
+        if (!p2shHash && changeSatoshis < 0) {
+            const required = outputSatoshis + estimatedFee
+            throw new OperationalError(
+                'INSUFFICIENT_FUNDS',
+                `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})`,
+                { required, available: inputSatoshis, outputs: outputSatoshis, fee: estimatedFee }
+            )
+        }
+
         if ((changeSatoshis > this.dustAmount) && !change) {
-            throw new Error('Transaction would burn significant satoshis as fees. Please provide a change address.')
+            throw new OperationalError('CHANGE_ADDRESS_REQUIRED', 'Transaction would burn significant satoshis as fees. Please provide a change address.')
         }
 
         if ((changeSatoshis > 0) && (change)) {
-            psbt.addOutput({
-                address: change,
-                value: changeSatoshis
-            })
+            // M-6: only emit change at or above the per-coin dust threshold
+            // (this.dustAmount, the same constant the burn guard above keys on).
+            // Change of 1..dust-1 sats is an unspendable, non-standard output
+            // that makes the whole transaction unbroadcastable, so fold it into
+            // the miner fee (leave it unclaimed) rather than emit it.
+            if (changeSatoshis >= this.dustAmount) {
+                psbt.addOutput({
+                    address: change,
+                    value: changeSatoshis
+                })
+            }
         }
 
         // A P2WSH reveal that spends a single data chunk is just 1 input + 1
