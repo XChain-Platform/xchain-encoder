@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-The `xchain-encoder` has 1,533 lines of source code across 8 modules and an existing test suite of 514 test cases (110 unit, 75 integration, 95 boundary, 131 e2e, 61 chaos, 42 smoke). Code coverage alone cannot determine whether those tests actually _detect_ when logic changes — a test that exercises a line without asserting its output contributes coverage but not confidence. Mutation testing addresses this gap by systematically introducing small code changes (mutants) and verifying that at least one test fails for each.
+The `xchain-encoder` has 1,533 lines of source code across 8 modules and an existing test suite of 514 test cases (110 unit, 75 integration, 95 boundary, 131 e2e, 61 chaos, 42 smoke). Code coverage alone cannot determine whether those tests actually _detect_ when logic changes - a test that exercises a line without asserting its output contributes coverage but not confidence. Mutation testing addresses this gap by systematically introducing small code changes (mutants) and verifying that at least one test fails for each.
 
 This plan identifies 187 specific mutation sites across the 6 production source files, defines the mutation operators to apply, recommends Stryker as the tooling framework, and lays out a phased rollout starting with the highest-criticality module (`XChainEncoder.js`).
 
@@ -27,7 +27,7 @@ This plan identifies 187 specific mutation sites across the 6 production source 
 
 Below is every location where a small code change could alter behavior. Each entry lists the line, the logic, and which mutation operators apply.
 
-#### XChainEncoder.js (576 lines) — 98 mutation sites
+#### XChainEncoder.js (576 lines) - 98 mutation sites
 
 **Constants (lines 31-37)**
 
@@ -77,7 +77,7 @@ Below is every location where a small code change could alter behavior. Each ent
 | 22 | 189 | `32 - data.length` | `33 - data.length` | Buffer oversize → invalid pubkey |
 | 23 | 190 | `"00"` fill | `"ff"` fill | Padding bytes change → different pubkey hash |
 
-**createTransaction() (lines 198-562) — 60+ mutation sites**
+**createTransaction() (lines 198-562) - 60+ mutation sites**
 
 | # | Line | Code | Mutation | Impact |
 |---|------|------|----------|--------|
@@ -108,7 +108,7 @@ Below is every location where a small code change could alter behavior. Each ent
 | 48 | 550 | `changeSatoshis > this.dustAmount` | `>=` or `<` | Change output threshold |
 | 49 | 554 | `changeSatoshis > 0` | `>= 0` or `< 0` | Change output added/omitted incorrectly |
 
-#### validator.js (272 lines) — 52 mutation sites
+#### validator.js (272 lines) - 52 mutation sites
 
 | # | Category | Lines | Mutations | Count |
 |---|----------|-------|-----------|-------|
@@ -119,7 +119,7 @@ Below is every location where a small code change could alter behavior. Each ent
 | 90-96 | Error types | 35,46,58,65,74,77,89 | `TypeError` ↔ `RangeError` | 7 |
 | 97-101 | String/regex patterns | 29,30 | Alter `HEX_64_RE` pattern, change `02\|03` to `02\|04` | 5 |
 
-#### TxSizeEstimator.js (118 lines) — 18 mutation sites
+#### TxSizeEstimator.js (118 lines) - 18 mutation sites
 
 | # | Line | Code | Mutation | Impact |
 |---|------|------|----------|--------|
@@ -140,7 +140,7 @@ Below is every location where a small code change could alter behavior. Each ent
 | 116 | 111 | `return 289` | `180` or `350` | P2SH size wrong |
 | 117 | 115 | `return 350` (final fallback) | `0` | No fee for unknown scripts |
 
-#### CryptoNetworks.js (131 lines) — 12 mutation sites
+#### CryptoNetworks.js (131 lines) - 12 mutation sites
 
 | # | Category | Mutations | Count |
 |---|----------|-----------|-------|
@@ -148,7 +148,7 @@ Below is every location where a small code change could alter behavior. Each ent
 | 124-126 | Dust thresholds | `546` ↔ `547`, `5460` ↔ `5461` | 3 |
 | 127-129 | `supportsSegwit` flag | `true` ↔ `false` for Dogecoin configs | 3 |
 
-#### api.js (138 lines) — 7 mutation sites
+#### api.js (138 lines) - 7 mutation sites
 
 | # | Line | Code | Mutation |
 |---|------|------|----------|
@@ -284,10 +284,10 @@ Excluding E2E tests (which require a running bitcoind) keeps mutation test runs 
 
 | State | Meaning | Action |
 |-------|---------|--------|
-| **Killed** | At least one test failed when this mutant was active | Good — test suite detects this change |
-| **Survived** | All tests passed with the mutant active | **Bad** — test gap; need new or improved assertion |
+| **Killed** | At least one test failed when this mutant was active | Good - test suite detects this change |
+| **Survived** | All tests passed with the mutant active | **Bad** - test gap; need new or improved assertion |
 | **Timeout** | Tests took too long with the mutant (infinite loop) | Treated as killed (mutant detected via behavioral change) |
-| **No coverage** | No test reached the mutated code | Different from survived — missing test coverage, not weak assertions |
+| **No coverage** | No test reached the mutated code | Different from survived - missing test coverage, not weak assertions |
 | **Compile error** | Mutation produced invalid syntax | Ignored (not a meaningful mutant) |
 
 ### 6.2 Mutation Score
@@ -298,10 +298,10 @@ Mutation Score = (Killed + Timeout) / (Total - CompileError - NoCoverage) × 100
 
 | Score | Interpretation |
 |-------|---------------|
-| >90% | Excellent — test suite is highly effective |
-| 80-90% | Good — some gaps worth addressing |
-| 70-80% | Fair — significant blind spots |
-| <70% | Poor — tests are not catching logic changes |
+| >90% | Excellent - test suite is highly effective |
+| 80-90% | Good - some gaps worth addressing |
+| 70-80% | Fair - significant blind spots |
+| <70% | Poor - tests are not catching logic changes |
 
 ### 6.3 Predicted Weak Areas
 
@@ -317,7 +317,7 @@ Based on the test suite analysis, these mutation sites are most likely to **surv
 | `b.value - a.value` → `a.value - b.value` | AOR | Sort order reversal; tests may not verify which UTXO is consumed first |
 | `m: 1` → `m: 2` in p2ms() | CR | MULTISIGN tests verify PSBT structure but may not check the m-of-n value |
 
-These predictions become Phase 1 targets — if they survive, it directly tells us what assertions to add.
+These predictions become Phase 1 targets - if they survive, it directly tells us what assertions to add.
 
 ---
 
@@ -331,12 +331,12 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 **Estimated Runtime:** ~3 minutes (4 parallel workers, ~30ms per mutant)
 
 **Focus Areas:**
-1. Constants (lines 31-37) — CR operator
-2. `prepareData()` — AOR, CB, AS operators on chunk sizing
-3. `obfuscate()` — SLM, CR operators on key/IV derivation
-4. Fee calculation (lines 528, 544, 540) — AOR, ROR operators
-5. UTXO loop break condition (line 531) — ROR operator
-6. Change output logic (lines 550, 554) — ROR, CB operators
+1. Constants (lines 31-37) - CR operator
+2. `prepareData()` - AOR, CB, AS operators on chunk sizing
+3. `obfuscate()` - SLM, CR operators on key/IV derivation
+4. Fee calculation (lines 528, 544, 540) - AOR, ROR operators
+5. UTXO loop break condition (line 531) - ROR operator
+6. Change output logic (lines 550, 554) - ROR, CB operators
 
 **Expected Outcome:** Baseline mutation score. Predict ~75-85% kill rate based on test suite depth.
 
@@ -353,10 +353,10 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 **Estimated Runtime:** ~2 minutes
 
 **Focus Areas:**
-1. Null-check short-circuits (all `return null` lines) — SD operator
-2. Boundary constants (MAX_DATA_BYTES, MAX_UTXO_COUNT) — CB operator
-3. Regex patterns (HEX_64_RE, COMPRESSED_PUBKEY_RE) — SLM operator
-4. Error type correctness (TypeError vs RangeError) — SLM operator
+1. Null-check short-circuits (all `return null` lines) - SD operator
+2. Boundary constants (MAX_DATA_BYTES, MAX_UTXO_COUNT) - CB operator
+3. Regex patterns (HEX_64_RE, COMPRESSED_PUBKEY_RE) - SLM operator
+4. Error type correctness (TypeError vs RangeError) - SLM operator
 
 **Expected Outcome:** >85% kill rate. The validator has extensive boundary tests.
 
@@ -368,9 +368,9 @@ These predictions become Phase 1 targets — if they survive, it directly tells 
 **Estimated Runtime:** ~1 minute
 
 **Focus Areas:**
-1. Return value constants (68, 105, 180, 289, 350) — CR operator
-2. Script pattern matching (`startsWith`, `endsWith`) — SLM operator
-3. Arithmetic in `estimateOpReturnOutput` and `estimateP2shInputWithRedeem` — AOR operator
+1. Return value constants (68, 105, 180, 289, 350) - CR operator
+2. Script pattern matching (`startsWith`, `endsWith`) - SLM operator
+3. Arithmetic in `estimateOpReturnOutput` and `estimateP2shInputWithRedeem` - AOR operator
 
 **Expected Outcome:** Moderate kill rate (~70-80%). Size estimation tests verify structural properties more than exact byte counts.
 

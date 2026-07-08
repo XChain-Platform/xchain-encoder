@@ -1,4 +1,4 @@
-# XChain Encoder — Smoke Testing Plan
+# XChain Encoder - Smoke Testing Plan
 
 **Date:** 2026-04-02  
 **Component:** xchain-encoder  
@@ -8,7 +8,7 @@
 
 ## 1. Objective
 
-Provide a fast, automated health check that confirms the xchain-encoder can launch, initialize its core dependencies, and perform basic ACTION encoding — catching catastrophic failures (broken imports, misconfigured crypto primitives, corrupted encoding logic) within seconds, before deeper test suites run.
+Provide a fast, automated health check that confirms the xchain-encoder can launch, initialize its core dependencies, and perform basic ACTION encoding - catching catastrophic failures (broken imports, misconfigured crypto primitives, corrupted encoding logic) within seconds, before deeper test suites run.
 
 Smoke tests answer one question: **"Is the encoder fundamentally operational?"**
 
@@ -16,7 +16,7 @@ Smoke tests answer one question: **"Is the encoder fundamentally operational?"**
 
 ## 2. Rationale
 
-The encoder is the gateway for every XChain transaction. If it cannot produce a valid PSBT, the entire platform pipeline halts — no transactions get broadcast, decoded, or indexed. A broken encoder deployed to production means:
+The encoder is the gateway for every XChain transaction. If it cannot produce a valid PSBT, the entire platform pipeline halts - no transactions get broadcast, decoded, or indexed. A broken encoder deployed to production means:
 
 - No new token transfers (SEND), issuances (ISSUE), or any of the 19 ACTION types can be created.
 - All downstream services (decoder, indexer, explorer) become idle.
@@ -32,7 +32,7 @@ Smoke tests provide a sub-10-second gate that catches:
 | **Encoding regression** | `prepareData()` chunk math off by one | Silent data corruption in every transaction |
 | **Network config corruption** | `CryptoNetworks.js` returns wrong network params | Transactions built for wrong chain |
 
-These are exactly the kinds of failures that full integration tests (which require a running `bitcoind` regtest node) would catch — but only after 30+ seconds of setup. Smoke tests catch them instantly with zero infrastructure.
+These are exactly the kinds of failures that full integration tests (which require a running `bitcoind` regtest node) would catch - but only after 30+ seconds of setup. Smoke tests catch them instantly with zero infrastructure.
 
 ---
 
@@ -84,7 +84,7 @@ Scenarios are ordered by priority. All scenarios must pass for the smoke suite t
 **Checks:**
 - All 9 network strings resolve without error: `bitcoin-mainnet`, `bitcoin-testnet`, `bitcoin-regtest`, `dogecoin-mainnet`, `dogecoin-testnet`, `dogecoin-regtest`, `litecoin-mainnet`, `litecoin-testnet`, `litecoin-regtest`
 - Each network object has the required fields (`messagePrefix`, `bech32`, `pubKeyHash`, `scriptHash`, `wif`)
-- Mainnet and testnet/regtest configs are distinct (e.g., `pubKeyHash` differs) — prevents accidental mainnet/testnet confusion
+- Mainnet and testnet/regtest configs are distinct (e.g., `pubKeyHash` differs) - prevents accidental mainnet/testnet confusion
 - Dust thresholds are positive integers for each network
 - Invalid network string throws an error (not a silent null)
 
@@ -111,7 +111,7 @@ Scenarios are ordered by priority. All scenarios must pass for the smoke suite t
 
 ---
 
-### S5: Data Preparation (prepareData) — All Encoding Types
+### S5: Data Preparation (prepareData) - All Encoding Types
 
 **What:** Call `encoder.prepareData()` with representative data for each encoding type and verify output structure.
 
@@ -195,7 +195,7 @@ Scenarios are ordered by priority. All scenarios must pass for the smoke suite t
 
 ---
 
-### S10: API Server Startup (Optional — Requires Port)
+### S10: API Server Startup (Optional - Requires Port)
 
 **What:** Start the Express server and verify it responds to a `ping` request, then shut down.
 
@@ -235,7 +235,7 @@ The following are NOT smoke tests and belong in unit/integration suites:
 npm run smoke-test → mocha --timeout 10000 'test/smoke/**/*.test.js'
 ```
 
-- Smoke tests live in `test/smoke/` — separate from `test/unit/` and `test/integration/`.
+- Smoke tests live in `test/smoke/` - separate from `test/unit/` and `test/integration/`.
 - No Mocha root hooks (no `prepareRegtest.test.js` require). Zero infrastructure dependencies.
 - Single `describe('Smoke Tests', ...)` block with individual `it(...)` cases for each scenario.
 
@@ -254,7 +254,7 @@ npm run smoke-test → mocha --timeout 10000 'test/smoke/**/*.test.js'
               Fails fast (<5s)         More thorough (10-30s)
 ```
 
-Smoke tests run **immediately after install**, before any other test tier. If smoke tests fail, skip all subsequent test stages — the build is fundamentally broken.
+Smoke tests run **immediately after install**, before any other test tier. If smoke tests fail, skip all subsequent test stages - the build is fundamentally broken.
 
 ### 5.4 Local Development
 
@@ -294,7 +294,7 @@ Developers should run `npm run smoke-test` after:
 
 When a smoke test fails:
 
-1. **CI pipeline stops immediately** — no point running further tests.
+1. **CI pipeline stops immediately** - no point running further tests.
 2. **Error output includes:** scenario name, expected vs actual, and the specific module/function that failed.
 3. **Developer action:** Fix the root cause (usually a broken import, bad upgrade, or config error) and re-run `npm run smoke-test` before proceeding.
 
@@ -302,7 +302,7 @@ When a smoke test fails:
 
 ## 7. Maintenance Guidelines
 
-- **Keep the suite minimal.** Resist adding edge cases — that's what unit tests are for.
+- **Keep the suite minimal.** Resist adding edge cases - that's what unit tests are for.
 - **No network calls, ever.** The moment a smoke test needs a running service, it's no longer a smoke test.
 - **Update when modules change.** If a new core module is added (e.g., a new encoding type), add a corresponding S1 import check and S5 prepareData check.
 - **Target: <5 seconds total.** If the suite approaches 10 seconds, audit for unnecessary work.
@@ -321,4 +321,4 @@ When a smoke test fails:
 | **Pipeline position** | First gate, immediately after `npm install` |
 | **Failure action** | Block all downstream stages |
 
-The smoke suite validates that the encoder's foundation — module loading, crypto primitives, data preparation, obfuscation, size estimation, UTXO classification, and API wiring — is intact. It does not test the full transaction-creation pipeline (that requires a coin node), but it ensures that every building block of that pipeline is individually operational.
+The smoke suite validates that the encoder's foundation - module loading, crypto primitives, data preparation, obfuscation, size estimation, UTXO classification, and API wiring - is intact. It does not test the full transaction-creation pipeline (that requires a coin node), but it ensures that every building block of that pipeline is individually operational.

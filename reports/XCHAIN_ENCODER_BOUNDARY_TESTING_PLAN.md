@@ -115,34 +115,34 @@ The auto-selection threshold in `prepareData()` (line 74) is `data.length + magi
 | BND-MS-03 | Data where obfuscated bytes produce invalid EC point (0x02 + data > curve order) | Verify behavior: silent corruption, exception, or graceful handling |
 | BND-MS-04 | Data exactly 32 bytes | `dataToPubkey()` produces exactly 33-byte key, no zero-fill needed |
 | BND-MS-05 | Data < 32 bytes (e.g., 1 byte) | `dataToPubkey()` zero-fills to 33 bytes correctly |
-| BND-MS-06 | Data > 32 bytes (e.g., 33 bytes) | `dataToPubkey()` concatenates without fill, result > 33 bytes — verify bitcoinjs-lib accepts or rejects |
+| BND-MS-06 | Data > 32 bytes (e.g., 33 bytes) | `dataToPubkey()` concatenates without fill, result > 33 bytes - verify bitcoinjs-lib accepts or rejects |
 
 ### 4.5 Fee Calculation Boundaries
 
 | Scenario | Input | Expected Result |
 |---|---|---|
 | BND-FEE-01 | `feePerKb = 0` | Fee calculated as 0, floored to `dustAmount` |
-| BND-FEE-02 | `feePerKb` = negative value | Undefined behavior — document and propose guard |
-| BND-FEE-03 | `feePerKb` extremely large (100 BTC/kB) | Fee may exceed input value — verify behavior |
+| BND-FEE-02 | `feePerKb` = negative value | Undefined behavior - document and propose guard |
+| BND-FEE-03 | `feePerKb` extremely large (100 BTC/kB) | Fee may exceed input value - verify behavior |
 | BND-FEE-04 | `maxFeeRateKb` set, `feePerKb` exceeds cap | Fee clamped to `maxFeePerBytes` |
 | BND-FEE-05 | `maxFeeRateKb = 0` | `maxFeePerBytes = 0`, all fees clamped to 0 then floored to dust |
-| BND-FEE-06 | `fee` parameter = 0 | Explicit fee of 0, but dust floor applies — verify `estimatedFee` ends up as `dustAmount` |
-| BND-FEE-07 | `fee` parameter = 1 | Below dust threshold — verify flooring behavior |
+| BND-FEE-06 | `fee` parameter = 0 | Explicit fee of 0, but dust floor applies - verify `estimatedFee` ends up as `dustAmount` |
+| BND-FEE-07 | `fee` parameter = 1 | Below dust threshold - verify flooring behavior |
 | BND-FEE-08 | `fee` parameter set AND `feePerKb` set | `fee` takes precedence (line 462-464), `feePerKb` only used for P2SH spending estimates |
-| BND-FEE-09 | Computed fee > total UTXO input value | `changeSatoshis` goes negative — verify behavior (no change output, possible invalid tx) |
+| BND-FEE-09 | Computed fee > total UTXO input value | `changeSatoshis` goes negative - verify behavior (no change output, possible invalid tx) |
 | BND-FEE-10 | `Math.trunc()` precision at `estimatedTxSize * feePerBytes * SATOSHI_UNIT` with large values | JavaScript floating-point: verify no precision loss causes fee underpayment |
 
 ### 4.6 UTXO Boundaries
 
 | Scenario | Input | Expected Result |
 |---|---|---|
-| BND-UTXO-01 | Single UTXO with value = 1 satoshi | Likely insufficient for fee — verify error or behavior |
-| BND-UTXO-02 | Single UTXO with value = `dustAmount` exactly | Covers fee floor but no change — verify no-change behavior |
+| BND-UTXO-01 | Single UTXO with value = 1 satoshi | Likely insufficient for fee - verify error or behavior |
+| BND-UTXO-02 | Single UTXO with value = `dustAmount` exactly | Covers fee floor but no change - verify no-change behavior |
 | BND-UTXO-03 | 1000 UTXOs (stress test input loop) | All valid UTXOs processed, sorted correctly, only needed count consumed |
-| BND-UTXO-04 | All UTXOs are unconfirmed, `unconfirmed=false` | All filtered out — should throw "no utxos" |
+| BND-UTXO-04 | All UTXOs are unconfirmed, `unconfirmed=false` | All filtered out - should throw "no utxos" |
 | BND-UTXO-05 | All UTXOs are duplicates of the same txid:vout | Deduplication leaves 1 UTXO |
 | BND-UTXO-06 | UTXO with `value` as string vs integer | `parseInt()` on line 470 handles string, but verify edge cases ("0x1A", "1.5", "NaN") |
-| BND-UTXO-07 | UTXO with `value = 0` | Sorted last, contributes nothing — verify loop terminates |
+| BND-UTXO-07 | UTXO with `value = 0` | Sorted last, contributes nothing - verify loop terminates |
 | BND-UTXO-08 | UTXO with `value = Number.MAX_SAFE_INTEGER` (9007199254740991) | Verify no overflow in `inputSatoshis` addition |
 | BND-UTXO-09 | Mix of segwit and legacy UTXOs | Both types added correctly, fee estimation uses correct per-type sizes |
 
@@ -151,8 +151,8 @@ The auto-selection threshold in `prepareData()` (line 74) is `data.length + magi
 | Scenario | Input | Expected Result |
 |---|---|---|
 | BND-CO-01 | `customOutputs = []` (empty array) | No custom outputs added, no effect |
-| BND-CO-02 | Single custom output with `value = "0"` | `parseInt("0") = 0` — dust-violating output added |
-| BND-CO-03 | Single custom output with `value = "1.5"` | `parseInt("1.5") = 1` — truncation, not rounding |
+| BND-CO-02 | Single custom output with `value = "0"` | `parseInt("0") = 0` - dust-violating output added |
+| BND-CO-03 | Single custom output with `value = "1.5"` | `parseInt("1.5") = 1` - truncation, not rounding |
 | BND-CO-04 | 100 custom outputs | 100 extra outputs added, `estimatedTxSize` increases by 4300 bytes |
 | BND-CO-05 | Custom output with invalid address | `bitcoinjs-lib` should throw on `psbt.addOutput()` |
 | BND-CO-06 | Total custom output values exceed UTXO inputs | `changeSatoshis` goes negative |
@@ -163,20 +163,20 @@ The auto-selection threshold in `prepareData()` (line 74) is `data.length + magi
 |---|---|---|
 | BND-CHG-01 | `change = null`, UTXO input > fee | Throws "Transaction would burn X satoshis" |
 | BND-CHG-02 | `change = null`, UTXO input = fee exactly | `changeSatoshis = 0`, no throw (0 is not > `dustAmount`), no change output |
-| BND-CHG-03 | `change` provided, `changeSatoshis` = 1 (positive but below dust) | Change output added with value 1 — may be unspendable dust |
+| BND-CHG-03 | `change` provided, `changeSatoshis` = 1 (positive but below dust) | Change output added with value 1 - may be unspendable dust |
 | BND-CHG-04 | `change` provided, `changeSatoshis` = 0 | No change output added (condition is `changeSatoshis > 0`) |
-| BND-CHG-05 | `change` provided, `changeSatoshis` negative | No change output added — transaction underfunded, fee eats everything |
+| BND-CHG-05 | `change` provided, `changeSatoshis` negative | No change output added - transaction underfunded, fee eats everything |
 
 ### 4.9 Obfuscation Boundaries
 
 | Scenario | Input | Expected Result |
 |---|---|---|
-| BND-OBF-01 | TXID with all zeros (`"0000...0000"`) | `cipherKey = "0000000000000000"`, `iv = "0000000000000000"` — valid AES, but deterministic |
+| BND-OBF-01 | TXID with all zeros (`"0000...0000"`) | `cipherKey = "0000000000000000"`, `iv = "0000000000000000"` - valid AES, but deterministic |
 | BND-OBF-02 | TXID with all `f`s (`"ffff...ffff"`) | Valid AES parameters |
-| BND-OBF-03 | TXID shorter than 32 hex chars | `substr(0,16)` and `substr(16,16)` produce truncated key/IV — undefined AES behavior |
-| BND-OBF-04 | Empty data buffer | AES-128-CTR on empty buffer — returns empty buffer |
-| BND-OBF-05 | Data = 1 byte | AES-CTR stream cipher on single byte — valid |
-| BND-OBF-06 | Very large data (10KB+) | AES-CTR handles any length — verify no Node.js buffer limits hit |
+| BND-OBF-03 | TXID shorter than 32 hex chars | `substr(0,16)` and `substr(16,16)` produce truncated key/IV - undefined AES behavior |
+| BND-OBF-04 | Empty data buffer | AES-128-CTR on empty buffer - returns empty buffer |
+| BND-OBF-05 | Data = 1 byte | AES-CTR stream cipher on single byte - valid |
+| BND-OBF-06 | Very large data (10KB+) | AES-CTR handles any length - verify no Node.js buffer limits hit |
 
 ### 4.10 ACTION Payload Encoding Extremes
 
@@ -187,10 +187,10 @@ The auto-selection threshold in `prepareData()` (line 74) is `data.length + magi
 | BND-ACT-03 | SEND with 18-decimal amount: `"SEND\|0\|TOK\|0.000000000000000001\|addr"` | Verify string encoding preserves all 18 decimal places |
 | BND-ACT-04 | SEND v2 multi-send with 100 recipients | Very large payload, multiple P2SH chunks required |
 | BND-ACT-05 | BATCH with maximum allowed commands (many `;`-separated) | Payload size may exceed P2SH, requiring P2WSH |
-| BND-ACT-06 | DEPLOY with 64KB hex code | Decoded = 65,536 bytes, hex string = 131,072 chars — tests P2WSH multi-chunk |
-| BND-ACT-07 | FILE with large binary rawData | Both `data` (metadata) and `rawData` (file content) compiled together — verify `script.compile()` handles dual large buffers |
+| BND-ACT-06 | DEPLOY with 64KB hex code | Decoded = 65,536 bytes, hex string = 131,072 chars - tests P2WSH multi-chunk |
+| BND-ACT-07 | FILE with large binary rawData | Both `data` (metadata) and `rawData` (file content) compiled together - verify `script.compile()` handles dual large buffers |
 | BND-ACT-08 | ACTION string containing only pipe delimiters: `"\|\|\|\|\|"` | Valid encoding (encoder is payload-agnostic), but verify no splitting issues |
-| BND-ACT-09 | ACTION string with UTF-8 multi-byte characters | `Buffer.from(data, 'utf8')` may produce more bytes than `data.length` chars — verify auto-selection threshold accounts for byte length, not char length |
+| BND-ACT-09 | ACTION string with UTF-8 multi-byte characters | `Buffer.from(data, 'utf8')` may produce more bytes than `data.length` chars - verify auto-selection threshold accounts for byte length, not char length |
 | BND-ACT-10 | ACTION string with null bytes (`\x00`) embedded | Verify `script.compile()` does not truncate at null byte |
 
 ### 4.11 Network-Specific Boundaries
@@ -200,7 +200,7 @@ The auto-selection threshold in `prepareData()` (line 74) is `data.length + magi
 | BND-NET-01 | Bitcoin dust threshold (546 sats) | Minimum fee = 546 sats |
 | BND-NET-02 | Litecoin dust threshold (5460 sats) | Minimum fee = 5460 sats, 10x higher |
 | BND-NET-03 | Dogecoin dust threshold (546 sats) | Same as Bitcoin |
-| BND-NET-04 | P2WSH on Dogecoin (no `bech32` in network config) | `bitcoin.payments.p2wsh()` may throw — verify behavior |
+| BND-NET-04 | P2WSH on Dogecoin (no `bech32` in network config) | `bitcoin.payments.p2wsh()` may throw - verify behavior |
 | BND-NET-05 | Litecoin bech32 prefix (`ltc`/`tltc`/`rltc`) | Verify P2WSH addresses generated with correct prefix |
 | BND-NET-06 | Invalid network string (e.g., `"ethereum-mainnet"`) | Constructor throws on `undefined.dustThreshold` |
 
@@ -209,18 +209,18 @@ The auto-selection threshold in `prepareData()` (line 74) is `data.length + magi
 | Scenario | Input | Expected Result |
 |---|---|---|
 | BND-P2SH2TX-01 | tx2 with `p2shHex` that has 0 outputs | `p2shTx.outs[voutPsbtIndex]` throws index out of bounds |
-| BND-P2SH2TX-02 | tx2 with `p2shHash` set but `p2shHex` = null | For P2SH encoding: `p2shHex` is required for `nonWitnessUtxo` — should throw |
+| BND-P2SH2TX-02 | tx2 with `p2shHash` set but `p2shHex` = null | For P2SH encoding: `p2shHex` is required for `nonWitnessUtxo` - should throw |
 | BND-P2SH2TX-03 | tx2 with malformed `p2shHex` (not valid hex) | `bitcoin.Transaction.fromHex()` throws |
-| BND-P2SH2TX-04 | tx2 with `p2shHash` that doesn't match `p2shHex` transaction ID | Input references wrong tx — would fail at broadcast, but verify PSBT builds |
+| BND-P2SH2TX-04 | tx2 with `p2shHash` that doesn't match `p2shHex` transaction ID | Input references wrong tx - would fail at broadcast, but verify PSBT builds |
 | BND-P2SH2TX-05 | tx1 with many P2SH outputs (large multi-chunk payload), then tx2 consumes all | Verify `voutPsbtIndex` increments correctly for each chunk |
 
 ### 4.13 TxSizeEstimator Boundaries
 
 | Scenario | Input | Expected Result |
 |---|---|---|
-| BND-TSE-01 | OP_RETURN data > 252 bytes (triggers multi-byte `scriptPubKey` size flag) | TODO comment on line 27 acknowledges imprecision — verify magnitude of error |
+| BND-TSE-01 | OP_RETURN data > 252 bytes (triggers multi-byte `scriptPubKey` size flag) | TODO comment on line 27 acknowledges imprecision - verify magnitude of error |
 | BND-TSE-02 | Unknown script type (not P2WPKH, P2WSH, P2PKH, P2SH) | Falls through to 350-byte fallback |
-| BND-TSE-03 | `estimateInputSize()` with UTXO missing both `witnessUtxo` and `nonWitnessUtxo` | Returns `null` — verify caller handles null (line 488: adds null to `estimatedTxSize`) |
+| BND-TSE-03 | `estimateInputSize()` with UTXO missing both `witnessUtxo` and `nonWitnessUtxo` | Returns `null` - verify caller handles null (line 488: adds null to `estimatedTxSize`) |
 | BND-TSE-04 | `estimateP2shInputWithRedeem()` with 476-byte redeem script | Returns 41 + 2 + 72 + 476 = 591 bytes |
 | BND-TSE-05 | `estimateP2shInputWithRedeem()` with 0-byte redeem script | Returns 115 bytes (overhead only) |
 
@@ -284,10 +284,10 @@ These combinations create emergent boundary conditions:
 | P2SH encoding + custom dust = 1 + low fee rate | P2SH output values set to 1 sat, likely unspendable |
 | MULTISIGN + data that obfuscates to invalid EC points | `bitcoin.payments.p2ms()` may throw or produce invalid script |
 | Multi-chunk P2SH tx1 + tx2 with wrong `p2shHex` | Input/output mismatch in tx2 |
-| Empty `data` + non-null `rawData` | `script.compile([emptyBuf, rawDataBuf])` — verify compiled output |
-| `feePerKb = 0` + `maxFeeRateKb = 0` + `fee = null` | Both fee paths produce 0, floored to dust — verify consistency |
-| 1000 UTXOs all duplicates + `unconfirmed=false` + all mempool | Dedup to 1, then filtered out — "no utxos" error |
-| Litecoin network + P2WSH encoding | Uses `rltc`/`tltc`/`ltc` bech32 prefix — verify address generation |
+| Empty `data` + non-null `rawData` | `script.compile([emptyBuf, rawDataBuf])` - verify compiled output |
+| `feePerKb = 0` + `maxFeeRateKb = 0` + `fee = null` | Both fee paths produce 0, floored to dust - verify consistency |
+| 1000 UTXOs all duplicates + `unconfirmed=false` + all mempool | Dedup to 1, then filtered out - "no utxos" error |
+| Litecoin network + P2WSH encoding | Uses `rltc`/`tltc`/`ltc` bech32 prefix - verify address generation |
 
 ---
 
@@ -363,7 +363,7 @@ The current test suite (unit + integration) covers:
 
 4. **Test `parseInt()` on `customOutputs[].value`**: The current code does `parseInt(output.value)` which silently truncates decimals and returns `NaN` for non-numeric strings. Consider `Math.round()` or validation.
 
-5. **Verify `dataToPubkey()` with data > 32 bytes**: The MULTISIGN path slices obfuscated data at byte 32. If the slice produces data exactly 32 bytes, no fill is needed. If < 32, it zero-fills. But the function does not guard against > 32 bytes, which would produce a > 33-byte "pubkey" — possibly rejected by `p2ms()`.
+5. **Verify `dataToPubkey()` with data > 32 bytes**: The MULTISIGN path slices obfuscated data at byte 32. If the slice produces data exactly 32 bytes, no fill is needed. If < 32, it zero-fills. But the function does not guard against > 32 bytes, which would produce a > 33-byte "pubkey" - possibly rejected by `p2ms()`.
 
 ---
 

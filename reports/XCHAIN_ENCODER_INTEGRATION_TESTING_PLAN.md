@@ -1,15 +1,15 @@
-# XChain Encoder — Integration Testing Plan
+# XChain Encoder - Integration Testing Plan
 
 ## 1. Rationale
 
-The `xchain-encoder` is the single point of transaction construction for the entire XChain Platform. Every token operation — issuance, transfer, DEX order, file upload — passes through `XChainEncoder.createTransaction()` to become a blockchain-valid PSBT. Errors at this layer are catastrophic:
+The `xchain-encoder` is the single point of transaction construction for the entire XChain Platform. Every token operation - issuance, transfer, DEX order, file upload - passes through `XChainEncoder.createTransaction()` to become a blockchain-valid PSBT. Errors at this layer are catastrophic:
 
-- **Invalid PSBTs** — transactions that fail to broadcast, silently losing gas fees paid by the user.
-- **Corrupted ACTION payloads** — data that decodes to a different ACTION than intended, potentially moving tokens to wrong addresses or minting incorrect supply.
-- **Funds at risk** — incorrect UTXO selection, fee estimation, or change output logic can burn satoshis or leave change unspendable.
-- **Cross-service divergence** — if the encoder produces payloads that the decoder cannot round-trip, the entire pipeline breaks silently.
+- **Invalid PSBTs** - transactions that fail to broadcast, silently losing gas fees paid by the user.
+- **Corrupted ACTION payloads** - data that decodes to a different ACTION than intended, potentially moving tokens to wrong addresses or minting incorrect supply.
+- **Funds at risk** - incorrect UTXO selection, fee estimation, or change output logic can burn satoshis or leave change unspendable.
+- **Cross-service divergence** - if the encoder produces payloads that the decoder cannot round-trip, the entire pipeline breaks silently.
 
-The existing test suite covers encoding types (OP_RETURN, P2SH, P2WSH, MULTISIGN) with generic string payloads against a live regtest node. What it does **not** cover is the integration between realistic ACTION payloads and the encoder's chunking/obfuscation/PSBT construction — i.e., verifying that the encoder faithfully embeds the pipe-delimited ACTION strings that the rest of the platform depends on.
+The existing test suite covers encoding types (OP_RETURN, P2SH, P2WSH, MULTISIGN) with generic string payloads against a live regtest node. What it does **not** cover is the integration between realistic ACTION payloads and the encoder's chunking/obfuscation/PSBT construction - i.e., verifying that the encoder faithfully embeds the pipe-delimited ACTION strings that the rest of the platform depends on.
 
 ---
 
@@ -19,7 +19,7 @@ The existing test suite covers encoding types (OP_RETURN, P2SH, P2WSH, MULTISIGN
 
 | Test File | Type | Scope |
 |---|---|---|
-| `test/XChainEncoder.test.js` | Integration (regtest) | 4 tests: OP_RETURN, P2SH, P2WSH, MULTISIGN — all use generic string data, broadcast to regtest, decode and verify. Requires live `bitcoind`. |
+| `test/XChainEncoder.test.js` | Integration (regtest) | 4 tests: OP_RETURN, P2SH, P2WSH, MULTISIGN - all use generic string data, broadcast to regtest, decode and verify. Requires live `bitcoind`. |
 | `test/api.test.js` | Integration (API) | 1 test: JSON-RPC `create_tx` call via HTTP. Requires both `bitcoind` and the API server running. |
 | `test/unit/XChainEncoder.prepareData.test.js` | Unit | 14 tests: chunking logic, magic word, boundary sizes, round-trip data preservation per encoding type. |
 | `test/unit/XChainEncoder.createTransaction.test.js` | Unit | 22 tests: UTXO dedup, sorting, fee handling, change output, RBF, custom outputs, encoding path selection, P2SH tx2 path. Uses mocked `BlockchainConnector` and `UtxoTracker`. |
@@ -31,15 +31,15 @@ The existing test suite covers encoding types (OP_RETURN, P2SH, P2WSH, MULTISIGN
 
 ### Gaps identified
 
-1. **No ACTION-specific payloads** — all tests use generic strings (`"Small data"`, `"Really big data for p2sh test..."`). No test verifies that actual pipe-delimited ACTION strings (e.g., `SEND|0|JDOG|1|<addr>`) survive the encode/obfuscate/PSBT pipeline.
-2. **No multi-chain coverage** — all integration tests use `bitcoin-regtest`. No tests verify Dogecoin or Litecoin network configs produce valid PSBTs.
-3. **No ACTION size-class coverage** — no tests exercise ACTIONs that span encoding type boundaries (e.g., a short SEND that fits OP_RETURN vs. an ISSUE with all 25 fields that requires P2SH).
-4. **No BATCH action testing** — BATCH actions join multiple commands with `;` and can produce large payloads requiring P2SH/P2WSH. Not tested.
-5. **No custom output + ACTION combination** — COINPAY actions require `customOutputs` (native coin payment outputs) alongside ACTION data. Not tested together.
-6. **No obfuscation round-trip with real ACTION data** — the unit tests verify obfuscation works in isolation, but no test verifies that obfuscated ACTION data in a PSBT can be deobfuscated back to the original ACTION string.
-7. **No API-level ACTION encoding** — `api.test.js` tests the JSON-RPC interface with `"simple text"` only.
-8. **No error path integration** — no tests verify what happens when an ACTION payload is too large for any encoding type, or when encoding-specific constraints are violated.
-9. **No fee cap (`maxFeePerBytes`) integration test** — the constructor accepts `MAX_FEE_RATE_KB` but no integration test verifies fee capping behavior.
+1. **No ACTION-specific payloads** - all tests use generic strings (`"Small data"`, `"Really big data for p2sh test..."`). No test verifies that actual pipe-delimited ACTION strings (e.g., `SEND|0|JDOG|1|<addr>`) survive the encode/obfuscate/PSBT pipeline.
+2. **No multi-chain coverage** - all integration tests use `bitcoin-regtest`. No tests verify Dogecoin or Litecoin network configs produce valid PSBTs.
+3. **No ACTION size-class coverage** - no tests exercise ACTIONs that span encoding type boundaries (e.g., a short SEND that fits OP_RETURN vs. an ISSUE with all 25 fields that requires P2SH).
+4. **No BATCH action testing** - BATCH actions join multiple commands with `;` and can produce large payloads requiring P2SH/P2WSH. Not tested.
+5. **No custom output + ACTION combination** - COINPAY actions require `customOutputs` (native coin payment outputs) alongside ACTION data. Not tested together.
+6. **No obfuscation round-trip with real ACTION data** - the unit tests verify obfuscation works in isolation, but no test verifies that obfuscated ACTION data in a PSBT can be deobfuscated back to the original ACTION string.
+7. **No API-level ACTION encoding** - `api.test.js` tests the JSON-RPC interface with `"simple text"` only.
+8. **No error path integration** - no tests verify what happens when an ACTION payload is too large for any encoding type, or when encoding-specific constraints are violated.
+9. **No fee cap (`maxFeePerBytes`) integration test** - the constructor accepts `MAX_FEE_RATE_KB` but no integration test verifies fee capping behavior.
 
 ---
 
@@ -211,7 +211,7 @@ These tests verify the AES-128-CTR obfuscation/deobfuscation cycle with the TXID
 │                                                  │
 │  ┌──────────────────────────────────────────┐    │
 │  │  Mocked Dependencies (for Categories     │    │
-│  │  A-F, H — no live node required)         │    │
+│  │  A-F, H - no live node required)         │    │
 │  │                                          │    │
 │  │  • BlockchainConnector (stub)            │    │
 │  │    - getFeePerKilobyte() → fixed value   │    │
@@ -316,7 +316,7 @@ test/
 
 ### 5.5 Deobfuscation Utility
 
-A critical shared helper for verifying encoded payloads. Note: the existing `nodeHelper.removeObfuscation()` uses `aes-128-cbc` (likely a bug — the encoder uses `aes-128-ctr`). The integration test helper must use `aes-128-ctr` to match the encoder:
+A critical shared helper for verifying encoded payloads. Note: the existing `nodeHelper.removeObfuscation()` uses `aes-128-cbc` (likely a bug - the encoder uses `aes-128-ctr`). The integration test helper must use `aes-128-ctr` to match the encoder:
 
 ```
 function deobfuscate(data, txid) {
@@ -351,35 +351,35 @@ Each factory function returns `{ data, rawData }` matching `createTransaction()`
 
 ### Phase 1: Foundation (High Priority)
 
-1. **Shared test helpers** — deobfuscation utility, UTXO factory, ACTION factory
-2. **Category A (A-1 through A-6)** — core ACTION encoding fidelity for the most common actions (SEND, ISSUE, BATCH, ORDER)
-3. **Category C (C-1, C-5)** — obfuscation round-trip and UTXO sorting key stability
+1. **Shared test helpers** - deobfuscation utility, UTXO factory, ACTION factory
+2. **Category A (A-1 through A-6)** - core ACTION encoding fidelity for the most common actions (SEND, ISSUE, BATCH, ORDER)
+3. **Category C (C-1, C-5)** - obfuscation round-trip and UTXO sorting key stability
 
 These tests catch the highest-impact bugs: ACTION data corruption, which would silently break the entire platform.
 
 ### Phase 2: Encoding Depth (High Priority)
 
-4. **Category B (B-1 through B-6)** — all four encoding types produce valid PSBTs
-5. **Category A (A-13, A-14)** — OP_RETURN boundary tests
+4. **Category B (B-1 through B-6)** - all four encoding types produce valid PSBTs
+5. **Category A (A-13, A-14)** - OP_RETURN boundary tests
 
 These tests catch encoding-selection bugs that could cause transaction broadcast failures.
 
 ### Phase 3: UTXO & Fee (Medium Priority)
 
-6. **Category D (D-1 through D-10)** — UTXO handling and fee estimation
+6. **Category D (D-1 through D-10)** - UTXO handling and fee estimation
 
 Much of this is already covered by unit tests, but integration tests add confidence with realistic ACTION payloads.
 
 ### Phase 4: Multi-Chain & API (Medium Priority)
 
-7. **Category F (F-1 through F-5)** — Dogecoin and Litecoin network configs
-8. **Category G (G-1 through G-5)** — API layer tests (requires live regtest)
+7. **Category F (F-1 through F-5)** - Dogecoin and Litecoin network configs
+8. **Category G (G-1 through G-5)** - API layer tests (requires live regtest)
 
 ### Phase 5: Edge Cases & Errors (Lower Priority)
 
-9. **Category E (E-1 through E-4)** — custom outputs
-10. **Category H (H-1 through H-6)** — error handling at boundaries
-11. **Category A (A-7 through A-12)** — remaining ACTION types
+9. **Category E (E-1 through E-4)** - custom outputs
+10. **Category H (H-1 through H-6)** - error handling at boundaries
+11. **Category A (A-7 through A-12)** - remaining ACTION types
 
 ---
 
@@ -397,7 +397,7 @@ The existing test helper at `test/nodeHelper.js:115` uses `aes-128-cbc` while th
 
 ### 7.3 Encoding auto-selection only chooses OP_RETURN or P2SH
 
-When `encoding` is `null`/`undefined`, `prepareData()` only auto-selects between `OP_RETURN` and `P2SH`. It never auto-selects `P2WSH` or `MULTISIGN`. This is by design but should be documented in tests — callers must explicitly request these encoding types.
+When `encoding` is `null`/`undefined`, `prepareData()` only auto-selects between `OP_RETURN` and `P2SH`. It never auto-selects `P2WSH` or `MULTISIGN`. This is by design but should be documented in tests - callers must explicitly request these encoding types.
 
 ### 7.4 MULTISIGN requires valid EC curve points
 
@@ -420,7 +420,7 @@ The integration test suite will be considered complete when:
 5. The API layer has end-to-end tests with ACTION payloads (Category G)
 6. All known error paths have explicit tests (Category H)
 7. Tests run in < 5 seconds for mocked tests, < 30 seconds for regtest tests
-8. Zero dependency on network state — mocked tests produce deterministic results
+8. Zero dependency on network state - mocked tests produce deterministic results
 
 ---
 

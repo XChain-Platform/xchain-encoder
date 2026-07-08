@@ -3,7 +3,7 @@
 **Component:** xchain-encoder v1.0.0  
 **Date:** 2026-04-02  
 **Auditor Role:** Senior Security Auditor & Backend Developer  
-**Criticality:** HIGH — errors in encoding or input handling can lead to invalid transactions, loss of funds, or platform exploits
+**Criticality:** HIGH - errors in encoding or input handling can lead to invalid transactions, loss of funds, or platform exploits
 
 ---
 
@@ -77,21 +77,21 @@ Return { psbt, encode_type }
 
 ### 2.2 Review Steps
 
-1. **API boundary audit** — Examine all parameters accepted by the JSON-RPC endpoint. Check for authentication, rate limiting, body size limits, and type validation before values enter the encoding pipeline.
+1. **API boundary audit** - Examine all parameters accepted by the JSON-RPC endpoint. Check for authentication, rate limiting, body size limits, and type validation before values enter the encoding pipeline.
 
-2. **Parameter validation audit** — For each parameter accepted by `createTransaction()` (`data`, `rawData`, `pubkey`, `utxos`, `customOutputs`, `fee`, `feePerKb`, `dust`, `encoding`, `change`, `p2shHash`, `p2shHex`, `compressedPubKey`, `rbf`, `unconfirmed`), verify: type checking, range validation, format validation, and behavior when missing/null/undefined.
+2. **Parameter validation audit** - For each parameter accepted by `createTransaction()` (`data`, `rawData`, `pubkey`, `utxos`, `customOutputs`, `fee`, `feePerKb`, `dust`, `encoding`, `change`, `p2shHash`, `p2shHex`, `compressedPubKey`, `rbf`, `unconfirmed`), verify: type checking, range validation, format validation, and behavior when missing/null/undefined.
 
-3. **Encoding logic audit** — Trace each encoding path (OP_RETURN, P2SH, P2WSH, MULTISIGN) through `prepareData()` and the PSBT construction loop. Verify chunk boundary math, magic word handling, and script compilation safety.
+3. **Encoding logic audit** - Trace each encoding path (OP_RETURN, P2SH, P2WSH, MULTISIGN) through `prepareData()` and the PSBT construction loop. Verify chunk boundary math, magic word handling, and script compilation safety.
 
-4. **PSBT construction audit** — Review all calls to `bitcoinjs-lib` APIs (`psbt.addInput`, `psbt.addOutput`, `bitcoin.payments.*`, `bitcoin.script.compile`). Verify inputs are validated before library calls and that library exceptions are caught.
+4. **PSBT construction audit** - Review all calls to `bitcoinjs-lib` APIs (`psbt.addInput`, `psbt.addOutput`, `bitcoin.payments.*`, `bitcoin.script.compile`). Verify inputs are validated before library calls and that library exceptions are caught.
 
-5. **Fee and math audit** — Trace all satoshi arithmetic for floating-point corruption, NaN propagation, and integer overflow. Review `parseInt` calls for missing radix and NaN guards.
+5. **Fee and math audit** - Trace all satoshi arithmetic for floating-point corruption, NaN propagation, and integer overflow. Review `parseInt` calls for missing radix and NaN guards.
 
-6. **Cryptographic audit** — Evaluate the AES-128-CTR obfuscation scheme for key/IV reuse, entropy, and the security properties it actually provides vs. what might be assumed.
+6. **Cryptographic audit** - Evaluate the AES-128-CTR obfuscation scheme for key/IV reuse, entropy, and the security properties it actually provides vs. what might be assumed.
 
-7. **Error handling audit** — Search for unhandled exceptions, raw library errors propagating to callers, and error messages that leak internal state.
+7. **Error handling audit** - Search for unhandled exceptions, raw library errors propagating to callers, and error messages that leak internal state.
 
-8. **Dependency audit** — Run `npm audit`, review pinned versions of crypto-critical packages, and identify deprecated transitive dependencies.
+8. **Dependency audit** - Run `npm audit`, review pinned versions of crypto-critical packages, and identify deprecated transitive dependencies.
 
 ---
 
@@ -163,13 +163,13 @@ Return { psbt, encode_type }
 
 #### SEC-INPUT-05: `customOutputs` Entries Not Validated [CRITICAL]
 - **File:** `src/XChainEncoder.js:447-456`  
-- **Finding:** `output.address` is passed to `psbt.addOutput()` without address format validation. `parseInt(output.value)` has no NaN guard — if `value` is non-numeric, `NaN` propagates through all subsequent arithmetic (`outputSatoshis`, `changeSatoshis`), silently corrupting the entire fee and change calculation.  
+- **Finding:** `output.address` is passed to `psbt.addOutput()` without address format validation. `parseInt(output.value)` has no NaN guard - if `value` is non-numeric, `NaN` propagates through all subsequent arithmetic (`outputSatoshis`, `changeSatoshis`), silently corrupting the entire fee and change calculation.  
 - **Impact:** Silent transaction corruption; all change burned as fees (loss of funds); cross-network address injection.
 
 #### SEC-INPUT-06: `fee` Parameter Accepts Any Value [HIGH]
 - **File:** `src/XChainEncoder.js:463`  
 - **Finding:** The explicit `fee` parameter bypasses the `maxFeePerBytes` cap entirely. A caller can supply `fee: 0` (stuck transaction), a negative number, or `NaN`. The dust floor check at line 517 does not catch `NaN` because `NaN < dustAmount` evaluates to `false`.  
-- **Impact:** Fee manipulation — either zero-fee stuck transactions or excessive fees draining the wallet.
+- **Impact:** Fee manipulation - either zero-fee stuck transactions or excessive fees draining the wallet.
 
 #### SEC-INPUT-07: `dust` Parameter Not Range-Checked [MEDIUM]
 - **File:** `src/XChainEncoder.js:211-213`  
@@ -226,7 +226,7 @@ Return { psbt, encode_type }
 
 #### SEC-PSBT-02: NaN `changeSatoshis` Silently Burns All Change as Fees [CRITICAL]
 - **File:** `src/XChainEncoder.js:527-531`  
-- **Finding:** Change output is added only when `changeSatoshis > 0`. If any satoshi calculation was corrupted by NaN (from SEC-INPUT-05, SEC-INPUT-10), then `NaN > 0` is `false` — no change output is added and no error is thrown. The transaction silently assigns all unallocated input value to miner fees.  
+- **Finding:** Change output is added only when `changeSatoshis > 0`. If any satoshi calculation was corrupted by NaN (from SEC-INPUT-05, SEC-INPUT-10), then `NaN > 0` is `false` - no change output is added and no error is thrown. The transaction silently assigns all unallocated input value to miner fees.  
 - **Impact:** Complete loss of change funds; silent, undetectable by the caller.
 
 #### SEC-PSBT-03: `p2shHash`/`p2shHex` Mismatch Not Detected [HIGH]
@@ -274,7 +274,7 @@ Return { psbt, encode_type }
 
 #### SEC-CRYPTO-01: AES Key and IV Derived from Same Public TXID [MEDIUM]
 - **File:** `src/XChainEncoder.js:174-181`  
-- **Finding:** The AES-128-CTR key is `txid.substr(0,16)` and IV is `txid.substr(16,16)` — both from the first input's TXID, which is public on the blockchain. Key and IV are not independent. Additionally, the "key" is 16 ASCII hex characters (effective entropy ~64 bits, not 128 bits).  
+- **Finding:** The AES-128-CTR key is `txid.substr(0,16)` and IV is `txid.substr(16,16)` - both from the first input's TXID, which is public on the blockchain. Key and IV are not independent. Additionally, the "key" is 16 ASCII hex characters (effective entropy ~64 bits, not 128 bits).  
 - **Impact:** No actual confidentiality. Anyone observing the blockchain can derive the key and deobfuscate the data. This is by design (obfuscation not encryption), but the security properties should be clearly documented so downstream consumers do not assume confidentiality.
 
 #### SEC-CRYPTO-02: AES-CTR Keystream Reuse on Same First-Input TXID [MEDIUM]
@@ -352,19 +352,19 @@ Return { psbt, encode_type }
 #### SEC-DEP-01: `bitcoin-core` Depends on Deprecated `request` Package [HIGH]
 - **Vulnerability chain:** `bitcoin-core@4.2.0` -> `@uphold/request-logger@2.0.0` -> `request@2.88.2`  
 - **CVEs via `request`:**
-  - `form-data@2.3.3` — **CRITICAL**: Unsafe random boundary generation (GHSA-fjxv-7rqg-78g4)
-  - `qs` (old) — **MODERATE**: arrayLimit bypass enables DoS via memory exhaustion (GHSA-6rw7-vpxm-498p)
-  - `tough-cookie` (old) — **MODERATE**: Prototype pollution (GHSA-72xf-g2v4-qvf3)
-- **Fix status:** No fix available — `request` is deprecated. Requires replacing `bitcoin-core` with a modern RPC client.
+  - `form-data@2.3.3` - **CRITICAL**: Unsafe random boundary generation (GHSA-fjxv-7rqg-78g4)
+  - `qs` (old) - **MODERATE**: arrayLimit bypass enables DoS via memory exhaustion (GHSA-6rw7-vpxm-498p)
+  - `tough-cookie` (old) - **MODERATE**: Prototype pollution (GHSA-72xf-g2v4-qvf3)
+- **Fix status:** No fix available - `request` is deprecated. Requires replacing `bitcoin-core` with a modern RPC client.
 
 #### SEC-DEP-02: Browserify Chain Includes Vulnerable `elliptic` [MEDIUM]
 - **Vulnerability chain:** `browserify@17.0.1` -> `crypto-browserify@3.12.1` -> `browserify-sign@4.2.5` -> `elliptic@6.6.1`  
-- **CVE:** GHSA-848j-6mx2-7j84 — Risky cryptographic implementation  
+- **CVE:** GHSA-848j-6mx2-7j84 - Risky cryptographic implementation  
 - **Impact:** Affects the browser bundle only (`dist/xchain_encoder.min.js`). The Node.js API server uses built-in `crypto`, not `elliptic`.
 
 #### SEC-DEP-03: Core Crypto Dependencies Are Current [INFORMATIONAL]
-- `bitcoinjs-lib@6.1.7`, `tiny-secp256k1@2.2.4`, `ecpair@2.1.0`, `bip32@4.0.0`, `bip39@3.1.0` — all current with no known CVEs.
-- `express@4.22.1`, `helmet@7.2.0`, `cors@2.8.6` — all current.
+- `bitcoinjs-lib@6.1.7`, `tiny-secp256k1@2.2.4`, `ecpair@2.1.0`, `bip32@4.0.0`, `bip39@3.1.0` - all current with no known CVEs.
+- `express@4.22.1`, `helmet@7.2.0`, `cors@2.8.6` - all current.
 
 ---
 
@@ -389,7 +389,7 @@ Return { psbt, encode_type }
 
 ## 5. Prioritized Risk Register
 
-### Priority 1 — CRITICAL (Address Immediately)
+### Priority 1 - CRITICAL (Address Immediately)
 
 | ID | Finding | Impact | Effort |
 |----|---------|--------|--------|
@@ -399,7 +399,7 @@ Return { psbt, encode_type }
 | SEC-PSBT-02 | NaN `changeSatoshis` burns change | Complete fund loss, undetectable | Low |
 | SEC-ACTION-04 | No max payload size | Memory exhaustion DoS | Low |
 
-### Priority 2 — HIGH (Address Before Production)
+### Priority 2 - HIGH (Address Before Production)
 
 | ID | Finding | Impact | Effort |
 |----|---------|--------|--------|
@@ -416,7 +416,7 @@ Return { psbt, encode_type }
 | SEC-DEP-01 | Deprecated `request` in dependency tree | 2 critical, 2 moderate CVEs | High |
 | SEC-ACTION-03 | VERSION field never validated | Silent data corruption | Medium |
 
-### Priority 3 — MEDIUM (Address in Next Release)
+### Priority 3 - MEDIUM (Address in Next Release)
 
 | ID | Finding | Impact | Effort |
 |----|---------|--------|--------|
@@ -430,7 +430,7 @@ Return { psbt, encode_type }
 | SEC-ACTION-02 | Cross-chain ACTIONs not gated | Fee burn, DB pollution | Medium |
 | SEC-UTXO-04 | Caller controls AES key | Chosen-key attack | Low |
 
-### Priority 4 — LOW (Track and Address)
+### Priority 4 - LOW (Track and Address)
 
 | ID | Finding | Impact | Effort |
 |----|---------|--------|--------|
@@ -448,57 +448,57 @@ Return { psbt, encode_type }
 
 ### 6.1 API Hardening (Priority 1)
 
-1. **Add API authentication** — Implement API key or HMAC-based authentication on the JSON-RPC endpoint. At minimum, require a shared secret in request headers.
-2. **Restrict CORS** — Replace wildcard CORS with an explicit allowlist of permitted origins.
-3. **Add rate limiting** — Use `express-rate-limit` or equivalent to cap requests per IP/key per time window.
-4. **Validate all parameters at the API boundary** — Add a validation layer between the JSON-RPC handler and `createTransaction()` that enforces types, ranges, and formats for every parameter before it enters the encoding pipeline.
-5. **Set explicit body size limits** — Configure `bodyParser.json({ limit: '50kb' })` and add array length caps for `utxos` and `customOutputs`.
+1. **Add API authentication** - Implement API key or HMAC-based authentication on the JSON-RPC endpoint. At minimum, require a shared secret in request headers.
+2. **Restrict CORS** - Replace wildcard CORS with an explicit allowlist of permitted origins.
+3. **Add rate limiting** - Use `express-rate-limit` or equivalent to cap requests per IP/key per time window.
+4. **Validate all parameters at the API boundary** - Add a validation layer between the JSON-RPC handler and `createTransaction()` that enforces types, ranges, and formats for every parameter before it enters the encoding pipeline.
+5. **Set explicit body size limits** - Configure `bodyParser.json({ limit: '50kb' })` and add array length caps for `utxos` and `customOutputs`.
 
 ### 6.2 Input Validation (Priority 1-2)
 
-6. **Add NaN guards after all `parseInt` calls** — Every `parseInt` result must be checked with `isNaN()` or `Number.isFinite()` before use in arithmetic. Reject the request if any value is NaN.
-7. **Validate `encoding` against an explicit allowlist** — `["opreturn", "p2sh", "p2wsh", "multisign"]` with an error for unrecognized values.
-8. **Validate `pubkey` format** before passing to `bitcoin.address.fromBase58Check` — check string length and character set.
-9. **Validate `compressedPubKey`** — Must be exactly 66 hex characters, starting with `02` or `03`.
-10. **Validate UTXO structure** — Each entry must have `txid` (64 hex chars), `vout` (non-negative integer), `value` (positive integer), `scriptPubKey` (even-length hex string), and `confirmations` (non-negative integer).
-11. **Add a maximum data payload size** — Enforce an upper bound (e.g., 100KB) on `data` + `rawData` to prevent memory exhaustion and oversized transactions.
+6. **Add NaN guards after all `parseInt` calls** - Every `parseInt` result must be checked with `isNaN()` or `Number.isFinite()` before use in arithmetic. Reject the request if any value is NaN.
+7. **Validate `encoding` against an explicit allowlist** - `["opreturn", "p2sh", "p2wsh", "multisign"]` with an error for unrecognized values.
+8. **Validate `pubkey` format** before passing to `bitcoin.address.fromBase58Check` - check string length and character set.
+9. **Validate `compressedPubKey`** - Must be exactly 66 hex characters, starting with `02` or `03`.
+10. **Validate UTXO structure** - Each entry must have `txid` (64 hex chars), `vout` (non-negative integer), `value` (positive integer), `scriptPubKey` (even-length hex string), and `confirmations` (non-negative integer).
+11. **Add a maximum data payload size** - Enforce an upper bound (e.g., 100KB) on `data` + `rawData` to prevent memory exhaustion and oversized transactions.
 12. **Validate `customOutputs.address`** against the configured network before adding to the PSBT.
 
 ### 6.3 Fee & Math Safety (Priority 1-2)
 
-13. **Use integer-only satoshi arithmetic** — Convert all BTC-denominated values to integer satoshis at the API boundary and perform all subsequent math with integers only. Avoid floating-point multiplication chains.
-14. **Cap the explicit `fee` parameter** — Apply the same `maxFeePerBytes`-derived upper bound to explicitly provided fees.
-15. **Detect negative or NaN `changeSatoshis`** — Before returning the PSBT, assert `changeSatoshis >= 0` and `Number.isFinite(changeSatoshis)`. Throw a clear error if violated.
-16. **Always pass radix 10 to `parseInt`** — `parseInt(value, 10)` on all UTXO and custom output value conversions.
+13. **Use integer-only satoshi arithmetic** - Convert all BTC-denominated values to integer satoshis at the API boundary and perform all subsequent math with integers only. Avoid floating-point multiplication chains.
+14. **Cap the explicit `fee` parameter** - Apply the same `maxFeePerBytes`-derived upper bound to explicitly provided fees.
+15. **Detect negative or NaN `changeSatoshis`** - Before returning the PSBT, assert `changeSatoshis >= 0` and `Number.isFinite(changeSatoshis)`. Throw a clear error if violated.
+16. **Always pass radix 10 to `parseInt`** - `parseInt(value, 10)` on all UTXO and custom output value conversions.
 
 ### 6.4 PSBT Construction Safety (Priority 2)
 
-17. **Cross-validate `p2shHash` and `p2shHex`** — After `p2shTx = Transaction.fromHex(p2shHex)`, assert `p2shTx.getId() === p2shHash`. Reject with a clear error if mismatched.
-18. **Bounds-check `p2shTx.outs` access** — Before accessing `p2shTx["outs"][voutPsbtIndex]`, verify the index is within bounds.
-19. **Wrap bitcoinjs-lib calls in try/catch** — Catch library exceptions and re-throw sanitized error messages that do not reveal internal file paths, stack traces, or parameter values.
+17. **Cross-validate `p2shHash` and `p2shHex`** - After `p2shTx = Transaction.fromHex(p2shHex)`, assert `p2shTx.getId() === p2shHash`. Reject with a clear error if mismatched.
+18. **Bounds-check `p2shTx.outs` access** - Before accessing `p2shTx["outs"][voutPsbtIndex]`, verify the index is within bounds.
+19. **Wrap bitcoinjs-lib calls in try/catch** - Catch library exceptions and re-throw sanitized error messages that do not reveal internal file paths, stack traces, or parameter values.
 
 ### 6.5 Error Handling (Priority 2-3)
 
 20. **Implement a global error handler** in Express that catches all unhandled exceptions and returns a generic error message to the caller. Log the full error server-side but never expose it via the API.
-21. **Sanitize all error messages** — Remove internal paths, stack traces, and parameter values from API responses. Use error codes (e.g., `INVALID_ADDRESS`, `INSUFFICIENT_FUNDS`) instead of raw library messages.
-22. **Remove wallet balance from error messages** — Replace the `changeSatoshis` leak in the fee-burn error with a generic message.
+21. **Sanitize all error messages** - Remove internal paths, stack traces, and parameter values from API responses. Use error codes (e.g., `INVALID_ADDRESS`, `INSUFFICIENT_FUNDS`) instead of raw library messages.
+22. **Remove wallet balance from error messages** - Replace the `changeSatoshis` leak in the fee-burn error with a generic message.
 
-### 6.6 Obfuscation (Priority 3 — Document)
+### 6.6 Obfuscation (Priority 3 - Document)
 
-23. **Document the security properties of obfuscation** — Clearly state in the protocol docs and code comments that AES-128-CTR with a public TXID key provides format-obfuscation only, not confidentiality. Any observer with blockchain access can deobfuscate.
+23. **Document the security properties of obfuscation** - Clearly state in the protocol docs and code comments that AES-128-CTR with a public TXID key provides format-obfuscation only, not confidentiality. Any observer with blockchain access can deobfuscate.
 24. **Consider per-transaction nonce** if confidentiality is ever a design goal. The current scheme cannot be made secure without changing the key derivation.
 
 ### 6.7 Dependency Management (Priority 2)
 
-25. **Replace `bitcoin-core`** — The `request` dependency chain is deprecated and carries 2 critical + 2 moderate CVEs. Replace with a modern JSON-RPC client using `fetch()` or `axios`.
+25. **Replace `bitcoin-core`** - The `request` dependency chain is deprecated and carries 2 critical + 2 moderate CVEs. Replace with a modern JSON-RPC client using `fetch()` or `axios`.
 26. **Replace `browserify`** with a modern bundler (`esbuild`, `webpack`, `rollup`) to eliminate the `elliptic` transitive dependency in the browser bundle.
-27. **Add `npm audit` to CI** — Run `npm audit --audit-level=high` in CI/CD pipelines to catch new vulnerabilities automatically.
+27. **Add `npm audit` to CI** - Run `npm audit --audit-level=high` in CI/CD pipelines to catch new vulnerabilities automatically.
 
 ### 6.8 Network Configuration (Priority 3)
 
 28. **Add `bech32` HRP to Dogecoin network configs** or explicitly block P2WSH encoding for Dogecoin networks with a clear error.
 29. **Differentiate Dogecoin regtest/testnet address prefixes** to prevent cross-environment confusion.
-30. **Gate chain-restricted ACTIONs by network** — If the encoder gains ACTION parsing (recommendation 11), reject BTC-only ACTIONs when `NETWORK` is Dogecoin or Litecoin.
+30. **Gate chain-restricted ACTIONs by network** - If the encoder gains ACTION parsing (recommendation 11), reject BTC-only ACTIONs when `NETWORK` is Dogecoin or Litecoin.
 
 ---
 

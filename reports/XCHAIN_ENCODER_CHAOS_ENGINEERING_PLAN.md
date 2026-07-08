@@ -4,7 +4,7 @@
 
 The `xchain-encoder` constructs PSBTs by encoding ACTION data into blockchain transactions. Failures during encoding can produce invalid transactions, silently burn funds as fees, or crash the API server. This plan defines controlled chaos experiments targeting every failure-prone path in the encoder, its RPC dependencies, and the Express API layer.
 
-The encoder has 45 throw statements, 7 catch blocks, and several unguarded paths where unexpected conditions propagate as unhandled errors. The goal is to verify that every failure mode either produces a clear, safe error or is handled gracefully — and to expose hidden paths where it does not.
+The encoder has 45 throw statements, 7 catch blocks, and several unguarded paths where unexpected conditions propagate as unhandled errors. The goal is to verify that every failure mode either produces a clear, safe error or is handled gracefully - and to expose hidden paths where it does not.
 
 ---
 
@@ -64,8 +64,8 @@ api.js (Express + JSON-RPC)
 **Fault Injection:** Mock `BlockchainConnector` methods to reject with `ECONNREFUSED` after configurable delay (0ms for instant, 30s for timeout simulation).
 
 **Affected Paths:**
-- `getFeePerKilobyte()` — line 172 of BlockchainConnector.js
-- `getTransactionHex()` — line 131 of BlockchainConnector.js
+- `getFeePerKilobyte()` - line 172 of BlockchainConnector.js
+- `getTransactionHex()` - line 131 of BlockchainConnector.js
 
 **Observation:**
 - Does the encoder return a structured JSON-RPC error (code -32603)?
@@ -106,13 +106,13 @@ api.js (Express + JSON-RPC)
 **Fault Injection:** Mock RPC to return `{ jsonrpc: "2.0", error: { code: -28, message: "Loading block index..." }, id: 1 }` (node still starting up).
 
 **Affected Paths:**
-- `getFeePerKilobyte()` — missing `result.feerate`, triggers regtest fallback path
-- `getTransactionHex()` — missing `result.hex`, throws "Error getting transaction hex"
+- `getFeePerKilobyte()` - missing `result.feerate`, triggers regtest fallback path
+- `getTransactionHex()` - missing `result.hex`, throws "Error getting transaction hex"
 
 **Observation:**
 - Does `getFeePerKilobyte()` correctly distinguish between "no feerate" and "RPC error"?
 - Does the nested `isRegtest()` call at line 184 also fail if the node is loading?
-- If both fail, which error propagates — the original or the nested one?
+- If both fail, which error propagates - the original or the nested one?
 
 **Expected Safe Outcome:**
 - On mainnet: clear error about fee estimation failure.
@@ -128,7 +128,7 @@ api.js (Express + JSON-RPC)
 **Fault Injection:** Mock `UtxoTracker.getUtxosFromAddress()` to throw `Error("ECONNREFUSED")`.
 
 **Affected Paths:**
-- `createTransaction()` line 241 — only when `utxos` parameter is null/empty
+- `createTransaction()` line 241 - only when `utxos` parameter is null/empty
 
 **Observation:**
 - Does the error propagate cleanly to the API?
@@ -182,7 +182,7 @@ api.js (Express + JSON-RPC)
 
 **Fault Injection:** Mock `getTransactionHex()` to resolve after configurable delays: 1s, 5s, 30s, 120s.
 
-**Affected Path:** Input selection loop (line 514) — called N times for N legacy UTXOs.
+**Affected Path:** Input selection loop (line 514) - called N times for N legacy UTXOs.
 
 **Observation:**
 - With 10 legacy UTXOs and 5s delay each, total request takes ~50s. Does the API client timeout?
@@ -215,7 +215,7 @@ api.js (Express + JSON-RPC)
 
 **Expected Safe Outcome:** The encoder should detect an empty array after dedup/filtering and throw a clear error like "no usable UTXOs remain after filtering". Currently this is an **unguarded crash path**.
 
-**Risk Level: HIGH** — This is a discoverable crash bug. Any user supplying only mempool UTXOs with `unconfirmed=false` triggers it.
+**Risk Level: HIGH** - This is a discoverable crash bug. Any user supplying only mempool UTXOs with `unconfirmed=false` triggers it.
 
 ---
 
@@ -223,10 +223,10 @@ api.js (Express + JSON-RPC)
 
 **Fault Injection:** Supply UTXOs with extreme values:
 1. `value: 0` (zero-value UTXO)
-2. `value: 1` (1 satoshi — below any dust threshold)
-3. `value: 2100000000000000` (21M BTC in satoshis — max supply)
+2. `value: 1` (1 satoshi - below any dust threshold)
+3. `value: 2100000000000000` (21M BTC in satoshis - max supply)
 4. `value: Number.MAX_SAFE_INTEGER` (9007199254740991)
-5. `value: "0xff"` (hex string — parseInt with radix 10 returns 0)
+5. `value: "0xff"` (hex string - parseInt with radix 10 returns 0)
 
 **Affected Paths:**
 - UTXO value parsing at line 490: `parseInt(nextUtxo.value, 10)`
@@ -243,17 +243,17 @@ api.js (Express + JSON-RPC)
 - `MAX_SAFE_INTEGER` → JavaScript loses integer precision above 2^53; arithmetic may produce incorrect change amounts.
 - `value: 0` → passes validation, input consumed but adds 0 satoshis.
 
-**Risk Level: MEDIUM** — Hex string values and precision overflow are subtle fund-loss vectors.
+**Risk Level: MEDIUM** - Hex string values and precision overflow are subtle fund-loss vectors.
 
 ---
 
 #### B-3: Obfuscation Key Edge Cases
 
 **Fault Injection:** Supply UTXOs with TXIDs that produce degenerate AES keys:
-1. `txid: "0".repeat(64)` — key = "0000000000000000", IV = "0000000000000000"
-2. `txid: "f".repeat(64)` — key = "ffffffffffffffff"
-3. `txid: "a".repeat(31) + "0"` — key shorter than 16 chars after substr (31 hex chars → 15.5 bytes)
-4. `txid: ""` — empty string
+1. `txid: "0".repeat(64)` - key = "0000000000000000", IV = "0000000000000000"
+2. `txid: "f".repeat(64)` - key = "ffffffffffffffff"
+3. `txid: "a".repeat(31) + "0"` - key shorter than 16 chars after substr (31 hex chars → 15.5 bytes)
+4. `txid: ""` - empty string
 
 **Affected Path:** `obfuscate()` at line 174-182. `key.substr(0,16)` and `key.substr(16,16)`.
 
@@ -265,9 +265,9 @@ api.js (Express + JSON-RPC)
 
 **Expected Safe Outcome:**
 - Empty/short txid should fail at cipher creation with a clear error.
-- All-zero/all-F keys should produce valid (if weak) ciphertext — this is a security concern, not a crash.
+- All-zero/all-F keys should produce valid (if weak) ciphertext - this is a security concern, not a crash.
 
-**Risk Level: LOW** (crash) / **MEDIUM** (security) — Degenerate keys are unlikely in production since TXIDs come from real transactions, but a crafted UTXO list could exploit this.
+**Risk Level: LOW** (crash) / **MEDIUM** (security) - Degenerate keys are unlikely in production since TXIDs come from real transactions, but a crafted UTXO list could exploit this.
 
 ---
 
@@ -312,11 +312,11 @@ api.js (Express + JSON-RPC)
 - Case 5 (null): Does `Buffer.from(null, 'hex')` throw?
 
 **Expected Safe Outcome:**
-- `isSegwitUTXO()` has a try/catch returning false — cases 1-3 should be safe.
+- `isSegwitUTXO()` has a try/catch returning false - cases 1-3 should be safe.
 - Case 4: Classified as segwit, added to PSBT with garbage script. PSBT is technically valid but unsignable.
-- Case 5: `Buffer.from(null, 'hex')` throws TypeError — propagates unhandled.
+- Case 5: `Buffer.from(null, 'hex')` throws TypeError - propagates unhandled.
 
-**Risk Level: HIGH** — A null scriptPubKey bypasses `isSegwitUTXO()` silently (try/catch returns false) then crashes at line 519 inside `Buffer.from(null, 'hex')` in the legacy UTXO path.
+**Risk Level: HIGH** - A null scriptPubKey bypasses `isSegwitUTXO()` silently (try/catch returns false) then crashes at line 519 inside `Buffer.from(null, 'hex')` in the legacy UTXO path.
 
 ---
 
@@ -336,7 +336,7 @@ api.js (Express + JSON-RPC)
 - Does `script.compile()` accept arbitrary binary content?
 
 **Expected Safe Outcome:**
-- The encoder embeds raw bytes — it does not parse ACTION semantics. Binary content should encode and obfuscate correctly.
+- The encoder embeds raw bytes - it does not parse ACTION semantics. Binary content should encode and obfuscate correctly.
 - The downstream decoder would need to handle NUL bytes during deobfuscation/parsing.
 
 ---
@@ -352,7 +352,7 @@ api.js (Express + JSON-RPC)
 2. Third call fails (partial PSBT with 2 inputs)
 3. Throw specific errors: `"Data for input key 0 is not a buffer"`, `"Duplicate input"`
 
-**Affected Path:** Lines 509/521 — inside the input selection while-loop.
+**Affected Path:** Lines 509/521 - inside the input selection while-loop.
 
 **Observation:**
 - If addInput fails mid-loop, does the partially-constructed PSBT leak?
@@ -363,7 +363,7 @@ api.js (Express + JSON-RPC)
 - Error propagates to API, PSBT is garbage-collected (no persistent state).
 - Error should be caught by api.js encoder catch block.
 
-**Risk Level: LOW** — bitcoinjs-lib is well-tested, but version upgrades could change error behavior.
+**Risk Level: LOW** - bitcoinjs-lib is well-tested, but version upgrades could change error behavior.
 
 ---
 
@@ -374,7 +374,7 @@ api.js (Express + JSON-RPC)
 2. P2SH address output
 3. Change address output (last output added)
 
-**Affected Path:** Lines 299/360/410/440/469/555 — multiple addOutput calls throughout createTransaction.
+**Affected Path:** Lines 299/360/410/440/469/555 - multiple addOutput calls throughout createTransaction.
 
 **Observation:**
 - A throw during OP_RETURN output addition fails the entire transaction.
@@ -389,7 +389,7 @@ api.js (Express + JSON-RPC)
 #### C-3: crypto.createCipheriv() Failure
 
 **Fault Injection:** Monkey-patch `crypto.createCipheriv` to:
-1. Throw `Error("FIPS mode enabled — AES-128-CTR not allowed")`
+1. Throw `Error("FIPS mode enabled - AES-128-CTR not allowed")`
 2. Return a cipher that throws on `.update()`
 3. Return a cipher whose `.final()` returns corrupted data
 
@@ -402,9 +402,9 @@ api.js (Express + JSON-RPC)
 
 **Expected Safe Outcome:**
 - Cases 1-2: Error propagates, no PSBT returned.
-- Case 3: PSBT produced with corrupted data — **silent data corruption**. The decoder would fail to deobfuscate, but the transaction would still be broadcast.
+- Case 3: PSBT produced with corrupted data - **silent data corruption**. The decoder would fail to deobfuscate, but the transaction would still be broadcast.
 
-**Risk Level: HIGH** — Silent data corruption in the crypto path produces transactions that are valid on-chain but decode to garbage. No integrity check exists.
+**Risk Level: HIGH** - Silent data corruption in the crypto path produces transactions that are valid on-chain but decode to garbage. No integrity check exists.
 
 ---
 
@@ -436,7 +436,7 @@ api.js (Express + JSON-RPC)
 3. A valid base58 string for the wrong network
 4. An empty string
 
-**Affected Path:** `prepareData()` line 124 — called for P2SH/P2WSH encoding.
+**Affected Path:** `prepareData()` line 124 - called for P2SH/P2WSH encoding.
 
 **Observation:**
 - Does bech32 input throw from `fromBase58Check()`?
@@ -445,9 +445,9 @@ api.js (Express + JSON-RPC)
 
 **Expected Safe Outcome:**
 - Cases 1-2-4: TypeError from bs58check, propagates cleanly.
-- Case 3: Base58Check decodes successfully but produces a hash for the wrong network. The PSBT is valid but targets the wrong chain — **silent cross-network error**.
+- Case 3: Base58Check decodes successfully but produces a hash for the wrong network. The PSBT is valid but targets the wrong chain - **silent cross-network error**.
 
-**Risk Level: MEDIUM** — Cross-network pubkey would produce a transaction that's spendable on the wrong chain.
+**Risk Level: MEDIUM** - Cross-network pubkey would produce a transaction that's spendable on the wrong chain.
 
 ---
 
@@ -472,9 +472,9 @@ api.js (Express + JSON-RPC)
 
 **Expected Safe Outcome:**
 - `Number.isFinite()` catches `NaN` and `Infinity`.
-- Negative `changeSatoshis` that is still finite: change output omitted silently. The excess goes to the miner as fee — **silent fund loss**.
+- Negative `changeSatoshis` that is still finite: change output omitted silently. The excess goes to the miner as fee - **silent fund loss**.
 
-**Risk Level: HIGH** — Negative but finite `changeSatoshis` is not checked. If fee > inputs, the transaction burns all input value as miner fee with no error.
+**Risk Level: HIGH** - Negative but finite `changeSatoshis` is not checked. If fee > inputs, the transaction burns all input value as miner fee with no error.
 
 ---
 
@@ -497,7 +497,7 @@ api.js (Express + JSON-RPC)
 - `changeSatoshis > this.dustAmount` may be false → no "provide change address" error.
 - The PSBT is returned with negative implicit fee (outputs > inputs). **This PSBT is invalid and will be rejected by the network**, but the encoder returns it without error.
 
-**Risk Level: MEDIUM** — The encoder does not validate that inputs >= outputs + fee. It relies on the network to reject the transaction, but the caller may not expect a "successful" encoding to produce an invalid PSBT.
+**Risk Level: MEDIUM** - The encoder does not validate that inputs >= outputs + fee. It relies on the network to reject the transaction, but the caller may not expect a "successful" encoding to produce an invalid PSBT.
 
 ---
 
@@ -507,8 +507,8 @@ api.js (Express + JSON-RPC)
 
 **Observation:**
 - Does the encoder maintain any instance-level mutable state between calls?
-- `this.connector`, `this.utxoTrackerConnector`, `this.network`, `this.dustAmount` — all set in constructor.
-- `createTransaction()` uses local variables — should be safe.
+- `this.connector`, `this.utxoTrackerConnector`, `this.network`, `this.dustAmount` - all set in constructor.
+- `createTransaction()` uses local variables - should be safe.
 - But: do the mock objects' shared state cause issues?
 
 **Expected Safe Outcome:**
@@ -522,7 +522,7 @@ api.js (Express + JSON-RPC)
 **Fault Injection:** Call `createTransaction()` twice with the same UTXO list. Both PSBTs spend the same inputs.
 
 **Observation:**
-- The encoder doesn't track spent UTXOs — it's the caller's responsibility.
+- The encoder doesn't track spent UTXOs - it's the caller's responsibility.
 - Does the encoder produce two valid PSBTs spending the same inputs?
 - If both are signed and broadcast, the second is a double-spend (one will be rejected).
 
@@ -558,7 +558,7 @@ api.js (Express + JSON-RPC)
 - 500 sequential HTTP requests to the coin daemon.
 - Total encoding time with even 10ms RPC latency = 5 seconds minimum.
 - Memory: 500 raw transaction buffers held simultaneously.
-- PSBT with 500 inputs — serialization time?
+- PSBT with 500 inputs - serialization time?
 
 **Expected Safe Outcome:**
 - The request completes but is very slow.
@@ -640,7 +640,7 @@ api.js (Express + JSON-RPC)
 **Expected Safe Outcome:**
 - All cases return 401 with JSON-RPC error code -32001.
 
-**Risk Identified:** The API key comparison uses `===` (strict equality), which in JavaScript is constant-time for string comparison in V8. However, the early-return pattern means rejected requests are faster than accepted ones — this could be used to confirm that an API key is required.
+**Risk Identified:** The API key comparison uses `===` (strict equality), which in JavaScript is constant-time for string comparison in V8. However, the early-return pattern means rejected requests are faster than accepted ones - this could be used to confirm that an API key is required.
 
 ---
 
@@ -660,7 +660,7 @@ api.js (Express + JSON-RPC)
 - `express-json-rpc-router` should catch the error and return a -32603 error.
 - If it doesn't, Express's default error handler returns 500.
 
-**Risk Level: MEDIUM** — If `express-json-rpc-router` doesn't catch this, the response may not be valid JSON-RPC.
+**Risk Level: MEDIUM** - If `express-json-rpc-router` doesn't catch this, the response may not be valid JSON-RPC.
 
 ---
 
@@ -704,7 +704,7 @@ Each experiment follows the **Steady State → Inject → Observe → Verify →
 
 ### Phase 1: Critical Safety (Week 1)
 
-**Priority: CRITICAL** — These experiments target paths that could cause fund loss or process crashes.
+**Priority: CRITICAL** - These experiments target paths that could cause fund loss or process crashes.
 
 | ID | Experiment | Risk | Rationale |
 |----|-----------|------|-----------|
@@ -718,7 +718,7 @@ Each experiment follows the **Steady State → Inject → Observe → Verify →
 
 ### Phase 2: Dependency Resilience (Week 2)
 
-**Priority: HIGH** — Network failures are the most likely production issue.
+**Priority: HIGH** - Network failures are the most likely production issue.
 
 | ID | Experiment | Risk | Rationale |
 |----|-----------|------|-----------|
@@ -733,7 +733,7 @@ Each experiment follows the **Steady State → Inject → Observe → Verify →
 
 ### Phase 3: Input Corruption (Week 3)
 
-**Priority: MEDIUM** — Adversarial input testing.
+**Priority: MEDIUM** - Adversarial input testing.
 
 | ID | Experiment | Risk | Rationale |
 |----|-----------|------|-----------|
@@ -747,7 +747,7 @@ Each experiment follows the **Steady State → Inject → Observe → Verify →
 
 ### Phase 4: API & Resource (Week 4)
 
-**Priority: MEDIUM** — Operational resilience.
+**Priority: MEDIUM** - Operational resilience.
 
 | ID | Experiment | Risk | Rationale |
 |----|-----------|------|-----------|
