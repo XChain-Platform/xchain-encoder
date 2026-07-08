@@ -16,7 +16,7 @@
  *
  * A caller-actionable failure the encoder can name precisely: no spendable
  * UTXOs, an under-funded selection, a missing change address, an unreachable
- * tracker. These are distinct from an unexpected internal (a bug, an upstream
+ * or stale tracker. These are distinct from an unexpected internal (a bug, an upstream
  * transport failure that embeds host:port). api.js forwards an OperationalError
  * message + its stable `xchainCode` to the caller, but collapses everything
  * else to a generic message so internals and credentials never reach a

@@ -54,6 +54,19 @@ const SATOSHI_UNIT = 100000000
 // multiples above the market rate.
 const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
 
+// Ceiling (in blocks) on how far the utxo-tracker's committed view may lag
+// the chain tip before a tracker-fetched UTXO set is refused rather than
+// risked (M-11, encoder half: the "stale-utxo trap"). A lagging tracker can
+// hand back a UTXO already spent on-chain, or omit one that only just
+// confirmed, producing a PSBT the network silently rejects. The tracker's
+// own general-purpose readiness signal (SYNCED_THRESHOLD, in
+// xchain-utxo-tracker/src/XChainUtxoTracker.js) tolerates 3 blocks of catch-up
+// lag; 2 is tighter here on purpose; spending money is a more sensitive
+// operation than an average balance/UTXO read, and the tracker is expected to
+// trail the tip by a block or two under normal polling cadence, so 2 absorbs
+// that without false-positiving on routine operation.
+const DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS = 2
+
 // How long a selected outpoint stays reserved against concurrent selection.
 // Long enough for a caller to sign and broadcast, short enough that an
 // abandoned selection auto-releases without operator intervention. In-memory
@@ -71,7 +84,7 @@ const Encoding = {
 
 
 class XChainEncoder {
-    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER) {
+    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
@@ -83,6 +96,11 @@ class XChainEncoder {
       // Relative fee-rate ceiling: caller-supplied fee/feePerKb may not exceed
       // this multiple of the node's current estimate (0/null disables).
       this.maxFeeRateMultiplier = maxFeeRateMultiplier || null
+      // See DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS above. `undefined`/`null` from an
+      // unset or unparseable env var falls through to the class default via the
+      // parameter default above (only a literal `undefined` triggers a JS default
+      // parameter, so this normalizes `null` the same way).
+      this.maxUtxoTrackerLagBlocks = (maxUtxoTrackerLagBlocks == null) ? DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS : maxUtxoTrackerLagBlocks
       // outpoint ("txid:vout") -> reservation-expiry epoch ms. Guards against
       // two concurrent create_tx calls for the same address both selecting the
       // same tracker-fetched UTXOs and emitting conflicting double-spends. Only
@@ -425,6 +443,29 @@ class XChainEncoder {
                     // address-too-large) are safe and actionable and pass through.
                     throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
                 }
+
+                // Freshness gate (M-11, encoder half). get_utxos carries an additive
+                // `sync` sibling field ({tracker_height, node_height, lag, synced}) on
+                // trackers that have picked up the ce16bdd freshness surface. Refuse to
+                // select from a view the tracker itself flags NOT synced, or whose lag
+                // exceeds our own (tighter) threshold, before any input is chosen.
+                // `sync` is absent on an older tracker: fail OPEN (old behavior) rather
+                // than block every create_tx, since this ships ahead of every tracker
+                // in the fleet being upgraded.
+                const sync = fetched && fetched.sync
+                if (sync && typeof sync === 'object'){
+                    const lag = (typeof sync.lag === 'number') ? sync.lag : null
+                    const overLag = (lag !== null) && (lag > this.maxUtxoTrackerLagBlocks)
+                    if (sync.synced === false || overLag){
+                        throw new OperationalError(
+                            'UTXO_TRACKER_STALE',
+                            `utxo-tracker view is stale (lag ${lag === null ? 'unknown' : lag} blocks` +
+                            `${overLag ? `, exceeds ${this.maxUtxoTrackerLagBlocks}-block threshold` : ''}); refusing to select utxos from it`,
+                            { lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
+                        )
+                    }
+                }
+
                 utxos = fetched["utxos"]
 
                 if ((utxos == null) || (utxos.length == 0)){
