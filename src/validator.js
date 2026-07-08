@@ -361,6 +361,13 @@ function validateAll(params) {
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
     const change = validateChange(params.change)
 
+    // MULTISIGN packs the caller's real pubkey as the 3rd fake-multisig pubkey, so it is
+    // required. Without it the encoder reaches `Buffer.from(compressedPubKey, 'hex')` with
+    // null and throws an opaque deep error; reject up front with a precise reason instead.
+    if (encoding === 'MULTISIGN' && compressedPubKey == null) {
+        throw new TypeError('compressedPubKey is required for MULTISIGN encoding')
+    }
+
     // Coerce rbf and unconfirmed to strict booleans. Passing a truthy non-boolean
     // (e.g. the string "yes" or an object) would silently flip RBF signaling or
     // unconfirmed-UTXO selection on a money protocol, so we normalize here rather

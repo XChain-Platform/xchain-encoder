@@ -90,10 +90,21 @@ class UtxoTracker {
         // the nextCursor from the previous response via an `after` param until
         // the tracker signals no more pages by returning an empty/absent cursor.
         const PAGE_LIMIT = 10000
+        // Backstop against a buggy/hostile/MITM'd tracker that never terminates pagination
+        // (always returns a non-empty nextCursor, or cycles the same cursor): without a bound
+        // the while(true) loop threads forever and allUtxos grows until the encoder OOMs on a
+        // single request. MAX_PAGES * PAGE_LIMIT (10M utxos) is far beyond any real address; a
+        // repeated cursor is treated as an immediate stall.
+        const MAX_PAGES = 1000
         const allUtxos = []
+        const seenCursors = new Set()
         let cursor = undefined
+        let pageCount = 0
         try {
             while (true) {
+                if (++pageCount > MAX_PAGES) {
+                    throw new Error(`utxo-tracker returned more than ${MAX_PAGES} pages for ${address}; aborting (buggy or hostile tracker)`)
+                }
                 const params = { address, limit: PAGE_LIMIT }
                 if (cursor !== undefined) {
                     params.after = cursor
@@ -146,6 +157,12 @@ class UtxoTracker {
                     // Continue only if the tracker signals another page.
                     const nextCursor = result.nextCursor
                     if (nextCursor) {
+                        // A repeated cursor means the tracker is cycling/stalled: abort rather
+                        // than loop forever accumulating the same pages.
+                        if (seenCursors.has(nextCursor)) {
+                            throw new Error(`utxo-tracker returned a repeated pagination cursor for ${address}; aborting (stalled or hostile tracker)`)
+                        }
+                        seenCursors.add(nextCursor)
                         cursor = nextCursor
                     } else {
                         // No more pages; return accumulated result with utxos merged.

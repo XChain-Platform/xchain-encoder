@@ -30,6 +30,21 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
+
+// Express middleware that rejects an over-cap JSON-RPC batch array before dispatch, so one
+// HTTP request cannot amplify into thousands of backend RPCs (the rate limiter counts a batch
+// as one request). Exported for unit testing.
+function makeRpcBatchGuard(maxBatch){
+    return (req, res, next) => {
+        if (Array.isArray(req.body) && req.body.length > maxBatch){
+            return res.status(400).json({
+                jsonrpc: '2.0', id: null,
+                error: { code: -32600, message: 'Batch too large (max ' + maxBatch + ' requests per call)' }
+            })
+        }
+        next()
+    }
+}
 const validator = require('./validator')
 const { upstreamErrorMessage } = require('./errorSanitize')
 const { version: ENCODER_VERSION } = require('../package.json')
@@ -283,6 +298,14 @@ app.get('/openrpc.json', (req, res) => {
     res.type('application/json').send(openrpcSpec)
 })
 
+// Bound JSON-RPC batch size. express-json-rpc-router runs Promise.all over every element
+// of a batch array, while the per-IP rate limiter counts the whole batch as ONE request, so
+// a single ~1MB array of thousands of calls fans out into thousands of concurrent handlers -
+// each estimate_fee/create_tx/get_utxos does node or tracker RPCs with no concurrency limit,
+// exhausting the shared coin-node RPC pool from one unauthenticated request. Cap the batch
+// length (default 20, ENCODER_MAX_RPC_BATCH). Must run after bodyParser and before the router.
+app.use(makeRpcBatchGuard(parseInt(process.env.ENCODER_MAX_RPC_BATCH, 10) || 20))
+
 // Allow JSON-RPC requests
 app.use(jsonRouter({methods: jsonRpcController}))
 
@@ -295,4 +318,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, jsonRpcController, encoder }
+module.exports = { app, jsonRpcController, encoder, makeRpcBatchGuard }
