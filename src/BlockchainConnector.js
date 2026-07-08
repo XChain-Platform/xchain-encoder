@@ -23,6 +23,28 @@ const axios = require('axios')
 
 const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
 
+// Sanitize an axios error before it is logged or re-thrown. RPC calls pass
+// auth:{username,password} to axios, which attaches the request config to the
+// thrown error, so logging the raw error serializes the node RPC password into
+// the encoder logs (util.inspect walks error.config.auth). Scrub the credential
+// fields in place so neither this logger nor any upstream handler leaks them, and
+// return a compact, credential-free string (error.message never carries auth).
+// Kept in sync with xchain-decoder/src/BlockchainConnector.js sanitizeRpcError.
+function sanitizeRpcError(error){
+    try {
+        if (error && error.config) {
+            error.config.auth = undefined
+            if (error.config.headers) delete error.config.headers.Authorization
+        }
+        if (error && error.request) error.request = undefined
+        if (error && error.response) {
+            const status = error.response.status
+            error.response = (status !== undefined) ? { status: status } : undefined
+        }
+    } catch (_) { /* sanitization must never mask the original failure */ }
+    return (error && error.message) ? error.message : String(error)
+}
+
 class BlockchainConnector {
     constructor(url, port, rpcUser, rpcPassword) {
         this.url = "http://"+url+":"+port
@@ -135,7 +157,7 @@ class BlockchainConnector {
             if (body && body.error?.code === -5) {
                 throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
             }
-            console.error('Error:', error);
+            console.error('Error:', sanitizeRpcError(error));
             throw error;
         }
     }
@@ -178,7 +200,7 @@ class BlockchainConnector {
             if (body && body.error) {
                 throw new Error(body.error.message || JSON.stringify(body.error));
             }
-            console.error('Error:', error);
+            console.error('Error:', sanitizeRpcError(error));
             throw error;
         }
     }
@@ -257,7 +279,7 @@ class BlockchainConnector {
             } catch (_) {
                 // isRegtest() itself failed; fall through to rethrow.
             }
-            console.error('Error:', error);
+            console.error('Error:', sanitizeRpcError(error));
             throw error;
         }
     }
