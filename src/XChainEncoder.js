@@ -528,7 +528,41 @@ class XChainEncoder {
         utxos.sort((a,b)=> b.value - a.value)
         //On the reveal path utxos is empty; txidFirstInput is (re)assigned from
         //p2shHex inside the data loop below before it is ever read.
-        let txidFirstInput = utxos.length ? utxos[0]["txid"] : null //The first utxo will always be used as the first input
+        //
+        // The OP_RETURN/MULTISIGN obfuscation key MUST bind to the txid of the input actually
+        // placed at ins[0]: the decoder derives its deobfuscation key from transaction.ins[0].
+        // The selection loop below skips outpoints a concurrent/recent create_tx reserved
+        // (tracker-fetched sets only), so sorted utxos[0] is NOT necessarily the first input.
+        // Synchronously pre-reserve the first AVAILABLE outpoint now - before the async data
+        // loop, so no concurrent call can claim it in between - and bind the key to it; the
+        // selection loop carves this outpoint out of its skip check so it is taken as ins[0].
+        // Without this, a reservation skip bound the key to utxos[0] while ins[0] was utxos[1],
+        // the decoder failed the magic-word check, and the action silently never happened (valid
+        // tx, inputs spent, fee burned).
+        let firstReservedOutpoint = null
+        let txidFirstInput = null
+        if (utxos.length){
+            if (fetchedFromTracker){
+                const nowFirst = Date.now()
+                this._evictExpiredReservations(nowFirst)
+                for (let u of utxos){
+                    const k = u.txid + ':' + u.vout
+                    if (!this._isOutpointReserved(k, nowFirst)){
+                        this._reserveOutpoint(k, nowFirst)
+                        firstReservedOutpoint = k
+                        txidFirstInput = u.txid
+                        break
+                    }
+                }
+                // Every fetched outpoint already reserved: the selection loop selects none and
+                // the build surfaces the shortfall. Fall back to utxos[0] for a deterministic key
+                // (moot - with no inputs no tx is produced).
+                if (txidFirstInput === null) txidFirstInput = utxos[0]["txid"]
+            } else {
+                // Caller-supplied UTXOs are the caller's own coin-control; ins[0] is utxos[0].
+                txidFirstInput = utxos[0]["txid"]
+            }
+        }
         
         if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
             psbt = new bitcoin.Psbt({ network: this.network })
@@ -847,11 +881,15 @@ class XChainEncoder {
                 // are the caller's own coin-control and are left unreserved.
                 const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
                 if (fetchedFromTracker){
-                    if (this._isOutpointReserved(outpointKey, now)){
+                    // Skip outpoints reserved by OTHER in-flight calls, but NOT the one this
+                    // call pre-reserved for ins[0] above (the obfuscation key binds to it).
+                    if (outpointKey !== firstReservedOutpoint && this._isOutpointReserved(outpointKey, now)){
                         nextUtxoIndex = nextUtxoIndex + 1
                         continue
                     }
-                    this._reserveOutpoint(outpointKey, now)
+                    if (outpointKey !== firstReservedOutpoint){
+                        this._reserveOutpoint(outpointKey, now)
+                    }
                 }
 
                 nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`)
