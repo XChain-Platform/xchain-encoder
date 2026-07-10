@@ -103,12 +103,25 @@ describe('XChainEncoder fee-rate cap', () => {
 
   it('clamps an over-cap feePerKb to the relative cap instead of draining inputs', async () => {
     const encoder = makeEncoder()
-    // 0.01 coin/kB = 1000 sat/byte = 1000× the node estimate
-    const result = await create(encoder, { feePerKb: 0.01 })
+    // feePerKb is sat/kB: 1000000 sat/kB = 1000 sat/byte = 1000× the node estimate
+    const result = await create(encoder, { feePerKb: 1000000 })
     // At the clamped 100 sat/byte a ~131-byte tx pays ~13100 sats; unclamped it
     // would pay ~131000.
     assert.ok(paidFee(result) <= 20000,
       `fee ${paidFee(result)} should have been clamped to ~100 sat/byte`)
+  })
+
+  it('converts a caller sat/kB rate to the same units as the cap and fee formula', async () => {
+    const encoder = makeEncoder()
+    // 10000 sat/kB = 10 sat/byte: a realistic priority rate, well under the
+    // 100 sat/byte cap, so the clamp must NOT fire and the paid fee must be on
+    // the order of estimatedTxSize × 10 sats. Before the unit fix, feePerKb
+    // was converted with /1000 only (1e8× too large): this rate was silently
+    // clamped to the cap and the caller's fee control was inert.
+    const result = await create(encoder, { feePerKb: 10000 })
+    // ~131-byte tx at 10 sat/byte ≈ 1310 sats (dust floor 546 is below that).
+    assert.ok(paidFee(result) >= 1000 && paidFee(result) <= 3000,
+      `fee ${paidFee(result)} should be ~10 sat/byte (~1310 sats), not clamped or 1e8x inflated`)
   })
 
   it('clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable', async () => {
@@ -120,9 +133,9 @@ describe('XChainEncoder fee-rate cap', () => {
       getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
       getNetworkInfo: async () => ({ relayfee: 0.00001 }) // 1 sat/byte floor
     }
-    // 0.01 coin/kB = 1000 sat/byte = 1000× the relay floor; the default 100×
+    // 1000000 sat/kB = 1000 sat/byte = 1000× the relay floor; the default 100×
     // multiplier caps it at 100 sat/byte (~13100 for a ~131-byte tx).
-    const result = await create(encoder, { feePerKb: 0.01 })
+    const result = await create(encoder, { feePerKb: 1000000 })
     assert.ok(paidFee(result) <= 20000,
       `fee ${paidFee(result)} should have been clamped via the relayfee anchor, not honored`)
   })
@@ -136,14 +149,14 @@ describe('XChainEncoder fee-rate cap', () => {
       getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
       getNetworkInfo: async () => { throw new Error('getnetworkinfo unavailable') }
     }
-    const result = await create(encoder, { feePerKb: 0.01 })
+    const result = await create(encoder, { feePerKb: 1000000 })
     assert.ok(paidFee(result) >= 100000,
       `fee ${paidFee(result)} should reflect the unclamped 1000 sat/byte rate`)
   })
 
   it('applies the absolute MAX_FEE_RATE_KB cap when it is tighter than the relative cap', async () => {
     const encoder = makeEncoder(50000) // 50000 sat/kB = 50 sat/byte < 100× estimate
-    const result = await create(encoder, { feePerKb: 0.01 })
+    const result = await create(encoder, { feePerKb: 1000000 })
     assert.ok(paidFee(result) <= 10000,
       `fee ${paidFee(result)} should have been clamped to ~50 sat/byte`)
   })
@@ -154,8 +167,34 @@ describe('XChainEncoder fee-rate cap', () => {
       getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') }
     }
     await assert.rejects(
-      create(encoder, { fee: INPUT_VALUE, feePerKb: 0.01 }),
+      create(encoder, { fee: INPUT_VALUE, feePerKb: 1000000 }),
       (err) => err instanceof RangeError && /fee-rate cap/.test(err.message)
+    )
+  })
+
+  it('burn backstop ceiling is anchored to the node rate, not a caller-inflated feePerKb (cap disabled)', async () => {
+    // MAX_FEE_RATE_MULTIPLIER=0 disables the relative cap and no absolute
+    // MAX_FEE_RATE_KB is set. Before the fix, the 100x burn backstop derived
+    // its own ceiling from the caller-supplied feePerKb, so inflating feePerKb
+    // lifted the ceiling in lockstep and a drain-shaped absolute fee sailed
+    // through. The backstop must anchor on the node's rate (1 sat/byte here:
+    // fair fee ~131, ceiling ~13100) and still reject the drain.
+    const encoder = makeEncoder(null, 0)
+    await assert.rejects(
+      create(encoder, { fee: INPUT_VALUE, feePerKb: 100000000000 }),
+      (err) => err instanceof RangeError && /100x the estimated fair fee/.test(err.message)
+    )
+  })
+
+  it('burn backstop anchors on the relayfee when the smart-fee estimate is unavailable (cap disabled)', async () => {
+    const encoder = makeEncoder(null, 0)
+    encoder.connector = {
+      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
+      getNetworkInfo: async () => ({ relayfee: 0.00001 }) // 1 sat/byte floor
+    }
+    await assert.rejects(
+      create(encoder, { fee: INPUT_VALUE, feePerKb: 100000000000 }),
+      (err) => err instanceof RangeError && /100x the estimated fair fee/.test(err.message)
     )
   })
 

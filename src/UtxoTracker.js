@@ -150,6 +150,15 @@ class UtxoTracker {
                         }
                         if (u.confirmations == null) {
                             u.confirmations = 0
+                        } else {
+                            // Mirror validateUtxoEntry: the encoder's unconfirmed
+                            // filter compares `confirmations == 0` loosely, so
+                            // coerce and range-check tracker-supplied values too.
+                            const confirmations = Number(u.confirmations)
+                            if (!Number.isInteger(confirmations) || confirmations < 0) {
+                                throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: confirmations must be a non-negative integer`)
+                            }
+                            u.confirmations = confirmations
                         }
                         allUtxos.push(u)
                     }

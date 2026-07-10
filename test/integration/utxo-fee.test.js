@@ -274,7 +274,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       const result = await capped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0 // very high: 1 BTC/kB
+        null, null, null, true, 100000000 // very high: 1e8 sat/kB = 100000 sat/byte
       )
 
       // Create uncapped encoder for comparison
@@ -282,7 +282,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       const resultUncapped = await uncapped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0 // same high fee
+        null, null, null, true, 100000000 // same high fee
       )
 
       // Capped encoder should produce lower fee (more change)

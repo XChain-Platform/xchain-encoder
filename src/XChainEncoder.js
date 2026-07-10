@@ -182,9 +182,13 @@ class XChainEncoder {
                 // and burns the fee UTXOs. The auto-selection path avoids this by falling
                 // back to P2SH; the explicit-encoding path must reject loudly here instead.
                 //
-                // singleOpReturnPolicy (from CryptoNetworks): true = enforce the
-                // single-output 80-byte ceiling (all networks).
-                if (this.network.singleOpReturnPolicy && data.length > chunksSize) {
+                // singleOpReturnPolicy (from CryptoNetworks): anything other than
+                // an explicit `false` enforces the single-output 80-byte ceiling.
+                // Fail-closed on purpose (mirrors the `supportsSegwit === false`
+                // convention below), so a network config that omits the flag still
+                // enforces rather than silently splitting into multi-OP_RETURN
+                // outputs that never relay. All shipped coins set it true.
+                if (this.network.singleOpReturnPolicy !== false && data.length > chunksSize) {
                     throw new RangeError(
                         `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
                         `got ${data.length}. Use P2SH for larger payloads.`
@@ -201,31 +205,30 @@ class XChainEncoder {
                 return {"dataBufferArray":dataBufferArray, "encoding": encoding}
             case Encoding.P2SH:
             case Encoding.P2WSH:
-                /* REDEEM SCRIPT
-                data_chunk (max 476 bytes, i.e. 520 - 44 overhead)
+                /* REDEEM SCRIPT (exactly as compiled below)
+                <data_chunk>       // the on-wire data push (max chunksSize bytes)
                 +
-                OP_DROP //1 byte
+                OP_DROP            // 1 byte  - drops the data so it never gates the spend
                 +
-                OP_DUP //1 byte
+                OP_DUP             // 1 byte
                 +
-                OP_HASH160 //1 byte
+                OP_HASH160         // 1 byte
                 +
-                publicKey //33 bytes compressed
+                <hash160>          // 20-byte HASH160 of the caller address
+                                   //   (bitcoin.address.fromBase58Check(pubKey).hash),
+                                   //   NOT a 33-byte compressed pubkey
                 +
-                OP_EQUALVERIFY //1 byte
+                OP_EQUALVERIFY     // 1 byte
                 +
-                OP_CHECKSIG //1 byte
-                +
-                n //1 byte
-                +
-                OP_DEPTH // 1byte
-                +
-                0 // 1 byte
-                +
-                OP_EQUAL // 1 byte
+                OP_CHECKSIG        // 1 byte
+                //
+                // The trailing five ops form an ordinary P2PKH gate; the data rides
+                // in the leading push and is discarded at spend time by OP_DROP.
+                // There is no n / OP_DEPTH / 0 / OP_EQUAL tail (that older sketch
+                // never matched the compiled script).
                 */
-                
-                chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 //There will be many P2SH outputs, later the inputs spending this outputs will have the data inside the script
+
+                chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
                 
                 let pubkeyFromBase58 = bitcoin.address.fromBase58Check(pubKey).hash
                 
@@ -322,17 +325,32 @@ class XChainEncoder {
         let feePerBytes = null
         let nodeFeePerBytes = null
         if (feePerKb){
-            feePerBytes = feePerKb/1000
-            if (this.maxFeeRateMultiplier){
-                try {
-                    nodeFeePerBytes = await this.connector.getFeePerKilobyte(1)/1000
-                } catch (err) {
-                    // The node cannot produce an estimate (e.g. a quiet testnet,
-                    // exactly the case where callers must pass feePerKb to begin
-                    // with). The relative cap has no anchor; fall back to the
-                    // absolute MAX_FEE_RATE_KB cap below, if configured.
-                    console.warn('Relative fee cap skipped: node fee estimate unavailable:', err.message)
-                }
+            // feePerKb is the caller's rate in BASE UNITS (sat/litoshi/koinu)
+            // per kB: docs/openrpc.json documents it as "base units per kB" and
+            // the SDK's getFeeTiers() guidance is base-unit/vByte x 1000, the
+            // same unit MAX_FEE_RATE_KB uses. Convert to the internal BTC/byte
+            // that the node path (BTC/kB / 1000), the constructor cap
+            // (maxFeeRateKb / 1000 / SATOSHI_UNIT), and the fee formula
+            // (estimatedTxSize * feePerBytes * SATOSHI_UNIT) all share. The old
+            // /1000-only conversion left this path 1e8x too large: with the
+            // rate cap enabled every caller rate was silently clamped (fee
+            // control inert), and with it disabled a documented sat/kB rate
+            // produced a ~1e8x-inflated fee.
+            feePerBytes = feePerKb/1000/SATOSHI_UNIT
+            // Fetch the node's own estimate regardless of the multiplier
+            // setting: it anchors the relative cap below AND the absolute burn
+            // backstop, which must never derive its ceiling from the caller's
+            // own rate (that would let an inflated feePerKb lift the ceiling
+            // with it).
+            try {
+                nodeFeePerBytes = await this.connector.getFeePerKilobyte(1)/1000
+            } catch (err) {
+                // The node cannot produce an estimate (e.g. a quiet testnet,
+                // exactly the case where callers must pass feePerKb to begin
+                // with). The relative cap has no anchor; fall back to the
+                // relayfee anchor below and the absolute MAX_FEE_RATE_KB cap,
+                // if configured.
+                console.warn('Relative fee cap skipped: node fee estimate unavailable:', err.message)
             }
         } else {
             feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
@@ -350,7 +368,10 @@ class XChainEncoder {
         // anchor, matching the regtest path in getFeePerKilobyte. This anchors
         // ONLY the ceiling, never the fee actually charged; a legitimate rate on
         // an empty mempool sits well under relayfee x multiplier anyway.
-        if (this.maxFeeRateMultiplier && nodeFeePerBytes == null){
+        // Deliberately NOT gated on maxFeeRateMultiplier: the absolute burn
+        // backstop further down needs a caller-independent reference rate even
+        // when the operator disables the relative cap (multiplier 0).
+        if (nodeFeePerBytes == null){
             try {
                 const info = await this.connector.getNetworkInfo();
                 const relayfee = Number(info && info.relayfee);
@@ -595,6 +616,11 @@ class XChainEncoder {
         let voutPsbtIndex = 0
         let obfuscatedData
 
+        // Reconstructed phase-1 funding tx on the reveal path, shared by the P2SH
+        // and P2WSH branches below (both spend its outputs by index). Hoisted to the
+        // loop's enclosing scope so the input-index bounds guard can reuse it.
+        let p2shTx = null
+
         let estimatedTxSize = 0
 
         for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
@@ -618,10 +644,10 @@ class XChainEncoder {
                     break
                 case Encoding.P2SH:
                     if (p2shHex){
-                        let p2shTx = bitcoin.Transaction.fromHex(p2shHex)
+                        p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
                     }
-                    
+
                     if (p2shHash){
                         if (!psbt){
                             let opReturnData = await this.obfuscate(
@@ -644,6 +670,9 @@ class XChainEncoder {
                                 + TxSizeEstimator.estimateOpReturnOutput(opReturnData)
                         }
                         
+                        if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
+                            throw new RangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
+                        }
                         let nextInput = {
                             sequence: utxoSequence,
                             hash:p2shHash,
@@ -651,7 +680,7 @@ class XChainEncoder {
                             index: voutPsbtIndex,
                             nonWitnessUtxo:Buffer.from(p2shHex, 'hex')
                         }
-                        
+
                         psbt.addInput(nextInput)
                         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
                         
@@ -683,7 +712,7 @@ class XChainEncoder {
                     
                     break
                 case Encoding.P2WSH:
-                    let p2shTx = null
+                    p2shTx = null
                     if (p2shHex){
                         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
@@ -757,7 +786,12 @@ class XChainEncoder {
                         let chunkCount = preparedData["dataBufferArray"].length
                         let predictedRevealStripped = 30 + (41 * chunkCount)
                         if (strippedFloor && predictedRevealStripped < strippedFloor){
-                            spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + finalDust
+                            // Fund the reveal's stripped-size floor-padding output with
+                            // this.dustAmount, the SAME constant the reveal side spends
+                            // (see addRevealSizeFloorPadding below). Using finalDust here
+                            // could over/under-fund the pad when a caller passes a custom
+                            // dust, leaving the two halves of the flow inconsistent.
+                            spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + this.dustAmount
                         }
 
                         // Over-fund the first funding output by the reveal-side
@@ -825,7 +859,7 @@ class XChainEncoder {
                     outputSatoshis += multisigOutputValue
 
                     estimatedTxSize = estimatedTxSize
-                        + TxSizeEstimator.estimateMultisignOutput(obfuscatedData)
+                        + TxSizeEstimator.estimateMultisignOutput()
                         
                     break   
             }
@@ -856,11 +890,13 @@ class XChainEncoder {
 
         let estimatedFee = 0
         if (fee != null && fee !== false) {
-            const numFee = parseInt(fee, 10)
-            if (isNaN(numFee) || numFee < 0) {
-                throw new RangeError(`fee must be a non-negative integer, got: ${fee}`)
-            }
-            estimatedFee = numFee
+            // Re-parse with the same exact-integer arbiter the validator uses
+            // (toExactInt-based), not parseInt: parseInt silently truncates a
+            // fractional value ("100.5" -> 100) for direct library callers that
+            // bypass validateFee. parseSatoshiAmount throws RangeError
+            // ("fee must be a non-negative integer") on any non-exact or negative
+            // value, preserving the previous error contract.
+            estimatedFee = parseSatoshiAmount(fee, 'fee')
         }
         
         let selectedInputCount = 0
@@ -976,11 +1012,22 @@ class XChainEncoder {
         // the node-derived fair fee for this size is almost certainly an error that
         // would drain every selected input to the miner, so refuse it. 100x matches
         // the default MAX_FEE_RATE_MULTIPLIER, so default deployments are unaffected.
-        if (fee != null && fee !== false && feePerBytes != null){
-            const fairFee = Math.ceil(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
-            const hardCeiling = Math.max(this.dustAmount, fairFee * 100)
-            if (estimatedFee > hardCeiling){
-                throw new RangeError(`fee ${estimatedFee} exceeds 100x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
+        //
+        // The fair-fee reference is the NODE's rate (nodeFeePerBytes), never the
+        // caller-supplied feePerKb: deriving the ceiling from feePerBytes let a
+        // caller inflate feePerKb to lift the ceiling with it, bypassing the
+        // backstop entirely whenever the rate cap was disabled. feePerBytes is
+        // used only as a last resort when the node can produce neither an
+        // estimate nor a relayfee (same graceful degradation as the relative
+        // cap, and the caller cannot cause that condition).
+        if (fee != null && fee !== false){
+            const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
+            if (referenceFeePerBytes != null){
+                const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
+                const hardCeiling = Math.max(this.dustAmount, fairFee * 100)
+                if (estimatedFee > hardCeiling){
+                    throw new RangeError(`fee ${estimatedFee} exceeds 100x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
+                }
             }
         }
 

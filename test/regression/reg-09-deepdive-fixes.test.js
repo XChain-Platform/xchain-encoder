@@ -288,4 +288,26 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       assert.strictEqual(caught.data, undefined, 'internal errors carry no data payload')
     })
   })
+
+  describe('FIX K: get_utxos validates the address param before the tracker call', () => {
+    const { jsonRpcController } = require('../../src/api')
+
+    it('rejects an object-valued address with code -32602', async () => {
+      let caught
+      try {
+        await jsonRpcController.get_utxos({ address: { evil: true } })
+      } catch (e) { caught = e }
+      assert.ok(caught, 'get_utxos should reject a non-string address')
+      assert.strictEqual(caught.code, -32602)
+    })
+
+    it('rejects an over-length (>100 char) address with code -32602', async () => {
+      let caught
+      try {
+        await jsonRpcController.get_utxos({ address: 'x'.repeat(101) })
+      } catch (e) { caught = e }
+      assert.ok(caught, 'get_utxos should reject an over-length address')
+      assert.strictEqual(caught.code, -32602)
+    })
+  })
 })

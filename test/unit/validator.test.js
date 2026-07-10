@@ -78,6 +78,12 @@ describe('Encoder input validator', function () {
             const rawData = 'y'.repeat(4095);
             assert.throws(() => v.validateCombinedDataLength(data, rawData), RangeError);
         });
+        it('measures rawData-only payloads (data defaults to an OP_0 push)', function () {
+            // createTransaction compiles [emptyBuffer, rawDataBuffer]: OP_0 (1 byte)
+            // + rawLen + 3 (OP_PUSHDATA2). 8188 -> 8192 == ceiling; 8189 -> 8193.
+            assert.doesNotThrow(() => v.validateCombinedDataLength(null, 'y'.repeat(8188)));
+            assert.throws(() => v.validateCombinedDataLength(null, 'y'.repeat(8189)), RangeError);
+        });
     });
 
     describe('validateEncoding', function () {
@@ -110,6 +116,13 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateFeePerKb(Infinity), TypeError);
             assert.throws(() => v.validateFeePerKb(0), RangeError);
             assert.throws(() => v.validateFeePerKb(-3), RangeError);
+        });
+        it('rejects hex, scientific, boolean, array, and object forms Number() would coerce', function () {
+            assert.throws(() => v.validateFeePerKb('0x20'), TypeError);   // hex string -> 32
+            assert.throws(() => v.validateFeePerKb('1e3'), TypeError);    // scientific -> 1000
+            assert.throws(() => v.validateFeePerKb(true), TypeError);     // boolean -> 1
+            assert.throws(() => v.validateFeePerKb([50]), TypeError);     // array -> 50
+            assert.throws(() => v.validateFeePerKb({}), TypeError);       // object -> NaN
         });
     });
 
@@ -153,6 +166,15 @@ describe('Encoder input validator', function () {
         it('preserves an explicit confirmations value', function () {
             const out = v.validateUtxoArray([{ ...goodUtxo(), confirmations: 6 }]);
             assert.strictEqual(out[0].confirmations, 6);
+        });
+
+        it('coerces numeric-string confirmations and rejects untyped values', function () {
+            const out = v.validateUtxoArray([{ ...goodUtxo(), confirmations: '3' }]);
+            assert.strictEqual(out[0].confirmations, 3);
+            assert.throws(() => v.validateUtxoEntry({ ...goodUtxo(), confirmations: -1 }, 0), /confirmations must be a non-negative integer/);
+            assert.throws(() => v.validateUtxoEntry({ ...goodUtxo(), confirmations: 1.5 }, 0), /confirmations must be a non-negative integer/);
+            assert.throws(() => v.validateUtxoEntry({ ...goodUtxo(), confirmations: 'abc' }, 0), /confirmations must be a non-negative integer/);
+            assert.throws(() => v.validateUtxoEntry({ ...goodUtxo(), confirmations: {} }, 0), /confirmations must be a non-negative integer/);
         });
     });
 
@@ -233,6 +255,19 @@ describe('Encoder input validator', function () {
         });
     });
 
+    describe('validateAddress', function () {
+        it('accepts a valid string (incl. exactly 100 chars); rejects empty, non-string, and over-length', function () {
+            assert.strictEqual(v.validateAddress('addr'), 'addr');
+            assert.strictEqual(v.validateAddress('x'.repeat(100)), 'x'.repeat(100));
+            assert.throws(() => v.validateAddress(''), /non-empty string/);
+            assert.throws(() => v.validateAddress({}), /non-empty string/);
+            assert.throws(() => v.validateAddress([]), /non-empty string/);
+            assert.throws(() => v.validateAddress(123), /non-empty string/);
+            assert.throws(() => v.validateAddress(null), /non-empty string/);
+            assert.throws(() => v.validateAddress('x'.repeat(101)), /maximum length/);
+        });
+    });
+
     describe('validateAll', function () {
         it('throws when params is not an object', function () {
             assert.throws(() => v.validateAll(null), /must be an object/);
@@ -267,7 +302,7 @@ describe('Encoder input validator', function () {
         });
 
         it('exercises validateFeeQuote validation paths through validateAll', function () {
-            const base = { data: 'd' };
+            const base = { data: 'd', pubkey: '02ab' };
             assert.throws(() => v.validateAll({ ...base, feeQuote: 'no' }), /feeQuote must be an object/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: '', amount: 1 } }), /address must be a non-empty/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: 'x'.repeat(101), amount: 1 } }), /maximum length/);
@@ -276,10 +311,20 @@ describe('Encoder input validator', function () {
             assert.strictEqual(v.validateAll({ ...base, feeQuote: null }).feeQuote, null);
         });
 
-        it('skips combined-length check when data is null but rawData present', function () {
-            const result = v.validateAll({ data: null, rawData: 'x'.repeat(100) });
+        it('runs the combined-length pre-check on rawData-only requests', function () {
+            const result = v.validateAll({ data: null, rawData: 'x'.repeat(100), pubkey: '02ab' });
             assert.strictEqual(result.data, null);
             assert.strictEqual(result.rawData, 'x'.repeat(100));
+            // Oversize rawData-only is rejected here (invalid params), not left
+            // to createTransaction's compiled-size ceiling (internal error).
+            assert.throws(() => v.validateAll({ data: null, rawData: 'x'.repeat(8189), pubkey: '02ab' }), RangeError);
+        });
+
+        it('rejects an absent or null pubkey (openrpc marks it required)', function () {
+            // pubkey omitted / null must fail up front (RangeError -> -32602) rather
+            // than reaching fromBase58Check(null) deep in createTransaction.
+            assert.throws(() => v.validateAll({ data: 'd' }), /pubkey is required/);
+            assert.throws(() => v.validateAll({ data: 'd', pubkey: null }), /pubkey is required/);
         });
     });
 });

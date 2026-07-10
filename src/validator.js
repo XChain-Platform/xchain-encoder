@@ -20,19 +20,25 @@
  *
  ********************************************************************/
 
-// Largest raw single-push payload that still fits the compiled on-chain ceiling:
-// a raw payload of N bytes (N >= 256) compiles to N + 3 once the OP_PUSHDATA2
-// prefix is added, so 8189 + 3 == 8192. Retained as the documented single-push
-// limit; validateCombinedDataLength now derives the actual ceiling per push via
-// compiledPushSize so that dual-push payloads are measured against the compiled
-// ceiling directly rather than this single-push approximation.
-const MAX_DATA_BYTES = 8189
 // Maximum *compiled* on-chain ACTION push, in bytes. Must equal the decoder's
 // MAX_ACTION_DATA_LENGTH: a transaction whose compiled push exceeds this is
 // silently dropped by every indexing node. Canonical source of truth:
 // xchain-documentation/protocol/constants.js (MAX_ACTION_DATA_LENGTH). The
 // cross-service regression suite asserts these stay equal.
 const MAX_COMPILED_ACTION_DATA_LENGTH = 8192
+// Length prefix a single OP_PUSHDATA2 push prepends to a >=256-byte payload
+// (1 opcode + 2 length bytes). The widest single raw push is measured against
+// the compiled ceiling with this prefix included.
+const OP_PUSHDATA2_OVERHEAD = 3
+// Largest raw single-push payload that still fits the compiled on-chain ceiling:
+// a raw payload of N bytes (N >= 256) compiles to N + 3 once the OP_PUSHDATA2
+// prefix is added, so 8189 + 3 == 8192. Derived from the compiled ceiling so the
+// relationship is explicit (value is still 8189). Retained as the documented
+// single-push reference; validateCombinedDataLength derives the actual per-push
+// ceiling via compiledPushSize so that dual-push payloads are measured against
+// the compiled ceiling directly rather than this single-push approximation.
+// Kept and exported because the test suite pins its value.
+const MAX_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - OP_PUSHDATA2_OVERHEAD
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
@@ -117,8 +123,13 @@ function compiledPushSize(byteLength) {
 }
 
 function validateCombinedDataLength(data, rawData) {
-    if (data == null) return
-    const dataBytes = Buffer.byteLength(data, 'utf8')
+    if (data == null && rawData == null) return
+    // createTransaction defaults a missing `data` to '' and still compiles it
+    // as a push (OP_0, 1 byte), so a rawData-only request must be measured
+    // here too; skipping it only shifted the rejection to the compiled-size
+    // ceiling in createTransaction with a -32603 internal error instead of
+    // this pre-check's -32602 invalid-params classification.
+    const dataBytes = data != null ? Buffer.byteLength(data, 'utf8') : 0
     // Match XChainEncoder.js: rawData is bytes-as-string (Latin-1), so the
     // on-chain byte count is the string length, not the UTF-8 encoding length.
     const rawBytes = rawData != null ? Buffer.byteLength(rawData, 'binary') : 0
@@ -158,7 +169,26 @@ function validateFee(fee) {
 
 function validateFeePerKb(feePerKb) {
     if (feePerKb == null || feePerKb === false) return null
-    const num = Number(feePerKb)
+    // Reject types a bare Number() would silently coerce to a plausible rate:
+    // boolean (true -> 1), array ([50] -> 50), object (-> NaN but still a wrong
+    // type on a money field). Only a real number or a numeric string is valid.
+    if (typeof feePerKb !== 'number' && typeof feePerKb !== 'string') {
+        throw new TypeError('feePerKb must be a finite number')
+    }
+    let num
+    if (typeof feePerKb === 'number') {
+        num = feePerKb
+    } else {
+        // String path: allow only a plain decimal (optionally fractional). This
+        // rejects hex ('0x20' -> 32), scientific ('1e3' -> 1000), Infinity/NaN
+        // spellings, and any trailing garbage that Number() would otherwise
+        // accept, while still permitting a legitimately fractional feePerKb.
+        const s = feePerKb.trim()
+        if (!/^-?\d+(\.\d+)?$/.test(s)) {
+            throw new TypeError('feePerKb must be a finite number')
+        }
+        num = Number(s)
+    }
     if (isNaN(num) || !isFinite(num)) {
         throw new TypeError('feePerKb must be a finite number')
     }
@@ -212,6 +242,17 @@ function validateUtxoEntry(entry, index) {
     }
     if (entry.confirmations == null) {
         entry.confirmations = 0
+    } else {
+        // Validate like vout: the unconfirmed-UTXO filter in XChainEncoder
+        // compares `confirmations == 0` with loose equality, so an untyped
+        // value (string, float, object) could let a mempool input slip past
+        // the exclusion when unconfirmed=false. Coerce to a real number and
+        // range-check so the downstream comparison always sees an integer.
+        const confirmations = Number(entry.confirmations)
+        if (!Number.isInteger(confirmations) || confirmations < 0) {
+            throw new TypeError(`utxos[${index}].confirmations must be a non-negative integer`)
+        }
+        entry.confirmations = confirmations
     }
     return entry
 }
@@ -327,15 +368,23 @@ function validateCompressedPubKey(compressedPubKey) {
     return compressedPubKey
 }
 
+// Shape-only address check (non-empty string, capped at 100 chars). Used for the
+// get_utxos address param and as the shared core of validateChange. Coin-specific
+// base58/bech32 validity is left to bitcoinjs downstream; this just sheds obvious
+// garbage (non-strings, empty, oversized) with a -32602-mappable TypeError.
+function validateAddress(address) {
+    if (typeof address !== 'string' || address.length === 0) {
+        throw new TypeError('address must be a non-empty string')
+    }
+    if (address.length > 100) {
+        throw new TypeError('address exceeds maximum length (100)')
+    }
+    return address
+}
+
 function validateChange(change) {
     if (change == null) return null
-    if (typeof change !== 'string' || change.length === 0) {
-        throw new TypeError('change must be a non-empty string')
-    }
-    if (change.length > 100) {
-        throw new TypeError('change address exceeds maximum length (100)')
-    }
-    return change
+    return validateAddress(change)
 }
 
 function validateAll(params) {
@@ -345,7 +394,7 @@ function validateAll(params) {
 
     const data = validateDataParam(params.data, 'data')
     const rawData = validateDataParam(params.rawData, 'rawData')
-    if (data != null) {
+    if (data != null || rawData != null) {
         validateCombinedDataLength(data, rawData)
     }
 
@@ -368,6 +417,15 @@ function validateAll(params) {
         throw new TypeError('compressedPubKey is required for MULTISIGN encoding')
     }
 
+    // docs/openrpc.json marks pubkey required:true. validateAll never enforced
+    // presence, so an omitted/null pubkey reached bitcoin.address.fromBase58Check(null)
+    // deep in createTransaction and leaked a library "Expected String" as a -32603
+    // internal error. Reject up front (RangeError, so api.js maps it to -32602
+    // invalid-params) mirroring the MULTISIGN/compressedPubKey presence check above.
+    if (pubkey == null) {
+        throw new RangeError('pubkey is required')
+    }
+
     // Coerce rbf and unconfirmed to strict booleans. Passing a truthy non-boolean
     // (e.g. the string "yes" or an object) would silently flip RBF signaling or
     // unconfirmed-UTXO selection on a money protocol, so we normalize here rather
@@ -386,6 +444,9 @@ module.exports = {
     validatePubkey,
     validateDataParam,
     validateCombinedDataLength,
+    // Exported for the decoder's compiledPushSizeConformance test, which pins
+    // this formula against the decoder's identical arbiter-side helper.
+    compiledPushSize,
     validateEncoding,
     validateFee,
     validateFeePerKb,
@@ -397,6 +458,7 @@ module.exports = {
     validateRawTxHex,
     validateCompressedPubKey,
     validateChange,
+    validateAddress,
     validateAll,
     parseSatoshiAmount,
     MAX_RAW_TX_HEX_LENGTH,

@@ -94,14 +94,17 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const utxo2 = makeSegwitUtxo(TXID_B, 0, 100000)
       const utxo3 = makeSegwitUtxo(TXID_C, 0, 100000)
 
-      // feePerKb raised so the non-bypassable absolute burn backstop (100x the
-      // fair fee for this size, independent of maxFeeRateMultiplier) accommodates
-      // the deliberately-large explicit fee that this test uses to force
-      // multi-UTXO selection. The explicit fee (150000) is still what gets used.
+      // The burn backstop is 100x the NODE's fair fee, independent of both
+      // maxFeeRateMultiplier and any caller feePerKb (a caller-inflated rate
+      // must never lift it). Raise the node's own estimate so the backstop
+      // accommodates the deliberately-large explicit fee that this test uses
+      // to force multi-UTXO selection. The explicit fee (150000) is still what
+      // gets used.
+      encoder.connector.getFeePerKilobyte = async () => 0.01 // 1000 sat/byte
       const result = await encoder.createTransaction(
         [utxo1, utxo2, utxo3], address, null,
         action.data, null, 150000, false, null, address,
-        null, null, null, true, 0.0001
+        null, null, null, true, null
       )
 
       assert.ok(result.psbt.txInputs.length >= 2, 'should use multiple UTXOs')
@@ -184,13 +187,16 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
-      // feePerKb raised so the non-bypassable absolute burn backstop (100x the
-      // fair fee, independent of maxFeeRateMultiplier) allows the deliberately-large
-      // explicit fee this test uses to verify the fee is applied verbatim.
+      // The burn backstop is 100x the NODE's fair fee, independent of both
+      // maxFeeRateMultiplier and any caller feePerKb (a caller-inflated rate
+      // must never lift it). Raise the node's own estimate so the backstop
+      // accommodates the deliberately-large explicit fee this test uses to
+      // verify the fee is applied verbatim.
+      encoder.connector.getFeePerKilobyte = async () => 0.01 // 1000 sat/byte
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 50000, false, null, address,
-        null, null, null, true, 0.0001
+        null, null, null, true, null
       )
 
       // Change = input - outputs - fee. With explicit fee=50000:
@@ -251,7 +257,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const resultUncapped = await uncapped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0 // 1 BTC/kB (very high)
+        null, null, null, true, 100000000 // 1e8 sat/kB = 100000 sat/byte (very high)
       )
 
       // Capped encoder (maxFeeRateKb = 1000 sat/kB)
@@ -267,7 +273,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const resultCapped = await capped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0 // same high rate, but capped
+        null, null, null, true, 100000000 // same high rate, but capped
       )
 
       const uncappedOut = resultUncapped.psbt.txOutputs.reduce((s, o) => s + o.value, 0)

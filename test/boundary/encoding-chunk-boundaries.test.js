@@ -122,8 +122,9 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     // chunk must therefore be rejected at construction, not split into outputs
     // that always fail to relay.
     it('76-char data (compiled=78) → rejected (would exceed single output)', async () => {
-      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
-      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      // Every shipped coin (BTC, LTC, DOGE) sets singleOpReturnPolicy=true (see
+      // src/coins/*.js), so an oversized forced OP_RETURN is rejected on any of
+      // them; this uses bitcoin-regtest.
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
@@ -139,7 +140,7 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('150-char data (compiled=152) → rejected', async () => {
-      // single-OP_RETURN rejection only fires where singleOpReturnPolicy=true (bitcoin)
+      // singleOpReturnPolicy=true on every shipped coin, so this rejects; use bitcoin-regtest
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
@@ -155,7 +156,7 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('151-char data (compiled=153) → rejected', async () => {
-      // single-OP_RETURN rejection only fires where singleOpReturnPolicy=true (bitcoin)
+      // singleOpReturnPolicy=true on every shipped coin, so this rejects; use bitcoin-regtest
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
@@ -328,18 +329,18 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
   // ── MULTISIGN chunk boundary and dataToPubkey limit ─────────────
 
   describe('MULTISIGN encoding boundaries', () => {
-    // MULTISIGN chunk capacity = 71 - 4(magic) - 5(overhead) = 62 bytes raw data
-    // But dataToPubkey() can only handle <= 32 bytes per fake pubkey.
-    // The obfuscated chunk is split: pk1 = [0:32], pk2 = [32:end]
-    // Chunk size = magic(4) + dataChunk(N) = 4 + N
-    // For pk2 to be <= 32 bytes: (4 + N) - 32 <= 32 → N <= 60
+    // MULTISIGN chunk capacity = MULTISIGN_SIZE(69) - 4(magic) - 5(overhead) = 60
+    // bytes of raw data (src/XChainEncoder.js: MULTISIGN_SIZE = 69).
+    // Each obfuscated chunk is split across two fake pubkeys: pk1 = [0:32], pk2 = [32:end].
+    // A full chunk is magic(4) + 60 = 64 obfuscated bytes, so pk2 = [32:64] is exactly
+    // 32 bytes - the largest dataToPubkey() slice that stays a valid 33-byte
+    // compressed key. prepareData() zero-pads every chunk up to the 64-byte slot so
+    // both pubkey halves are always complete 32-byte values.
     //
-    // This means the effective max compiled data is 60 bytes (not 62!),
-    // corresponding to a 59-char ASCII string (compiled = 60).
-    // Data of 60 chars (compiled = 61) produces pk2 of 33 bytes → invalid EC point.
-    //
-    // This is a latent bug: MULTISIGN_SIZE allows chunks up to 62 bytes of data,
-    // but dataToPubkey only supports slices up to 32 bytes.
+    // The bug is CLOSED: the former MULTISIGN_SIZE = 71 gave a 62-byte chunk whose
+    // pk2 could reach 33 bytes (an invalid EC point). With MULTISIGN_SIZE = 69 the
+    // chunk is capped at 60 and pk2 never exceeds 32 bytes, so a payload that would
+    // overflow one chunk now splits cleanly into two valid MULTISIGN outputs.
 
     it('59-char data (compiled=60): valid 1-MULTISIGN output', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -358,34 +359,35 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
       assert.strictEqual(msOutputs.length, 1, 'should have 1 multisig output')
     })
 
-    it('60-char data (compiled=61): produces 2 MULTISIGN outputs (exceeds chunk limit)', async () => {
-      // After fix: MULTISIGN_SIZE=69 → chunksSize=60. Compiled data of 61 bytes
-      // exceeds one chunk, so it splits into 2 chunks. Each chunk stays <= 64 bytes
-      // obfuscated, keeping both pk2 slices <= 32 bytes.
-      // Note: the second chunk's data+magic may produce invalid EC points depending
-      // on the TXID. We test the chunking logic but allow EC point failures here
-      // since they depend on the specific data/TXID combination.
+    it('60-char data (compiled=61): produces exactly 2 MULTISIGN outputs', async () => {
+      // With MULTISIGN_SIZE=69 the chunk capacity is 60, so compiled data of 61
+      // bytes splits into exactly 2 chunks. prepareData zero-pads each chunk to the
+      // full 64-byte slot, so both data pubkey halves (pk1=[0:32], pk2=[32:64]) are
+      // complete 33-byte compressed keys. The zero-pad fix is what this guards: drop
+      // it and the short final chunk would produce a malformed pk2 that typeforce
+      // rejects ("Expected property pubkeys.1"). No try/catch: the build must
+      // succeed unconditionally for this fixture.
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = standardUtxo(TXID_MULTISIGN)
 
-      try {
-        const result = await encoder.createTransaction(
-          [utxo], address, null,
-          'A'.repeat(60), null, 10000, false, 'MULTISIGN', address,
-          null, null, PUBKEY_BUF.toString('hex'), true, 0.00001
-        )
-        // If it succeeds, verify 2 multisig outputs
-        const msOutputs = result.psbt.txOutputs.filter(o =>
-          o.value === encoder.dustAmount)
-        assert.strictEqual(msOutputs.length, 2, 'should have 2 multisig outputs')
-      } catch (err) {
-        // EC point failure for the second chunk is acceptable; the key point is
-        // it no longer fails because of an oversized pubkey (the original bug).
-        assert.ok(!err.message.includes('isPoint') ||
-          err.message.includes('Expected property "pubkeys.0"') ||
-          err.message.includes('Expected property "pubkeys.1"'),
-          'if it throws, should be EC point validity, not pubkey size')
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'A'.repeat(60), null, 10000, false, 'MULTISIGN', address,
+        null, null, PUBKEY_BUF.toString('hex'), true, 0.00001
+      )
+
+      const msOutputs = result.psbt.txOutputs.filter(o =>
+        o.value === encoder.dustAmount)
+      assert.strictEqual(msOutputs.length, 2, 'should have exactly 2 multisig outputs')
+
+      // Each emitted MULTISIGN output's script must decompile to full 33-byte
+      // pubkey pushes for both data halves (the point of the zero-pad fix).
+      for (const out of msOutputs) {
+        const parts = bitcoin.script.decompile(out.script)
+        const pubkeyPushes = parts.filter(p => Buffer.isBuffer(p) && p.length === 33)
+        assert.ok(pubkeyPushes.length >= 2,
+          'each MULTISIGN output should decompile to two 33-byte pubkey pushes (the data halves)')
       }
     })
 
@@ -487,6 +489,52 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
         ),
         { name: 'TypeError' }
       )
+    })
+  })
+
+  // ── singleOpReturnPolicy fail-closed semantics ──────────────────
+
+  describe('singleOpReturnPolicy enforcement (fail-closed)', () => {
+    it('throws RangeError for an oversized OP_RETURN when the flag is absent', () => {
+      // A network config that omits singleOpReturnPolicy must STILL enforce the
+      // single-output ceiling: the guard is `!== false`, not a bare truthy check.
+      const encoder = makeEncoder(NETWORK)
+      delete encoder.network.singleOpReturnPolicy
+      const oversized = Buffer.alloc(100) // > the 76-byte OP_RETURN payload ceiling
+      assert.throws(() => encoder.prepareData(oversized, 'OP_RETURN'), RangeError)
+    })
+
+    it('permits the multi-chunk split when singleOpReturnPolicy is explicitly false', () => {
+      const encoder = makeEncoder(NETWORK)
+      encoder.network.singleOpReturnPolicy = false
+      const oversized = Buffer.alloc(100)
+      const prepared = encoder.prepareData(oversized, 'OP_RETURN')
+      assert.ok(prepared.dataBufferArray.length >= 2,
+        'explicit false opts out of the single-output ceiling and splits into chunks')
+    })
+  })
+
+  // ── P2SH/P2WSH chunk stays under MAX_SCRIPT_ELEMENT_SIZE (520) ───
+
+  describe('P2SH/P2WSH compiled chunk size ceiling', () => {
+    it('every compiled chunk is <= 520 bytes at the chunk boundary (P2SH and P2WSH)', () => {
+      // Each data chunk is pushed as a single script element inside the redeem/
+      // witness script, so it is bound by the 520-byte consensus
+      // MAX_SCRIPT_ELEMENT_SIZE. The `- 44` overhead reservation keeps it under.
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      // Mirror createTransaction: prepareData receives the already-compiled buffer.
+      // 474 chars compile to 477 bytes, crossing the 476-byte chunk boundary → 2 chunks.
+      const compiled = bitcoin.script.compile([Buffer.from('A'.repeat(474), 'utf8')])
+      for (const encoding of ['P2SH', 'P2WSH']) {
+        const prepared = encoder.prepareData(compiled, encoding, address)
+        assert.ok(prepared.dataBufferArray.length >= 2,
+          `${encoding} should split into at least 2 chunks at the boundary`)
+        for (const chunk of prepared.dataBufferArray) {
+          assert.ok(chunk.length <= 520,
+            `${encoding} compiled chunk length ${chunk.length} must be <= 520 (MAX_SCRIPT_ELEMENT_SIZE)`)
+        }
+      }
     })
   })
 })

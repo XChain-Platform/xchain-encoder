@@ -254,6 +254,15 @@ const jsonRpcController = {
             e.code = -32602
             throw e
         }
+        // Shed non-string / oversized addresses with a precise invalid-params
+        // reason before handing the value to the UTXO tracker.
+        try {
+            validator.validateAddress(address)
+        } catch (err) {
+            const e = new Error(err.message)
+            e.code = -32602
+            throw e
+        }
 
         try {
             let result = await encoder.utxoTrackerConnector.getUtxosFromAddress(address)

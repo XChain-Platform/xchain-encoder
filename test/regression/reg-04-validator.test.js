@@ -586,6 +586,7 @@ describe('REG-04: Validator Functions', function () {
       // value. 'truthy-string' -> true; 0 -> false.
       const result = validateAll({
         data: 'SEND|0|X|1|addr',
+        pubkey: '1JDogZS6tQcSxwfxhv6XKKjcyicYA4Feev',
         rbf: 'truthy-string',
         unconfirmed: 0
       })

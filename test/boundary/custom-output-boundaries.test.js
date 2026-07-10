@@ -129,13 +129,13 @@ describe('Custom Output Boundaries', () => {
         [utxo], address,
         Array.from({ length: 10 }, () => ({ address, value: 1 })),
         'SEND|0|X|1|a', null, null, false, null, address,
-        null, null, null, true, 0.001 // moderate fee rate
+        null, null, null, true, 100000 // sat/kB: 100 sat/byte, moderate fee rate
       )
 
       const resultWithout = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, null, false, null, address,
-        null, null, null, true, 0.001
+        null, null, null, true, 100000
       )
 
       const feeWith = 100000000 - 10 - resultWithOutputs.psbt.txOutputs

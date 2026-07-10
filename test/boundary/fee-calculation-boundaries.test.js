@@ -138,7 +138,7 @@ describe('Fee Calculation Boundaries', () => {
 
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const highFee = 1.0 // 1 BTC/kB = extremely high
+      const highFee = 100000000 // sat/kB: 100000 sat/byte = extremely high
 
       const cappedResult = await capped.createTransaction(
         [utxo], address, null,
@@ -171,7 +171,7 @@ describe('Fee Calculation Boundaries', () => {
       const uncapped = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const lowFee = 0.00001 // below the cap
+      const lowFee = 1000 // sat/kB: 1 sat/byte, below the cap
 
       const cappedResult = await capped.createTransaction(
         [utxo], address, null,
@@ -202,11 +202,11 @@ describe('Fee Calculation Boundaries', () => {
 
       // Use a fee rate that produces a fractional satoshi amount
       // feePerBytes * txSize * SATOSHI_UNIT needs to be fractional
-      // A very precise feePerKb will do this
+      // A fractional sat/kB feePerKb will do this
       const result = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, null, false, null, address,
-        null, null, null, true, 0.000033333
+        null, null, null, true, 3333.3
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)

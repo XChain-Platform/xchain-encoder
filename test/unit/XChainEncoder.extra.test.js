@@ -300,6 +300,35 @@ describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
       { name: 'RangeError', message: /does not have output at index/ }
     )
   })
+
+  it('throws RangeError when p2shHex has no output at the expected voutPsbtIndex (P2SH)', async () => {
+    // P2SH counterpart to the P2WSH guard above: the reveal branch must bounds-
+    // check voutPsbtIndex against the funding tx's outputs before addInput.
+    const encoder = makeEncoder() // dogecoin-regtest (P2SH, no segwit)
+    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+    // Funding tx with a SINGLE output, but a payload that splits into >=2 chunks.
+    const smallTx = new bitcoin.Transaction()
+    smallTx.addInput(Buffer.alloc(32, 0x11), 0)
+    const script = bitcoin.payments.p2pkh({
+      pubkey: pubkeyBuf, network: bitcoin.networks.regtest
+    }).output
+    smallTx.addOutput(script, 10000) // only 1 P2SH-sized output at index 0
+    const smallTxHex = smallTx.toHex()
+    const smallTxId = smallTx.getId()
+
+    // >476 compiled bytes forces 2 P2SH chunks, but the funding tx has 1 output.
+    const bigData = 'x'.repeat(480)
+
+    await assert.rejects(
+      () => encoder.createTransaction(
+        [utxo], TEST_ADDRESS, null,
+        bigData, null, 10000, false, 'P2SH', TEST_ADDRESS,
+        smallTxId, smallTxHex, null, true, 0.00001
+      ),
+      { name: 'RangeError', message: /does not have output at index/ }
+    )
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

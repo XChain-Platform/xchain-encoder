@@ -37,7 +37,11 @@ class TxSizeEstimator {
     }
     
     static estimateMultisignOutput(){
-        return 111 //8 value, 1 scriptpubkey size, 102 script pub key (1 M, 33 pubkey1, 33 pubkey2, 33 pubkey3, 1 N, 1 CHECKMULTISIG) 
+        // 8 (value) + 1 (script-length varint) + 105 (script) = 114.
+        // The 1-of-3 compressed bare-multisig script is 105 bytes:
+        //   OP_1 (1) + 3x(1 push opcode + 33 pubkey) (102) + OP_3 (1) + OP_CHECKMULTISIG (1).
+        // The prior 102-byte figure omitted the three push opcodes (undercount by 3).
+        return 114
     }
     
     static estimateP2shInputWithRedeem(redeemData){

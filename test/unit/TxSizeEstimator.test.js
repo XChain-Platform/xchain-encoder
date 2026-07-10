@@ -49,8 +49,19 @@ describe('TxSizeEstimator', () => {
   })
 
   describe('.estimateMultisignOutput()', () => {
-    it('always returns 111', () => {
-      assert.strictEqual(TxSizeEstimator.estimateMultisignOutput(), 111)
+    it('returns 8 + 1 + the compiled 1-of-3 bare-multisig script length (114)', () => {
+      // Derive the expected size from a real compiled p2ms script rather than a
+      // bare literal: 8 (value) + 1 (script-length varint) + script bytes.
+      const pk = Buffer.from(
+        '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+        'hex'
+      )
+      const script = bitcoin.payments.p2ms({ m: 1, pubkeys: [pk, pk, pk] }).output
+      assert.strictEqual(script.length, 105,
+        '1-of-3 compressed bare-multisig script is 105 bytes')
+      const expected = 8 + 1 + script.length
+      assert.strictEqual(expected, 114)
+      assert.strictEqual(TxSizeEstimator.estimateMultisignOutput(), expected)
     })
   })
 
