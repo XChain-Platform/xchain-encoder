@@ -151,27 +151,27 @@ describe('Custom Output Boundaries', () => {
   // ── Custom output with value=0 ─────────────────────────────────
 
   describe('custom output with value=0', () => {
-    it('value=0 output is added to PSBT but contributes 0 to outputSatoshis', async () => {
+    // Contract change (input-validation finding): a 0-sat caller output is
+    // consensus-valid but relay-rejected as dust, so building it hands the caller
+    // an unbroadcastable PSBT. The encoder now rejects value <= 0 on non-fee
+    // custom outputs (interim safe rule: bare positivity, not a per-network dust
+    // floor). The native-fee FEE_DESTINATION output is injected post-validation
+    // and is always positive, so it is unaffected.
+    it('value=0 output is rejected as a non-positive custom output', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, [
-          { address, value: 0 }
-        ],
-        'SEND|0|X|1|a', null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, [
+            { address, value: 0 }
+          ],
+          'SEND|0|X|1|a', null, 10000, false, null, address,
+          null, null, null, true, 0.00001
+        ),
+        { name: 'RangeError', message: /customOutputs\[0\].value must be a positive integer/ }
       )
-
-      // Should have: OP_RETURN (value=0), custom output (value=0), change output
-      const zeroOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.ok(zeroOutputs.length >= 2,
-        'should have at least 2 zero-value outputs (OP_RETURN + custom)')
-
-      // Change should be unaffected by the 0-value custom output
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      assert.strictEqual(changeOutput.value, 100000000 - 10000)
     })
   })
 

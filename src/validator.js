@@ -282,6 +282,17 @@ function validateCustomOutput(output, index) {
         throw new TypeError(`customOutputs[${index}].address exceeds maximum length (100)`)
     }
     output.value = parseSatoshiAmount(output.value, `customOutputs[${index}].value`)
+    // A caller-supplied output of 0 sats is consensus-valid but relay-rejected
+    // as an unspendable/dust output, so the caller signs a PSBT that can never
+    // broadcast. Reject it at the trust boundary, matching validateFeeQuote's
+    // positive-amount contract. Interim safe rule: reject only value <= 0 (not a
+    // full per-network dust floor). The native-fee FEE_DESTINATION output is
+    // injected into customOutputs AFTER validateCustomOutputs runs (see
+    // XChainEncoder.createTransaction), so it never passes through here and its
+    // sub-dust-but-positive DOGE fee values keep working.
+    if (output.value <= 0) {
+        throw new RangeError(`customOutputs[${index}].value must be a positive integer (satoshis)`)
+    }
     return output
 }
 

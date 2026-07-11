@@ -877,6 +877,16 @@ class XChainEncoder {
             for (let i = 0; i < customOutputs.length; i++) {
                 const output = customOutputs[i]
                 const outputValue = parseSatoshiAmount(output.value, `customOutputs[${i}].value`)
+                // A 0-sat caller output is consensus-valid but relay-rejected as
+                // dust, so the caller signs an unbroadcastable PSBT. Reject it at
+                // the effector too (not just the validator boundary), matching the
+                // native-fee output which is always positive (guarded at injection
+                // above), so this never rejects a legitimate sub-dust FEE_DESTINATION
+                // value. Interim safe rule: reject only value <= 0, not a full
+                // per-network dust floor.
+                if (outputValue <= 0) {
+                    throw new RangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
+                }
                 psbt.addOutput({
                     address: output.address,
                     value:   outputValue

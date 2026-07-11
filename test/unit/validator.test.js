@@ -192,6 +192,11 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateCustomOutputs([{ address: '', value: 1 }]), /non-empty/);
             assert.throws(() => v.validateCustomOutputs([{ address: 'x'.repeat(101), value: 1 }]), /maximum length/);
             assert.throws(() => v.validateCustomOutputs([{ address: 'a', value: -1 }]), RangeError);
+            // Interim safe dust rule: a 0-sat caller output is relay-rejected as
+            // dust, so it is rejected at the boundary (matching validateFeeQuote).
+            assert.throws(() => v.validateCustomOutputs([{ address: 'a', value: 0 }]), /must be a positive integer/);
+            // A positive sub-dust value still passes the boundary (no dust floor yet).
+            assert.strictEqual(v.validateCustomOutputs([{ address: 'a', value: 1 }])[0].value, 1);
         });
     });
 
