@@ -492,25 +492,36 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── singleOpReturnPolicy fail-closed semantics ──────────────────
+  // ── singleOpReturnPolicy fail-closed semantics () ──────
 
-  describe('singleOpReturnPolicy enforcement (fail-closed)', () => {
+  describe('singleOpReturnPolicy enforcement (always fail-closed)', () => {
     it('throws RangeError for an oversized OP_RETURN when the flag is absent', () => {
       // A network config that omits singleOpReturnPolicy must STILL enforce the
-      // single-output ceiling: the guard is `!== false`, not a bare truthy check.
+      // single-output ceiling.
       const encoder = makeEncoder(NETWORK)
       delete encoder.network.singleOpReturnPolicy
       const oversized = Buffer.alloc(100) // > the 76-byte OP_RETURN payload ceiling
       assert.throws(() => encoder.prepareData(oversized, 'OP_RETURN'), RangeError)
     })
 
-    it('permits the multi-chunk split when singleOpReturnPolicy is explicitly false', () => {
+    it('throws RangeError for an oversized OP_RETURN even when singleOpReturnPolicy is explicitly false', () => {
+      // The multi-chunk split path this used to opt into is unreassemblable (no
+      // shipped decoder reads more than one OP_RETURN push) and unrelayable (Core's
+      // IsStandardTx rejects multi-OP_RETURN as non-standard). : the flag
+      // no longer disarms the ceiling; an oversized OP_RETURN payload always throws.
       const encoder = makeEncoder(NETWORK)
       encoder.network.singleOpReturnPolicy = false
       const oversized = Buffer.alloc(100)
-      const prepared = encoder.prepareData(oversized, 'OP_RETURN')
-      assert.ok(prepared.dataBufferArray.length >= 2,
-        'explicit false opts out of the single-output ceiling and splits into chunks')
+      assert.throws(() => encoder.prepareData(oversized, 'OP_RETURN'), RangeError)
+    })
+
+    it('a max-size single-chunk payload still encodes as exactly one OP_RETURN output regardless of the flag', () => {
+      const encoder = makeEncoder(NETWORK)
+      encoder.network.singleOpReturnPolicy = false
+      const atCeiling = Buffer.alloc(76) // exactly the 76-byte OP_RETURN payload ceiling
+      const prepared = encoder.prepareData(atCeiling, 'OP_RETURN')
+      assert.strictEqual(prepared.dataBufferArray.length, 1)
+      assert.strictEqual(prepared.dataBufferArray[0].length, 76 + 4) // + 4-byte magic word
     })
   })
 

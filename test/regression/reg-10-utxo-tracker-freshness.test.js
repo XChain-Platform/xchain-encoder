@@ -200,7 +200,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
       let caught
       try {
-        await jsonRpcController.create_tx({ pubkey: address, data: 'test' })
+        await jsonRpcController.create_tx({ pubkey: address, data: 'SEND' })
       } catch (e) {
         caught = e
       }

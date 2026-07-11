@@ -257,7 +257,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
       let caught
       try {
-        await jsonRpcController.create_tx({ pubkey: address, data: 'test' })
+        await jsonRpcController.create_tx({ pubkey: address, data: 'SEND' })
       } catch (e) {
         caught = e
       }
@@ -277,7 +277,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
       let caught
       try {
-        await jsonRpcController.create_tx({ pubkey: address, data: 'test' })
+        await jsonRpcController.create_tx({ pubkey: address, data: 'SEND' })
       } catch (e) {
         caught = e
       }

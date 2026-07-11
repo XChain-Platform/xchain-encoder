@@ -182,26 +182,26 @@ class XChainEncoder {
                 // and burns the fee UTXOs. The auto-selection path avoids this by falling
                 // back to P2SH; the explicit-encoding path must reject loudly here instead.
                 //
-                // singleOpReturnPolicy (from CryptoNetworks): anything other than
-                // an explicit `false` enforces the single-output 80-byte ceiling.
-                // Fail-closed on purpose (mirrors the `supportsSegwit === false`
-                // convention below), so a network config that omits the flag still
-                // enforces rather than silently splitting into multi-OP_RETURN
-                // outputs that never relay. All shipped coins set it true.
-                if (this.network.singleOpReturnPolicy !== false && data.length > chunksSize) {
+                // Always enforce the single-output 80-byte ceiling ().
+                // singleOpReturnPolicy:false used to skip this throw and fall
+                // through to a multi-chunk split loop instead: no shipped decoder
+                // can reassemble a payload split across multiple OP_RETURN pushes
+                // (it only ever reads a single OP_RETURN output), and no shipped
+                // coin relays a multi-OP_RETURN transaction as standard, so that
+                // path was a fee-burning, undecodable-transaction trap armed by one
+                // config flag rather than a real opt-out. Fail-closed
+                // unconditionally now, the same as when the flag is absent.
+                if (data.length > chunksSize) {
                     throw new RangeError(
                         `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
                         `got ${data.length}. Use P2SH for larger payloads.`
                     )
                 }
 
-                i = 0
-                while (i < data.length){
-                    nextDataChunk = data.subarray(i,i+chunksSize)
-                    dataBufferArray.push(Buffer.concat([magicWordBuffer,nextDataChunk]))
-                    i = i + nextDataChunk.length
-                }
-                
+                // data.length <= chunksSize is now guaranteed above, so the
+                // payload always compiles to exactly one OP_RETURN chunk.
+                dataBufferArray.push(Buffer.concat([magicWordBuffer,data]))
+
                 return {"dataBufferArray":dataBufferArray, "encoding": encoding}
             case Encoding.P2SH:
             case Encoding.P2WSH:

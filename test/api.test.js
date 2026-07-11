@@ -88,7 +88,7 @@ describe('api', () => {
 					"utxosList":utxos,
 					"pubkey":testAddress,
 					"customOutputs":{},
-					"data":"simple text",
+					"data":"MESSAGE|simple text",
 					"exactFee":1000,
 					"rbf":true,
 					"outputType":null,

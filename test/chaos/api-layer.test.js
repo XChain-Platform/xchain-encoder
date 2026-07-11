@@ -59,14 +59,14 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('invalid encoding value → TypeError', () => {
       assert.throws(
-        () => validator.validateAll({ encoding: 'INVALID', data: 'test', pubkey: 'test' }),
+        () => validator.validateAll({ encoding: 'INVALID', data: 'SEND', pubkey: 'test' }),
         { name: 'TypeError' }
       )
     })
 
     it('negative fee → RangeError', () => {
       assert.throws(
-        () => validator.validateAll({ fee: -1, data: 'test', pubkey: 'test' }),
+        () => validator.validateAll({ fee: -1, data: 'SEND', pubkey: 'test' }),
         { name: 'RangeError' }
       )
     })
@@ -77,7 +77,14 @@ describe('Chaos Category F: API Layer Failures', () => {
       }))
 
       assert.throws(
-        () => validator.validateAll({ utxos: bigUtxos, data: 'test', pubkey: 'test' }),
+        () => validator.validateAll({ utxos: bigUtxos, data: 'SEND', pubkey: 'test' }),
+        { name: 'RangeError' }
+      )
+    })
+
+    it('unknown/typoed ACTION name → RangeError ()', () => {
+      assert.throws(
+        () => validator.validateAll({ data: 'test', pubkey: 'test' }),
         { name: 'RangeError' }
       )
     })

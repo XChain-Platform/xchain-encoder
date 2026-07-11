@@ -60,6 +60,40 @@ const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH'])
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 
+// Canonical ACTION names the decoder accepts (xchain-decoder VALID_ACTION_NAMES,
+// XChainDecoder.js). Vendored here byte-for-byte from
+// xchain-documentation/protocol/action-manifest.json (wireDecoded slice), the
+// same source xchain-decoder/test/fixtures/action-manifest.json vendors from.
+// : the decoder is the arbiter of which leading ACTION token survives
+// decode (both the confirmed-block and mempool gates reject anything not in
+// this set, after alias expansion, silently no-actioning the tx); the encoder
+// had no equivalent gate, so a typoed or too-new ACTION name would encode, pay
+// fees, and broadcast, then vanish silently at decode. Pinned against drift by
+// test/unit/ActionManifestConformance.test.js, mirroring the decoder's own
+// conformance guard.
+const VALID_ACTION_NAMES = new Set([
+    'ADDRESS', 'AIRDROP', 'ANCHOR', 'ATTEST',
+    'BATCH', 'BROADCAST', 'CALLBACK', 'COINPAY', 'COLLECT',
+    'DELEGATE', 'DEPLOY', 'DEPOSIT', 'DESTROY', 'DISPENSER',
+    'DIVIDEND', 'EXECUTE', 'FILE', 'ISSUE', 'LINK', 'LIST', 'MESSAGE', 'MINT',
+    'NODEPROOF', 'ORDER', 'PRICE', 'SEND', 'SLASH', 'SLEEP', 'STAKE', 'SWAP',
+    'SWEEP', 'UNSTAKE', 'VOTE', 'WITHDRAW'
+])
+
+// Short-form ACTION-name aliases, expanded to canonical form before the
+// VALID_ACTION_NAMES gate. Must stay identical to xchain-decoder's
+// ACTION_ALIASES (XChainDecoder.js): the decoder is what actually expands
+// these on-chain, so the encoder's pre-check has to agree with it exactly or
+// it will reject an alias the decoder would have accepted, or (worse) accept a
+// typo the decoder does not recognize as an alias.
+const ACTION_ALIASES = {
+    'TRANSFER': 'SEND',
+    'ADDR': 'ADDRESS',
+    'DROP': 'AIRDROP',
+    'CAST': 'BROADCAST',
+    'MSG': 'MESSAGE'
+}
+
 // Exact-integer parse for satoshi/fee money fields. Unlike parseInt, this
 // rejects decimals, scientific notation, hex, and trailing garbage ("1e8" ->
 // 1, "100.5" -> 100, "5abc" -> 5, "0x20" -> 0) instead of silently truncating
@@ -173,6 +207,33 @@ function validateActionPushDecodability(data, rawData) {
         throw new RangeError(
             'rawData must not be a single byte in the minimal-opcode range (0x01-0x10, 0x81); ' +
             'it compiles to a bare opcode that the decoder discards, silently dropping rawData')
+    }
+}
+
+// Reject a `data` value whose leading ACTION token (the text before the first
+// '|', or the whole string if no '|' is present) is neither a canonical
+// action name nor a known alias. Mirrors exactly how the decoder tokenizes:
+// XChainDecoder.js does `decodedData.split("|")[0]` then
+// `ACTION_ALIASES[rawActionName] ?? rawActionName` against VALID_ACTION_NAMES,
+// at both the confirmed-block and mempool gate sites. : without this
+// check, a typoed or not-yet-deployed ACTION name compiles into a valid,
+// fee-paid, broadcast transaction that the decoder then silently no-actions
+// (parseErrors++, decodedData = "" / tx skipped) with no error back to the
+// caller. Throws RangeError so api.js maps it to a -32602 invalid-params
+// classification, matching the validateActionPushDecodability convention.
+// An empty/absent `data` intentionally skips this check: it has no leading
+// ACTION token to validate and the decoder never reaches its own name gate
+// for a zero-length payload either (see the `parseResult["data"].length > 0`
+// guard around the decoder's gate).
+function validateActionName(data) {
+    if (data == null || data.length === 0) return
+    const rawActionName = data.split('|')[0]
+    const actionName = ACTION_ALIASES[rawActionName] ?? rawActionName
+    if (!VALID_ACTION_NAMES.has(actionName)) {
+        throw new RangeError(
+            `data has unknown ACTION name '${rawActionName.slice(0, 32)}'; ` +
+            'the decoder rejects any leading token that is not a canonical action ' +
+            'name or alias, silently dropping the ACTION on a fee-paid transaction')
     }
 }
 
@@ -465,6 +526,7 @@ function validateAll(params) {
     if (data != null || rawData != null) {
         validateCombinedDataLength(data, rawData)
         validateActionPushDecodability(data, rawData)
+        validateActionName(data)
     }
 
     const pubkey = validatePubkey(params.pubkey)
@@ -516,6 +578,9 @@ module.exports = {
     compilesToBareOpcode,
     isMinimalOpSingleByte,
     validateActionPushDecodability,
+    validateActionName,
+    VALID_ACTION_NAMES,
+    ACTION_ALIASES,
     // Exported for the decoder's compiledPushSizeConformance test, which pins
     // this formula against the decoder's identical arbiter-side helper.
     compiledPushSize,

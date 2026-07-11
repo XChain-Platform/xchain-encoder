@@ -43,6 +43,45 @@ describe('Encoder input validator', function () {
         });
     });
 
+    describe('validateActionName (: encoder ACTION-name gate)', function () {
+        it('accepts every canonical ACTION name from VALID_ACTION_NAMES', function () {
+            for (const name of v.VALID_ACTION_NAMES) {
+                assert.doesNotThrow(() => v.validateActionName(`${name}|0|X|1|a`), name);
+            }
+        });
+        it('accepts a bare canonical name with no pipe-delimited payload', function () {
+            assert.doesNotThrow(() => v.validateActionName('SEND'));
+        });
+        it('accepts every known alias and expands it the same way the decoder does', function () {
+            for (const alias of Object.keys(v.ACTION_ALIASES)) {
+                assert.doesNotThrow(() => v.validateActionName(`${alias}|0|X|1|a`), alias);
+            }
+        });
+        it('rejects a typoed ACTION name with a RangeError', function () {
+            assert.throws(() => v.validateActionName('TRANSFRE|0|X|1|a'), RangeError);
+            assert.throws(() => v.validateActionName('TRANSFRE|0|X|1|a'), /unknown ACTION name/);
+        });
+        it('rejects an action newer than the deployed decoder', function () {
+            assert.throws(() => v.validateActionName('FUTURE_ACTION|1'), RangeError);
+        });
+        it('is case-sensitive: a lowercase canonical name is not recognized', function () {
+            assert.throws(() => v.validateActionName('send|0|X|1|a'), RangeError);
+        });
+        it('does not reject the intentionally-supported empty/absent data shapes', function () {
+            assert.doesNotThrow(() => v.validateActionName(null));
+            assert.doesNotThrow(() => v.validateActionName(''));
+        });
+        it('is wired into validateAll and fires before feeQuote/utxo checks', function () {
+            assert.throws(
+                () => v.validateAll({ data: 'TRANSFRE|0|X|1|a', pubkey: '02ab' }),
+                /unknown ACTION name/
+            );
+        });
+        it('validateAll still accepts a valid canonical action end-to-end', function () {
+            assert.doesNotThrow(() => v.validateAll({ data: 'SEND|0|X|1|a', pubkey: '02ab' }));
+        });
+    });
+
     describe('validateCombinedDataLength', function () {
         it('returns early for null data and accepts within-limit payloads', function () {
             assert.strictEqual(v.validateCombinedDataLength(null, null), undefined);
@@ -281,7 +320,7 @@ describe('Encoder input validator', function () {
 
         it('returns a fully-coerced, normalized param set', function () {
             const result = v.validateAll({
-                data: 'hello',
+                data: 'SEND',
                 rawData: 'world',
                 pubkey: '02ab',
                 encoding: 'OP_RETURN',
@@ -307,7 +346,7 @@ describe('Encoder input validator', function () {
         });
 
         it('exercises validateFeeQuote validation paths through validateAll', function () {
-            const base = { data: 'd', pubkey: '02ab' };
+            const base = { data: 'SEND', pubkey: '02ab' };
             assert.throws(() => v.validateAll({ ...base, feeQuote: 'no' }), /feeQuote must be an object/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: '', amount: 1 } }), /address must be a non-empty/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: 'x'.repeat(101), amount: 1 } }), /maximum length/);
@@ -328,8 +367,8 @@ describe('Encoder input validator', function () {
         it('rejects an absent or null pubkey (openrpc marks it required)', function () {
             // pubkey omitted / null must fail up front (RangeError -> -32602) rather
             // than reaching fromBase58Check(null) deep in createTransaction.
-            assert.throws(() => v.validateAll({ data: 'd' }), /pubkey is required/);
-            assert.throws(() => v.validateAll({ data: 'd', pubkey: null }), /pubkey is required/);
+            assert.throws(() => v.validateAll({ data: 'SEND' }), /pubkey is required/);
+            assert.throws(() => v.validateAll({ data: 'SEND', pubkey: null }), /pubkey is required/);
         });
     });
 });
