@@ -122,6 +122,60 @@ function compiledPushSize(byteLength) {
     return byteLength + 3                           // OP_PUSHDATA2
 }
 
+// bitcoin.script.compile applies bitcoinjs-lib's asMinimalOP: a zero-length
+// buffer canonicalizes to OP_0, a 1-byte buffer of 0x01-0x10 to OP_1..OP_16,
+// and a 1-byte 0x81 to OP_1NEGATE. Each of those emits a bare opcode instead of
+// a data push, and bitcoin.script.decompile then returns an integer (not a
+// Buffer) for that element. The decoder's arbiter gate rejects a non-Buffer
+// element (XChainDecoder.js: !Buffer.isBuffer(decompiledData[0]) clears the
+// whole payload; a non-Buffer decompiledData[1] drops rawData), so any push
+// that canonicalizes this way is silently discarded on decode. A single 0x00
+// byte is NOT canonicalized (it compiles to a real 1-byte push), so it is safe.
+function compilesToBareOpcode(buf) {
+    if (buf.length === 0) return true
+    if (buf.length !== 1) return false
+    const b = buf[0]
+    return (b >= 0x01 && b <= 0x10) || b === 0x81
+}
+
+// True only for a 1-byte buffer whose value bitcoinjs canonicalizes to a bare
+// numeric opcode (OP_1..OP_16 / OP_1NEGATE). Deliberately narrower than
+// compilesToBareOpcode: the empty-buffer -> OP_0 case is EXCLUDED here because a
+// missing/empty `data` is an intentional, contract-documented shape (an empty
+// data-only push is a payment-only / no-ACTION tx, and an empty data + rawData
+// is the deliberately-supported rawData-only request; see validateCombinedDataLength
+// and the openrpc create_tx data.required=false contract). Restoring the
+// rawData-only wire shape end-to-end is a decoder-side (consensus) acceptance
+// change owned by the cross-service flag-day spec, not an encoder refusal.
+function isMinimalOpSingleByte(buf) {
+    if (buf.length !== 1) return false
+    const b = buf[0]
+    return (b >= 0x01 && b <= 0x10) || b === 0x81
+}
+
+// Reject a `data` or `rawData` value that is a single minimal-opcode-range byte
+// (0x01-0x10 or 0x81). bitcoin.script.compile canonicalizes such a lone byte to
+// a bare opcode, so bitcoin.script.decompile returns an integer (not a Buffer)
+// for that element and the decoder's arbiter gate silently discards it
+// (XChainDecoder.js: !Buffer.isBuffer(decompiledData[0]) blanks the payload; a
+// non-Buffer decompiledData[1] drops rawData). Real ACTION payloads are
+// multi-byte text so this shape is degenerate, but it is fee-paid silent data
+// loss, so refuse it at validate time. Throws RangeError so api.js maps it to a
+// -32602 invalid-params classification. The empty-data cases are intentionally
+// out of scope here (see isMinimalOpSingleByte).
+function validateActionPushDecodability(data, rawData) {
+    if (data != null && isMinimalOpSingleByte(Buffer.from(data, 'utf8'))) {
+        throw new RangeError(
+            'data must not be a single byte in the minimal-opcode range (0x01-0x10, 0x81); ' +
+            'it compiles to a bare opcode that the decoder discards, silently dropping the ACTION')
+    }
+    if (rawData != null && isMinimalOpSingleByte(Buffer.from(rawData, 'binary'))) {
+        throw new RangeError(
+            'rawData must not be a single byte in the minimal-opcode range (0x01-0x10, 0x81); ' +
+            'it compiles to a bare opcode that the decoder discards, silently dropping rawData')
+    }
+}
+
 function validateCombinedDataLength(data, rawData) {
     if (data == null && rawData == null) return
     // createTransaction defaults a missing `data` to '' and still compiles it
@@ -206,6 +260,9 @@ function validateDust(dust) {
     }
     if (num < 0) {
         throw new RangeError('dust must be non-negative')
+    }
+    if (num > MAX_FEE_SATOSHIS) {
+        throw new RangeError(`dust (${num}) exceeds maximum (${MAX_FEE_SATOSHIS})`)
     }
     return num
 }
@@ -407,6 +464,7 @@ function validateAll(params) {
     const rawData = validateDataParam(params.rawData, 'rawData')
     if (data != null || rawData != null) {
         validateCombinedDataLength(data, rawData)
+        validateActionPushDecodability(data, rawData)
     }
 
     const pubkey = validatePubkey(params.pubkey)
@@ -455,6 +513,9 @@ module.exports = {
     validatePubkey,
     validateDataParam,
     validateCombinedDataLength,
+    compilesToBareOpcode,
+    isMinimalOpSingleByte,
+    validateActionPushDecodability,
     // Exported for the decoder's compiledPushSizeConformance test, which pins
     // this formula against the decoder's identical arbiter-side helper.
     compiledPushSize,

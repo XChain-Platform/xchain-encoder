@@ -231,13 +231,39 @@ class XChainEncoder {
                 chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
                 
                 let pubkeyFromBase58 = bitcoin.address.fromBase58Check(pubKey).hash
-                
+
+                // Slice the chunk boundaries first so a degenerate 1-byte final
+                // chunk can be rebalanced before compile. bitcoin.script.compile
+                // applies asMinimalOP: a lone data byte of 0x01-0x10 or 0x81
+                // canonicalizes to a bare opcode, and the decoder's redeem-script
+                // Buffer gate (XChainDecoder.js: !Buffer.isBuffer(decodedRedeemScript[0]))
+                // then silently skips that output, corrupting reassembly of an
+                // otherwise-valid multi-byte payload. Shifting one byte from the
+                // penultimate chunk keeps every chunk >= 2 bytes; the decoder
+                // reassembles by concatenation so moving a byte across the
+                // boundary is transparent end-to-end.
+                let p2shChunks = []
                 i = 0
                 while (i < data.length){
                     nextDataChunk = data.subarray(i,i+chunksSize)
-                    
+                    p2shChunks.push(nextDataChunk)
+                    i = i + nextDataChunk.length
+                }
+                if (p2shChunks.length >= 2){
+                    let last = p2shChunks[p2shChunks.length - 1]
+                    if (last.length === 1 && ((last[0] >= 0x01 && last[0] <= 0x10) || last[0] === 0x81)){
+                        // Repartition the final two chunks: penultimate drops its
+                        // last byte, final grows to 2 bytes. Both are re-sliced
+                        // from `data` so the concatenation is byte-identical.
+                        let prevStart = data.length - 1 - p2shChunks[p2shChunks.length - 2].length
+                        p2shChunks[p2shChunks.length - 2] = data.subarray(prevStart, data.length - 2)
+                        p2shChunks[p2shChunks.length - 1] = data.subarray(data.length - 2)
+                    }
+                }
+
+                for (const chunk of p2shChunks){
                     let nextDataBuffer = bitcoin.script.compile([
-                        nextDataChunk,
+                        chunk,
                         bitcoin.opcodes.OP_DROP,
                         bitcoin.opcodes.OP_DUP,
                         bitcoin.opcodes.OP_HASH160,
@@ -245,11 +271,10 @@ class XChainEncoder {
                         bitcoin.opcodes.OP_EQUALVERIFY,
                         bitcoin.opcodes.OP_CHECKSIG,
                     ])
-                    
+
                     dataBufferArray.push(nextDataBuffer)
-                    i = i + nextDataChunk.length
                 }
-                
+
                 return {"dataBufferArray":dataBufferArray, "encoding": encoding}
             case Encoding.MULTISIGN:
                 chunksSize = MULTISIGN_SIZE 
