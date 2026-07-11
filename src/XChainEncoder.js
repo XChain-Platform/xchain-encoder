@@ -643,7 +643,9 @@ class XChainEncoder {
 
         // Reconstructed phase-1 funding tx on the reveal path, shared by the P2SH
         // and P2WSH branches below (both spend its outputs by index). Hoisted to the
-        // loop's enclosing scope so the input-index bounds guard can reuse it.
+        // loop's enclosing scope so the input-index bounds guard can reuse it, and
+        // parsed once (memoized via `!p2shTx`) rather than re-decoded per data chunk;
+        // the parse is loop-invariant (p2shHex and txidFirstInput never change here).
         let p2shTx = null
 
         let estimatedTxSize = 0
@@ -662,13 +664,16 @@ class XChainEncoder {
                         value: 0
                     })
                     
-                    //TODO: this won't work if data is greater than 
-                    estimatedTxSize = estimatedTxSize 
+                    // Oversize is handled upstream: prepareData rejects an OP_RETURN
+                    // payload larger than chunksSize (single-OP_RETURN policy throw),
+                    // so every obfuscatedData reaching here fits one standard nulldata
+                    // output and this per-chunk size estimate is exact.
+                    estimatedTxSize = estimatedTxSize
                         + TxSizeEstimator.estimateOpReturnOutput(obfuscatedData)
                     
                     break
                 case Encoding.P2SH:
-                    if (p2shHex){
+                    if (p2shHex && !p2shTx){
                         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
                     }
@@ -737,8 +742,7 @@ class XChainEncoder {
                     
                     break
                 case Encoding.P2WSH:
-                    p2shTx = null
-                    if (p2shHex){
+                    if (p2shHex && !p2shTx){
                         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
                     }
