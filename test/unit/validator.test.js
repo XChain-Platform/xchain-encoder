@@ -202,6 +202,21 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateUtxoEntry({ ...goodUtxo(), scriptPubKey: '' }, 3), /scriptPubKey/);
         });
 
+        it('rejects vout values bare Number() would coerce to a plausible index (uuid:4555d78c)', function () {
+            // null/''/false/[] all Number()-coerce to 0 and once validated as
+            // vout 0 the encoder would spend a different outpoint (txid:0).
+            for (const bad of [null, '', false, true, [], [7], '2.0', '0x2']) {
+                assert.throws(
+                    () => v.validateUtxoEntry({ ...goodUtxo(), vout: bad }, 0),
+                    /vout must be a non-negative integer/,
+                    `vout ${JSON.stringify(bad)} must be rejected`
+                );
+            }
+            // integers and integer strings still pass
+            assert.strictEqual(v.validateUtxoEntry({ ...goodUtxo(), vout: 5 }, 0).vout, 5);
+            assert.strictEqual(v.validateUtxoEntry({ ...goodUtxo(), vout: '5' }, 0).vout, 5);
+        });
+
         it('preserves an explicit confirmations value', function () {
             const out = v.validateUtxoArray([{ ...goodUtxo(), confirmations: 6 }]);
             assert.strictEqual(out[0].confirmations, 6);

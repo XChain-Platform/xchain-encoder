@@ -43,30 +43,32 @@ function makeEncoder () {
 
 describe('minimal-op canonicalization guards (#1226; #1293 flag-day scoped)', () => {
 
-  describe('compilesToBareOpcode / isMinimalOpSingleByte predicates', () => {
-    it('compilesToBareOpcode flags empty (OP_0) and 1-byte minimal-op values', () => {
-      assert.strictEqual(validator.compilesToBareOpcode(Buffer.alloc(0)), true)
+  describe('isMinimalOpSingleByte predicate', () => {
+    it('flags 1-byte minimal-op values', () => {
       for (const b of [0x01, 0x08, 0x10, 0x81]) {
-        assert.strictEqual(validator.compilesToBareOpcode(Buffer.from([b])), true, `byte 0x${b.toString(16)}`)
+        assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([b])), true, `byte 0x${b.toString(16)}`)
         const decompiled = bitcoin.script.decompile(bitcoin.script.compile([Buffer.from([b])]))
         assert.strictEqual(Buffer.isBuffer(decompiled[0]), false)
       }
     })
-    it('isMinimalOpSingleByte excludes the empty buffer (that is the #1293 shape)', () => {
+    // isMinimalOpSingleByte excludes the empty buffer (that is the #1293 shape);
+    // the empty buffer compiles to OP_0, which the removed compilesToBareOpcode
+    // predicate used to flag, but that predicate is dead (no production call
+    // sites) and has been deleted. isMinimalOpSingleByte's actual behavior
+    // (false for empty) is the one asserted here.
+    it('excludes the empty buffer (that is the #1293 shape)', () => {
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.alloc(0)), false)
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([0x05])), true)
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([0x81])), true)
     })
-    it('neither predicate flags a single 0x00 byte (compiles to a real 1-byte push)', () => {
-      assert.strictEqual(validator.compilesToBareOpcode(Buffer.from([0x00])), false)
+    it('does not flag a single 0x00 byte (compiles to a real 1-byte push)', () => {
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([0x00])), false)
       const decompiled = bitcoin.script.decompile(bitcoin.script.compile([Buffer.from([0x00])]))
       assert.ok(Buffer.isBuffer(decompiled[0]))
     })
-    it('neither predicate flags multi-byte or non-minimal single bytes', () => {
-      assert.strictEqual(validator.compilesToBareOpcode(Buffer.from([0x20])), false)
+    it('does not flag multi-byte or non-minimal single bytes', () => {
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([0x11])), false)
-      assert.strictEqual(validator.compilesToBareOpcode(Buffer.from('ab', 'utf8')), false)
+      assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from('ab', 'utf8')), false)
     })
   })
 

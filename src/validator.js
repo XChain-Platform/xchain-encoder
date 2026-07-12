@@ -156,26 +156,9 @@ function compiledPushSize(byteLength) {
     return byteLength + 3                           // OP_PUSHDATA2
 }
 
-// bitcoin.script.compile applies bitcoinjs-lib's asMinimalOP: a zero-length
-// buffer canonicalizes to OP_0, a 1-byte buffer of 0x01-0x10 to OP_1..OP_16,
-// and a 1-byte 0x81 to OP_1NEGATE. Each of those emits a bare opcode instead of
-// a data push, and bitcoin.script.decompile then returns an integer (not a
-// Buffer) for that element. The decoder's arbiter gate rejects a non-Buffer
-// element (XChainDecoder.js: !Buffer.isBuffer(decompiledData[0]) clears the
-// whole payload; a non-Buffer decompiledData[1] drops rawData), so any push
-// that canonicalizes this way is silently discarded on decode. A single 0x00
-// byte is NOT canonicalized (it compiles to a real 1-byte push), so it is safe.
-function compilesToBareOpcode(buf) {
-    if (buf.length === 0) return true
-    if (buf.length !== 1) return false
-    const b = buf[0]
-    return (b >= 0x01 && b <= 0x10) || b === 0x81
-}
-
 // True only for a 1-byte buffer whose value bitcoinjs canonicalizes to a bare
-// numeric opcode (OP_1..OP_16 / OP_1NEGATE). Deliberately narrower than
-// compilesToBareOpcode: the empty-buffer -> OP_0 case is EXCLUDED here because a
-// missing/empty `data` is an intentional, contract-documented shape (an empty
+// numeric opcode (OP_1..OP_16 / OP_1NEGATE). The empty-buffer -> OP_0 case is
+// EXCLUDED here because a missing/empty `data` is an intentional, contract-documented shape (an empty
 // data-only push is a payment-only / no-ACTION tx, and an empty data + rawData
 // is the deliberately-supported rawData-only request; see validateCombinedDataLength
 // and the openrpc create_tx data.required=false contract). Restoring the
@@ -335,7 +318,12 @@ function validateUtxoEntry(entry, index) {
     if (typeof entry.txid !== 'string' || !HEX_64_RE.test(entry.txid)) {
         throw new TypeError(`utxos[${index}].txid must be a 64-character hex string`)
     }
-    const vout = Number(entry.vout)
+    // Route vout through toExactInt (rejecting NaN), not bare Number(): on the
+    // money path a JSON null/''/false/[] all coerce via Number() to a plausible
+    // index (0), so the encoder would build a PSBT spending txid:0, a different
+    // outpoint than intended. Same exact-integer rigor the value field uses
+    // (uuid:4555d78c).
+    const vout = toExactInt(entry.vout)
     if (!Number.isInteger(vout) || vout < 0) {
         throw new TypeError(`utxos[${index}].vout must be a non-negative integer`)
     }
@@ -366,7 +354,7 @@ function validateUtxoEntry(entry, index) {
         // value (string, float, object) could let a mempool input slip past
         // the exclusion when unconfirmed=false. Coerce to a real number and
         // range-check so the downstream comparison always sees an integer.
-        const confirmations = Number(entry.confirmations)
+        const confirmations = toExactInt(entry.confirmations)
         if (!Number.isInteger(confirmations) || confirmations < 0) {
             throw new TypeError(`utxos[${index}].confirmations must be a non-negative integer`)
         }
@@ -557,10 +545,11 @@ function validateAll(params) {
         throw new RangeError('pubkey is required')
     }
 
-    // Coerce rbf and unconfirmed to strict booleans. Passing a truthy non-boolean
-    // (e.g. the string "yes" or an object) would silently flip RBF signaling or
-    // unconfirmed-UTXO selection on a money protocol, so we normalize here rather
-    // than forwarding the raw value. Absent params become false (not undefined).
+    // Coerce rbf and unconfirmed to strict booleans when explicitly provided.
+    // Absent params stay undefined (NOT false) and inherit createTransaction's
+    // defaults downstream: unconfirmed defaults to true (unconfirmed UTXOs are
+    // selectable), rbf defaults to falsy. Do not "fix" the code to force false
+    // here, that would silently flip the UTXO-selection policy on a money path.
     const rbf = params.rbf !== undefined && params.rbf !== null ? Boolean(params.rbf) : undefined
     const unconfirmed = params.unconfirmed !== undefined && params.unconfirmed !== null ? Boolean(params.unconfirmed) : undefined
 
@@ -575,7 +564,6 @@ module.exports = {
     validatePubkey,
     validateDataParam,
     validateCombinedDataLength,
-    compilesToBareOpcode,
     isMinimalOpSingleByte,
     validateActionPushDecodability,
     validateActionName,

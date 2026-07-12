@@ -25,7 +25,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, compiledPushSize } = require('./validator')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
 
@@ -1178,9 +1178,7 @@ class XChainEncoder {
         // script) in the witness, which is weight-1 (i.e. ÷4 toward vbytes).
         // That makes a P2WSH reveal materially cheaper than the equivalent P2SH
         // reveal: sizing it with estimateSpendingP2shTx would over-fund ~4x.
-        let witnessScriptPush = witnessData.length < 76   ? 1
-                              : witnessData.length < 256  ? 2
-                              :                             3
+        let witnessScriptPush = compiledPushSize(witnessData.length) - witnessData.length
         // Witness stack (weight 1): item count + sig push (1+72) + pubkey push
         // (1+33) + witness-script push + script bytes, plus the segwit
         // marker+flag (2) which are also weight 1.

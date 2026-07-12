@@ -20,6 +20,7 @@
 
 // Load required libraries
 const bitcoin = require('bitcoinjs-lib');
+const { compiledPushSize } = require('./validator');
 
 class TxSizeEstimator {
     static estimateOpReturnOutput(data){
@@ -56,9 +57,7 @@ class TxSizeEstimator {
         //   - redeem script bytes
         let sigPush      = 1 + 72                                   // 73
         let pubkeyPush   = 1 + 33                                   // 34
-        let redeemPush   = redeemData.length < 76   ? 1
-                         : redeemData.length < 256  ? 2
-                         :                            3
+        let redeemPush   = compiledPushSize(redeemData.length) - redeemData.length
         let scriptSig    = sigPush + pubkeyPush + redeemPush + redeemData.length
         let scriptVarint = scriptSig < 253 ? 1 : 3
         return 40 + scriptVarint + scriptSig

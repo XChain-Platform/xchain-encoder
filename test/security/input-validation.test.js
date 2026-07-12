@@ -181,6 +181,11 @@ describe('Security: validateFee / validateFeePerKb / validateDust', () => {
         assert.throws(() => V.validateDust(-1), RangeError)
         assert.throws(() => V.validateDust('xyz'), TypeError)
     })
+
+    it('rejects over-max dust (parity with the fee ceiling)', () => {
+        assert.throws(() => V.validateDust(V.MAX_FEE_SATOSHIS + 1), RangeError)
+        assert.strictEqual(V.validateDust(546), 546)
+    })
 })
 
 describe('Security: validateEncoding', () => {
