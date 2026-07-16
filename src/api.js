@@ -136,6 +136,14 @@ const jsonRpcController = {
     // sync state. Unlike ping, a health failure means the encoder cannot serve
     // requests correctly. Fields: tracker_reachable (bool), tracker_synced
     // (bool), tracker_lag (number|null).
+    //
+    // tracker_synced is SERVE-readiness, not the tracker's raw verdict: it
+    // applies the same maxUtxoTrackerLagBlocks ceiling create_tx enforces
+    // (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money
+    // safety). Without the extra gate a 3-block lag read synced:true here
+    // while create_tx refused UTXO_TRACKER_STALE, so the status board painted
+    // Online on an un-serveable encoder (#2263). Null lag fails open, exactly
+    // like create_tx's overLag gate.
     async health() {
         let tracker_reachable = false
         let tracker_synced = false
@@ -143,8 +151,10 @@ const jsonRpcController = {
         try {
             const status = await encoder.utxoTrackerConnector.getSyncStatus()
             tracker_reachable = true
-            tracker_synced = !!status.synced
-            tracker_lag = status.lag !== undefined ? status.lag : null
+            const lag = status.lag !== undefined ? status.lag : null
+            const overLag = (lag !== null) && (lag > encoder.maxUtxoTrackerLagBlocks)
+            tracker_synced = !!status.synced && !overLag
+            tracker_lag = lag
         } catch (_err) {
             // tracker unreachable; fields stay at defaults
         }
@@ -287,8 +297,12 @@ app.get('/status', async (req, res) => {
     try {
         const status = await encoder.utxoTrackerConnector.getSyncStatus()
         tracker_reachable = true
-        tracker_synced = !!status.synced
-        tracker_lag = status.lag !== undefined ? status.lag : null
+        // Serve-readiness gate, mirroring create_tx and the health() method
+        // above (#2263): the 503 must fire whenever create_tx would refuse.
+        const lag = status.lag !== undefined ? status.lag : null
+        const overLag = (lag !== null) && (lag > encoder.maxUtxoTrackerLagBlocks)
+        tracker_synced = !!status.synced && !overLag
+        tracker_lag = lag
     } catch (_err) {
         // tracker unreachable; fields stay at defaults
     }

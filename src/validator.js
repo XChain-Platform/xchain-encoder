@@ -110,6 +110,18 @@ function toExactInt(raw) {
     return NaN
 }
 
+// Strict optional-boolean validator for policy flags (rbf, unconfirmed).
+// undefined/null pass through as undefined so downstream defaults apply; a
+// provided value must be a real boolean. TypeError so api.js maps it to
+// -32602 invalid-params, like the money/hex validators.
+function validateOptionalBoolean(raw, label) {
+    if (raw === undefined || raw === null) return undefined
+    if (typeof raw !== 'boolean') {
+        throw new TypeError(`${label} must be a boolean (got ${typeof raw}${typeof raw === 'string' ? ` "${raw}"` : ''}); string "false" would coerce to true`)
+    }
+    return raw
+}
+
 // Parse a satoshi amount into a JS integer, rejecting any value that cannot be
 // represented exactly. The utxo-tracker emits full-precision decimal strings
 // (readBigUInt64BE().toString()), so a 64-bit value reaches the encoder intact;
@@ -545,13 +557,16 @@ function validateAll(params) {
         throw new RangeError('pubkey is required')
     }
 
-    // Coerce rbf and unconfirmed to strict booleans when explicitly provided.
-    // Absent params stay undefined (NOT false) and inherit createTransaction's
+    // rbf and unconfirmed must be real JSON booleans when explicitly provided.
+    // Truthiness coercion here was a policy flip on a money path: Boolean("false")
+    // is true, so a stringy-boolean client asking to EXCLUDE mempool coins would
+    // silently have them selected (and rbf "false" would arm replace-by-fee).
+    // Absent/null params stay undefined (NOT false) and inherit createTransaction's
     // defaults downstream: unconfirmed defaults to true (unconfirmed UTXOs are
     // selectable), rbf defaults to falsy. Do not "fix" the code to force false
     // here, that would silently flip the UTXO-selection policy on a money path.
-    const rbf = params.rbf !== undefined && params.rbf !== null ? Boolean(params.rbf) : undefined
-    const unconfirmed = params.unconfirmed !== undefined && params.unconfirmed !== null ? Boolean(params.unconfirmed) : undefined
+    const rbf = validateOptionalBoolean(params.rbf, 'rbf')
+    const unconfirmed = validateOptionalBoolean(params.unconfirmed, 'unconfirmed')
 
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,

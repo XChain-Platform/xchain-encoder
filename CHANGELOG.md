@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default an omitted `data` param to `''` in `createTransaction` so a spec-valid data-omitted request builds a payment-only tx instead of crashing on `Buffer.from(null)`.
 - Validate `utxos[].scriptPubKey` as bounded even-length hex so a malformed value is rejected up front instead of silently truncating through `Buffer.from(x, 'hex')` and misclassifying the input.
 
+## [1.6.11] - 2026-07-16
+
+### Fixed
+- rbf/unconfirmed validated as strict booleans (TypeError -> -32602) instead of truthiness-coerced, so string "false" can no longer flip UTXO-selection policy ().
+- health() and GET /status apply create_tx's maxUtxoTrackerLagBlocks overLag gate so serve-readiness matches what create_tx will actually accept ().
+
+
 ## [1.6.10] - 2026-06-20
 
 ### Added

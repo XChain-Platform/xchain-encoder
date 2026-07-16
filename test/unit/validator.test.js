@@ -360,6 +360,25 @@ describe('Encoder input validator', function () {
             assert.strictEqual(result.unconfirmed, false);
         });
 
+        it('rejects non-boolean rbf/unconfirmed instead of truthiness-coercing (string "false" must not flip policy to true)', function () {
+            const base = { data: 'SEND', pubkey: '02ab' };
+            assert.throws(() => v.validateAll({ ...base, unconfirmed: 'false' }), TypeError);
+            assert.throws(() => v.validateAll({ ...base, unconfirmed: 'true' }), /unconfirmed must be a boolean/);
+            assert.throws(() => v.validateAll({ ...base, rbf: 'false' }), /rbf must be a boolean/);
+            assert.throws(() => v.validateAll({ ...base, rbf: 1 }), TypeError);
+            assert.throws(() => v.validateAll({ ...base, unconfirmed: 0 }), TypeError);
+        });
+
+        it('rbf/unconfirmed absent or null stay undefined so downstream defaults apply', function () {
+            const base = { data: 'SEND', pubkey: '02ab' };
+            const absent = v.validateAll(base);
+            assert.strictEqual(absent.rbf, undefined);
+            assert.strictEqual(absent.unconfirmed, undefined);
+            const nulled = v.validateAll({ ...base, rbf: null, unconfirmed: null });
+            assert.strictEqual(nulled.rbf, undefined);
+            assert.strictEqual(nulled.unconfirmed, undefined);
+        });
+
         it('exercises validateFeeQuote validation paths through validateAll', function () {
             const base = { data: 'SEND', pubkey: '02ab' };
             assert.throws(() => v.validateAll({ ...base, feeQuote: 'no' }), /feeQuote must be an object/);
