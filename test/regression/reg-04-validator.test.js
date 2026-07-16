@@ -579,17 +579,15 @@ describe('REG-04: Validator Functions', function () {
       )
     })
 
-    it('coerces rbf and unconfirmed to strict booleans', function () {
-      // Hardened behavior: a truthy non-boolean rbf/unconfirmed (e.g. a string) would
-      // silently flip RBF signaling or unconfirmed-UTXO selection on a money protocol,
-      // so validateAll normalizes both to strict booleans rather than forwarding the raw
-      // value. 'truthy-string' -> true; 0 -> false.
-      const result = validateAll({
-        data: 'SEND|0|X|1|addr',
-        pubkey: '1JDogZS6tQcSxwfxhv6XKKjcyicYA4Feev',
-        rbf: 'truthy-string',
-        unconfirmed: 0
-      })
+    it('rejects non-boolean rbf and unconfirmed, passes real booleans through', function () {
+      // Hardened behavior (): a non-boolean rbf/unconfirmed (e.g. the string
+      // "false", which is truthy) would silently flip RBF signaling or unconfirmed-UTXO
+      // selection on a money protocol, so validateAll rejects anything but a real JSON
+      // boolean instead of coercing; undefined/null still fall through to the defaults.
+      const base = { data: 'SEND|0|X|1|addr', pubkey: '1JDogZS6tQcSxwfxhv6XKKjcyicYA4Feev' }
+      assert.throws(() => validateAll({ ...base, rbf: 'truthy-string' }), { name: 'TypeError' })
+      assert.throws(() => validateAll({ ...base, unconfirmed: 0 }), { name: 'TypeError' })
+      const result = validateAll({ ...base, rbf: true, unconfirmed: false })
       assert.strictEqual(result.rbf, true)
       assert.strictEqual(result.unconfirmed, false)
     })
