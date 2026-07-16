@@ -177,42 +177,42 @@ describe('UTXO Value Boundaries', () => {
       assert.strictEqual(changeOutput.value, maxBtcSats - 10000)
     })
 
-    it('value = MAX_SAFE_INTEGER throws (exceeds Bitcoin Satoshi type)', async () => {
-      // bitcoinjs-lib enforces a Satoshi type check that rejects values
-      // exceeding the maximum representable in a Bitcoin transaction.
+    it('value = MAX_SAFE_INTEGER builds exact change ( lifts the Satoshi type cap)', async () => {
+      // Pre-, bitcoinjs-lib's Satoshi type check (21M BTC cap) rejected
+      // this; the applyBufferutilsPatch relaxes it to the u64 wire ceiling
+      // because DOGE has no supply cap. The value itself is still Number-exact.
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, Number.MAX_SAFE_INTEGER)
 
-      await assert.rejects(
-        () => encoder.createTransaction(
-          [utxo], address, null,
-          'SEND|0|X|1|a', null, 10000, false, null, address,
-          null, null, null, true, 0.00001
-        ),
-        /Satoshi/i,
-        'bitcoinjs-lib rejects change output value exceeding Satoshi type limits'
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, 10000, false, null, address,
+        null, null, null, true, 0.00001
       )
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      assert.strictEqual(changeOutput.value, Number.MAX_SAFE_INTEGER - 10000)
     })
 
-    it('full-precision string value above MAX_SAFE_INTEGER is rejected loudly (DOGE consolidation)', async () => {
+    it('full-precision string value above MAX_SAFE_INTEGER builds exact BigInt change (DOGE consolidation, )', async () => {
       // The utxo-tracker hands the encoder a full-precision decimal string, so a
       // DOGE consolidation UTXO above 2^53-1 sats (~90.07M DOGE) reaches the
-      // encoder intact. parseInt would silently round it and skew the fee/change
-      // math; the encoder must reject it instead of losing precision.
+      // encoder intact. Pre- this was rejected fail-closed; the value now
+      // flows through the BigInt money path with no precision loss.
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const bigSats = '10000000100000000' // 100,000,001 DOGE in sats, > MAX_SAFE_INTEGER
       const utxo = makeSegwitUtxo(TXID_A, 0, bigSats)
 
-      await assert.rejects(
-        () => encoder.createTransaction(
-          [utxo], address, null,
-          'SEND|0|X|1|a', null, 10000, false, null, address,
-          null, null, null, true, 0.00001
-        ),
-        /precision loss/i,
-        'encoder rejects a satoshi value that cannot be represented without precision loss'
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        'SEND|0|X|1|a', null, 10000, false, null, address,
+        null, null, null, true, 0.00001
+      )
+      const values = result.psbt.txOutputs.map(o => BigInt(o.value))
+      assert.ok(
+        values.includes(10000000100000000n - 10000n),
+        `expected exact change 10000000099990000; got ${values}`
       )
     })
   })

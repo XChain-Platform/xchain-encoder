@@ -153,7 +153,7 @@
           "required": false,
           "schema": {
             "type": "array",
-            "description": "extra outputs [{address, value}] (max 100)",
+            "description": "extra outputs [{address, value}] (max 100); value is base units, pass amounts above 2^53-1 as an exact decimal string ",
             "items": {
               "type": "object"
             }

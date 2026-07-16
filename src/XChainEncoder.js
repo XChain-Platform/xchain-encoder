@@ -18,6 +18,9 @@
  * 
  ********************************************************************/
 
+// Must load before any PSBT is built: teaches bitcoinjs-lib/bip174 to carry
+// satoshi values above 2^53-1 as BigInt (, DOGE has no supply cap).
+require('./applyBufferutilsPatch')
 const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const bs58check = require('bs58check')
@@ -42,6 +45,25 @@ const MULTISIGN_SIZE = 69 // 9 bytes overhead (1 OP_CHECKMULTISIG + 1 m + 1 n + 
 const MAGIC_WORD = "XCHN"
 
 const SATOSHI_UNIT = 100000000
+
+const MAX_SAFE_SATOSHI_BIG = BigInt(Number.MAX_SAFE_INTEGER)
+
+// Narrow a satoshi amount computed in BigInt back to a Number when it is
+// exactly representable, so pre- consumers (tests, PSBT inspectors)
+// keep seeing Number for every value they could already handle; only a
+// genuinely >2^53-1 amount stays BigInt (the patched bitcoinjs/bip174
+// serializers accept both).
+function asSatValue(v) {
+    return (typeof v === 'bigint' && v <= MAX_SAFE_SATOSHI_BIG) ? Number(v) : v
+}
+
+// JSON-safe form of a satoshi amount for OperationalError metadata:
+// JSON.stringify throws on BigInt, so a >2^53-1 amount is emitted as its
+// exact decimal string instead.
+function jsonSafeSat(v) {
+    if (typeof v !== 'bigint') return v
+    return v <= MAX_SAFE_SATOSHI_BIG ? Number(v) : v.toString()
+}
 
 // Default ceiling on any caller-supplied fee, expressed as a multiple of the
 // node's own estimatesmartfee(1) estimate. Without a cap, a malicious or buggy
@@ -461,7 +483,9 @@ class XChainEncoder {
         let psbt = null
         
         let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
-        let inputSatoshis = 0
+        // BigInt: a DOGE UTXO set can total past 2^53-1 sats, where Number
+        // arithmetic silently rounds the fee/change math .
+        let inputSatoshis = 0n
 
         // The P2SH/P2WSH reveal (phase 2) spends phase-1's OWN funding outputs,
         // reconstructed from p2shHex further below; it never selects spendable
@@ -571,7 +595,9 @@ class XChainEncoder {
             throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
         }
 
-        utxos.sort((a,b)=> b.value - a.value)
+        // Comparator, not subtraction: a >2^53-1 value is a BigInt here, and
+        // BigInt - Number throws. Relational operators mix the two types fine.
+        utxos.sort((a,b)=> a.value < b.value ? 1 : a.value > b.value ? -1 : 0)
         //On the reveal path utxos is empty; txidFirstInput is (re)assigned from
         //p2shHex inside the data loop below before it is ever read.
         //
@@ -630,14 +656,14 @@ class XChainEncoder {
         // so they are paid exactly once. Single-tx encodings (OP_RETURN/MULTISIGN)
         // are unaffected: they emit customOutputs directly on their only tx.
         const isP2shFamily = preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH
-        let revealCustomOutputsValue = 0
+        let revealCustomOutputsValue = 0n
         if (!p2shHash && isP2shFamily && customOutputs && Array.isArray(customOutputs)){
             for (let i = 0; i < customOutputs.length; i++){
-                revealCustomOutputsValue += parseSatoshiAmount(customOutputs[i].value, `customOutputs[${i}].value`)
+                revealCustomOutputsValue += BigInt(parseSatoshiAmount(customOutputs[i].value, `customOutputs[${i}].value`, { allowBig: true }))
             }
         }
 
-        let outputSatoshis = 0
+        let outputSatoshis = 0n
         let voutPsbtIndex = 0
         let obfuscatedData
 
@@ -725,17 +751,17 @@ class XChainEncoder {
 
                         // Over-fund the first funding output by the reveal-side
                         // customOutputs total so the reveal can pay them (consumed once).
-                        if (revealCustomOutputsValue > 0){
-                            spendingP2shEstimatedFee += revealCustomOutputsValue
-                            revealCustomOutputsValue = 0
+                        if (revealCustomOutputsValue > 0n){
+                            spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + revealCustomOutputsValue)
+                            revealCustomOutputsValue = 0n
                         }
 
                         psbt.addOutput({
                             address: bitcoin.payments.p2sh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
                             value:spendingP2shEstimatedFee
                         })
-                        
-                        outputSatoshis = outputSatoshis + spendingP2shEstimatedFee
+
+                        outputSatoshis = outputSatoshis + BigInt(spendingP2shEstimatedFee)
                         
                         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateP2shOutput()
                     }
@@ -825,9 +851,9 @@ class XChainEncoder {
 
                         // Over-fund the first funding output by the reveal-side
                         // customOutputs total so the reveal can pay them (consumed once).
-                        if (revealCustomOutputsValue > 0){
-                            spendingP2wshEstimatedFee += revealCustomOutputsValue
-                            revealCustomOutputsValue = 0
+                        if (revealCustomOutputsValue > 0n){
+                            spendingP2wshEstimatedFee = asSatValue(BigInt(spendingP2wshEstimatedFee) + revealCustomOutputsValue)
+                            revealCustomOutputsValue = 0n
                         }
 
                         psbt.addOutput({
@@ -841,7 +867,7 @@ class XChainEncoder {
                         // inputs; bitcoinjs rejects tx1 with "Outputs are
                         // spending more than Inputs". Mirrors the P2SH and
                         // MULTISIGN branches, which already track their outputs.
-                        outputSatoshis = outputSatoshis + spendingP2wshEstimatedFee
+                        outputSatoshis = outputSatoshis + BigInt(spendingP2wshEstimatedFee)
 
                         estimatedTxSize = estimatedTxSize
                             + TxSizeEstimator.estimateP2wshOutput()
@@ -885,7 +911,7 @@ class XChainEncoder {
                         })
                     // Account for the data output's value so change is not over-credited
                     // (otherwise total outputs exceed total inputs and the tx is invalid).
-                    outputSatoshis += multisigOutputValue
+                    outputSatoshis += BigInt(multisigOutputValue)
 
                     estimatedTxSize = estimatedTxSize
                         + TxSizeEstimator.estimateMultisignOutput()
@@ -905,7 +931,7 @@ class XChainEncoder {
         if (!skipCustomOutputs && customOutputs && Array.isArray(customOutputs)) {
             for (let i = 0; i < customOutputs.length; i++) {
                 const output = customOutputs[i]
-                const outputValue = parseSatoshiAmount(output.value, `customOutputs[${i}].value`)
+                const outputValue = parseSatoshiAmount(output.value, `customOutputs[${i}].value`, { allowBig: true })
                 // A 0-sat caller output is consensus-valid but relay-rejected as
                 // dust, so the caller signs an unbroadcastable PSBT. Reject it at
                 // the effector too (not just the validator boundary), matching the
@@ -920,7 +946,7 @@ class XChainEncoder {
                     address: output.address,
                     value:   outputValue
                 })
-                outputSatoshis += outputValue
+                outputSatoshis += BigInt(outputValue)
                 estimatedTxSize += 43 // Taproot output size estimate (most expensive)
             }
         }
@@ -967,7 +993,7 @@ class XChainEncoder {
                     }
                 }
 
-                nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`)
+                nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
 
                 if (this.isSegwitUTXO(nextUtxo)){
                     let nextInput = {
@@ -981,7 +1007,7 @@ class XChainEncoder {
                     }
                     psbt.addInput(nextInput)
                     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-                    inputSatoshis = inputSatoshis + nextUtxo.value
+                    inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
                 } else {
                     let wholeUtxoHex = await this.connector.getTransactionHex(nextUtxo.txid)
                     let nextInput = {
@@ -992,7 +1018,7 @@ class XChainEncoder {
                     }
                     psbt.addInput(nextInput)
                     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-                    inputSatoshis = inputSatoshis + nextUtxo.value
+                    inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
                 }
 
                 selectedInputCount = selectedInputCount + 1
@@ -1001,7 +1027,7 @@ class XChainEncoder {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
                 }
 
-                if (inputSatoshis > outputSatoshis + estimatedFee){
+                if (inputSatoshis > outputSatoshis + BigInt(estimatedFee)){
                     break
                 }
 
@@ -1027,7 +1053,7 @@ class XChainEncoder {
                 throw new OperationalError(
                     'INSUFFICIENT_FUNDS',
                     'insufficient funds: no spendable inputs available (all candidates reserved or empty)',
-                    { required: outputSatoshis + estimatedFee, available: 0, outputs: outputSatoshis, fee: estimatedFee }
+                    { required: jsonSafeSat(outputSatoshis + BigInt(estimatedFee)), available: 0, outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
                 )
             }
         }
@@ -1074,11 +1100,17 @@ class XChainEncoder {
             estimatedFee = this.dustAmount
         }
 
-        let changeSatoshis = inputSatoshis - outputSatoshis - estimatedFee
-
-        if (!Number.isFinite(changeSatoshis)) {
+        // Validate the fee BEFORE the BigInt conversion below: a NaN/Infinity
+        // fee would previously surface via the Number.isFinite(changeSatoshis)
+        // check, but BigInt(estimatedFee) throws an opaque error on those.
+        if (!Number.isFinite(estimatedFee) || !Number.isInteger(estimatedFee)) {
             throw new RangeError('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
         }
+
+        // Exact change math in BigInt: with a >2^53-1-sat input, Number
+        // subtraction would round the change (and the caller would sign a
+        // PSBT whose change is off by up to ~2 sats per 2^53).
+        let changeSatoshis = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
 
         // M-8: reject a genuinely under-funded selection instead of returning an
         // unbroadcastable PSBT whose outputs exceed its inputs (the caller would
@@ -1087,11 +1119,11 @@ class XChainEncoder {
         // and never runs input selection, so inputSatoshis is 0 there by design
         // and a negative "change" is expected and harmless.
         if (!p2shHash && changeSatoshis < 0) {
-            const required = outputSatoshis + estimatedFee
+            const required = outputSatoshis + BigInt(estimatedFee)
             throw new OperationalError(
                 'INSUFFICIENT_FUNDS',
                 `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})`,
-                { required, available: inputSatoshis, outputs: outputSatoshis, fee: estimatedFee }
+                { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
             )
         }
 
@@ -1108,7 +1140,7 @@ class XChainEncoder {
             if (changeSatoshis >= this.dustAmount) {
                 psbt.addOutput({
                     address: change,
-                    value: changeSatoshis
+                    value: asSatValue(changeSatoshis)
                 })
             }
         }

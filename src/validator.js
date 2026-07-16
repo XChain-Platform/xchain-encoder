@@ -122,22 +122,59 @@ function validateOptionalBoolean(raw, label) {
     return raw
 }
 
-// Parse a satoshi amount into a JS integer, rejecting any value that cannot be
-// represented exactly. The utxo-tracker emits full-precision decimal strings
-// (readBigUInt64BE().toString()), so a 64-bit value reaches the encoder intact;
-// a value above Number.MAX_SAFE_INTEGER (2^53-1 ~= 9.007e15 sats) cannot be held
-// exactly. For BTC/LTC this is unreachable (21M cap = 2.1e15 sats), but DOGE has
-// no supply cap, so a single consolidation UTXO can exceed it and corrupt the
-// fee/change math. Reject loudly instead of rounding.
-function parseSatoshiAmount(raw, label) {
+// Wire-format ceiling for a satoshi amount: the transaction output value
+// field is an unsigned 64-bit integer, so 2^64-1 is the largest amount any
+// coin can carry in one output regardless of supply policy.
+const MAX_SATOSHI_U64 = 0xffffffffffffffffn
+
+// Parse a satoshi amount, rejecting any value that cannot be represented
+// exactly. The utxo-tracker emits full-precision decimal strings
+// (readBigUInt64BE().toString()), so a 64-bit value reaches the encoder
+// intact; a JS Number above Number.MAX_SAFE_INTEGER (2^53-1 ~= 9.007e15
+// sats) cannot hold it exactly. For BTC/LTC this is unreachable (21M cap =
+// 2.1e15 sats), but DOGE has no supply cap, so a single output can exceed
+// it (>~90.07M DOGE). Fields that may legitimately carry such amounts
+// (utxos[].value, customOutputs[].value) opt in with {allowBig: true}: an
+// exact decimal STRING above 2^53-1 then parses to a BigInt (up to the u64
+// wire ceiling); a Number above 2^53-1 is still rejected because it was
+// already rounded before it reached us (JSON.parse or caller arithmetic).
+// Without allowBig the pre- fail-closed behavior is unchanged.
+function parseSatoshiAmount(raw, label, opts) {
+    const allowBig = !!(opts && opts.allowBig)
+    // Already-coerced BigInt (validateUtxoEntry/validateCustomOutput ran
+    // first; createTransaction re-parses defensively): re-validate in place.
+    if (typeof raw === 'bigint') {
+        if (raw < 0n) {
+            throw new RangeError(`${label} must be a non-negative integer`)
+        }
+        if (raw <= BigInt(Number.MAX_SAFE_INTEGER)) {
+            return Number(raw)
+        }
+        if (!allowBig) {
+            throw new RangeError(`${label} (${raw}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss`)
+        }
+        if (raw > MAX_SATOSHI_U64) {
+            throw new RangeError(`${label} (${raw}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
+        }
+        return raw
+    }
     const num = toExactInt(raw)
     if (isNaN(num) || num < 0) {
         throw new RangeError(`${label} must be a non-negative integer`)
     }
-    if (!Number.isSafeInteger(num)) {
-        throw new RangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss`)
+    if (Number.isSafeInteger(num)) {
+        return num
     }
-    return num
+    if (allowBig && typeof raw === 'string') {
+        // toExactInt already guaranteed /^-?\d+$/ and the num<0 check above
+        // guaranteed non-negative, so this BigInt parse cannot throw.
+        const big = BigInt(raw.trim())
+        if (big > MAX_SATOSHI_U64) {
+            throw new RangeError(`${label} (${raw.trim()}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
+        }
+        return big
+    }
+    throw new RangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
 }
 
 function validatePubkey(pubkey) {
@@ -341,7 +378,10 @@ function validateUtxoEntry(entry, index) {
     }
     entry.vout = vout
 
-    entry.value = parseSatoshiAmount(entry.value, `utxos[${index}].value`)
+    // allowBig: a DOGE consolidation UTXO can legitimately exceed 2^53-1 sats;
+    // the tracker emits it as an exact decimal string and the encoder's money
+    // path carries it as a BigInt .
+    entry.value = parseSatoshiAmount(entry.value, `utxos[${index}].value`, { allowBig: true })
 
     if (typeof entry.scriptPubKey !== 'string' || entry.scriptPubKey.length === 0) {
         throw new TypeError(`utxos[${index}].scriptPubKey must be a non-empty string`)
@@ -399,7 +439,9 @@ function validateCustomOutput(output, index) {
     if (output.address.length > 100) {
         throw new TypeError(`customOutputs[${index}].address exceeds maximum length (100)`)
     }
-    output.value = parseSatoshiAmount(output.value, `customOutputs[${index}].value`)
+    // allowBig: a >2^53-1-sat DOGE payment output is legitimate; it must be
+    // supplied as an exact decimal string .
+    output.value = parseSatoshiAmount(output.value, `customOutputs[${index}].value`, { allowBig: true })
     // A caller-supplied output of 0 sats is consensus-valid but relay-rejected
     // as an unspendable/dust output, so the caller signs a PSBT that can never
     // broadcast. Reject it at the trust boundary, matching validateFeeQuote's
@@ -601,6 +643,7 @@ module.exports = {
     validateAddress,
     validateAll,
     parseSatoshiAmount,
+    MAX_SATOSHI_U64,
     MAX_RAW_TX_HEX_LENGTH,
     MAX_DATA_BYTES,
     MAX_COMPILED_ACTION_DATA_LENGTH,
