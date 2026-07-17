@@ -84,6 +84,7 @@ npm run api
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
+| `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
 | `CORS_ORIGIN` | No | Disabled | CORS origin (`*` to allow all) |
 
 ## Scripts

@@ -95,6 +95,28 @@ const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_
 
 const app = express();
 
+// Trust proxy configuration for the per-IP rate limiter below. Without this,
+// req.ip is always the socket peer address; the status board is same-origin
+// with the encoder behind a fronting proxy (see docs/README deployment
+// notes), so every visitor's requests arrive from the proxy's IP and all
+// clients share ONE rate-limit bucket, tripping 429s under modest concurrent
+// load (encoder-status-board-parity #2468). `true` must NOT be the default:
+// it would trust ANY client-supplied X-Forwarded-For, letting callers spoof
+// their IP past the per-IP limiter (express-rate-limit's
+// ERR_ERL_PERMISSIVE_TRUST_PROXY warning). The default trusts loopback plus
+// private-range peers: a native deploy sees the host proxy as loopback, a
+// containerized deploy sees it as the docker bridge IP (uniquelocal); both
+// recover the real client IP. Exposed directly to the internet, a forged XFF
+// is ignored (public socket address) and req.ip is the socket address.
+// ENCODER_TRUST_PROXY overrides for other topologies: `false`, a hop count
+// (e.g. `1`), or an address/CIDR list per the Express docs. Mirrors
+// xchain-hub's HUB_TRUST_PROXY (src/api.js).
+let trustProxy = process.env.ENCODER_TRUST_PROXY || 'loopback, uniquelocal';
+if (trustProxy === 'true')       trustProxy = true;
+else if (trustProxy === 'false') trustProxy = false;
+else if (/^\d+$/.test(trustProxy)) trustProxy = parseInt(trustProxy, 10);
+app.set('trust proxy', trustProxy);
+
 app.use(helmet());
 
 app.use(bodyParser.json({ limit: '1mb' }));
@@ -127,6 +149,34 @@ app.use(limiter)
 // CORS configuration (default: disabled; set CORS_ORIGIN=* to allow all)
 app.use(cors(CORS_ORIGIN ? { origin: CORS_ORIGIN } : { origin: false }));
 
+// Serve-readiness probe shared by the JSON-RPC health() method and GET
+// /status (#2472), so the two endpoints can never drift apart: probes the
+// UTXO tracker and returns its reachability / sync state. Fields:
+// tracker_reachable (bool), tracker_synced (bool), tracker_lag (number|null).
+//
+// tracker_synced is SERVE-readiness, not the tracker's raw verdict: it
+// applies the same maxUtxoTrackerLagBlocks ceiling create_tx enforces
+// (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money
+// safety). Without the extra gate a 3-block lag read synced:true here while
+// create_tx refused UTXO_TRACKER_STALE, so the status board painted Online
+// on an un-serveable encoder (#2263). Null lag fails open, exactly like
+// create_tx's overLag gate.
+async function getServeReadiness() {
+    let tracker_reachable = false
+    let tracker_synced = false
+    let tracker_lag = null
+    try {
+        const status = await encoder.utxoTrackerConnector.getSyncStatus()
+        tracker_reachable = true
+        const lag = status.lag !== undefined ? status.lag : null
+        const overLag = (lag !== null) && (lag > encoder.maxUtxoTrackerLagBlocks)
+        tracker_synced = !!status.synced && !overLag
+        tracker_lag = lag
+    } catch (_err) {
+        // tracker unreachable; fields stay at defaults
+    }
+    return { tracker_reachable, tracker_synced, tracker_lag }
+}
 
 const jsonRpcController = {
     async ping() {
@@ -134,31 +184,10 @@ const jsonRpcController = {
     },
     // Probes hard dependencies (UTXO tracker) and returns their reachability /
     // sync state. Unlike ping, a health failure means the encoder cannot serve
-    // requests correctly. Fields: tracker_reachable (bool), tracker_synced
-    // (bool), tracker_lag (number|null).
-    //
-    // tracker_synced is SERVE-readiness, not the tracker's raw verdict: it
-    // applies the same maxUtxoTrackerLagBlocks ceiling create_tx enforces
-    // (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money
-    // safety). Without the extra gate a 3-block lag read synced:true here
-    // while create_tx refused UTXO_TRACKER_STALE, so the status board painted
-    // Online on an un-serveable encoder (#2263). Null lag fails open, exactly
-    // like create_tx's overLag gate.
+    // requests correctly. See getServeReadiness() for the readiness gate,
+    // shared with GET /status below (#2472).
     async health() {
-        let tracker_reachable = false
-        let tracker_synced = false
-        let tracker_lag = null
-        try {
-            const status = await encoder.utxoTrackerConnector.getSyncStatus()
-            tracker_reachable = true
-            const lag = status.lag !== undefined ? status.lag : null
-            const overLag = (lag !== null) && (lag > encoder.maxUtxoTrackerLagBlocks)
-            tracker_synced = !!status.synced && !overLag
-            tracker_lag = lag
-        } catch (_err) {
-            // tracker unreachable; fields stay at defaults
-        }
-        return { tracker_reachable, tracker_synced, tracker_lag }
+        return getServeReadiness()
     },
     // Suggested fee tiers (base-unit per vByte: sat/koinu/litoshi) from the node's
     // estimatesmartfee at decreasing confirmation targets: low=slow/cheap (6
@@ -289,23 +318,11 @@ const jsonRpcController = {
 // GET /status: returns 200 when the encoder's hard dependencies are reachable
 // and the UTXO tracker is synced, or 503 when not. Distinct from the JSON-RPC
 // `health` method so load-balancer / uptime monitors can rely on the HTTP status
-// code directly (the JSON-RPC catch-all routes all GETs to 200 today).
+// code directly (the JSON-RPC catch-all routes all GETs to 200 today). Shares
+// the readiness gate with health() via getServeReadiness() above (#2472) so
+// the two endpoints cannot drift apart.
 app.get('/status', async (req, res) => {
-    let tracker_reachable = false
-    let tracker_synced = false
-    let tracker_lag = null
-    try {
-        const status = await encoder.utxoTrackerConnector.getSyncStatus()
-        tracker_reachable = true
-        // Serve-readiness gate, mirroring create_tx and the health() method
-        // above (#2263): the 503 must fire whenever create_tx would refuse.
-        const lag = status.lag !== undefined ? status.lag : null
-        const overLag = (lag !== null) && (lag > encoder.maxUtxoTrackerLagBlocks)
-        tracker_synced = !!status.synced && !overLag
-        tracker_lag = lag
-    } catch (_err) {
-        // tracker unreachable; fields stay at defaults
-    }
+    const { tracker_reachable, tracker_synced, tracker_lag } = await getServeReadiness()
     const healthy = tracker_reachable && tracker_synced
     const code = healthy ? 200 : 503
     res.status(code).json({ status: healthy ? 'healthy' : 'unhealthy', tracker_reachable, tracker_synced, tracker_lag })
