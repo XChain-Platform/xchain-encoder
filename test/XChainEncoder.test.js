@@ -14,11 +14,11 @@
 
 // XChainEncoder.test.js
 import { BIP32Factory } from 'bip32'
-import ecc from 'tiny-secp256k1'
+import * as ecc from 'tiny-secp256k1'
 const bip32 = BIP32Factory(ecc)
 import bip39 from 'bip39'
 import bitcoin from 'bitcoinjs-lib'
-import psbtutils from 'bitcoinjs-lib/src/psbt/psbtutils'
+import psbtutils from 'bitcoinjs-lib/src/psbt/psbtutils.js'
 import assert from 'assert'
 import XChainEncoder from '../src/XChainEncoder.js'
 import nodeHelper from './nodeHelper.js'
