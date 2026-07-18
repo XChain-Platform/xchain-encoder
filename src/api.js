@@ -46,6 +46,7 @@ function makeRpcBatchGuard(maxBatch){
     }
 }
 const validator = require('./validator')
+const { assertSingleInstance, acquireInstanceLock } = require('./singleInstanceGuard')
 const { upstreamErrorMessage } = require('./errorSanitize')
 const { version: ENCODER_VERSION } = require('../package.json')
 
@@ -360,6 +361,14 @@ app.use(jsonRouter({methods: jsonRpcController}))
 // Start the server only when run directly (node src/api.js). When required by a
 // test the controller and app are exported without binding a port.
 if (require.main === module) {
+  // HARD deploy constraint: the outpoint-reservation double-spend guard and the
+  // rate limiter are in-process, so exactly ONE encoder instance may serve an
+  // endpoint. Fail at boot if the deploy declares replicas > 1 (ENCODER_REPLICAS)
+  // or another encoder process on this host already holds the instance lock.
+  // See src/singleInstanceGuard.js.
+  assertSingleInstance()
+  const releaseInstanceLock = acquireInstanceLock()
+  process.on('exit', releaseInstanceLock)
   app.listen(ENCODER_API_PORT, () => {
     console.log('API listening on port '+ENCODER_API_PORT);
   });

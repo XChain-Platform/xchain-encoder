@@ -3,6 +3,13 @@ version: '3'
 services:
   xchain_encoder:
     build: .
+    # HARD CONSTRAINT: exactly one encoder replica per endpoint. The UTXO
+    # outpoint-reservation double-spend guard and the rate limiter are
+    # in-process (src/singleInstanceGuard.js); scaling out lets two replicas
+    # build PSBTs spending the same UTXO. If a deploy manifest ever sets a
+    # replica count, mirror it in ENCODER_REPLICAS so boot fails loudly.
+    deploy:
+      replicas: 1
     networks: 
       - network1
     ports:
