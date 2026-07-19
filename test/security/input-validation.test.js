@@ -108,9 +108,9 @@ describe('Security: validatePubkey / validateChange / validateCompressedPubKey',
         assert.throws(() => V.validatePubkey(''), TypeError)
     })
 
-    it('rejects an over-length pubkey (memory/abuse guard at 200)', () => {
-        assert.throws(() => V.validatePubkey('a'.repeat(201)), TypeError)
-        assert.doesNotThrow(() => V.validatePubkey('a'.repeat(200)))
+    it('rejects an over-length pubkey (shares the validateAddress 100-char bound)', () => {
+        assert.throws(() => V.validatePubkey('a'.repeat(101)), TypeError)
+        assert.doesNotThrow(() => V.validatePubkey('a'.repeat(100)))
     })
 
     it('passes null through (optional param) without throwing', () => {

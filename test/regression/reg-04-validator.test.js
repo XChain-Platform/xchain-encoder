@@ -81,12 +81,12 @@ describe('REG-04: Validator Functions', function () {
       assert.throws(() => validatePubkey(''), { name: 'TypeError' })
     })
 
-    it('throws TypeError for string > 200 chars', function () {
-      assert.throws(() => validatePubkey('x'.repeat(201)), { name: 'TypeError' })
+    it('throws TypeError for string > 100 chars (shares the validateAddress bound)', function () {
+      assert.throws(() => validatePubkey('x'.repeat(101)), { name: 'TypeError' })
     })
 
-    it('accepts string exactly 200 chars', function () {
-      const key = 'x'.repeat(200)
+    it('accepts string exactly 100 chars', function () {
+      const key = 'x'.repeat(100)
       assert.strictEqual(validatePubkey(key), key)
     })
   })

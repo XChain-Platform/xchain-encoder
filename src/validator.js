@@ -28,8 +28,11 @@
 const MAX_COMPILED_ACTION_DATA_LENGTH = 8192
 // Length prefix a single OP_PUSHDATA2 push prepends to a >=256-byte payload
 // (1 opcode + 2 length bytes). The widest single raw push is measured against
-// the compiled ceiling with this prefix included.
-const OP_PUSHDATA2_OVERHEAD = 3
+// the compiled ceiling with this prefix included. Canonical source of truth:
+// xchain-documentation/protocol/constants.js (OP_RETURN_PUSH_OVERHEAD). The
+// cross-service regression suite pins this local copy by name against that
+// declaration, so the name must match exactly, not just the value.
+const OP_RETURN_PUSH_OVERHEAD = 3
 // Largest raw single-push payload that still fits the compiled on-chain ceiling:
 // a raw payload of N bytes (N >= 256) compiles to N + 3 once the OP_PUSHDATA2
 // prefix is added, so 8189 + 3 == 8192. Derived from the compiled ceiling so the
@@ -38,7 +41,7 @@ const OP_PUSHDATA2_OVERHEAD = 3
 // ceiling via compiledPushSize so that dual-push payloads are measured against
 // the compiled ceiling directly rather than this single-push approximation.
 // Kept and exported because the test suite pins its value.
-const MAX_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - OP_PUSHDATA2_OVERHEAD
+const MAX_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - OP_RETURN_PUSH_OVERHEAD
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
@@ -177,15 +180,17 @@ function parseSatoshiAmount(raw, label, opts) {
     throw new RangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
 }
 
+// params.pubkey is not a real pubkey: it is the caller's base58 sender
+// address (fed straight to utxoTrackerConnector.getUtxosFromAddress and to
+// bitcoin.address.fromBase58Check in XChainEncoder.js). It must be held to
+// the same shared bound as every other address-shaped field, so this
+// delegates to validateAddress (defined below) rather than keeping its own
+// private, looser cap. Only the null-passthrough semantics differ from
+// validateAddress, since pubkey is validated for presence separately in
+// validateAll.
 function validatePubkey(pubkey) {
     if (pubkey == null) return null
-    if (typeof pubkey !== 'string' || pubkey.length === 0) {
-        throw new TypeError('pubkey must be a non-empty string')
-    }
-    if (pubkey.length > 200) {
-        throw new TypeError('pubkey exceeds maximum length (200)')
-    }
-    return pubkey
+    return validateAddress(pubkey, 'pubkey')
 }
 
 function validateDataParam(value, fieldName) {
@@ -433,12 +438,7 @@ function validateCustomOutput(output, index) {
     if (typeof output !== 'object' || output === null || Array.isArray(output)) {
         throw new TypeError(`customOutputs[${index}] must be an object`)
     }
-    if (typeof output.address !== 'string' || output.address.length === 0) {
-        throw new TypeError(`customOutputs[${index}].address must be a non-empty string`)
-    }
-    if (output.address.length > 100) {
-        throw new TypeError(`customOutputs[${index}].address exceeds maximum length (100)`)
-    }
+    validateAddress(output.address, `customOutputs[${index}].address`)
     // allowBig: a >2^53-1-sat DOGE payment output is legitimate; it must be
     // supplied as an exact decimal string .
     output.value = parseSatoshiAmount(output.value, `customOutputs[${index}].value`, { allowBig: true })
@@ -475,12 +475,7 @@ function validateFeeQuote(feeQuote) {
     if (typeof feeQuote !== 'object') {
         throw new TypeError('feeQuote must be an object with address and amount')
     }
-    if (typeof feeQuote.address !== 'string' || feeQuote.address.length === 0) {
-        throw new TypeError('feeQuote.address must be a non-empty string')
-    }
-    if (feeQuote.address.length > 100) {
-        throw new TypeError('feeQuote.address exceeds maximum length (100)')
-    }
+    validateAddress(feeQuote.address, 'feeQuote.address')
     const amount = toExactInt(feeQuote.amount)
     if (isNaN(amount) || amount <= 0) {
         throw new RangeError('feeQuote.amount must be a positive integer (satoshis)')
@@ -539,16 +534,20 @@ function validateCompressedPubKey(compressedPubKey) {
     return compressedPubKey
 }
 
-// Shape-only address check (non-empty string, capped at 100 chars). Used for the
-// get_utxos address param and as the shared core of validateChange. Coin-specific
-// base58/bech32 validity is left to bitcoinjs downstream; this just sheds obvious
-// garbage (non-strings, empty, oversized) with a -32602-mappable TypeError.
-function validateAddress(address) {
+// Shape-only address check (non-empty string, capped at 100 chars). Shared
+// core for every address-shaped field: the get_utxos address param,
+// validateChange, validatePubkey (params.pubkey is actually a sender
+// address, not a real pubkey), and customOutputs[].address / feeQuote.address.
+// Coin-specific base58/bech32 validity is left to bitcoinjs downstream; this
+// just sheds obvious garbage (non-strings, empty, oversized) with a
+// -32602-mappable TypeError. `label` names the field in the thrown message;
+// callers that omit it keep the plain "address ..." wording.
+function validateAddress(address, label = 'address') {
     if (typeof address !== 'string' || address.length === 0) {
-        throw new TypeError('address must be a non-empty string')
+        throw new TypeError(`${label} must be a non-empty string`)
     }
     if (address.length > 100) {
-        throw new TypeError('address exceeds maximum length (100)')
+        throw new TypeError(`${label} exceeds maximum length (100)`)
     }
     return address
 }

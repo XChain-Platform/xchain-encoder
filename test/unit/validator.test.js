@@ -31,7 +31,7 @@ describe('Encoder input validator', function () {
             assert.strictEqual(v.validatePubkey('02abcd'), '02abcd');
             assert.throws(() => v.validatePubkey(''), TypeError);
             assert.throws(() => v.validatePubkey(123), TypeError);
-            assert.throws(() => v.validatePubkey('x'.repeat(201)), /maximum length/);
+            assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
         });
     });
 
