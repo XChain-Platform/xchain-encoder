@@ -23,6 +23,7 @@ const {
   TXID_A, makeSegwitUtxo, makeLegacyUtxo, makeEncoder, getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
+const { delay } = require('../helpers/timing')
 
 const NETWORK = 'dogecoin-regtest'
 const ADDRESS = getTestAddress(NETWORK)
@@ -299,7 +300,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
-        await new Promise(r => setTimeout(r, 150))
+        await delay(150) // simulate a slow RPC response
         return 0.00001
       }
 
@@ -321,7 +322,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       const { buildRawTxHex } = require('../integration/helpers/utxoFactory')
 
       encoder.connector.getTransactionHex = async () => {
-        await new Promise(r => setTimeout(r, 150))
+        await delay(150) // simulate a slow RPC response
         return buildRawTxHex(100000000, NETWORK)
       }
 

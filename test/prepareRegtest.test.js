@@ -14,6 +14,7 @@
 
 const { execSync } = require('child_process');
 const nodeHelper = require('./nodeHelper')
+const { waitFor } = require('./helpers/timing')
 
 // Función para ejecutar comandos del sistema
 function executeCommand(comando) {
@@ -33,11 +34,6 @@ function checkNode(){
     // Manejar errores si es necesario
 	return false
   }
-}
-
-// Función para esperar un tiempo específico
-function wait(ms) {
-  return new Promise((resolver) => setTimeout(resolver, ms));
 }
 
 exports.mochaHooks = {
@@ -60,11 +56,14 @@ exports.mochaHooks = {
      executeCommand('bitcoind -regtest -daemon -fallbackfee=1.0 -maxtxfee=1.1');
 
      console.log("Checking node")
-	 await wait(1000)
-     while (!checkNode()){
-		 console.log("Node is not ready yet, waiting 5 seconds")
-		 await wait(5000)
-	 }
+     // Condition-wait on daemon readiness instead of a fixed sleep loop:
+     // returns as soon as getnetworkinfo succeeds, and throws (failing the
+     // run loudly) if the node never comes up within the deadline.
+     await waitFor(() => checkNode(), {
+       timeout: 60000,
+       interval: 1000,
+       message: 'regtest bitcoind did not become ready'
+     })
 
     // Puedes realizar más acciones después de reiniciar el nodo si es necesario
     console.log('Nodo regtest reset and ready.');

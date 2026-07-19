@@ -238,17 +238,23 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
+      // feePerKb is in base units (sat/litoshi/koinu) per kB. 1_000_000
+      // sat/kB is far above the capped encoder's 1000 sat/kB absolute cap,
+      // so the capped run must clamp its rate while the uncapped run does
+      // not, leaving the capped transaction with a smaller fee (more change).
+      const HIGH_FEE_PER_KB = 1000000
+
       const resultCapped = await capped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0 // very high
+        null, null, null, true, HIGH_FEE_PER_KB
       )
 
       const uncapped = makeEncoder(NETWORK)
       const resultUncapped = await uncapped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 1.0
+        null, null, null, true, HIGH_FEE_PER_KB
       )
 
       const cappedChange = resultCapped.psbt.txOutputs.find(o => o.value > 0)
