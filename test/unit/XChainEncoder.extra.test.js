@@ -542,8 +542,12 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
 
   function expectedSize (witnessData) {
     const len = witnessData.length
-    const witnessScriptPush = len < 76 ? 1 : len < 256 ? 2 : 3
-    const witnessBytes = 2 + 1 + (1 + 72) + (1 + 33) + (witnessScriptPush + len)
+    // Witness stack items are framed by a compactSize varint (1 byte below 253,
+    // 3 bytes through 65535), NOT by script push opcodes. The old mirror here
+    // used the 76/256 script-push brackets and so pinned the defect fixed in
+    // estimateSpendingP2wshTx (review item 2688).
+    const witnessScriptPrefix = len < 253 ? 1 : 3
+    const witnessBytes = 2 + 1 + (1 + 72) + (1 + 33) + (witnessScriptPrefix + len)
     const nonWitnessBytes =
       10
       + (36 + 1 + 4)
@@ -553,22 +557,59 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
     return nonWitnessBytes + Math.ceil(witnessBytes / 4) + 8
   }
 
-  it('uses 1-byte push for witness script < 76 bytes (short bracket)', () => {
+  it('uses a 1-byte compactSize prefix for a witness script < 76 bytes', () => {
     const encoder = makeEncoder()
-    const data = Buffer.alloc(50) // < 76 → 1-byte push opcode
+    const data = Buffer.alloc(50) // < 253 → 1-byte varint
     assert.strictEqual(encoder.estimateSpendingP2wshTx(data), expectedSize(data))
   })
 
-  it('uses 2-byte OP_PUSHDATA1 for witness script 76..255 bytes (medium bracket)', () => {
+  it('uses a 1-byte compactSize prefix for a witness script in 76..252', () => {
     const encoder = makeEncoder()
-    const data = Buffer.alloc(200) // 76 ≤ 200 < 256 → 2-byte push
+    const data = Buffer.alloc(200) // still < 253 → 1-byte varint, NOT OP_PUSHDATA1
     assert.strictEqual(encoder.estimateSpendingP2wshTx(data), expectedSize(data))
   })
 
-  it('uses 3-byte OP_PUSHDATA2 for witness script >= 256 bytes (large bracket)', () => {
+  it('uses a 3-byte compactSize prefix for a witness script >= 253 bytes', () => {
     const encoder = makeEncoder()
-    const data = Buffer.alloc(400) // ≥ 256 → 3-byte push
+    const data = Buffer.alloc(400) // ≥ 253 → 3-byte varint
     assert.strictEqual(encoder.estimateSpendingP2wshTx(data), expectedSize(data))
+  })
+
+  // Regression, review item 2688. The mirror above moves with the implementation,
+  // so these two cases pin the framing rule independently of it, in the only
+  // places where the old script-push model is observable through the ÷4 witness
+  // discount. estimateSpendingP2wshTx returns
+  //   nonWitness + ceil((110 + prefix + len)/4) + 8,
+  // so a one-byte prefix error only survives the ceil when (110 + prefix + len)
+  // is a multiple of 4. For the 1-byte varint that is len ≡ 1 (mod 4).
+  it('does not add an OP_PUSHDATA1 byte in the 76..252 band (len ≡ 1 mod 4)', () => {
+    const encoder = makeEncoder()
+    // len 201 and 249: 1-byte varint. The old code charged 2 bytes here, which
+    // pushed ceil(witnessBytes/4) up by one and over-funded the reveal output.
+    for (const len of [201, 249]) {
+      const data = Buffer.alloc(len)
+      const withVarint = expectedSize(data)
+      const withPushdata1 = withVarint + 1 // what the script-push model produced
+      const actual = encoder.estimateSpendingP2wshTx(data)
+      assert.strictEqual(actual, withVarint,
+        `len=${len}: expected compactSize framing (${withVarint}), got ${actual}`)
+      assert.notStrictEqual(actual, withPushdata1,
+        `len=${len}: estimate still carries the OP_PUSHDATA1 byte`)
+    }
+  })
+
+  it('switches prefix width at 253, not at 76 or 256', () => {
+    const encoder = makeEncoder()
+    // Adding 4 data bytes with no prefix change costs exactly 1 vbyte
+    // (4 witness bytes ÷ 4). A prefix change shows up as a departure from that.
+    const step = len =>
+      encoder.estimateSpendingP2wshTx(Buffer.alloc(len + 4)) -
+      encoder.estimateSpendingP2wshTx(Buffer.alloc(len))
+    // step(73) spans 73→77 and is the discriminating case: the old script-push
+    // model widened at 76 and reported 2 here.
+    assert.strictEqual(step(73), 1, 'no prefix change across 76')
+    assert.strictEqual(step(252), 2, 'prefix widens 1 to 3 across 253')
+    assert.strictEqual(step(256), 1, 'no prefix change across 260')
   })
 
   it('is smaller than estimateSpendingP2shTx for the same data (witness discount)', () => {

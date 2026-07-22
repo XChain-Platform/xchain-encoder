@@ -28,7 +28,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, compiledPushSize } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount } = require('./validator')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
 
@@ -47,6 +47,18 @@ const MAGIC_WORD = "XCHN"
 const SATOSHI_UNIT = 100000000
 
 const MAX_SAFE_SATOSHI_BIG = BigInt(Number.MAX_SAFE_INTEGER)
+
+// Byte width of the compactSize varint that prefixes a length on the wire.
+// Distinct from compiledPushSize: that models bitcoin.script.compile's PUSH
+// OPCODE framing (direct push / OP_PUSHDATA1 / OP_PUSHDATA2) and is correct
+// only INSIDE a script. Witness-stack items are not script pushes; each is
+// framed by a compactSize varint, which switches width at 253, not at 76/256.
+function compactSizeLen(n) {
+    if (n < 253) return 1
+    if (n <= 0xffff) return 3
+    if (n <= 0xffffffff) return 5
+    return 9
+}
 
 // Narrow a satoshi amount computed in BigInt back to a Number when it is
 // exactly representable, so pre- consumers (tests, PSBT inspectors)
@@ -611,24 +623,42 @@ class XChainEncoder {
         // Without this, a reservation skip bound the key to utxos[0] while ins[0] was utxos[1],
         // the decoder failed the magic-word check, and the action silently never happened (valid
         // tx, inputs spent, fee burned).
+        //
+        // The carve-out alone is NOT enough (review item 2474). It guarantees the pre-reserved
+        // outpoint is SELECTED, not that it is FIRST: the selection loop re-evaluates
+        // reservations against a LATER clock, and _isOutpointReserved treats expiry <= now as
+        // free, so a foreign reservation blocking an EARLIER-sorted outpoint that lapses during
+        // the async data loop un-skips that outpoint and it takes ins[0] while the key stays
+        // bound here. Move the key-bound outpoint to the head of the selection order so ins[0]
+        // is correct by construction, independent of any clock.
         let firstReservedOutpoint = null
         let txidFirstInput = null
         if (utxos.length){
             if (fetchedFromTracker){
                 const nowFirst = Date.now()
                 this._evictExpiredReservations(nowFirst)
-                for (let u of utxos){
+                for (let i = 0; i < utxos.length; i++){
+                    const u = utxos[i]
                     const k = u.txid + ':' + u.vout
                     if (!this._isOutpointReserved(k, nowFirst)){
                         this._reserveOutpoint(k, nowFirst)
                         firstReservedOutpoint = k
                         txidFirstInput = u.txid
+                        // Head-of-order splice. The skipped entries ahead of it were all
+                        // reserved at nowFirst, so this only reorders against outpoints this
+                        // call was never allowed to take anyway; if one of them frees before
+                        // selection it is still selected, just after ins[0]. Value-descending
+                        // order among the remaining entries is preserved.
+                        if (i > 0) utxos.unshift(utxos.splice(i, 1)[0])
                         break
                     }
                 }
-                // Every fetched outpoint already reserved: the selection loop selects none and
-                // the build surfaces the shortfall. Fall back to utxos[0] for a deterministic key
-                // (moot - with no inputs no tx is produced).
+                // Every fetched outpoint already reserved: nothing could be pre-reserved, so the
+                // ins[0] invariant cannot be established by construction here. Fall back to
+                // utxos[0] for a deterministic key. Usually the selection loop then selects
+                // nothing and the build surfaces the shortfall, but its own eviction pass can
+                // free a DIFFERENT outpoint first; the post-selection guard below catches that
+                // and fails closed rather than emitting a silently-undecodable action.
                 if (txidFirstInput === null) txidFirstInput = utxos[0]["txid"]
             } else {
                 // Caller-supplied UTXOs are the caller's own coin-control; ins[0] is utxos[0].
@@ -1056,6 +1086,33 @@ class XChainEncoder {
                     { required: jsonSafeSat(outputSatoshis + BigInt(estimatedFee)), available: 0, outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
                 )
             }
+
+            // Fail-closed ins[0] invariant (review item 2474). OP_RETURN and MULTISIGN
+            // obfuscate their payload with txidFirstInput, and the decoder derives its
+            // deobfuscation key from the first input's txid, so the action only decodes if
+            // that outpoint actually landed at ins[0]. The head-of-order splice above makes
+            // that true by construction whenever an outpoint could be pre-reserved; it
+            // cannot when EVERY fetched outpoint was already reserved and one of them then
+            // freed before selection. Fail here so the caller retries, instead of returning
+            // a valid transaction whose action silently decodes to nothing (inputs spent,
+            // fee burned). P2SH/P2WSH are excluded: on the funding tx they do not use
+            // txidFirstInput at all, and on the reveal tx (p2shHash set) this block does not
+            // run and the key is re-bound to the phase-1 txid.
+            const keyBindsToFirstInput =
+                preparedData["encoding"] === Encoding.OP_RETURN ||
+                preparedData["encoding"] === Encoding.MULTISIGN
+            if (keyBindsToFirstInput && txidFirstInput != null){
+                // psbt.txInputs[0].hash is the internal little-endian outpoint hash; copy
+                // before reversing so the PSBT's own buffer is not mutated.
+                const actualFirstTxid = Buffer.from(psbt.txInputs[0].hash).reverse().toString('hex')
+                if (actualFirstTxid !== txidFirstInput){
+                    throw new OperationalError(
+                        'INPUT_SELECTION_RACE',
+                        'input selection raced a concurrent reservation: the obfuscation key is bound to an outpoint that is not the first input; retry the request',
+                        { expectedFirstInput: txidFirstInput, actualFirstInput: actualFirstTxid }
+                    )
+                }
+            }
         }
 
         // Reject a caller-supplied absolute fee whose effective rate exceeds the
@@ -1210,15 +1267,21 @@ class XChainEncoder {
         // script) in the witness, which is weight-1 (i.e. ÷4 toward vbytes).
         // That makes a P2WSH reveal materially cheaper than the equivalent P2SH
         // reveal: sizing it with estimateSpendingP2shTx would over-fund ~4x.
-        let witnessScriptPush = compiledPushSize(witnessData.length) - witnessData.length
-        // Witness stack (weight 1): item count + sig push (1+72) + pubkey push
-        // (1+33) + witness-script push + script bytes, plus the segwit
-        // marker+flag (2) which are also weight 1.
+        // compactSize, not compiledPushSize: a witness stack item is length-
+        // prefixed by a varint on the wire, it is not a push inside a script.
+        // The two disagree in two bands and the old script-push model was wrong
+        // in both: 76..252 it over-funded by a byte, and 253..255 it UNDER-funded
+        // by a byte (OP_PUSHDATA1 is 2 bytes there, the varint is 3).
+        let witnessScriptPrefix = compactSizeLen(witnessData.length)
+        // Witness stack (weight 1): item count + sig item (1+72) + pubkey item
+        // (1+33) + witness-script item prefix + script bytes, plus the segwit
+        // marker+flag (2) which are also weight 1. The 72- and 33-byte items are
+        // both under 253, so their compactSize prefix is the literal 1 below.
         let witnessBytes = 2                                    // marker + flag
             + 1                                                 // witness stack item count
-            + (1 + 72)                                          // sig push
-            + (1 + 33)                                          // compressed pubkey push
-            + (witnessScriptPush + witnessData.length)          // witness script push + bytes
+            + (1 + 72)                                          // sig item
+            + (1 + 33)                                          // compressed pubkey item
+            + (witnessScriptPrefix + witnessData.length)        // witness script prefix + bytes
 
         // Non-witness (weight 4) bytes: tx overhead + the empty-scriptSig input
         // outpoint + the OP_RETURN marker output.
