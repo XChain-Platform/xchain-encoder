@@ -31,6 +31,7 @@ const fs = require('fs')
 const path = require('path')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
+const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('../../src/validator')
 
 const MAGIC_WORD = 'XCHN'
 const MAGIC_BUFFER = Buffer.from(MAGIC_WORD, 'utf8')
@@ -114,9 +115,26 @@ const P2SH_CASES = [
 // Alias-rewrite cases : on-wire payloads carrying a short-form ACTION
 // name the decoder must canonicalize (canonicalizeActionPayload) before the
 // VALID_ACTION_NAMES gate, so the DB never stores the alias spelling.
+// A single raw push of N bytes (N >= 256) compiles to N + 3: the OP_PUSHDATA2
+// opcode plus a 2-byte little-endian length. Pick N so the compiled push is
+// exactly the ceiling, i.e. the widest on-wire ACTION the size gate accepts.
+const CEILING_PUSH_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - 3
+const CAST_CEILING_PREFIX = 'CAST|0|'
+const CAST_CEILING_DATA = CAST_CEILING_PREFIX +
+  'a'.repeat(CEILING_PUSH_DATA_BYTES - CAST_CEILING_PREFIX.length)
+
 const ALIAS_CASES = [
   { name: 'alias rewrite TRANSFER -> SEND', data: 'TRANSFER|0|TICK|addr|100', rawData: null, expectedRawActionName: 'TRANSFER', expectedActionName: 'SEND' },
-  { name: 'alias rewrite MSG -> MESSAGE', data: 'MSG|0|hello', rawData: null, expectedRawActionName: 'MSG', expectedActionName: 'MESSAGE' }
+  { name: 'alias rewrite MSG -> MESSAGE', data: 'MSG|0|hello', rawData: null, expectedRawActionName: 'MSG', expectedActionName: 'MESSAGE' },
+  // Alias sitting at the compiled-size ceiling. The CAST push is exactly
+  // MAX_COMPILED_ACTION_DATA_LENGTH on the wire, so it passes the size gate; the
+  // decoder then rewrites CAST -> BROADCAST (+5 bytes) during canonicalization,
+  // which runs AFTER that gate, so the stored canonical record lands past the
+  // numeric cap. This pins on the encoder half that the cap bounds the WIRE
+  // (alias) form, never the stored record; the decoder half is pinned by
+  // xchain-decoder/test/unit/aliasExpansionBoundary.test.js. canonicalDataHex
+  // below is the >cap BROADCAST record the roundtrip is expected to store.
+  { name: 'alias rewrite CAST -> BROADCAST at the compiled ceiling', data: CAST_CEILING_DATA, rawData: null, expectedRawActionName: 'CAST', expectedActionName: 'BROADCAST' }
 ]
 
 async function buildMultisignCase (encoder, c) {
