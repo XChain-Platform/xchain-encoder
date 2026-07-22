@@ -105,7 +105,8 @@ npm run api
 | `npm run bench` | Performance benchmarks |
 | `npm run bench:full` | Extended benchmarks with JSON output |
 | `npm run bench:soak` | Soak test (sustained load) |
-| `npm test` | Regtest integration tests (requires local bitcoind) |
+| `npm test` | Unit tests (hermetic, no external services) |
+| `npm run test:regtest` | Regtest integration tests (requires local bitcoind) |
 
 ## Test Suite
 
