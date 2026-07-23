@@ -19,7 +19,11 @@
  * REQUIRES: API server running on localhost:3000 (`npm run api`)
  * REQUIRES: bitcoind running in regtest mode
  *
- * Run: npx mocha --timeout 0 test/e2e/api-layer.e2e.js
+ * Service-gated : lives outside test/e2e/ so `npm run ci`
+ * (the pre-push gate, which has no live encoder node) never runs it.
+ * Run via `npm run test:e2e:service` on a host with the API up.
+ *
+ * Run: npx mocha --timeout 0 test/e2e-service/api-layer.e2e.js
  */
 
 const assert = require('assert')
@@ -69,15 +73,19 @@ function jsonRpcCall (method, params) {
 }
 
 /**
- * Check if the API server is reachable.
+ * Check if the listener on API_PORT is actually the encoder API.
+ * A bare "port is open" check is not enough: an unrelated service on
+ * the port would answer with non-JSON-RPC bodies and turn every test
+ * into a false failure . Require a well-formed JSON-RPC reply
+ * to ping before treating the API as available.
  */
 async function isApiRunning () {
   try {
-    await jsonRpcCall('ping', {})
-    return true
+    const res = await jsonRpcCall('ping', {})
+    return !!(res.body && typeof res.body === 'object' &&
+      (res.body.result !== undefined || res.body.error !== undefined))
   } catch (err) {
-    if (err.code === 'ECONNREFUSED') return false
-    return true // other errors mean the server is up
+    return false
   }
 }
 
