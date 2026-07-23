@@ -155,8 +155,34 @@ class XChainEncoder {
         return true
     }
 
+    // Returns the expiry it wrote, which doubles as this claim's ownership stamp
+    // (see _releaseCallReservations).
     _reserveOutpoint(key, now) {
-        this.outpointReservations.set(key, now + RESERVATION_TTL_MS)
+        const expiry = now + RESERVATION_TTL_MS
+        this.outpointReservations.set(key, expiry)
+        return expiry
+    }
+
+    // Reserve an outpoint AND record the claim on the calling createTransaction's
+    // own ledger, so a later throw can hand it back .
+    _claimOutpoint(callReservations, key, now) {
+        callReservations.push({ key, expiry: this._reserveOutpoint(key, now) })
+    }
+
+    // Release the reservations a single createTransaction call took, and only
+    // those. The stored expiry is the ownership stamp: while a claim is live no
+    // other call can take that outpoint (the selection loop skips reserved keys),
+    // so the only way the map value can differ from what this call wrote is that
+    // its claim already lapsed and somebody else re-reserved the outpoint against
+    // a later clock. A mismatch therefore means the entry is foreign, and dropping
+    // a foreign entry would reopen the same-address double-spend window the
+    // reservation map exists to close. Leave it.
+    _releaseCallReservations(callReservations) {
+        for (const claim of callReservations) {
+            if (this.outpointReservations.get(claim.key) === claim.expiry){
+                this.outpointReservations.delete(claim.key)
+            }
+        }
     }
 
     // Sweep expired reservations so the map cannot grow unbounded across a
@@ -371,7 +397,27 @@ class XChainEncoder {
         return Buffer.concat(bufferArray)
     }
     
-    async createTransaction(utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
+    // Public entry point. It owns the per-call reservation ledger: every outpoint
+    // the build claims is recorded there, and if the build throws for ANY reason
+    // (INPUT_SELECTION_RACE, INSUFFICIENT_FUNDS, a fee-cap RangeError, an upstream
+    // node error) those claims are handed back immediately instead of squatting
+    // until RESERVATION_TTL_MS. Without that, the retry an INPUT_SELECTION_RACE
+    // error explicitly asks for hit its OWN dead reservations and came back
+    // INSUFFICIENT_FUNDS for up to five minutes . The release is
+    // ownership-stamped so a concurrent call's entries are never dropped; see
+    // _releaseCallReservations. The success path keeps its reservations on purpose:
+    // the caller is about to sign and broadcast those inputs.
+    async createTransaction(...args){
+        const callReservations = []
+        try {
+            return await this._buildTransaction(callReservations, ...args)
+        } catch (err) {
+            this._releaseCallReservations(callReservations)
+            throw err
+        }
+    }
+
+    async _buildTransaction(callReservations, utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
       encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null,
       unconfirmed=true, feePerKb=null, dust=null, feeQuote=null){
 
@@ -641,7 +687,7 @@ class XChainEncoder {
                     const u = utxos[i]
                     const k = u.txid + ':' + u.vout
                     if (!this._isOutpointReserved(k, nowFirst)){
-                        this._reserveOutpoint(k, nowFirst)
+                        this._claimOutpoint(callReservations, k, nowFirst)
                         firstReservedOutpoint = k
                         txidFirstInput = u.txid
                         // Head-of-order splice. The skipped entries ahead of it were all
@@ -1019,7 +1065,7 @@ class XChainEncoder {
                         continue
                     }
                     if (outpointKey !== firstReservedOutpoint){
-                        this._reserveOutpoint(outpointKey, now)
+                        this._claimOutpoint(callReservations, outpointKey, now)
                     }
                 }
 
