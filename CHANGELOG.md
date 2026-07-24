@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- OP_RETURN 76-byte ceiling enforced pre-compile as -32602 invalid-params; manifest fixture re-vendored.
 - Parse satoshi/fee money fields exactly (`parseSatoshiAmount`, `validateFee`, `validateDust`, `validateFeeQuote`) so `"1e8"`, `"100.5"`, `"5abc"` and other non-integer strings are rejected instead of `parseInt`-truncated to a silently-wrong amount.
 - Default an omitted `data` param to `''` in `createTransaction` so a spec-valid data-omitted request builds a payment-only tx instead of crashing on `Buffer.from(null)`.
 - Validate `utxos[].scriptPubKey` as bounded even-length hex so a malformed value is rejected up front instead of silently truncating through `Buffer.from(x, 'hex')` and misclassifying the input.

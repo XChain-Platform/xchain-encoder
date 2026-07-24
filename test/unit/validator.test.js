@@ -117,6 +117,26 @@ describe('Encoder input validator', function () {
             const rawData = 'y'.repeat(4095);
             assert.throws(() => v.validateCombinedDataLength(data, rawData), RangeError);
         });
+        // #3137: explicit encoding:"OP_RETURN" gets the tighter 76-byte ceiling
+        // pre-compile, so an oversize request is rejected as invalid-params before
+        // any UTXO reservation instead of failing post-compile as -32603 internal.
+        it('rejects an explicit OP_RETURN payload above the 76-byte ceiling', function () {
+            // 200 raw bytes compile to 200 + 2 (OP_PUSHDATA1) = 202 > 76.
+            const data = 'x'.repeat(200);
+            assert.throws(() => v.validateCombinedDataLength(data, null, 'OP_RETURN'),
+                /OP_RETURN encoding requires compiled payload <= 76 bytes/);
+        });
+        it('accepts an explicit OP_RETURN payload at/under the 76-byte ceiling', function () {
+            // 75 raw bytes compile to 75 + 1 (direct push) = 76 == ceiling.
+            assert.doesNotThrow(() => v.validateCombinedDataLength('x'.repeat(75), null, 'OP_RETURN'));
+        });
+        it('does NOT apply the OP_RETURN ceiling when encoding is omitted (P2SH auto-fallback)', function () {
+            // Same 200-byte payload passes when no explicit encoding is given, so
+            // prepareData can auto-select P2SH for the larger payload.
+            assert.doesNotThrow(() => v.validateCombinedDataLength('x'.repeat(200), null));
+            assert.doesNotThrow(() => v.validateCombinedDataLength('x'.repeat(200), null, undefined));
+        });
+
         it('measures rawData-only payloads (data defaults to an OP_0 push)', function () {
             // createTransaction compiles [emptyBuffer, rawDataBuffer]: OP_0 (1 byte)
             // + rawLen + 3 (OP_PUSHDATA2). 8188 -> 8192 == ceiling; 8189 -> 8193.

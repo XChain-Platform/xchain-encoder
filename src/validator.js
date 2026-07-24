@@ -42,6 +42,17 @@ const OP_RETURN_PUSH_OVERHEAD = 3
 // the compiled ceiling directly rather than this single-push approximation.
 // Kept and exported because the test suite pins its value.
 const MAX_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - OP_RETURN_PUSH_OVERHEAD
+// Explicit-encoding OP_RETURN ceiling: a single nulldata output is 80 bytes, of
+// which the 4-byte "XCHN" magic word is reserved, leaving 76 bytes of compiled
+// payload. Mirrors XChainEncoder.prepareData (OP_RETURN_SIZE - MAGIC_WORD length),
+// which stays the arbiter/backstop; measured pre-compile here only when the caller
+// explicitly requests encoding:"OP_RETURN" so an oversize request is rejected as
+// -32602 invalid-params before any UTXO reservation, instead of failing post-compile
+// as a -32603 internal error (#3137). The compiled value this is compared against is
+// exactly finalDataBuffer.length in createTransaction (same compiledPushSize sum).
+const OP_RETURN_OUTPUT_SIZE = 80
+const OP_RETURN_MAGIC_WORD_LENGTH = 4
+const MAX_OP_RETURN_COMPILED_LENGTH = OP_RETURN_OUTPUT_SIZE - OP_RETURN_MAGIC_WORD_LENGTH  // 76
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
@@ -274,7 +285,7 @@ function validateActionName(data) {
     }
 }
 
-function validateCombinedDataLength(data, rawData) {
+function validateCombinedDataLength(data, rawData, encoding) {
     if (data == null && rawData == null) return
     // createTransaction defaults a missing `data` to '' and still compiles it
     // as a push (OP_0, 1 byte), so a rawData-only request must be measured
@@ -293,6 +304,18 @@ function validateCombinedDataLength(data, rawData) {
     const compiled = compiledPushSize(dataBytes) + (rawData != null ? compiledPushSize(rawBytes) : 0)
     if (compiled > MAX_COMPILED_ACTION_DATA_LENGTH) {
         throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${MAX_COMPILED_ACTION_DATA_LENGTH})`)
+    }
+    // When the caller EXPLICITLY requested OP_RETURN, apply the far tighter 76-byte
+    // single-output ceiling here rather than letting the request run the whole
+    // UTXO-selection/reservation path and throw post-compile in prepareData (which
+    // api.js then mis-classifies as -32603 internal instead of -32602 invalid-params).
+    // Only when encoding is explicitly 'OP_RETURN': an omitted encoding must NOT be
+    // rejected here, or it would break prepareData's automatic P2SH fallback for
+    // larger payloads. prepareData remains the arbiter/backstop.
+    if (encoding === 'OP_RETURN' && compiled > MAX_OP_RETURN_COMPILED_LENGTH) {
+        throw new RangeError(
+            `OP_RETURN encoding requires compiled payload <= ${MAX_OP_RETURN_COMPILED_LENGTH} bytes; ` +
+            `got ${compiled}. Use P2SH for larger payloads.`)
     }
 }
 
@@ -564,14 +587,16 @@ function validateAll(params) {
 
     const data = validateDataParam(params.data, 'data')
     const rawData = validateDataParam(params.rawData, 'rawData')
+    // Resolve encoding before the length check so validateCombinedDataLength can
+    // apply the per-encoding (OP_RETURN) ceiling pre-compile (#3137).
+    const encoding = validateEncoding(params.encoding)
     if (data != null || rawData != null) {
-        validateCombinedDataLength(data, rawData)
+        validateCombinedDataLength(data, rawData, encoding)
         validateActionPushDecodability(data, rawData)
         validateActionName(data)
     }
 
     const pubkey = validatePubkey(params.pubkey)
-    const encoding = validateEncoding(params.encoding)
     const fee = validateFee(params.fee)
     const feePerKb = validateFeePerKb(params.feePerKb)
     const dust = validateDust(params.dust)
