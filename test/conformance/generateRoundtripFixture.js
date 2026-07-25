@@ -79,8 +79,41 @@ function signerAddress (encoder) {
   return bitcoin.address.toBase58Check(Buffer.alloc(20, 0x11), encoder.network.pubKeyHash)
 }
 
+// BET ( P3). DETAILS carries the whole market definition on-chain as
+// base64 JSON, which makes a create action the largest routine user payload the
+// encoder produces and forces a multi-chunk P2WSH. Built deterministically here
+// so the encoder->decoder roundtrip is pinned at the DETAILS cap rather than at
+// a hand-picked size that drifts away from the real ceiling.
+//
+// MAX_BET_DETAILS_LENGTH is DECODED bytes (xchain-documentation/protocol/actions/
+// BET.md). The spec originally set it to 8192 and that value was un-broadcastable:
+// base64 adds a third, and the whole ACTION string shares one
+// MAX_COMPILED_ACTION_DATA_LENGTH ceiling with every other field, so a max-size
+// market compiled to ~12.8KB against an 8KB cap. 4096 is the corrected value and
+// the case below is what holds it honest from the encoder side.
+const MAX_BET_DETAILS_LENGTH = 4096
+
+// A DETAILS payload of exactly MAX_BET_DETAILS_LENGTH decoded bytes: real JSON
+// with its description padded out to hit the cap on the nose.
+function maxBetDetails () {
+  const skeleton = { title: 'Who wins Superbowl LX?', outcomes: ['Chiefs', '49ers'], description: '' }
+  const padLength = MAX_BET_DETAILS_LENGTH - Buffer.byteLength(JSON.stringify(skeleton), 'utf8')
+  if (padLength < 0) throw new Error('DETAILS skeleton already exceeds MAX_BET_DETAILS_LENGTH')
+  skeleton.description = 'd'.repeat(padLength)
+  const json = JSON.stringify(skeleton)
+  if (Buffer.byteLength(json, 'utf8') !== MAX_BET_DETAILS_LENGTH)
+    throw new Error(`DETAILS is ${Buffer.byteLength(json, 'utf8')} bytes, expected exactly ${MAX_BET_DETAILS_LENGTH}`)
+  return Buffer.from(json, 'utf8').toString('base64')
+}
+
+const BET_CREATE_MAX_DETAILS =
+  'BET|0|Superbowl LX winner|Chiefs,49ers|PEPECASH|1.00|1770000000|||||' +
+  maxBetDetails() + '|Bet on the big game'
+
 const CASES = [
   { name: 'action-only (SEND)', data: '{"op":"SEND","qty":100}', rawData: null },
+  // The routine small BET: a wager fits an OP_RETURN with room to spare.
+  { name: 'BET place-bet (OP_RETURN sized)', data: 'BET|2|1234|0|25.00000000|Chiefs all day', rawData: null },
   { name: 'action + rawData (ISSUE + metadata)', data: 'ISSUE|0|TICK', rawData: 'extra-metadata-bytes' },
   { name: 'action + binary rawData (high bytes)', data: 'FILE|0|doc', rawData: '\x00\x01\xff\x80\x7f' },
   { name: 'rawData-only OP_0 leading push (#1293, currently dropped)', data: '', rawData: 'orphan-raw-payload' },
@@ -109,7 +142,11 @@ const MULTISIGN_CASES = [
 const P2SH_CASES = [
   { name: 'P2SH two chunks (no rebalance)', encoding: 'P2SH', data: 'C'.repeat(600), rawData: null, expectedChunkLengths: [476, 127] },
   { name: 'P2SH final-chunk rebalance boundary (last byte 0x05)', encoding: 'P2SH', data: 'D'.repeat(473) + '\x05', rawData: null, expectedChunkLengths: [475, 2] },
-  { name: 'P2WSH two chunks + rawData', encoding: 'P2WSH', data: 'E'.repeat(300), rawData: 'z'.repeat(400), expectedChunkLengths: [476, 230] }
+  { name: 'P2WSH two chunks + rawData', encoding: 'P2WSH', data: 'E'.repeat(300), rawData: 'z'.repeat(400), expectedChunkLengths: [476, 230] },
+  // BET create at the DETAILS cap: the largest routine user ACTION, exercising
+  // the deep multi-chunk path end to end (encode -> chunk -> reassemble ->
+  // decode) at real field sizes rather than with filler bytes.
+  { name: 'P2WSH BET create at the DETAILS cap', encoding: 'P2WSH', data: BET_CREATE_MAX_DETAILS, rawData: null, expectedChunkLengths: [476, 476, 476, 476, 476, 476, 476, 476, 476, 476, 476, 319] }
 ]
 
 // Alias-rewrite cases : on-wire payloads carrying a short-form ACTION
