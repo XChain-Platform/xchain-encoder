@@ -526,6 +526,18 @@ class XChainEncoder {
         
         let finalDataBuffer = bitcoin.script.compile(dataToCompile)
 
+        // : does this transaction carry an XChain ACTION at all?
+        //
+        // `data` being optional already meant "payment-only tx" in the wire
+        // contract, but the emission path below still wrote a nulldata output
+        // for it: the empty payload compiled to an OP_0 push, got the 4-byte
+        // magic word prepended, and shipped as a magic-word-only OP_RETURN
+        // carrying nothing. That is a real cost (a wasted output, and a
+        // transaction that announces itself as XChain while containing no
+        // action) paid by every plain native-coin payment the wallet sends.
+        // A payment with nothing to say should look like an ordinary payment.
+        const hasActionPayload = dataBuffer.length > 0 || rawData != null
+
         // Enforce the same compiled-push ceiling the indexing decoder applies
         // (MAX_ACTION_DATA_LENGTH). The decoder measures the compiled on-chain
         // push and drops anything larger, so a transaction above this size
@@ -717,7 +729,17 @@ class XChainEncoder {
         }
         
         //Prepare the Data
-        let preparedData = this.prepareData(finalDataBuffer, encoding, pubkey)
+        // With no action payload there is nothing to encode, chunk or obfuscate,
+        // so skip prepareData entirely and hand the emission loop an empty chunk
+        // list: it then writes no nulldata output and the transaction is just its
+        // customOutputs plus change. The encoding is reported as OP_RETURN because
+        // every downstream single-transaction branch keys off that value (the
+        // P2SH/P2WSH two-phase paths must not engage for a payment), and a caller
+        // that explicitly asked for a chunked encoding while supplying no payload
+        // has nothing to chunk regardless.
+        let preparedData = hasActionPayload
+            ? this.prepareData(finalDataBuffer, encoding, pubkey)
+            : { encoding: Encoding.OP_RETURN, dataBufferArray: [] }
 
         // P2SH/P2WSH is a two-tx flow: this funding tx (p2shHash null) creates the
         // P2SH/P2WSH outputs, and a later reveal tx (p2shHash set) spends them and
@@ -1144,9 +1166,16 @@ class XChainEncoder {
             // fee burned). P2SH/P2WSH are excluded: on the funding tx they do not use
             // txidFirstInput at all, and on the reveal tx (p2shHash set) this block does not
             // run and the key is re-bound to the phase-1 txid.
+            // : a payment-only transaction has no action, hence no
+            // obfuscation key bound to the first input. The guard below exists to
+            // stop an action from silently decoding to nothing; with nothing to
+            // decode it would only fail a perfectly good payment whose input
+            // selection shifted under a concurrent reservation.
             const keyBindsToFirstInput =
-                preparedData["encoding"] === Encoding.OP_RETURN ||
-                preparedData["encoding"] === Encoding.MULTISIGN
+                hasActionPayload && (
+                    preparedData["encoding"] === Encoding.OP_RETURN ||
+                    preparedData["encoding"] === Encoding.MULTISIGN
+                )
             if (keyBindsToFirstInput && txidFirstInput != null){
                 // psbt.txInputs[0].hash is the internal little-endian outpoint hash; copy
                 // before reversing so the PSBT's own buffer is not mutated.
