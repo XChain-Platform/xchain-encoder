@@ -176,6 +176,56 @@ describe('XChainEncoder.prepareData()', () => {
     })
   })
 
+  // ── : caller identity forms for the chunk-lane P2PKH gate ──
+  //
+  // The chunk-lane redeem script gates its reveal spend with HASH160(caller
+  // pubkey). prepareData must derive that 20-byte hash from ANY identity form a
+  // client passes: a base58 P2PKH address (legacy), a raw compressed pubkey hex
+  // (what every wallet flow sends), or a v0 bech32 P2WPKH address. Before the
+  // fix only base58 worked and the other two threw "Non-base58 character",
+  // blocking large FILE / DEPLOY / UNSTAKE / cross-chain SWAP on bech32 venues.
+  describe(': caller identity resolution (P2SH chunk lane)', () => {
+    const PUBKEY_HEX = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+    const pubkeyBuf = Buffer.from(PUBKEY_HEX, 'hex')
+    const EXPECTED_HASH160 = bitcoin.crypto.hash160(pubkeyBuf).toString('hex')
+    const BASE58_ADDR = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest }).address
+    const BECH32_ADDR = bitcoin.payments.p2wpkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest }).address
+    const oversize = Buffer.alloc(200)
+
+    const gateHash160 = (identity) => {
+      const script = encoder.prepareData(oversize, 'P2SH', identity).dataBufferArray[0]
+      const decompiled = bitcoin.script.decompile(script)
+      assert.strictEqual(decompiled[3], bitcoin.opcodes.OP_HASH160)
+      assert.strictEqual(decompiled[4].length, 20)
+      return decompiled[4].toString('hex')
+    }
+
+    it('resolves a base58 P2PKH address (legacy, unchanged)', () => {
+      assert.strictEqual(gateHash160(BASE58_ADDR), EXPECTED_HASH160)
+    })
+
+    it('resolves a raw compressed pubkey hex (the wallet identity that used to crash)', () => {
+      assert.strictEqual(gateHash160(PUBKEY_HEX), EXPECTED_HASH160)
+    })
+
+    it('resolves a v0 bech32 P2WPKH address (witness program IS HASH160(pubkey))', () => {
+      assert.strictEqual(gateHash160(BECH32_ADDR), EXPECTED_HASH160)
+    })
+
+    it('all three identity forms for one key yield the SAME gate hash', () => {
+      const a = gateHash160(BASE58_ADDR)
+      const b = gateHash160(PUBKEY_HEX)
+      const c = gateHash160(BECH32_ADDR)
+      assert.strictEqual(a, b)
+      assert.strictEqual(b, c)
+    })
+
+    it('throws a clear error for an unresolvable identity', () => {
+      assert.throws(() => encoder.prepareData(oversize, 'P2SH', 'not-an-identity'),
+        /cannot resolve a 20-byte caller HASH160/)
+    })
+  })
+
   // ── P2WSH ────────────────────────────────────────────────────────
 
   describe('P2WSH encoding', () => {

@@ -109,6 +109,42 @@ const DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS = 2
 // reservation helpers and the selection loop.
 const RESERVATION_TTL_MS = 5 * 60 * 1000
 
+// : resolve the 20-byte caller HASH160 that gates a P2SH/P2WSH chunk-lane
+// reveal, from ANY caller identity a client passes (not just a base58 legacy
+// address). The reveal tx that spends a chunk output must satisfy an ordinary
+// P2PKH gate (OP_DUP OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG) with the
+// SOURCE key, so the returned hash MUST equal HASH160(that pubkey). It is the
+// same 20 bytes whichever identity form the caller sends:
+//   - base58 P2PKH/P2SH address       -> fromBase58Check().hash  (legacy, unchanged)
+//   - raw compressed/uncompressed pubkey hex -> crypto.hash160(pubkey)
+//   - v0 bech32 P2WPKH address         -> the witness program IS HASH160(pubkey)
+// The decoder reads ONLY the leading data chunk (redeemScript[0]) and never this
+// trailer hash, so this is compose-side only with NO consensus/wire surface.
+// Before this, every wallet flow (which sends a raw compressed pubkey) and every
+// bech32 source crashed here with "Non-base58 character", killing large FILE,
+// contract DEPLOY, validator UNSTAKE/claim and cross-chain SWAP broadcast on
+// bech32-only venues (all regtest, and any segwit-only caller in production).
+function resolveCallerHash160(pubKey) {
+    // Raw compressed (02/03 + 64 hex) or uncompressed (04 + 128 hex) pubkey first:
+    // a base58 address can never match this shape (base58 excludes 0/O/I/l and
+    // addresses do not start with "0"), so ordering it first is safe and never
+    // changes legacy behavior.
+    if (typeof pubKey === 'string' && /^(0[23][0-9a-fA-F]{64}|04[0-9a-fA-F]{128})$/.test(pubKey)) {
+        return bitcoin.crypto.hash160(Buffer.from(pubKey, 'hex'))
+    }
+    // Base58 P2PKH/P2SH address: byte-identical to the original behavior.
+    try { return bitcoin.address.fromBase58Check(pubKey).hash } catch (_) { /* not base58 */ }
+    // v0 bech32 P2WPKH: the 20-byte witness program already equals HASH160(pubkey).
+    try {
+        const dec = bitcoin.address.fromBech32(pubKey)
+        if (dec.version === 0 && dec.data.length === 20) return dec.data
+        throw new Error(`caller "${pubKey}" decodes to a v${dec.version} / ${dec.data.length}-byte witness program; the chunk-lane P2PKH gate needs a 20-byte HASH160 (v0 P2WPKH)`)
+    } catch (e) {
+        if (e && typeof e.message === 'string' && e.message.indexOf('witness program') !== -1) throw e
+    }
+    throw new Error(`prepareData: cannot resolve a 20-byte caller HASH160 from identity "${pubKey}" (expected a base58 P2PKH/P2SH address, a compressed/uncompressed pubkey hex, or a v0 bech32 P2WPKH address)`)
+}
+
 const Encoding = {
     OP_RETURN: "OP_RETURN",
     P2SH: "P2SH",
@@ -274,9 +310,10 @@ class XChainEncoder {
                 +
                 OP_HASH160         // 1 byte
                 +
-                <hash160>          // 20-byte HASH160 of the caller address
-                                   //   (bitcoin.address.fromBase58Check(pubKey).hash),
-                                   //   NOT a 33-byte compressed pubkey
+                <hash160>          // 20-byte HASH160 of the caller key
+                                   //   (resolveCallerHash160(pubKey): base58 addr,
+                                   //   raw pubkey hex, or v0 bech32 P2WPKH all yield
+                                   //   the same HASH160(pubkey)), NOT a 33-byte pubkey
                 +
                 OP_EQUALVERIFY     // 1 byte
                 +
@@ -290,7 +327,9 @@ class XChainEncoder {
 
                 chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
                 
-                let pubkeyFromBase58 = bitcoin.address.fromBase58Check(pubKey).hash
+                // : resolve the caller HASH160 from any identity form (base58
+                // address, raw pubkey hex, or v0 bech32 P2WPKH), not just base58.
+                let pubkeyFromBase58 = resolveCallerHash160(pubKey)
 
                 // Slice the chunk boundaries first so a degenerate 1-byte final
                 // chunk can be rebalanced before compile. bitcoin.script.compile
