@@ -46,7 +46,7 @@ function makeRpcBatchGuard(maxBatch){
     }
 }
 const validator = require('./validator')
-const { assertSingleInstance, acquireInstanceLock } = require('./singleInstanceGuard')
+const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./singleInstanceGuard')
 const { upstreamErrorMessage } = require('./errorSanitize')
 const { version: ENCODER_VERSION } = require('../package.json')
 
@@ -369,6 +369,10 @@ if (require.main === module) {
   assertSingleInstance()
   const releaseInstanceLock = acquireInstanceLock()
   process.on('exit', releaseInstanceLock)
+  // 'exit' covers only a self-directed exit. `docker stop`/`docker restart`
+  // kill this process with SIGTERM, which needs its own release or the lockfile
+  // outlives every restart .
+  releaseLockOnSignals(releaseInstanceLock)
   app.listen(ENCODER_API_PORT, () => {
     console.log('API listening on port '+ENCODER_API_PORT);
   });
