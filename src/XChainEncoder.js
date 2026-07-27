@@ -458,7 +458,7 @@ class XChainEncoder {
 
     async _buildTransaction(callReservations, utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
       encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null,
-      unconfirmed=true, feePerKb=null, dust=null, feeQuote=null){
+      unconfirmed=true, feePerKb=null, dust=null, feeQuote=null, attachPrevTx=false){
 
         // If feeQuote is provided, inject it as a custom output
         if(feeQuote && feeQuote.address && feeQuote.amount > 0){
@@ -1164,6 +1164,21 @@ class XChainEncoder {
                             script: Buffer.from(nextUtxo.scriptPubKey, 'hex'),
                             value: nextUtxo.value,
                         }
+                    }
+                    // : a hardware signer needs the FULL previous
+                    // transaction even for a segwit input, because Ledger takes
+                    // the outpoint it signs from those bytes rather than from
+                    // the PSBT's own txid. witnessUtxo alone left the device
+                    // unable to sign (and, before it failed closed, signing a
+                    // synthesized outpoint that does not exist). Opt-in: it is
+                    // one node round trip and one prev tx of PSBT weight per
+                    // input, which only that caller should pay. Attached NOW,
+                    // at build time, so the PSBT the user previews is the one
+                    // that gets signed - hydrating it later would break the
+                    // byte-identity guarantee the confirm surface rests on.
+                    if (attachPrevTx) {
+                        const prevTxHex = await this.connector.getTransactionHex(nextUtxo.txid)
+                        nextInput.nonWitnessUtxo = Buffer.from(prevTxHex, 'hex')
                     }
                     psbt.addInput(nextInput)
                     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)

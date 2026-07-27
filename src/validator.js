@@ -634,10 +634,19 @@ function validateAll(params) {
     const rbf = validateOptionalBoolean(params.rbf, 'rbf')
     const unconfirmed = validateOptionalBoolean(params.unconfirmed, 'unconfirmed')
 
+    // : attach each segwit input's FULL previous transaction alongside
+    // its witnessUtxo. Off by default because it costs one node round trip per
+    // input plus the prev tx's bytes in every copy of the PSBT, and only a
+    // hardware signer needs it: Ledger derives the outpoint it signs from the
+    // prev tx it is handed, so a witnessUtxo-only input cannot be signed on a
+    // device at all (it used to be signed against a SYNTHESIZED prev tx, which
+    // produced a valid-looking signature over an outpoint that does not exist).
+    const attachPrevTx = validateOptionalBoolean(params.attachPrevTx, 'attachPrevTx')
+
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,
         encoding, change, p2shHash, p2shHex, compressedPubKey,
-        unconfirmed, feePerKb, dust, feeQuote
+        unconfirmed, feePerKb, dust, feeQuote, attachPrevTx
     }
 }
 

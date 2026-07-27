@@ -68,7 +68,13 @@ function makeEncoder () {
   // Mock the BlockchainConnector
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
-    getTransactionHex: async () => ({ hex: RAW_TX_HEX })
+    // Returns a bare hex STRING, which is what BlockchainConnector.getTransactionHex
+    // actually resolves with (`responseData.result.hex`). It used to answer
+    // `{ hex }`, a shape the real class has never returned; that went unnoticed
+    // because every fixture here is segwit and nothing called it.  makes the
+    // segwit path call it, so a fake modelled on nothing would now be modelling
+    // the code under test.
+    getTransactionHex: async () => RAW_TX_HEX
   }
   // Mock the UtxoTracker
   encoder.utxoTrackerConnector = {
@@ -87,6 +93,64 @@ const TEST_ADDRESS = bitcoin.payments.p2pkh({
 }).address
 
 describe('XChainEncoder.createTransaction()', () => {
+
+  // ── : prev tx attached for hardware signers ────────────────
+  //
+  // Ledger derives the outpoint it signs from the bytes of the previous
+  // transaction it is handed, so a witnessUtxo-only input cannot be signed on
+  // a device at all. Opt-in, because it costs a node round trip and the prev
+  // tx's own weight in every copy of the PSBT, and only that caller needs it.
+
+  describe('attachPrevTx', () => {
+    it('leaves segwit inputs witnessUtxo-only by default', async () => {
+      const encoder = makeEncoder()
+      const result = await encoder.createTransaction(
+        [makeSegwitUtxo(TXID_A, 0, 100000000)], TEST_ADDRESS, null,
+        'test', null, 10000, false, null, TEST_ADDRESS,
+        null, null, null, true, 0.00001
+      )
+      const input = result.psbt.data.inputs[0]
+      assert.ok(input.witnessUtxo, 'segwit input should carry a witnessUtxo')
+      assert.strictEqual(input.nonWitnessUtxo, undefined,
+        'the prev tx must not be attached unless it was asked for')
+    })
+
+    it('attaches the full previous transaction when asked', async () => {
+      const encoder = makeEncoder()
+      const result = await encoder.createTransaction(
+        [makeSegwitUtxo(TXID_A, 0, 100000000)], TEST_ADDRESS, null,
+        'test', null, 10000, false, null, TEST_ADDRESS,
+        null, null, null, true, 0.00001, null, null, true
+      )
+      const input = result.psbt.data.inputs[0]
+      // BOTH, not either: the witnessUtxo is what a software signer and the
+      // fee estimator read, and removing it to make room for the prev tx
+      // would break every non-hardware path.
+      assert.ok(input.witnessUtxo, 'the witnessUtxo must survive')
+      assert.ok(Buffer.isBuffer(input.nonWitnessUtxo), 'the prev tx must be attached')
+      assert.strictEqual(input.nonWitnessUtxo.toString('hex'), RAW_TX_HEX)
+    })
+
+    it('still attaches nothing when the input is legacy anyway', async () => {
+      // A legacy input already carries its prev tx; the flag must not double it
+      // up or otherwise change that branch.
+      const encoder = makeEncoder()
+      const legacyUtxo = {
+        txid: TXID_B, vout: 1, value: 100000000, confirmations: 6,
+        scriptPubKey: bitcoin.payments.p2pkh({
+          pubkey: pubkeyBuf, network: DOGE_REGTEST
+        }).output.toString('hex')
+      }
+      const result = await encoder.createTransaction(
+        [legacyUtxo], TEST_ADDRESS, null,
+        'test', null, 10000, false, null, TEST_ADDRESS,
+        null, null, null, true, 0.00001, null, null, true
+      )
+      const input = result.psbt.data.inputs[0]
+      assert.ok(Buffer.isBuffer(input.nonWitnessUtxo))
+      assert.strictEqual(input.witnessUtxo, undefined)
+    })
+  })
 
   // ── UTXO deduplication ───────────────────────────────────────────
 

@@ -228,7 +228,7 @@ const jsonRpcController = {
                 params.data, params.rawData, params.fee, params.rbf,
                 params.encoding, params.change, params.p2shHash, params.p2shHex,
                 params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
-                params.feeQuote)
+                params.feeQuote, params.attachPrevTx)
         } catch (err) {
             // Typed operational errors (no UTXOs, insufficient funds, missing
             // change address, tracker unavailable) are expected, caller-actionable
