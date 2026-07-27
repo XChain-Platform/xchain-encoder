@@ -650,10 +650,11 @@ describe('XChainEncoder.createTransaction()', () => {
         'funding tx must be [P2SH funding output, change] only')
     })
 
-    it('phase 1 (funding) over-funds the P2SH output by the fee value', async () => {
+    it('phase 1 (funding) over-funds the P2SH output by the fee value plus its byte cost', async () => {
       const encoder = makeEncoder()
       encoder.dustAmount = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const TxSizeEstimator = require('../../src/TxSizeEstimator')
 
       // Baseline funding output value with no customOutputs.
       const base = await encoder.createTransaction(
@@ -663,8 +664,10 @@ describe('XChainEncoder.createTransaction()', () => {
       )
       const baseFunding = findFundingOutput(base.psbt).value
 
-      // Same call but with the fee customOutput: the funding output must be
-      // exactly FEE_VALUE larger so the reveal can pay the fee.
+      // Same call but with the fee customOutput: the funding output must grow by
+      // FEE_VALUE so the reveal can pay the fee, plus  the reveal's
+      // miner fee for the bytes that output adds to the reveal. Without the
+      // second term the reveal lands under the node's min-relay floor.
       const withFee = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, feeOutputs(),
         bigData, null, 10000, false, null, TEST_ADDRESS,
@@ -672,8 +675,13 @@ describe('XChainEncoder.createTransaction()', () => {
       )
       const feeFunding = findFundingOutput(withFee.psbt).value
 
-      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE,
-        'funding output must grow by exactly the fee value')
+      // Same conversion the encoder applies: feePerKb -> internal coin/byte.
+      const feePerBytes = 0.00001 / 1000 / 1e8
+      const feeOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(TEST_ADDRESS, DOGE_REGTEST)
+      const revealByteFee = Math.ceil(feeOutputBytes * feePerBytes * 1e8)
+
+      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee,
+        'funding output must grow by the fee value plus the fee output byte cost')
     })
 
     it('phase 2 (reveal) emits the fee-destination output funded by phase 1', async () => {

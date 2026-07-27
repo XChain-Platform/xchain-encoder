@@ -48,6 +48,64 @@ describe('TxSizeEstimator', () => {
     })
   })
 
+  // : the P2SH/P2WSH funding tx has to pay the reveal's miner fee for
+  // every reveal-side customOutput, so it needs those outputs' byte cost.
+  describe('.estimateOutputSizeForAddress(address, network)', () => {
+    const NET = bitcoin.networks.regtest
+    const pk = Buffer.from(
+      '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+      'hex'
+    )
+
+    it('sizes a P2PKH output at 34 bytes (8 value + 1 varint + 25 script)', () => {
+      const address = bitcoin.payments.p2pkh({ pubkey: pk, network: NET }).address
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(address, NET), 34)
+    })
+
+    it('sizes a P2WPKH output at 31 bytes (8 value + 1 varint + 22 script)', () => {
+      const address = bitcoin.payments.p2wpkh({ pubkey: pk, network: NET }).address
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(address, NET), 31)
+    })
+
+    it('sizes a P2SH output at 32 bytes, matching estimateP2shOutput()', () => {
+      const redeem = bitcoin.payments.p2pkh({ pubkey: pk, network: NET })
+      const address = bitcoin.payments.p2sh({ redeem, network: NET }).address
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(address, NET),
+        TxSizeEstimator.estimateP2shOutput())
+    })
+
+    it('sizes a P2WSH output at 43 bytes, matching estimateP2wshOutput()', () => {
+      const redeem = { output: bitcoin.script.compile([bitcoin.opcodes.OP_TRUE]) }
+      const address = bitcoin.payments.p2wsh({ redeem, network: NET }).address
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(address, NET),
+        TxSizeEstimator.estimateP2wshOutput())
+    })
+
+    it('falls back to the largest standard output (43) for an unparseable address', () => {
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress('not-an-address', NET), 43)
+    })
+
+    it('falls back to the largest standard output (43) for a missing address', () => {
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(null, NET), 43)
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(undefined, NET), 43)
+    })
+
+    it('falls back rather than under-sizing an address from another network', () => {
+      const mainnetAddress = bitcoin.payments.p2pkh({
+        pubkey: pk, network: bitcoin.networks.bitcoin
+      }).address
+      assert.strictEqual(
+        TxSizeEstimator.estimateOutputSizeForAddress(mainnetAddress, NET), 43)
+    })
+  })
+
   describe('.estimateMultisignOutput()', () => {
     it('returns 8 + 1 + the compiled 1-of-3 bare-multisig script length (114)', () => {
       // Derive the expected size from a real compiled p2ms script rather than a

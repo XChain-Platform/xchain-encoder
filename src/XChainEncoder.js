@@ -792,13 +792,30 @@ class XChainEncoder {
         // the reveal (p2shHash set) customOutputs ARE emitted, funded by this value,
         // so they are paid exactly once. Single-tx encodings (OP_RETURN/MULTISIGN)
         // are unaffected: they emit customOutputs directly on their only tx.
+        //
+        // : value alone is not enough. Each reveal-side customOutput also
+        // makes the reveal BIGGER, and the reveal's whole miner fee comes from
+        // these funding outputs. estimateSpendingP2shTx/estimateSpendingP2wshTx
+        // size the reveal as "one data input + the OP_RETURN marker" only, so a
+        // single-chunk reveal carrying e.g. a 34-byte native-fee output came up
+        // ~25 bytes short of the 1 sat/vB floor and the node rejected it with
+        // min-relay-fee-not-met. Multi-chunk reveals only survived by accident:
+        // the per-chunk estimate repeats the tx header and marker output, and
+        // that slack absorbed the missing bytes. So charge the bytes here too.
         const isP2shFamily = preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH
         let revealCustomOutputsValue = 0n
+        let revealCustomOutputsBytes = 0
         if (!p2shHash && isP2shFamily && customOutputs && Array.isArray(customOutputs)){
             for (let i = 0; i < customOutputs.length; i++){
                 revealCustomOutputsValue += BigInt(parseSatoshiAmount(customOutputs[i].value, `customOutputs[${i}].value`, { allowBig: true }))
+                revealCustomOutputsBytes += TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
             }
         }
+        // Round UP: a truncated fraction of a satoshi is exactly the kind of
+        // off-by-one that lands the reveal a hair under the relay floor.
+        let revealCustomOutputsFee = (revealCustomOutputsBytes > 0 && feePerBytes > 0)
+            ? Math.ceil(revealCustomOutputsBytes * feePerBytes * SATOSHI_UNIT)
+            : 0
 
         let outputSatoshis = 0n
         let voutPsbtIndex = 0
@@ -887,10 +904,13 @@ class XChainEncoder {
                         }
 
                         // Over-fund the first funding output by the reveal-side
-                        // customOutputs total so the reveal can pay them (consumed once).
-                        if (revealCustomOutputsValue > 0n){
-                            spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + revealCustomOutputsValue)
+                        // customOutputs total, plus the miner fee for the bytes
+                        // they add to the reveal, so the reveal can pay them
+                        // (consumed once).
+                        if (revealCustomOutputsValue > 0n || revealCustomOutputsFee > 0){
+                            spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + revealCustomOutputsValue + BigInt(revealCustomOutputsFee))
                             revealCustomOutputsValue = 0n
+                            revealCustomOutputsFee = 0
                         }
 
                         psbt.addOutput({
@@ -987,10 +1007,13 @@ class XChainEncoder {
                         }
 
                         // Over-fund the first funding output by the reveal-side
-                        // customOutputs total so the reveal can pay them (consumed once).
-                        if (revealCustomOutputsValue > 0n){
-                            spendingP2wshEstimatedFee = asSatValue(BigInt(spendingP2wshEstimatedFee) + revealCustomOutputsValue)
+                        // customOutputs total, plus the miner fee for the bytes
+                        // they add to the reveal, so the reveal can pay them
+                        // (consumed once).
+                        if (revealCustomOutputsValue > 0n || revealCustomOutputsFee > 0){
+                            spendingP2wshEstimatedFee = asSatValue(BigInt(spendingP2wshEstimatedFee) + revealCustomOutputsValue + BigInt(revealCustomOutputsFee))
                             revealCustomOutputsValue = 0n
+                            revealCustomOutputsFee = 0
                         }
 
                         psbt.addOutput({

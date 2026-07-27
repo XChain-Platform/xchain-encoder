@@ -13,4 +13,10 @@ COPY ./docs /XChainEncoder/docs
 # pattern used by xchain-indexer/Dockerfile.
 COPY ./.en[v] /XChainEncoder/.env
 
-CMD ["npm", "run", "api"]
+# Run node directly rather than through `npm run api` (which is this exact
+# command). npm builds a three-process tree, npm -> sh -c -> node, and neither
+# wrapper forwards signals: measured on the regtest encoder, `docker stop` kills
+# npm, node is never told anything and dies with the container, so its SIGTERM
+# handler never runs and the instance lockfile survives into the next boot
+# . Exec form, no shell, so node is PID 1 and gets the signal itself.
+CMD ["node", "./src/api.js"]

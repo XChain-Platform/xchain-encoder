@@ -37,6 +37,26 @@ class TxSizeEstimator {
         return 43 //8 for value, 1 for scriptpubkey size, 34 for scriptpubkey (1 OP_0, 1 push data, 32 data)
     }
     
+    // Serialized byte cost of a payment output to `address`: 8 (value) +
+    // script-length varint + scriptPubKey. Used to fund the reveal (phase-2)
+    // transaction's miner fee for the customOutputs it has to carry :
+    // the funding tx knows those outputs' VALUE but must also pay for their
+    // BYTES, which nothing accounted for before.
+    static estimateOutputSizeForAddress(address, network){
+        const LARGEST_STANDARD_OUTPUT = 43 // P2WSH/P2TR: 8 + 1 + 34
+        if (!address) return LARGEST_STANDARD_OUTPUT
+        let script
+        try {
+            script = bitcoin.address.toOutputScript(address, network)
+        } catch (e) {
+            // Unparseable here (foreign prefix, custom network table): assume the
+            // largest standard output rather than under-funding the reveal. The
+            // address is validated for real when the reveal adds the output.
+            return LARGEST_STANDARD_OUTPUT
+        }
+        return 8 + (script.length < 0xfd ? 1 : 3) + script.length
+    }
+
     static estimateMultisignOutput(){
         // 8 (value) + 1 (script-length varint) + 105 (script) = 114.
         // The 1-of-3 compressed bare-multisig script is 105 bytes:
