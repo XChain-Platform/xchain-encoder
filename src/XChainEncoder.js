@@ -1336,7 +1336,31 @@ class XChainEncoder {
             }
         }
 
-        return {"psbt":psbt,"encoding":preparedData["encoding"]}
+        // Carrier scripts for the chunk lanes, so a client can VERIFY the
+        // commit outputs it is about to sign instead of trusting them.
+        //
+        // An inline OP_RETURN action can be read straight back out of the PSBT
+        // and cross-checked against what the caller asked for. A P2SH/P2WSH
+        // action cannot: the payload lives in a redeem script that only exists
+        // here, and the commit output is just its hash, so the client had no
+        // way to tell a faithful encoding from a substituted one. That residual
+        // trust is what this closes (confirm/decode/pre-flight spec §5.3.2).
+        //
+        // These are the SAME compiled buffers that became the outputs above
+        // (dataBufferArray IS the redeem-script array for these encodings), not
+        // a re-derivation, so they cannot drift from what was actually built.
+        // Publishing them reveals nothing secret: the script is disclosed on
+        // chain the moment the reveal tx spends the output.
+        //
+        // The client's two checks are then: hash each script to a P2SH/P2WSH
+        // output and require a match in the PSBT, and require the leading data
+        // pushes to concatenate to the action it intended. Passing a forged
+        // script means failing one or the other.
+        let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
+        if (preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH){
+            result.carrierScripts = (preparedData["dataBufferArray"] || []).map(b => b.toString('hex'))
+        }
+        return result
     }
 
     // Stripped (non-witness) serialized byte count of a PSBT's underlying tx.
