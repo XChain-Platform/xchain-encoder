@@ -145,6 +145,39 @@ function resolveCallerHash160(pubKey) {
     throw new Error(`prepareData: cannot resolve a 20-byte caller HASH160 from identity "${pubKey}" (expected a base58 P2PKH/P2SH address, a compressed/uncompressed pubkey hex, or a v0 bech32 P2WPKH address)`)
 }
 
+// Sibling of resolveCallerHash160, same "any identity in" contract, but for
+// call sites that need an address STRING rather than a HASH160 (the UTXO
+// tracker's getUtxosFromAddress, and the dust-padding fallback below). Every
+// wallet flow sends its source as a raw compressed pubkey hex in this
+// `pubkey` param (xchain-wallet's `source.publicKey`) - only a legacy caller
+// or a pre-resolved value ever sends an address directly. Before this,
+// getUtxosFromAddress(pubkey) handed bitcoinjs-lib's address.toOutputScript a
+// raw pubkey hex, which is not valid base58 or bech32, so it threw
+// "<hex> has no matching Script" and every UTXO-tracker-backed compose
+// (i.e. every compose that does not pre-supply `utxos`) failed.
+// Address-type choice for a bare pubkey: this network's default (P2WPKH when
+// segwit-capable, else legacy P2PKH), matching XChain wallet's own default
+// address type for each coin. A caller who actually spends from a different
+// address type (P2SH-P2WPKH, taproot) must keep pre-supplying `utxos` or
+// pass an explicit address - a bare pubkey is inherently address-type-
+// ambiguous and this is the best a single guess can do.
+function resolveCallerAddress(pubKey, network) {
+    if (typeof pubKey !== 'string' || pubKey.length === 0) return pubKey
+    // Already a valid address on this network: pass through unchanged.
+    try { bitcoin.address.toOutputScript(pubKey, network); return pubKey } catch (_) { /* not a valid address here */ }
+    // Raw compressed/uncompressed pubkey hex: derive the network's default address type.
+    if (/^(0[23][0-9a-fA-F]{64}|04[0-9a-fA-F]{128})$/.test(pubKey)) {
+        const pubkeyBuf = Buffer.from(pubKey, 'hex')
+        return (network.supportsSegwit === false
+            ? bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network })
+            : bitcoin.payments.p2wpkh({ pubkey: pubkeyBuf, network })
+        ).address
+    }
+    // Anything else: pass through unchanged and let the downstream call
+    // (tracker / bitcoinjs-lib) surface its own, more specific error.
+    return pubKey
+}
+
 const Encoding = {
     OP_RETURN: "OP_RETURN",
     P2SH: "P2SH",
@@ -613,7 +646,7 @@ class XChainEncoder {
             } else {
                 let fetched
                 try {
-                    fetched = await this.utxoTrackerConnector.getUtxosFromAddress(pubkey)
+                    fetched = await this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network))
                 } catch (err) {
                     // Surface a typed, credential-free operational error. A
                     // transport failure embeds the tracker's internal host:port,
@@ -1365,7 +1398,7 @@ class XChainEncoder {
         // (see the P2WSH funding branch) so the output's value is available.
         let strippedFloor = this.network.minStandardTxNonWitnessSize
         if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
-            let padAddress = change || pubkey
+            let padAddress = change || resolveCallerAddress(pubkey, this.network)
             if (padAddress && this.strippedTxSize(psbt) < strippedFloor){
                 psbt.addOutput({
                     address: padAddress,

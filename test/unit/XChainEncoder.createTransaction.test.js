@@ -491,6 +491,35 @@ describe('XChainEncoder.createTransaction()', () => {
 
       assert.strictEqual(trackerCalled, true)
     })
+
+    // Regression: every wallet flow sends its source as a raw compressed
+    // pubkey hex (xchain-wallet's `source.publicKey`), not an address - the
+    // "pubkey" param name is legacy/misleading (validator.js documents it as
+    // "actually the sender address"). Before this fix, that raw pubkey hex
+    // reached getUtxosFromAddress unresolved, and bitcoinjs-lib's
+    // address.toOutputScript rejected it as neither valid base58 nor bech32
+    // ("<hex> has no matching Script"), breaking every UTXO-tracker-backed
+    // compose (any call that does not pre-supply `utxos`) for a live wallet.
+    it('resolves a raw pubkey (not an address) to this network\'s default address before querying the tracker', async () => {
+      const encoder = makeEncoder()
+      let queriedAddress = null
+      encoder.utxoTrackerConnector.getUtxosFromAddress = async (address) => {
+        queriedAddress = address
+        return { utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)] }
+      }
+
+      const rawPubkeyHex = pubkeyBuf.toString('hex')
+      await encoder.createTransaction(
+        null, rawPubkeyHex, null,
+        'test', null, 10000, false, null, TEST_ADDRESS,
+        null, null, null, true, 0.00001
+      )
+
+      // dogecoin-regtest (this suite's network) has supportsSegwit: false,
+      // so the default address type is P2PKH - matching how TEST_ADDRESS
+      // itself is derived above.
+      assert.strictEqual(queriedAddress, TEST_ADDRESS)
+    })
   })
 
   // ── Custom outputs ───────────────────────────────────────────────
