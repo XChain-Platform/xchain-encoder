@@ -84,8 +84,24 @@ npm run api
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
+| `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `GET /status` and `GET /openrpc.json` are exempt; `0` disables |
+| `ENCODER_MAX_CONCURRENT_PROBES` | No | `16` | Private concurrency reserve for the two exempt probe routes, so healthchecks stay answerable while the cap above sheds without becoming an uncapped bypass; `0` disables |
 | `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
 | `CORS_ORIGIN` | No | Disabled | CORS origin (`*` to allow all) |
+
+## Metrics and log shipping (optional, off by default)
+
+A Prometheus `/metrics` endpoint and a structured log shim ship with this
+service and stay inert unless switched on: with no env set, no route is
+registered, no timer starts and no socket opens. Turn the endpoint on with
+`METRICS_ENABLED=1` (add `METRICS_TOKEN` to gate the scrape on a reachable
+box), and ship logs with `LOG_SHIP_ENABLED=1` plus `LOG_SHIP_URL`. Full
+variable list and the exported metric names are in
+[`src/observability/README.md`](src/observability/README.md).
+
+The module is vendored byte-identically from xchain-hub . Edit it there
+and re-run `xchain-hub/bin/sync-observability.sh`; a local edit fails the
+parity gate in `bin/check-observability-parity.js`.
 
 ## Scripts
 

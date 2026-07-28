@@ -1,28 +1,28 @@
 {
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
   "mutate": [
-    "../../src/XChainEncoder.js",
-    "../../src/validator.js",
-    "../../src/TxSizeEstimator.js",
-    "../../src/CryptoNetworks.js"
+    "src/XChainEncoder.js",
+    "src/validator.js",
+    "src/TxSizeEstimator.js",
+    "src/CryptoNetworks.js"
   ],
   "testRunner": "mocha",
   "mochaOptions": {
     "spec": [
-      "../../test/unit/**/*.test.js",
-      "../../test/integration/**/*.test.js",
-      "../../test/boundary/**/*.test.js",
-      "../../test/security/**/*.test.js",
-      "../../test/fuzz/**/*.fuzz.js",
-      "../../test/chaos/**/*.test.js"
+      "test/unit/**/*.test.js",
+      "test/integration/**/*.test.js",
+      "test/boundary/**/*.test.js",
+      "test/security/**/*.test.js",
+      "test/fuzz/**/*.fuzz.js",
+      "test/chaos/**/*.test.js"
     ]
   },
   "reporters": ["html", "clear-text", "json"],
   "htmlReporter": {
-    "fileName": "../../reports/mutation/index.html"
+    "fileName": "reports/mutation/index.html"
   },
   "jsonReporter": {
-    "fileName": "../../reports/mutation/report.json"
+    "fileName": "reports/mutation/report.json"
   },
   "coverageAnalysis": "perTest",
   "concurrency": 4,
