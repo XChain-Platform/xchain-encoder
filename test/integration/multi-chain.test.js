@@ -93,43 +93,58 @@ describe('Category F: Multi-Chain Network Configs', () => {
   // ── F-4: Litecoin higher dust threshold ───────────────────────
 
   describe('F-4: Litecoin higher dust threshold', () => {
-    it('Litecoin MULTISIGN output uses 5460 vs Bitcoin 546', async () => {
-      const MS_DATA = 'A'.repeat(59)
-      const compressedPubKey = PUBKEY_BUF.toString('hex')
+    const MS_DATA = 'A'.repeat(59)
 
-      // Bitcoin
-      const btcEncoder = makeEncoder('bitcoin-regtest')
-      const btcAddress = getTestAddress('bitcoin-regtest')
-      const btcUtxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
-      const btcResult = await btcEncoder.createTransaction(
-        [btcUtxo], btcAddress, null,
-        MS_DATA, null, 10000, false, 'MULTISIGN', btcAddress,
-        null, null, compressedPubKey, true, 0.00001
-      )
+    // A bare 1-of-3 multisig output is far larger than a P2PKH, so its relay dust
+    // floor is Bitcoin Core's size formula (output_bytes + 148) * 3 sat/byte, not
+    // the chain's flat P2PKH dustThreshold. The encoder takes the MAX of the two.
+    // On Bitcoin the size formula wins (786 > 546); on Litecoin and Dogecoin the
+    // chain threshold wins. This test used to look the multisig output up by
+    // `value === encoder.dustAmount`, which silently stopped matching on Bitcoin
+    // once that max() landed, so it asserted nothing on either chain.
+    function bareMultisigDust (scriptLength) {
+      return Math.ceil((8 + 1 + scriptLength + 148) * 3)
+    }
 
-      // Litecoin
-      const ltcEncoder = makeEncoder('litecoin-regtest')
-      const ltcAddress = getTestAddress('litecoin-regtest')
-      const ltcUtxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
-      const ltcResult = await ltcEncoder.createTransaction(
-        [ltcUtxo], ltcAddress, null,
-        MS_DATA, null, 10000, false, 'MULTISIGN', ltcAddress,
-        null, null, compressedPubKey, true, 0.00001
+    async function buildMultisign (networkName) {
+      const encoder = makeEncoder(networkName)
+      const address = getTestAddress(networkName)
+      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const result = await encoder.createTransaction(
+        [utxo], address, null,
+        MS_DATA, null, 10000, false, 'MULTISIGN', address,
+        null, null, PUBKEY_BUF.toString('hex'), true, 0.00001
       )
+      assert.strictEqual(result.encoding, 'MULTISIGN')
+      // Identify the data output by SHAPE (bare multisig ends in OP_CHECKMULTISIG),
+      // never by a value that the dust policy is free to move.
+      const output = result.psbt.txOutputs.find(o =>
+        o.script[o.script.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG)
+      assert.ok(output, `${networkName} should have a MULTISIGN output`)
+      return { encoder, output }
+    }
 
-      // Find multisig outputs
-      const btcMsOutput = btcResult.psbt.txOutputs.find(o =>
-        o.value === btcEncoder.dustAmount
-      )
-      const ltcMsOutput = ltcResult.psbt.txOutputs.find(o =>
-        o.value === ltcEncoder.dustAmount
-      )
+    it('MULTISIGN output clears both the chain dust floor and the bare-multisig relay floor', async () => {
+      for (const chain of CHAINS) {
+        const { encoder, output } = await buildMultisign(chain.name)
+        const relayFloor = bareMultisigDust(output.script.length)
+        assert.strictEqual(encoder.dustAmount, chain.dustThreshold)
+        assert.strictEqual(output.value, Math.max(chain.dustThreshold, relayFloor),
+          `${chain.name} MULTISIGN output should sit at max(dustThreshold, bare-multisig relay floor)`)
+        assert.ok(output.value >= relayFloor,
+          `${chain.name} MULTISIGN output must not be relay dust`)
+      }
+    })
 
-      assert.ok(btcMsOutput, 'Bitcoin should have MULTISIGN output')
-      assert.ok(ltcMsOutput, 'Litecoin should have MULTISIGN output')
-      assert.strictEqual(btcMsOutput.value, 546)
-      assert.strictEqual(ltcMsOutput.value, 5460)
-      assert.ok(ltcMsOutput.value > btcMsOutput.value,
+    it('Litecoin MULTISIGN output is higher than Bitcoin, driven by its dust threshold', async () => {
+      const btc = await buildMultisign('bitcoin-regtest')
+      const ltc = await buildMultisign('litecoin-regtest')
+
+      // Bitcoin's 546 floor is below the relay formula, so the formula binds.
+      assert.strictEqual(btc.output.value, bareMultisigDust(btc.output.script.length))
+      // Litecoin's 5460 floor is above it, so the chain threshold binds.
+      assert.strictEqual(ltc.output.value, 5460)
+      assert.ok(ltc.output.value > btc.output.value,
         'Litecoin dust should be higher than Bitcoin')
     })
   })
