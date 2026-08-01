@@ -24,7 +24,7 @@ const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 const XChainEncoder = require('../../src/XChainEncoder')
 const TxSizeEstimator = require('../../src/TxSizeEstimator')
-const { ENVELOPE_MAX_PAYLOAD, MAX_COMPILED_ACTION_DATA_LENGTH } = require('../../src/validator')
+const { ENVELOPE_MAX_PAYLOAD, MAX_COMPILED_ACTION_DATA_LENGTH, MAX_STANDARD_TX_WEIGHT } = require('../../src/validator')
 
 bitcoin.initEccLib(ecc)
 const ECPair = ECPairFactory(ecc)
@@ -267,6 +267,57 @@ describe('XChainEncoder TAPROOT envelope ( S1)', function () {
         [makeSegwitUtxo(network, TXID_A, 0, 1000000000)], callerAddress(network), null,
         'FILE|0|big', big, null, false, 'TAPROOT', callerAddress(network), null, null, PUBKEY_HEX)
       assert.ok(result.revealPsbt)
+    })
+
+    // . The ceiling is DERIVED from MAX_STANDARD_TX_WEIGHT, so the
+    // derivation itself needs a test: a payload at exactly the ceiling must
+    // still build a reveal a node will relay. The original 400,000 passed every
+    // validator-level boundary test while producing a 402,789 WU reveal that no
+    // node accepts, because nothing measured the thing that actually binds. A
+    // byte-count assertion cannot catch that; only weight can.
+    it('a payload at exactly the ceiling builds a reveal within MAX_STANDARD_TX_WEIGHT (§4, )', async function () {
+      this.timeout(30000)
+      const encoder = makeEncoder()
+      const network = encoder.network
+      // Size rawData so the COMPILED payload lands exactly on the ceiling
+      // (action push + OP_PUSHDATA4 framing are part of the measurand), rather
+      // than hardcoding an offset that silently drifts if either changes.
+      const action = 'FILE|0|max'
+      const frame = (n) => bitcoin.script.compile(
+        [Buffer.from(action, 'utf8'), Buffer.alloc(n, 0x7a)]).length - n
+      const rawLen = ENVELOPE_MAX_PAYLOAD - frame(ENVELOPE_MAX_PAYLOAD)
+      assert.strictEqual(
+        bitcoin.script.compile([Buffer.from(action, 'utf8'), Buffer.alloc(rawLen, 0x7a)]).length,
+        ENVELOPE_MAX_PAYLOAD, 'payload sized exactly to the ceiling')
+
+      const result = await encoder.createTransaction(
+        [makeSegwitUtxo(network, TXID_A, 0, 1000000000)], callerAddress(network), null,
+        action, 'z'.repeat(rawLen), null, false, 'TAPROOT',
+        callerAddress(network), null, null, PUBKEY_HEX)
+
+      // Measure a FULLY SIGNED reveal. An unsigned PSBT carries no witness, and
+      // the payload lives entirely in the witness, so weighing the unsigned tx
+      // reports ~1/1000th of the truth and would pass at any ceiling.
+      result.psbt.signAllInputs({
+        publicKey: Buffer.from(KEY.publicKey),
+        sign: (h) => Buffer.from(KEY.sign(h))
+      })
+      result.psbt.finalizeAllInputs()
+      result.revealPsbt.signInput(0, {
+        publicKey: Buffer.from(KEY.publicKey),
+        signSchnorr: (h) => Buffer.from(ecc.signSchnorr(h, KEY.privateKey))
+      })
+      result.revealPsbt.finalizeAllInputs()
+      const revealTx = result.revealPsbt.extractTransaction()
+
+      const weight = revealTx.weight()
+      assert.strictEqual(revealTx.ins[0].witness.length, 3, 'sig + envelope script + control block')
+      assert.ok(weight <= MAX_STANDARD_TX_WEIGHT,
+        `reveal weight ${weight} must not exceed MAX_STANDARD_TX_WEIGHT ${MAX_STANDARD_TX_WEIGHT}`)
+      // Margin, not a bare pass: the §3.5 extra reveal inputs/outputs and a
+      // larger (P2TR) change output must all still fit under the limit.
+      assert.ok(MAX_STANDARD_TX_WEIGHT - weight >= 2000,
+        `only ${MAX_STANDARD_TX_WEIGHT - weight} WU of headroom at the ceiling; lower ENVELOPE_MAX_PAYLOAD`)
     })
 
     it('propagates RBF to both transactions of the pair', async function () {

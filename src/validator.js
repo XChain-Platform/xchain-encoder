@@ -59,9 +59,19 @@ const MAX_OP_RETURN_COMPILED_LENGTH = OP_RETURN_OUTPUT_SIZE - OP_RETURN_MAGIC_WO
 // ~50x for no benefit). Measures the reassembled envelope payload byte length
 // after concatenation of the payload pushes, which is byte-identical to the
 // compiled action stream (finalDataBuffer) the shipped lanes carry; the
-// envelope's own 520-byte push framing is NOT counted. 400,000 is matched to
-// tapscript standardness reality (~400k WU per transaction).
-const ENVELOPE_MAX_PAYLOAD = 400_000
+// envelope's own 520-byte push framing is NOT counted.
+// DERIVED FROM WEIGHT : the binding limit is Bitcoin Core's
+// MAX_STANDARD_TX_WEIGHT of 400,000 WU, not a round byte count. 400,000 payload
+// bytes build a 402,789 WU reveal, which is non-standard and unrelayable; the
+// true maxima are 397,228 (P2WPKH change) and 397,009 (P2TR change + floor pad).
+// 390,000 sits 7,050 WU under the limit in the worst reveal shape. Re-derive it
+// from the weight limit if it ever changes; do not pick a number.
+const ENVELOPE_MAX_PAYLOAD = 390_000
+
+// Bitcoin Core MAX_STANDARD_TX_WEIGHT, the policy limit ENVELOPE_MAX_PAYLOAD is
+// derived from. Vendored so the derivation is testable here rather than being
+// arithmetic in a comment. Canonical: xchain-documentation/protocol/constants.js.
+const MAX_STANDARD_TX_WEIGHT = 400_000
 // FILE payload compression ( spec Part B). Vendored byte-identical from
 // xchain-documentation/protocol/constants.js; the conformance suite keeps the
 // copies in lockstep.
@@ -772,6 +782,7 @@ module.exports = {
     MAX_RAW_TX_HEX_LENGTH,
     MAX_BROADCAST_TX_HEX_LENGTH,
     ENVELOPE_MAX_PAYLOAD,
+    MAX_STANDARD_TX_WEIGHT,
     COMPRESSION_CODE_DEFLATE_RAW,
     COMPRESSION_MAX_RATIO,
     COMPRESSION_MAX_INPUT_BYTES,

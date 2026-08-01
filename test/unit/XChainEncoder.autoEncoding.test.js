@@ -145,14 +145,17 @@ describe(' S5: size-aware encoding selection (§6)', function () {
             const network = e.network
             // Incompressible bytes above the envelope ceiling: §6's over-cap
             // branch is a hard error naming the cap, never a ~820-output spray.
-            const oversize = require('crypto').randomBytes(400100).toString('binary')
+            const oversize = require('crypto').randomBytes(validator.ENVELOPE_MAX_PAYLOAD + 100).toString('binary')
             await assert.rejects(
                 e.createTransaction(
                     [segwitUtxo(network)], callerAddress(network), null, FILE_ACTION, oversize,
                     null, false, 'AUTO', callerAddress(network),
                     null, null, PUBKEY_HEX, true, null, null, null, false, false,
                     { signerSupportsTapscript: true }),
-                (err) => err instanceof RangeError && /exceeds maximum 400000/.test(err.message))
+                // Derived from the constant, never hardcoded: the cap moved once
+                // already  and a literal here just goes stale silently.
+                (err) => err instanceof RangeError &&
+                    new RegExp(`exceeds maximum ${validator.ENVELOPE_MAX_PAYLOAD}`).test(err.message))
         })
 
         it('leaves the legacy no-encoding path exactly as shipped', async function () {
