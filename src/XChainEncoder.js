@@ -249,6 +249,10 @@ function defaultCompressionEnabled(){
 class XChainEncoder {
     constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
+      // : the raw "<coin>-<net>" key. getBitcoinJsNetwork returns only the
+      // bitcoinjs params, which carry no chain identity, and the envelope
+      // recognition gate needs to know WHICH chain+network it is building for.
+      this.networkKey = network
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
       this.dustAmount = this.network["dustThreshold"]
@@ -606,6 +610,53 @@ class XChainEncoder {
     // ownership-stamped so a concurrent call's entries are never dropped; see
     // _releaseCallReservations. The success path keeps its reservations on purpose:
     // the caller is about to sign and broadcast those inputs.
+    /**
+     * : refuse to build a Taproot envelope the fleet would ignore.
+     *
+     * Envelope recognition activates at a per-network height ( §7). Below it
+     * every decoder treats the reveal as an ordinary P2TR spend, so the caller would
+     * pay a real miner fee, write a real payload on chain, and own an action that
+     * does not exist. Nothing downstream can detect that: the decoder's refusal is
+     * silent and correct by design, which is exactly why the check has to live here.
+     *
+     * Fail-closed on an unknown height: a node that cannot answer getblockcount
+     * leaves us unable to prove recognition is active, and the cost of guessing
+     * wrong is the caller's money, so we refuse rather than assume.
+     *
+     * `null` means the network never recognizes envelopes (DOGE: no segwit). That is
+     * already refused by the supportsSegwit gate; this repeats it as a safety net for
+     * any future non-segwit chain whose definition is added without one.
+     */
+    async assertEnvelopeRecognized(){
+        const height = CryptoNetworks.getEnvelopeRecognitionHeight(this.networkKey)
+        if (height === null || height === undefined) {
+            throw new TypeError('TAPROOT encoding is not recognized on this network; ' +
+                'no envelope recognition height is defined for it')
+        }
+        if (height === 0) return                    // genesis-active (testnet/regtest)
+
+        const tip = this.connector && typeof this.connector.getBlockCount === 'function'
+            ? await this.connector.getBlockCount()
+            : null
+        if (!Number.isFinite(tip)) {
+            const e = new Error('Cannot confirm Taproot envelope recognition is active on this network ' +
+                `(recognition height ${height}); the node did not return a chain height. Refusing to build ` +
+                'an envelope that decoders may ignore.')
+            e.operational = true
+            e.xchainCode = 'ENVELOPE_RECOGNITION_UNKNOWN'
+            throw e
+        }
+        if (tip < height) {
+            const e = new Error(`Taproot envelope recognition is not active on this network until block ${height} ` +
+                `(chain tip ${tip}, ${height - tip} block(s) to go). An envelope broadcast now would cost a real ` +
+                'fee and be ignored by every decoder, so it is refused. Use P2WSH until the activation height.')
+            e.operational = true
+            e.xchainCode = 'ENVELOPE_NOT_YET_ACTIVE'
+            e.details = { recognitionHeight: height, chainTip: tip, blocksRemaining: height - tip }
+            throw e
+        }
+    }
+
     async createTransaction(...args){
         const callReservations = []
         try {
@@ -824,6 +875,13 @@ class XChainEncoder {
             if (p2shHash) {
                 throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
             }
+            // : segwit support is NOT sufficient. Below its recognition height
+            // ( §7) every decoder on the fleet ignores an envelope reveal, so
+            // building one here would hand the caller a valid, broadcastable, correctly
+            // signed pair for an action that will never exist, and they pay real coin
+            // for it. The decoder's refusal is silent and correct, so nothing downstream
+            // can detect the loss; this is the only place it can be caught.
+            await this.assertEnvelopeRecognized()
             ensureEccLib()
         }
 

@@ -118,6 +118,26 @@ class BlockchainConnector {
         }
     }
 
+    // : current chain tip. Used by the TAPROOT envelope build to refuse an
+    // envelope below its network's recognition height, since a reveal the fleet
+    // ignores costs the caller real coin for an action that never exists. Returns
+    // null rather than throwing when the node cannot answer: the caller decides
+    // whether an unknown height should block the build (it does, fail-closed).
+    async getBlockCount() {
+        try {
+            const response = await axios.post(this.url, {
+                jsonrpc: '2.0', method: 'getblockcount', params: [], id: 1,
+            }, {
+                auth: { username: this.rpcUser, password: this.rpcPassword },
+                timeout: RPC_TIMEOUT
+            });
+            const height = response && response.data && response.data.result;
+            return Number.isFinite(Number(height)) ? Number(height) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
     async getTransactionHex(txid, hexFormat = true) {
         try {
             const data = {
