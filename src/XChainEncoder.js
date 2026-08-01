@@ -1669,17 +1669,11 @@ class XChainEncoder {
         // relay floor on every chain we support. The floor is a POLICY constant
         // (Bitcoin Core's MIN_STANDARD_TX_NONWITNESS_SIZE = 82, Litecoin ~85),
         // NOT the 65-byte CONSENSUS minimum that guards the 64-byte-transaction
-        // CVE.
-        //
-        // KNOWN GAP (, measured live on BTC regtest 2026-07-31: a
-        // 71-stripped-byte reveal is rejected "tx-size-small", an 82-byte one is
-        // accepted): coins/BTC.js carries 65, the consensus value, so this pad
-        // never fires on Bitcoin and a SINGLE-CHUNK P2WSH reveal is
-        // unbroadcastable there. LTC's 85 is correct and its reveals do pad.
-        // The one-value fix is blocked on regenerating the consensus config pin
-        // across every repo that vendors BTC.js, so it is registered rather than
-        // slipped in here. Payload compression makes the small-reveal shape
-        // common rather than rare, so this matters more than it used to.
+        // CVE. coins/BTC.js carried that consensus 65 until 2026-07-31, so this
+        // pad never fired on Bitcoin and a single-chunk P2WSH reveal was
+        // unbroadcastable there (, measured live: 71 stripped bytes
+        // rejected "tx-size-small", 82 accepted). Corrected to 82 with the
+        // consensus pin regenerated across every repo vendoring BTC.js.
         //
         // The payload lives in the witness and does not count toward stripped
         // size, so this shape stays small however large the file is. Lift the

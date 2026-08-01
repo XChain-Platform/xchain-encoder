@@ -281,11 +281,15 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   // ── REG-06.8: P2WSH single-chunk stripped-size floor ──────────
   //
   // A P2WSH reveal that spends a single data chunk is just 1 input + 1
-  // OP_RETURN marker = 71 stripped (non-witness) bytes. Bitcoin Core relays it
-  // (MIN_STANDARD_TX_NONWITNESS_SIZE = 65) but Litecoin Core rejects it as
-  // "tx-size-small" (~85-byte floor) because the payload lives in the witness and
-  // does not count toward stripped size. The encoder must pad the reveal over
-  // the target chain's minStandardTxNonWitnessSize. Both the minimum (75) and
+  // OP_RETURN marker = 71 stripped (non-witness) bytes, because the payload
+  // lives in the witness and does not count toward stripped size. BOTH chains
+  // reject that as "tx-size-small": Litecoin's floor is 85 and Bitcoin Core's
+  // MIN_STANDARD_TX_NONWITNESS_SIZE is 82. (This block previously asserted
+  // Bitcoin relayed it, on the strength of the 65 that coins/BTC.js carried;
+  // 65 is the CONSENSUS minimum guarding the 64-byte-transaction CVE, which no
+  // relay enforces alone. , measured live on BTC regtest: 71 rejected,
+  // 82 accepted.) The encoder must pad the reveal over the target chain's
+  // minStandardTxNonWitnessSize on every chain. Both the minimum (75) and
   // maximum (476) single-chunk compiled-payload sizes must clear the floor.
 
   describe('REG-06.8: P2WSH single-chunk stripped-size floor', function () {
@@ -333,16 +337,19 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       })
     }
 
-    it('Bitcoin single-chunk reveal is unchanged (71B, above its 65B floor, no padding)', async function () {
-      const { tx2, encoder } = await buildSingleChunkReveal('bitcoin-regtest', 75)
-      const floor = encoder.network.minStandardTxNonWitnessSize
-      assert.strictEqual(floor, 65, 'bitcoin floor should be 65')
-      const stripped = tx2.psbt.__CACHE.__TX.byteLength(false)
-      assert.strictEqual(stripped, 71,
-        'bitcoin single-chunk reveal stays at 71 stripped bytes (already above floor)')
-      assert.ok(stripped >= floor)
-      assert.strictEqual(tx2.psbt.txOutputs.length, 1,
-        'bitcoin reveal carries only the OP_RETURN marker, no size padding')
-    })
+    for (const compiled of [75, 476]) {
+      it(`Bitcoin reveal (compiled ${compiled}B) clears the tx-size-small floor`, async function () {
+        const { tx2, encoder } = await buildSingleChunkReveal('bitcoin-regtest', compiled)
+        const floor = encoder.network.minStandardTxNonWitnessSize
+        assert.strictEqual(floor, 82, 'bitcoin floor should be the 82-byte POLICY floor, not the 65-byte consensus one')
+        const stripped = tx2.psbt.__CACHE.__TX.byteLength(false)
+        assert.ok(stripped >= floor,
+          `stripped size ${stripped} must be >= bitcoin floor ${floor}`)
+        // The unpadded shape is 71 bytes and one output; padding is the whole
+        // point, so assert the pad output exists rather than only the size.
+        assert.strictEqual(tx2.psbt.txOutputs.length, 2,
+          'bitcoin reveal carries the OP_RETURN marker plus one size-padding output')
+      })
+    }
   })
 })
