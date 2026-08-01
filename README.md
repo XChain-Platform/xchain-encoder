@@ -4,8 +4,8 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.6.10-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-769%2B%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-1.6.11-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-1330%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
 </p>
@@ -28,10 +28,11 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee**: optional RBF signaling via sequence number
 - **Custom outputs**: arbitrary address/value outputs (e.g., COINPay native coin payments)
-- **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/FILE.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
+- **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Browser bundle**: Browserify build for client-side PSBT generation without a server
-- **769+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
+- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard and rate limiter are in-process only until a shared store exists 
+- **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
 
 ## Documentation
 
@@ -40,7 +41,7 @@ Full encoder documentation is available in the [xchain-documentation](https://gi
 | Document | Description |
 |---|---|
 | [README](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/README.md) | Overview, encoding process, format details, API, testing, configuration |
-| [Format Selection](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/FORMAT_SELECTION.md) | Decision guide for encoding formats with size limits and trade-offs |
+| [Format Selection](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/format-selection.md) | Decision guide for encoding formats with size limits and trade-offs |
 
 ## Quick Start
 
@@ -77,13 +78,17 @@ npm run api
 | `NODE_USER` | Yes | (none) | RPC username |
 | `NODE_PASSWORD` | Yes | (none) | RPC password |
 | `ENCODER_API_PORT` | No | `3000` | JSON-RPC API port |
-| `DUST_AMOUNT` | No | Network default | Minimum output value in satoshis |
+| `NODE_RPC_TIMEOUT` | No | `30000` | Coin-node RPC call timeout in milliseconds |
 | `UTXO_TRACKER_URL` | No | (none) | xchain-utxo-tracker service host |
 | `UTXO_TRACKER_API_PORT` | No | (none) | xchain-utxo-tracker service port |
+| `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
+| `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression (spec §5.2/§7); set `0`, `false`, or `off` to disable |
+| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until a shared UTXO-reservation store exists  |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
+| `ENCODER_MAX_RPC_BATCH` | No | `20` | Maximum JSON-RPC batch array length per request |
 | `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `GET /status` and `GET /openrpc.json` are exempt; `0` disables |
 | `ENCODER_MAX_CONCURRENT_PROBES` | No | `16` | Private concurrency reserve for the two exempt probe routes, so healthchecks stay answerable while the cap above sheds without becoming an uncapped bypass; `0` disables |
 | `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
@@ -110,12 +115,15 @@ parity gate in `bin/check-observability-parity.js`.
 | `npm run api` | Start the JSON-RPC API server |
 | `npm run build` | Production browser bundle (minified) -> `dist/xchain_encoder.min.js` |
 | `npm run build:dev` | Development browser bundle (unminified) |
-| `npm run smoke-test` | Smoke tests (~10 tests, <1s) |
-| `npm run test:unit` | Unit tests (114 tests) |
-| `npm run test:integration` | Integration tests (108 tests) |
-| `npm run test:boundary` | Boundary condition tests (~120 tests) |
-| `npm run test:chaos` | Chaos engineering tests (61 tests) |
-| `npm run test:regression` | Regression tests (196 tests) |
+| `npm run smoke-test` | Smoke tests (~52 tests, <1s) |
+| `npm run test:unit` | Unit tests (541 tests) |
+| `npm run test:integration` | Integration tests (112 tests) |
+| `npm run test:boundary` | Boundary condition tests (~100 tests) |
+| `npm run test:security` | Security tests (57 tests) |
+| `npm run test:fuzz` | Property-based fuzz tests (6 suites) |
+| `npm run test:chaos` | Chaos engineering tests (62 tests) |
+| `npm run test:e2e` | End-to-end tests (~158 tests) |
+| `npm run test:regression` | Regression tests (264 tests) |
 | `npm run mutate` | Full mutation testing via StrykerJS |
 | `npm run mutate:quick` | Quick mutation check (XChainEncoder.js only) |
 | `npm run bench` | Performance benchmarks |
@@ -128,16 +136,18 @@ parity gate in `bin/check-observability-parity.js`.
 
 | Type | Tests | Description |
 |---|---|---|
-| Unit | 114 | `XChainEncoder.createTransaction`, `prepareData`, `obfuscate`, `dataToPubkey`, `isSegwitUTXO`, `TxSizeEstimator`, `CryptoNetworks` |
-| Integration | 108 | ACTION encoding fidelity, encoding type selection, obfuscation round-trip, UTXO/fee interaction, multi-chain, custom outputs, error handling |
-| E2E | ~80 | Full pipeline: API layer, P2SH/P2WSH two-tx orchestration, round-trip encode/decode, multi-chain, edge cases |
-| Smoke | ~10 | Module loading, instantiation, network configs, basic PSBT creation, API startup |
-| Boundary | ~120 | Payload size limits, chunk boundaries, fee calculation edges, UTXO values, change address, custom outputs, obfuscation |
-| Chaos | 61 | Network failures, input corruption, library monkey-patching, arithmetic edge cases, resource exhaustion, API resilience |
+| Unit | 541 | `XChainEncoder.createTransaction`, `prepareData`, `obfuscate`, `dataToPubkey`, `isSegwitUTXO`, `TxSizeEstimator`, `CryptoNetworks` |
+| Integration | 112 | ACTION encoding fidelity, encoding type selection, obfuscation round-trip, UTXO/fee interaction, multi-chain, custom outputs, error handling |
+| E2E | ~158 | Full pipeline: API layer, P2SH/P2WSH two-tx orchestration, round-trip encode/decode, multi-chain, edge cases |
+| Smoke | ~52 | Module loading, instantiation, network configs, basic PSBT creation, API startup |
+| Boundary | ~100 | Payload size limits, chunk boundaries, fee calculation edges, UTXO values, change address, custom outputs, obfuscation |
+| Security | 57 | Concurrency/reservation gates, payload-size caps, obfuscation-key handling, input validation |
+| Fuzz | 6 | Property-based generative tests over `prepareData`, `dataToPubkey`, `obfuscate` |
+| Chaos | 62 | Network failures, input corruption, library monkey-patching, arithmetic edge cases, resource exhaustion, API resilience |
 | Mutation | StrykerJS | 896 mutants across `XChainEncoder.js`, `validator.js`, `TxSizeEstimator.js`, `CryptoNetworks.js` |
-| Regression | 196 | Curated critical-path suite: encoding types, obfuscation, fee/UTXO, validator, multi-chain, P2SH/P2WSH, ACTION pipeline, API contract |
+| Regression | 264 | Curated critical-path suite: encoding types, obfuscation, fee/UTXO, validator, multi-chain, P2SH/P2WSH, ACTION pipeline, API contract |
 | Performance | 3 suites | Baseline benchmarks, full benchmarks with JSON, sustained soak tests |
-| **Total** | **769+** | |
+| **Total** | **1330+** | |
 
 ---
 
