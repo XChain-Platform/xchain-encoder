@@ -22,6 +22,18 @@
 const bitcoin = require('bitcoinjs-lib');
 const { compiledPushSize } = require('./validator');
 
+// Byte width of the compactSize varint that length-prefixes a witness-stack
+// item on the wire. NOT compiledPushSize: that models script-push framing,
+// which switches width at 76/256; the varint switches at 253/65536. The
+// envelope tapscript is a witness item and can exceed 65,535 bytes, hence the
+// 5-byte band (which compiledPushSize does not even have).
+function compactSizeLen(n) {
+    if (n < 253) return 1
+    if (n <= 0xffff) return 3
+    if (n <= 0xffffffff) return 5
+    return 9
+}
+
 class TxSizeEstimator {
     static estimateOpReturnOutput(data){
         //TODO: this won't be precise if the scriptpubkey is greater than 252 bytes
@@ -55,6 +67,44 @@ class TxSizeEstimator {
             return LARGEST_STANDARD_OUTPUT
         }
         return 8 + (script.length < 0xfd ? 1 : 3) + script.length
+    }
+
+    // P2TR commit output for the Taproot envelope : 8 (value) + 1
+    // (script-length varint) + 34 (OP_1 + push + 32-byte tweaked key) = 43.
+    // Same bytes as a P2WSH output; separate method so envelope call sites
+    // read as what they are and can diverge if either shape ever does.
+    static estimateTaprootOutput(){
+        return 43
+    }
+
+    // Virtual size of an envelope reveal transaction ( spec §3.9): one
+    // script-path P2TR input carrying the envelope tapscript, plus
+    // `outputsBytes` of serialized outputs (change, and the LTC stripped-floor
+    // pad when present). Witness bytes (weight 1, ÷4 toward vsize):
+    //   marker+flag (2) + stack item count (1)
+    //   + signature item (1 + 65: worst case, a 64-byte Schnorr sig plus an
+    //     explicit sighash byte; SIGHASH_DEFAULT signs as 64 and costs less)
+    //   + envelope script item (compactSize prefix + script bytes)
+    //   + control block item (1 + 33: single-leaf tree, no merkle path)
+    // Non-witness (weight 4) bytes: 10 tx overhead + 41 per input (36-byte
+    // outpoint + 1-byte empty scriptSig length + 4-byte sequence) + outputs.
+    // `strippedFloor` mirrors estimateSpendingP2wshTx: chains with a
+    // minStandardTxNonWitnessSize relay floor (LTC 85) measure the reveal's
+    // stripped size against it, and the reveal builder pads up to the floor,
+    // so the estimate must charge for the padded size.
+    static estimateEnvelopeRevealTx(envelopeScriptLength, outputsBytes, strippedFloor){
+        const witnessBytes = 2 + 1
+            + (1 + 65)
+            + (compactSizeLen(envelopeScriptLength) + envelopeScriptLength)
+            + (1 + 33)
+        let nonWitnessBytes = 10 + (36 + 1 + 4) + outputsBytes
+        if (strippedFloor && nonWitnessBytes < strippedFloor){
+            nonWitnessBytes = strippedFloor
+        }
+        // + 2: estimate slack so the funded value never lands a satoshi short
+        // of the relay floor (Schnorr sigs have no DER length jitter, so this
+        // is margin for the vsize ceiling rounding, not signature variance).
+        return nonWitnessBytes + Math.ceil(witnessBytes / 4) + 2
     }
 
     static estimateMultisignOutput(){

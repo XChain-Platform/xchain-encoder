@@ -355,9 +355,17 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateRawTxHex('abc'), /even-length hex/);
             assert.throws(() => v.validateRawTxHex('zz00'), /even-length hex/);
         });
-        it('rejects hex above MAX_RAW_TX_HEX_LENGTH', function () {
+        it('accepts hex between the p2shHex cap and the broadcast cap (an envelope reveal)', function () {
+            // : a signed TAPROOT envelope reveal is ~810,000 hex chars,
+            // above MAX_RAW_TX_HEX_LENGTH (which still bounds p2shHex) but
+            // within the broadcast_tx ceiling.
+            const hex = 'ab'.repeat(v.MAX_RAW_TX_HEX_LENGTH / 2 + 1);
+            assert.strictEqual(v.validateRawTxHex(hex), hex);
+        });
+        it('rejects hex above MAX_BROADCAST_TX_HEX_LENGTH', function () {
+            assert.ok(v.MAX_BROADCAST_TX_HEX_LENGTH > v.MAX_RAW_TX_HEX_LENGTH);
             assert.throws(
-                () => v.validateRawTxHex('ab'.repeat(v.MAX_RAW_TX_HEX_LENGTH / 2 + 1)),
+                () => v.validateRawTxHex('ab'.repeat(v.MAX_BROADCAST_TX_HEX_LENGTH / 2 + 1)),
                 /exceeds maximum length/
             );
         });

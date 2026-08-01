@@ -53,6 +53,30 @@ const MAX_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - OP_RETURN_PUSH_OVERHEAD
 const OP_RETURN_OUTPUT_SIZE = 80
 const OP_RETURN_MAGIC_WORD_LENGTH = 4
 const MAX_OP_RETURN_COMPILED_LENGTH = OP_RETURN_OUTPUT_SIZE - OP_RETURN_MAGIC_WORD_LENGTH  // 76
+// Taproot-envelope payload ceiling ( spec §4), per-encoding by design:
+// only encoding:"TAPROOT" gets it, every legacy lane keeps the 8,192-byte
+// compiled ceiling (a global raise would multiply the chunk-lane abuse ceiling
+// ~50x for no benefit). Measures the reassembled envelope payload byte length
+// after concatenation of the payload pushes, which is byte-identical to the
+// compiled action stream (finalDataBuffer) the shipped lanes carry; the
+// envelope's own 520-byte push framing is NOT counted. 400,000 is matched to
+// tapscript standardness reality (~400k WU per transaction).
+const ENVELOPE_MAX_PAYLOAD = 400_000
+// FILE payload compression ( spec Part B). Vendored byte-identical from
+// xchain-documentation/protocol/constants.js; the conformance suite keeps the
+// copies in lockstep.
+//
+// COMPRESSION is a trailing optional field on FILE v0, empty/absent = raw and
+// '1' = deflate-raw. It is PRESENTATIONAL, never consensus (§5.5): FILE
+// validity never inspects rawData content, so no reader may validate it.
+const COMPRESSION_CODE_DEFLATE_RAW = '1'
+// Serve-side ratio cap, mirrored here at EMIT time (§5.2): a payload that
+// compresses beyond it is emitted RAW, because a compliant reader would refuse
+// to inflate it. 150:1 sits well under deflate-raw's ~1032:1 maximum.
+const COMPRESSION_MAX_RATIO = 150
+// Pre-compression input cap on rawData. The encoder is a hard single-instance
+// service ( lockfile guard), so compression is async and bounded.
+const COMPRESSION_MAX_INPUT_BYTES = 16 * 1024 * 1024
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
 const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
@@ -64,13 +88,26 @@ const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
 // 1 MB body limit is the outer bound either way; this gives a precise, named
 // rejection instead of a node-side parse error.
 const MAX_RAW_TX_HEX_LENGTH = 400_000
+// broadcast_tx ceiling, wider than MAX_RAW_TX_HEX_LENGTH on purpose: a signed
+// Taproot-envelope reveal carries up to ENVELOPE_MAX_PAYLOAD payload bytes in
+// its witness, so the whole transaction runs to ~405 KB (~810,000 hex chars),
+// which the old 400,000-char cap would refuse at the last step of the flow.
+// 1,000,000 chars (a 500 KB transaction) clears the largest legal reveal with
+// headroom while still shedding megabyte garbage. p2shHex deliberately keeps
+// the tighter cap: chunk-lane funding transactions never approach it.
+const MAX_BROADCAST_TX_HEX_LENGTH = 1_000_000
 const RAW_TX_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/
 // Maximum accepted utxos[].scriptPubKey hex length, in characters. Bitcoin's
 // consensus MAX_SCRIPT_SIZE is 10,000 bytes, so 20,000 hex chars is the widest
 // a legitimate output script can be; anything larger is garbage and is rejected
 // before it reaches Buffer.from(...,'hex') / bitcoin.script.decompile.
 const MAX_SCRIPTPUBKEY_HEX_LENGTH = 20_000
-const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH'])
+// AUTO is not a carrier: it is the caller's explicit request that the encoder
+// pick the smallest-footprint carrier the network and signer support (
+// spec §6). It resolves to one of the others before anything is built. It is an
+// OPT-IN precisely because resolving to TAPROOT changes the response shape from
+// one PSBT to a commit/reveal pair, which no existing caller expects.
+const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH', 'TAPROOT', 'AUTO'])
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 
@@ -302,8 +339,14 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // undercount the on-chain size and let dual-push payloads slip past this
     // pre-check only to fail the compiled-size ceiling later in createTransaction.
     const compiled = compiledPushSize(dataBytes) + (rawData != null ? compiledPushSize(rawBytes) : 0)
-    if (compiled > MAX_COMPILED_ACTION_DATA_LENGTH) {
-        throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${MAX_COMPILED_ACTION_DATA_LENGTH})`)
+    // Per-encoding ceiling ( spec §4): only an EXPLICIT encoding:"TAPROOT"
+    // request is measured against the envelope ceiling; an omitted encoding
+    // keeps the legacy ceiling because auto-selection never picks TAPROOT (the
+    // size-aware default is a later, opt-in stage) and the legacy lanes'
+    // decoders silently drop anything over 8,192 compiled bytes.
+    const ceiling = (encoding === 'TAPROOT') ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
+    if (compiled > ceiling) {
+        throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${ceiling}${encoding === 'TAPROOT' ? ', the TAPROOT envelope payload ceiling' : ''})`)
     }
     // When the caller EXPLICITLY requested OP_RETURN, apply the far tighter 76-byte
     // single-output ceiling here rather than letting the request run the whole
@@ -325,6 +368,27 @@ function validateEncoding(encoding) {
         throw new TypeError(`Invalid encoding: "${encoding}". Valid values: ${[...VALID_ENCODINGS].join(', ')}`)
     }
     return encoding
+}
+
+// The create_tx options bag. Unknown keys are refused rather than ignored: a
+// misspelled capability that silently means "no" would send an envelope-capable
+// signer down the P2WSH lane at 2x the cost with no signal, and a misspelled one
+// that silently meant "yes" would be worse.
+const VALID_CREATE_TX_OPTIONS = new Set(['signerSupportsTapscript'])
+function validateCreateTxOptions(options) {
+    if (options == null) return null
+    if (typeof options !== 'object' || Array.isArray(options)) {
+        throw new TypeError('options must be an object')
+    }
+    for (const key of Object.keys(options)) {
+        if (!VALID_CREATE_TX_OPTIONS.has(key)) {
+            throw new TypeError(`Unknown options key: "${key}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
+        }
+    }
+    if (options.signerSupportsTapscript !== undefined) {
+        validateOptionalBoolean(options.signerSupportsTapscript, 'options.signerSupportsTapscript')
+    }
+    return options
 }
 
 function validateFee(fee) {
@@ -540,8 +604,8 @@ function validateRawTxHex(txHex) {
     if (typeof txHex !== 'string' || txHex.length === 0) {
         throw new TypeError('tx_hex must be a non-empty hex string')
     }
-    if (txHex.length > MAX_RAW_TX_HEX_LENGTH) {
-        throw new TypeError('tx_hex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
+    if (txHex.length > MAX_BROADCAST_TX_HEX_LENGTH) {
+        throw new TypeError('tx_hex exceeds maximum length (' + MAX_BROADCAST_TX_HEX_LENGTH + ')')
     }
     if (!RAW_TX_HEX_RE.test(txHex)) {
         throw new TypeError('tx_hex must be an even-length hex string')
@@ -614,6 +678,21 @@ function validateAll(params) {
         throw new TypeError('compressedPubKey is required for MULTISIGN encoding')
     }
 
+    // The Taproot-envelope leaf ends with <internal x-only pubkey> OP_CHECKSIG
+    // and the commit's key-path cancel needs the same key, so the caller's real
+    // pubkey is required (pubkey may be a bare address). Mirrors MULTISIGN.
+    if (encoding === 'TAPROOT' && compressedPubKey == null) {
+        throw new TypeError('compressedPubKey is required for TAPROOT encoding (it becomes the envelope internal key)')
+    }
+
+    // TAPROOT is a single-call flow: create_tx returns the {commit, reveal}
+    // PSBT pair together ( spec §6), pre-built against the unsigned
+    // commit's stable txid. The p2shHash/p2shHex second-call reveal flow is a
+    // chunk-lane concept and must not engage here.
+    if (encoding === 'TAPROOT' && p2shHash != null) {
+        throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
+    }
+
     // docs/openrpc.json marks pubkey required:true. validateAll never enforced
     // presence, so an omitted/null pubkey reached bitcoin.address.fromBase58Check(null)
     // deep in createTransaction and leaked a library "Expected String" as a -32603
@@ -643,10 +722,23 @@ function validateAll(params) {
     // produced a valid-looking signature over an outpoint that does not exist).
     const attachPrevTx = validateOptionalBoolean(params.attachPrevTx, 'attachPrevTx')
 
+    //  Part B: transparent FILE payload compression. TRI-STATE since S5 -
+    // absent means "use the deployment default" (ON since S5, spec §5.2), and
+    // an explicit true/false is the caller's own choice. An explicit true that
+    // cannot be honoured is an error; the default pass just rides raw.
+    const compress = validateOptionalBoolean(params.compress, 'compress')
+
+    // Signer capability for AUTO selection (§6). Absent means "cannot sign a
+    // tapscript spend", the fail-closed direction: the reveal must be signable
+    // before the commit is broadcast, so an unaffirmed signer never gets the
+    // envelope. Kept in an options bag rather than as another positional
+    // parameter, so the next capability does not grow the signature again.
+    const options = validateCreateTxOptions(params.options)
+
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,
         encoding, change, p2shHash, p2shHex, compressedPubKey,
-        unconfirmed, feePerKb, dust, feeQuote, attachPrevTx
+        unconfirmed, feePerKb, dust, feeQuote, attachPrevTx, compress, options
     }
 }
 
@@ -678,6 +770,11 @@ module.exports = {
     parseSatoshiAmount,
     MAX_SATOSHI_U64,
     MAX_RAW_TX_HEX_LENGTH,
+    MAX_BROADCAST_TX_HEX_LENGTH,
+    ENVELOPE_MAX_PAYLOAD,
+    COMPRESSION_CODE_DEFLATE_RAW,
+    COMPRESSION_MAX_RATIO,
+    COMPRESSION_MAX_INPUT_BYTES,
     MAX_DATA_BYTES,
     MAX_COMPILED_ACTION_DATA_LENGTH,
     MAX_UTXO_COUNT,

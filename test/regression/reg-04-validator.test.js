@@ -156,7 +156,9 @@ describe('REG-04: Validator Functions', function () {
     })
 
     it('throws TypeError for invalid string', function () {
-      assert.throws(() => validateEncoding('TAPROOT'), { name: 'TypeError' })
+      // TAPROOT graduated to a valid encoding ; pin a string that is
+      // still genuinely unknown.
+      assert.throws(() => validateEncoding('P2TR'), { name: 'TypeError' })
     })
 
     it('throws TypeError for non-string', function () {

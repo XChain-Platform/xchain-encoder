@@ -122,7 +122,14 @@ app.set('trust proxy', trustProxy);
 
 app.use(helmet());
 
-app.use(bodyParser.json({ limit: '1mb' }));
+// 3mb (was 1mb): the TAPROOT envelope raises the largest legitimate request
+// well past 1mb ( spec §4). A create_tx may carry ~400 KB of rawData
+// that arrives base64/hex-encoded (~0.5-0.8 MB) or, worst case, as
+// JSON-escaped Latin-1 (up to 6 bytes per payload byte); a broadcast_tx of a
+// signed reveal is ~810,000 hex chars on its own. The per-method validators
+// (ENVELOPE_MAX_PAYLOAD, MAX_BROADCAST_TX_HEX_LENGTH) remain the precise
+// gates; this outer bound just has to stop shedding legal requests.
+app.use(bodyParser.json({ limit: '3mb' }));
 
 // API key authentication (only enforced when API_KEY is configured).
 if (API_KEY) {
@@ -280,7 +287,7 @@ const jsonRpcController = {
                 params.data, params.rawData, params.fee, params.rbf,
                 params.encoding, params.change, params.p2shHash, params.p2shHex,
                 params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
-                params.feeQuote, params.attachPrevTx)
+                params.feeQuote, params.attachPrevTx, params.compress, params.options)
         } catch (err) {
             // Typed operational errors (no UTXOs, insufficient funds, missing
             // change address, tracker unavailable) are expected, caller-actionable
@@ -308,7 +315,43 @@ const jsonRpcController = {
         }
 
         psbt["psbt"] = psbt["psbt"].toHex()
+        // TAPROOT envelope : one call returns the {commit, reveal}
+        // pair; the caller signs both and broadcasts commit then reveal.
+        if (psbt["revealPsbt"]) {
+            psbt["revealPsbt"] = psbt["revealPsbt"].toHex()
+        }
         return psbt;
+    },
+    // Key-path cancel of an unrevealed TAPROOT envelope commit ( spec
+    // §3.5): rebuilds the sweep PSBT from the wallet's persisted recovery
+    // record alone. Validation lives in the encoder method (typed
+    // TypeError/RangeError -> -32602, OperationalError -> -32010).
+    async create_envelope_cancel_tx(rawParams) {
+        if (typeof rawParams !== 'object' || rawParams === null) {
+            const e = new Error('Request params must be an object')
+            e.code = -32602
+            throw e
+        }
+        let result
+        try {
+            result = await encoder.createEnvelopeCancelTransaction(rawParams)
+        } catch (err) {
+            if (err && err.operational === true) {
+                const e = new Error(err.message)
+                e.code = -32010
+                e.data = Object.assign({ reason: err.xchainCode }, err.details || {})
+                throw e
+            }
+            const isKnown = err instanceof TypeError || err instanceof RangeError
+            if (!isKnown) {
+                console.error('Encoder error:', err)
+            }
+            const e = new Error(isKnown ? err.message : 'Internal encoder error')
+            e.code = isKnown ? -32602 : -32603
+            throw e
+        }
+        result.psbt = result.psbt.toHex()
+        return result
     },
     async broadcast_tx(rawParams) {
         let tx_hex = rawParams && rawParams.tx_hex

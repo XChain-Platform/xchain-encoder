@@ -45,26 +45,52 @@ const METHODS = [
         description: 'Encoding auto-selects OP_RETURN for payloads ≤76 bytes, else P2SH (two-transaction flow: '
             + 'call once for the funding tx, then again with p2shHash/p2shHex to build the reveal tx). '
             + 'rawData is decoded as Latin-1 so arbitrary bytes round-trip losslessly. '
-            + 'Dogecoin has no segwit: P2WSH encoding is rejected on DOGE networks.',
+            + 'Dogecoin has no segwit: P2WSH and TAPROOT encodings are rejected on DOGE networks. '
+            + 'encoding:"TAPROOT" (BTC/LTC, explicit only) is a single-call two-transaction flow: the result '
+            + 'carries the commit PSBT (psbt), the pre-built reveal PSBT (revealPsbt) and an `envelope` recovery '
+            + 'record ({commitTxid, commitVout, commitValue, commitAddress, internalPubkey, tapleafHash, '
+            + 'controlBlock, revealFee}) that the wallet must persist durably BEFORE broadcasting the commit; '
+            + 'sign both, broadcast commit then reveal. TAPROOT requires compressedPubKey (the envelope internal '
+            + 'key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling.',
         params: [
             { name: 'pubkey', required: true, schema: str('sender address (or public key for compressed flows)') },
             { name: 'data', schema: str('ACTION payload string (pipe-delimited, from xchain-sdk createAction)') },
             { name: 'rawData', schema: str('additional raw bytes, Latin-1 decoded (gated-FILE ciphertext, ECIES envelopes)') },
             { name: 'utxos', schema: { type: 'array', description: 'explicit UTXOs; fetched from the UTXO tracker when omitted (max 500)', items: { type: 'object' } } },
-            { name: 'customOutputs', schema: { type: 'array', description: 'extra outputs [{address, value}] (max 100)', items: { type: 'object' } } },
+            { name: 'customOutputs', schema: { type: 'array', description: 'extra outputs [{address, value}] (max 100); value is base units, pass amounts above 2^53-1 as an exact decimal string ', items: { type: 'object' } } },
             { name: 'feeQuote', schema: { type: 'object', description: 'protocol fee output {address, amount} from the hub/indexer fee quote' } },
             { name: 'fee', schema: int('absolute fee in base units (rejected if over the fee-rate cap)') },
             { name: 'feePerKb', schema: int('fee rate in base units per kB (clamped to the fee-rate cap)') },
             { name: 'dust', schema: int('dust threshold override') },
             { name: 'rbf', schema: bool('signal replace-by-fee') },
             { name: 'unconfirmed', schema: bool('allow spending unconfirmed UTXOs') },
-            { name: 'encoding', schema: str('force encoding', { enum: ['OP_RETURN', 'MULTISIGN', 'P2SH', 'P2WSH'] }) },
+            { name: 'encoding', schema: str('force a carrier, or "AUTO" to let the encoder pick the smallest-footprint one this network and signer support (OP_RETURN for payloads that fit one output, else TAPROOT where available, else P2WSH, else P2SH). AUTO is an OPT-IN because it can resolve to TAPROOT, which returns a commit/reveal PAIR instead of one PSBT. Omitting encoding keeps the legacy behaviour (OP_RETURN, else P2SH) unchanged.', { enum: ['OP_RETURN', 'MULTISIGN', 'P2SH', 'P2WSH', 'TAPROOT', 'AUTO'] }) },
             { name: 'change', schema: str('change address (defaults to sender)') },
             { name: 'p2shHash', schema: str('funding txid: switches to the P2SH/P2WSH reveal (tx2) flow') },
             { name: 'p2shHex', schema: str('funding tx raw hex (required with p2shHash)') },
             { name: 'compressedPubKey', schema: str('compressed public key when pubkey is an address') },
+            { name: 'compress', schema: bool('transparent FILE payload compression (deflate-raw, kept only when it is smaller and within the 150:1 guard), which appends the COMPRESSION field to a FILE v0 ACTION string. ON BY DEFAULT: omit this to take the deployment default, pass false to opt out. An EXPLICIT true that cannot be honoured is an error (a non-FILE action has nowhere to record the marker; a token-gated FILE\'s COMPRESSION means inflate-after-decrypt and belongs to the client that compressed before encrypting; an action that already declares a codec is never re-compressed). The default pass simply rides raw in those cases and says why in the result.') },
+            { name: 'options', schema: { type: 'object', description: 'per-call capabilities. signerSupportsTapscript (boolean, default false) tells AUTO whether this caller can sign a tapscript script-path spend; without it AUTO never selects TAPROOT, because the reveal must be signable before the commit is broadcast. Unknown keys are refused.' } },
         ],
-        result: { name: 'tx', schema: { type: 'object', properties: { psbt: str('unsigned PSBT, hex'), encoding: str('encoding actually used') } } },
+        result: { name: 'tx', schema: { type: 'object', properties: { psbt: str('unsigned PSBT, hex (the commit PSBT for TAPROOT)'), encoding: str('encoding actually used (the resolved carrier when AUTO was requested)'), compression: { type: 'object', description: 'present whenever compression ran: {compressed, rawLength, storedLength, reason}. reason names why a payload rode raw (not-a-file-action, gated-file, codec-already-declared, not-smaller, ratio-guard, over-input-cap, deflate-failed).' }, revealPsbt: str('TAPROOT only: pre-built reveal PSBT, hex'), envelope: { type: 'object', description: 'TAPROOT only: recovery record to persist before broadcasting the commit' }, carrierScripts: { type: 'array', description: 'P2SH/P2WSH/TAPROOT: carrier scripts (hex) for verify-before-sign', items: { type: 'string' } } } } },
+    },
+    {
+        name: 'create_envelope_cancel_tx',
+        summary: 'Build the key-path cancel PSBT sweeping an unrevealed TAPROOT envelope commit back to the caller.',
+        description: 'Rebuilds the sweep from the persisted recovery record alone ( §3.5); the PSBT carries '
+            + 'tapInternalKey and tapMerkleRoot so the signer can compute the BIP341 tweak. The cancel conflicts '
+            + 'with the reveal by construction (same outpoint): treat it as a replacement of the reveal.',
+        params: [
+            { name: 'commitTxid', required: true, schema: str('commit transaction id (64-char hex)') },
+            { name: 'commitVout', required: true, schema: int('commit output index') },
+            { name: 'commitValue', required: true, schema: int('commit output value in base units') },
+            { name: 'internalPubkey', required: true, schema: str('envelope internal key: 66-char compressed or 64-char x-only hex') },
+            { name: 'tapleafHash', required: true, schema: str('BIP341 tapleaf hash of the envelope script (64-char hex); the single-leaf merkle root') },
+            { name: 'destination', required: true, schema: str('address to sweep the commit value to') },
+            { name: 'feePerKb', schema: int('fee rate in base units per kB (clamped to the fee-rate cap)') },
+            { name: 'replacebyfee', schema: bool('signal replace-by-fee') },
+        ],
+        result: { name: 'cancel', schema: { type: 'object', properties: { psbt: str('unsigned key-path sweep PSBT, hex'), encoding: str('"TAPROOT"'), cancel: bool('always true'), fee: int('miner fee funded, base units') } } },
     },
     {
         name: 'broadcast_tx',

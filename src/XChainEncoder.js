@@ -28,7 +28,8 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount } = require('./validator')
+const { compressPayloadForAction } = require('./compression')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
 
@@ -44,6 +45,19 @@ const PW2SH_SIZE = 520
 const MULTISIGN_SIZE = 69 // 9 bytes overhead (1 OP_CHECKMULTISIG + 1 m + 1 n + 2 key-length bytes + 4 magic) + 60 raw data bytes = 69 total bytes per chunk
 const MAGIC_WORD = "XCHN"
 
+// Taproot envelope ( spec §3.2): payload rides as 520-byte pushes inside
+// a single tapscript leaf, bounded per element by consensus
+// MAX_SCRIPT_ELEMENT_SIZE exactly like the chunk lanes; tapscript has no
+// 10,000-byte script cap, so ONE leaf carries the whole payload.
+const TAPROOT_ENVELOPE_CHUNK_SIZE = 520
+// BIP342 tapscript leaf version. Also the first control-block byte (even
+// output-key parity keeps it 0xc0 verbatim).
+const TAPROOT_LEAF_VERSION = 0xc0
+// Envelope format byte 0x00 = this version. Any other value is unrecognized
+// by design (invisible, not invalid): future formats activate via their own
+// recognition flag heights.
+const TAPROOT_ENVELOPE_FORMAT_V0 = 0x00
+
 const SATOSHI_UNIT = 100000000
 
 const MAX_SAFE_SATOSHI_BIG = BigInt(Number.MAX_SAFE_INTEGER)
@@ -58,6 +72,37 @@ function compactSizeLen(n) {
     if (n <= 0xffff) return 3
     if (n <= 0xffffffff) return 5
     return 9
+}
+
+// Serialized compactSize varint for `n`, the wire form whose width
+// compactSizeLen models. Needed for the BIP341 tapleaf hash, whose preimage
+// length-prefixes the script with a compactSize (not a script push).
+function compactSizeBuffer(n) {
+    if (n < 253) return Buffer.from([n])
+    if (n <= 0xffff) { const b = Buffer.alloc(3); b[0] = 0xfd; b.writeUInt16LE(n, 1); return b }
+    const b = Buffer.alloc(5); b[0] = 0xfe; b.writeUInt32LE(n, 1); return b
+}
+
+// BIP341 tapleaf hash of the envelope script:
+// taggedHash("TapLeaf", leaf_version || compactSize(len(script)) || script).
+// For the single-leaf envelope tree this doubles as the taproot merkle root,
+// which is exactly the third element of the wallet's cancel-recovery record
+// {commit outpoint, internal key derivation path, tapleaf hash}: the key-path
+// tweak cannot be reconstructed without it ( spec §3.5).
+function envelopeTapLeafHash(script) {
+    return bitcoin.crypto.taggedHash('TapLeaf',
+        Buffer.concat([Buffer.from([TAPROOT_LEAF_VERSION]), compactSizeBuffer(script.length), script]))
+}
+
+// bitcoinjs-lib refuses any P2TR construction until an ECC backend is
+// registered. Registered lazily on the first envelope build rather than at
+// module load so the non-envelope lanes (and the browserify bundle) never pay
+// for the wasm-backed tiny-secp256k1 at startup.
+let eccLibReady = false
+function ensureEccLib() {
+    if (eccLibReady) return
+    bitcoin.initEccLib(require('tiny-secp256k1'))
+    eccLibReady = true
 }
 
 // Narrow a satoshi amount computed in BigInt back to a Number when it is
@@ -182,7 +227,22 @@ const Encoding = {
     OP_RETURN: "OP_RETURN",
     P2SH: "P2SH",
     MULTISIGN: "MULTISIGN",
-    P2WSH: "P2WSH"
+    P2WSH: "P2WSH",
+    TAPROOT: "TAPROOT",
+    // Not a carrier: the caller's explicit request that the encoder pick the
+    // smallest-footprint carrier this network and signer can actually use
+    // ( spec §6). Resolved to one of the above before anything is built,
+    // so no downstream code ever sees it.
+    AUTO: "AUTO"
+}
+
+// Deployment default for transparent FILE compression (spec §5.2/§7). ON unless
+// the operator turns it off for a staged rollout; read per call rather than
+// cached so a restart is not required to change it.
+function defaultCompressionEnabled(){
+    const raw = process.env.XCHAIN_COMPRESSION_DEFAULT
+    if (raw === undefined || raw === null || raw === '') return true
+    return !(raw === '0' || raw.toLowerCase() === 'false' || raw.toLowerCase() === 'off')
 }
 
 
@@ -286,7 +346,7 @@ class XChainEncoder {
         }
     }
     
-    prepareData(data, encoding, pubKey){
+    prepareData(data, encoding, pubKey, compressedPubKey){
         let magicWordBuffer = Buffer.from(MAGIC_WORD,'utf8')
         
         if (!encoding){
@@ -442,8 +502,75 @@ class XChainEncoder {
                 }
 
                 return {"dataBufferArray":dataBufferArray, "encoding": encoding}
+            case Encoding.TAPROOT: {
+                /* TAPROOT ENVELOPE LEAF ( spec §3.2, grammar frozen at review)
+                OP_FALSE OP_IF
+                  <"XCHN">            // 4-byte magic, CLEARTEXT (same constant as every lane)
+                  <0x00>              // format byte v0, cleartext
+                  <payload push 1..n> // raw payload, 520-byte elements, in order
+                OP_ENDIF
+                <internal pubkey> OP_CHECKSIG
+                //
+                // The payload is the compiled action stream (`data` here: the
+                // action-string push plus the rawData push), byte-identical to
+                // what the chunk lanes carry, with the magic excluded because
+                // the envelope header already carries it. Raw by design: the
+                // shipped large-payload (P2WSH) precedent is unobfuscated, and
+                // keying on the commit txid is circular by construction (§3.3).
+                */
+                // The leaf tail and the key-path cancel both need the caller's
+                // real pubkey; `pubKey` may be a bare address, so the explicit
+                // compressedPubKey is required, mirroring MULTISIGN.
+                if (compressedPubKey == null) {
+                    throw new TypeError('compressedPubKey is required for TAPROOT encoding (it becomes the envelope internal key)')
+                }
+                if (typeof compressedPubKey !== 'string' || !/^(02|03)[0-9a-fA-F]{64}$/.test(compressedPubKey)) {
+                    throw new TypeError('compressedPubKey must be a 66-character hex string starting with 02 or 03')
+                }
+                const internalPubkey = Buffer.from(compressedPubKey, 'hex').subarray(1)
+
+                chunksSize = TAPROOT_ENVELOPE_CHUNK_SIZE
+                let envelopeChunks = []
+                i = 0
+                while (i < data.length){
+                    nextDataChunk = data.subarray(i, i + chunksSize)
+                    envelopeChunks.push(nextDataChunk)
+                    i = i + nextDataChunk.length
+                }
+                // Same degenerate-final-chunk rebalance as the P2SH/P2WSH lane:
+                // bitcoin.script.compile canonicalizes a lone 0x01-0x10/0x81 byte
+                // to a bare opcode (asMinimalOP), which would corrupt the
+                // concatenation the decoder reassembles. Shift one byte across
+                // the final boundary so every push stays >= 2 bytes. (A 1-byte
+                // TOTAL payload cannot occur: the compiled stream always leads
+                // with a push opcode, so any non-empty payload is >= 2 bytes.)
+                if (envelopeChunks.length >= 2){
+                    let last = envelopeChunks[envelopeChunks.length - 1]
+                    if (last.length === 1 && ((last[0] >= 0x01 && last[0] <= 0x10) || last[0] === 0x81)){
+                        let prevStart = data.length - 1 - envelopeChunks[envelopeChunks.length - 2].length
+                        envelopeChunks[envelopeChunks.length - 2] = data.subarray(prevStart, data.length - 2)
+                        envelopeChunks[envelopeChunks.length - 1] = data.subarray(data.length - 2)
+                    }
+                }
+
+                const envelopeScript = bitcoin.script.compile([
+                    bitcoin.opcodes.OP_0, // OP_FALSE
+                    bitcoin.opcodes.OP_IF,
+                    magicWordBuffer,
+                    Buffer.from([TAPROOT_ENVELOPE_FORMAT_V0]),
+                    ...envelopeChunks,
+                    bitcoin.opcodes.OP_ENDIF,
+                    internalPubkey,
+                    bitcoin.opcodes.OP_CHECKSIG,
+                ])
+
+                // dataBufferArray carries exactly ONE element: the whole
+                // envelope tapscript. The emission loop turns it into one
+                // commit output; there is no per-chunk output fan-out.
+                return {"dataBufferArray":[envelopeScript], "encoding": encoding, "internalPubkey": internalPubkey}
+            }
             default:
-                throw new TypeError(`Unknown encoding: "${encoding}". Valid values: OP_RETURN, P2SH, MULTISIGN, P2WSH`)
+                throw new TypeError(`Unknown encoding: "${encoding}". Valid values: OP_RETURN, P2SH, MULTISIGN, P2WSH, TAPROOT`)
         }
     }
     
@@ -491,7 +618,8 @@ class XChainEncoder {
 
     async _buildTransaction(callReservations, utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
       encoding, change, p2shHash=null, p2shHex=null, compressedPubKey=null,
-      unconfirmed=true, feePerKb=null, dust=null, feeQuote=null, attachPrevTx=false){
+      unconfirmed=true, feePerKb=null, dust=null, feeQuote=null, attachPrevTx=false, compress=null,
+      options=null){
 
         // If feeQuote is provided, inject it as a custom output
         if(feeQuote && feeQuote.address && feeQuote.amount > 0){
@@ -584,18 +712,60 @@ class XChainEncoder {
         // payment-only tx built from customOutputs) would fail with an opaque
         // internal error. Default a missing payload to '' - identical to the
         // already-supported empty-string case, which compiles cleanly downstream.
+        // Transparent FILE payload compression ( spec Part B), OPT-IN.
+        //
+        // Runs HERE, before the payload buffers are assembled, so everything
+        // downstream sees the bytes that will actually be written: the
+        // per-encoding ceiling check below, the size estimator, the fee quote
+        // and the encoding selection all price the compressed payload rather
+        // than the caller's original (spec §3.9: "the estimator must run after
+        // compression so quotes reflect real bytes").
+        //
+        // Default ON since  S5 (spec §5.2: "the encoder always attempts
+        // compression of rawData; it emits the compressed form only when
+        // smaller"). `compress` is TRI-STATE: true/false are the caller's
+        // explicit choice, null/undefined take the deployment default.
+        //
+        // The distinction is not cosmetic. An EXPLICIT request that cannot be
+        // honoured throws, because the caller asked for something this payload
+        // cannot have; the DEFAULT pass runs over every action, most of which
+        // are not compressible FILEs, so the same conditions are ordinary facts
+        // and the payload rides raw (see compression.js's `explicit` option).
+        // Without that split, turning the default on would break every SEND
+        // carrying rawData.
+        //
+        // ROLLOUT (spec §7): Part B is consensus-safe but client-coordinated -
+        // an old reader serves a compressed FILE as deflated garbage. Reader
+        // support must be deployed everywhere BEFORE an encoder carrying this
+        // default. XCHAIN_COMPRESSION_DEFAULT=0 is the deploy-time lever that
+        // lets the code release and the behaviour change land separately, which
+        // is exactly what §7's two-step asks for.
+        const compressExplicit = (compress === true || compress === false)
+        const compressEnabled = compressExplicit ? compress : defaultCompressionEnabled()
+        let compressionResult = null
+        if (compressEnabled && rawData != null){
+            let originalBuffer = Buffer.from(rawData, 'binary')
+            compressionResult = await compressPayloadForAction(data, originalBuffer, { explicit: compressExplicit })
+            if (compressionResult.compressed){
+                // Both halves move together: the marker and the bytes it
+                // describes. They must never be assigned separately.
+                data = compressionResult.data
+                rawData = compressionResult.rawData.toString('binary')
+            }
+        }
+
         let dataBuffer = Buffer.from(data == null ? '' : data, 'utf8')
         let dataToCompile = [dataBuffer]
-        
+
         if (rawData != null){
             // 'binary' (Latin-1) preserves bytes 0-255 one-to-one. 'utf8' would
             // corrupt arbitrary binary payloads (e.g. AES-GCM ciphertext for
-            // token-gated FILEs). Existing ASCII callers like base64-encoded
-            // file bytes are byte-identical under both encodings.
+            // token-gated FILEs, and deflate-raw output). Existing ASCII callers
+            // like base64-encoded file bytes are byte-identical under both.
             let rawDataBuffer = Buffer.from(rawData, 'binary')
             dataToCompile.push(rawDataBuffer)
         }
-        
+
         let finalDataBuffer = bitcoin.script.compile(dataToCompile)
 
         // : does this transaction carry an XChain ACTION at all?
@@ -610,16 +780,51 @@ class XChainEncoder {
         // A payment with nothing to say should look like an ordinary payment.
         const hasActionPayload = dataBuffer.length > 0 || rawData != null
 
-        // Enforce the same compiled-push ceiling the indexing decoder applies
-        // (MAX_ACTION_DATA_LENGTH). The decoder measures the compiled on-chain
-        // push and drops anything larger, so a transaction above this size
-        // would be silently dropped by every node; reject it at encode time.
-        if (finalDataBuffer.length > MAX_COMPILED_ACTION_DATA_LENGTH) {
-            throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${MAX_COMPILED_ACTION_DATA_LENGTH} bytes (compiled on-chain ACTION push)`)
+        // Size-aware encoding selection ( spec §6), behind the caller's
+        // explicit AUTO opt-in. Runs HERE: after compression, so it prices the
+        // bytes that will really be written, and before the ceiling check, so an
+        // over-cap payload is refused against the lane that was actually chosen.
+        //
+        // Deliberately NOT the same thing as the legacy `!encoding` fallback in
+        // prepareData (OP_RETURN, else P2SH), which stays exactly as shipped: a
+        // caller who passes no encoding must keep getting today's bytes, because
+        // auto-selecting TAPROOT changes the response from one PSBT to a
+        // commit/reveal pair and no existing caller is ready for that (§6).
+        if (encoding === Encoding.AUTO){
+            encoding = this.selectEncoding(finalDataBuffer.length, compressedPubKey, options)
+        }
+
+        // Enforce the compiled-push ceiling the indexing decoder applies, PER
+        // ENCODING ( spec §4): every legacy lane keeps the 8,192-byte
+        // MAX_ACTION_DATA_LENGTH (the decoder measures the compiled on-chain
+        // push and silently drops anything larger, so reject at encode time);
+        // only an explicit TAPROOT request gets the envelope ceiling. Note the
+        // two constants measure slightly different things: the legacy guard is
+        // framing-inclusive of the single on-chain push, the envelope ceiling
+        // measures the reassembled payload (this same compiled stream) while
+        // the envelope's own 520-byte push framing rides outside it.
+        const compiledCeiling = (encoding === Encoding.TAPROOT) ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
+        if (finalDataBuffer.length > compiledCeiling) {
+            throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${compiledCeiling} bytes (${encoding === Encoding.TAPROOT ? 'TAPROOT envelope payload ceiling' : 'compiled on-chain ACTION push'})`)
         }
 
         if (encoding === 'P2WSH' && this.network.supportsSegwit === false) {
             throw new TypeError('P2WSH encoding is not supported on this network (no segwit support)')
+        }
+
+        // Envelope availability is a property of the network definition (§3.6):
+        // DOGE has no segwit, hence no Taproot; same gate, same error shape as
+        // P2WSH. The p2shHash guard exists for direct library callers (the API
+        // validator already rejects it): TAPROOT is a single-call flow that
+        // returns the commit/reveal pair together, never a second reveal call.
+        if (encoding === Encoding.TAPROOT) {
+            if (this.network.supportsSegwit === false) {
+                throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
+            }
+            if (p2shHash) {
+                throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
+            }
+            ensureEccLib()
         }
 
         let psbt = null
@@ -810,7 +1015,7 @@ class XChainEncoder {
         // that explicitly asked for a chunked encoding while supplying no payload
         // has nothing to chunk regardless.
         let preparedData = hasActionPayload
-            ? this.prepareData(finalDataBuffer, encoding, pubkey)
+            ? this.prepareData(finalDataBuffer, encoding, pubkey, compressedPubKey)
             : { encoding: Encoding.OP_RETURN, dataBufferArray: [] }
 
         // P2SH/P2WSH is a two-tx flow: this funding tx (p2shHash null) creates the
@@ -860,6 +1065,11 @@ class XChainEncoder {
         // parsed once (memoized via `!p2shTx`) rather than re-decoded per data chunk;
         // the parse is loop-invariant (p2shHex and txidFirstInput never change here).
         let p2shTx = null
+
+        // Envelope (TAPROOT) build context, populated by the emission loop and
+        // consumed after input selection to construct the reveal PSBT against
+        // the unsigned commit's txid (stable: commit inputs are segwit-only).
+        let envelopeContext = null
 
         let estimatedTxSize = 0
 
@@ -1108,8 +1318,58 @@ class XChainEncoder {
 
                     estimatedTxSize = estimatedTxSize
                         + TxSizeEstimator.estimateMultisignOutput()
-                        
-                    break   
+
+                    break
+                case Encoding.TAPROOT: {
+                    // nextDataBuffer IS the whole envelope tapscript (single
+                    // element). One commit output carries it; the reveal is
+                    // built after input selection, once the commit txid exists.
+                    const internalPubkey = preparedData["internalPubkey"]
+                    const commitPayment = bitcoin.payments.p2tr({
+                        internalPubkey,
+                        scriptTree: { output: nextDataBuffer },
+                        network: this.network
+                    })
+
+                    // The reveal's only funding is the commit output, so its
+                    // value must prefund the reveal's miner fee plus a change
+                    // output at the dust floor (the reveal must carry at least
+                    // one output; change doubles as the §3.5 CPFP handle), plus
+                    // the stripped-size floor pad where the chain demands one
+                    // (LTC: a reveal whose only output is small sits under
+                    // minStandardTxNonWitnessSize, exactly like the P2WSH
+                    // reveal; the payload lives in the witness and does not
+                    // count toward stripped size).
+                    const revealChangeAddress = change || resolveCallerAddress(pubkey, this.network)
+                    const revealChangeOutBytes = TxSizeEstimator.estimateOutputSizeForAddress(revealChangeAddress, this.network)
+                    const envStrippedFloor = this.network.minStandardTxNonWitnessSize
+                    const revealPadNeeded = !!(envStrippedFloor && (10 + 41 + revealChangeOutBytes) < envStrippedFloor)
+                    const revealOutputsBytes = revealChangeOutBytes + (revealPadNeeded ? revealChangeOutBytes : 0)
+                    const revealVsize = TxSizeEstimator.estimateEnvelopeRevealTx(nextDataBuffer.length, revealOutputsBytes, envStrippedFloor)
+                    let revealFee = Math.trunc(revealVsize * feePerBytes * SATOSHI_UNIT)
+                    if (revealFee < finalDust){
+                        revealFee = finalDust
+                    }
+                    const commitValue = revealFee + this.dustAmount + (revealPadNeeded ? this.dustAmount : 0)
+
+                    psbt.addOutput({
+                        script: commitPayment.output,
+                        value: commitValue
+                    })
+                    outputSatoshis = outputSatoshis + BigInt(commitValue)
+                    estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateTaprootOutput()
+
+                    envelopeContext = {
+                        internalPubkey,
+                        envelopeScript: nextDataBuffer,
+                        commitPayment,
+                        commitValue,
+                        revealFee,
+                        revealPadNeeded,
+                        revealChangeAddress
+                    }
+                    break
+                }
             }
         }
 
@@ -1164,6 +1424,23 @@ class XChainEncoder {
             let nextUtxoIndex = 0
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
+
+                //  spec §3.5: envelope commit inputs MUST be segwit. The
+                // reveal is pre-built against the UNSIGNED commit's txid, which
+                // is only stable when no selected input's signature lands in
+                // the txid-covered serialization. Enforced as native-segwit
+                // (witness-program scriptPubKey): a P2SH-wrapped segwit UTXO is
+                // indistinguishable from plain P2SH here and its scriptSig
+                // (redeem-script push) shifts the txid, so it is refused too --
+                // stricter than the spec's floor, never looser. Fail closed
+                // rather than skip: silently dropping a caller's coin-control
+                // input would change what they spend.
+                if (preparedData["encoding"] === Encoding.TAPROOT && !this.isSegwitUTXO(nextUtxo)){
+                    throw new TypeError(
+                        `TAPROOT commit inputs must be native-segwit UTXOs (witness-program scriptPubKey); ` +
+                        `utxo ${nextUtxo.txid}:${nextUtxo.vout} is not. A non-segwit input would shift the ` +
+                        `commit txid at signing time and strand the pre-built reveal.`)
+                }
 
                 // Best-effort double-spend guard: when this set was fetched from
                 // the tracker for the sender address, skip any outpoint another
@@ -1388,10 +1665,25 @@ class XChainEncoder {
         }
 
         // A P2WSH reveal that spends a single data chunk is just 1 input + 1
-        // OP_RETURN output: 71 stripped (non-witness) bytes. Bitcoin Core
-        // relays it (floor 65), but Litecoin Core rejects it as "tx-size-small"
-        // (floor ~85): the payload lives in the witness and does not count
-        // toward stripped size. Lift the reveal over the chain's floor with one
+        // OP_RETURN output: 71 stripped (non-witness) bytes, which is BELOW the
+        // relay floor on every chain we support. The floor is a POLICY constant
+        // (Bitcoin Core's MIN_STANDARD_TX_NONWITNESS_SIZE = 82, Litecoin ~85),
+        // NOT the 65-byte CONSENSUS minimum that guards the 64-byte-transaction
+        // CVE.
+        //
+        // KNOWN GAP (, measured live on BTC regtest 2026-07-31: a
+        // 71-stripped-byte reveal is rejected "tx-size-small", an 82-byte one is
+        // accepted): coins/BTC.js carries 65, the consensus value, so this pad
+        // never fires on Bitcoin and a SINGLE-CHUNK P2WSH reveal is
+        // unbroadcastable there. LTC's 85 is correct and its reveals do pad.
+        // The one-value fix is blocked on regenerating the consensus config pin
+        // across every repo that vendors BTC.js, so it is registered rather than
+        // slipped in here. Payload compression makes the small-reveal shape
+        // common rather than rare, so this matters more than it used to.
+        //
+        // The payload lives in the witness and does not count toward stripped
+        // size, so this shape stays small however large the file is. Lift the
+        // reveal over the chain's floor with one
         // small payment output back to the caller's own address. A second
         // OP_RETURN would be non-standard (multi-op-return), so we cannot pad
         // with that. The funding tx already over-funded this reveal by one dust
@@ -1404,6 +1696,89 @@ class XChainEncoder {
                     address: padAddress,
                     value: this.dustAmount
                 })
+            }
+        }
+
+        // Envelope reveal construction ( spec §3.5/§6). Runs only on the
+        // TAPROOT funding path, after input selection and change, so the commit
+        // transaction is final in shape and its unsigned txid is the txid the
+        // network will see (segwit-only inputs, enforced above).
+        let revealPsbt = null
+        let envelopeResult = null
+        if (envelopeContext){
+            // §3.5: every commit input is signed SIGHASH_ALL. Attribution rides
+            // the commit's ins[0]; ANYONECANPAY-style signing would make index 0
+            // third-party-insertable in a replacement. The PSBT field makes the
+            // requirement explicit to whatever signs it.
+            for (let i = 0; i < psbt.inputCount; i++){
+                psbt.updateInput(i, { sighashType: bitcoin.Transaction.SIGHASH_ALL })
+            }
+
+            const commitTx = bitcoin.Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer())
+            const commitTxid = commitTx.getId()
+            // The envelope commit output is emitted first, so this is vout 0 by
+            // construction; located by script rather than assumed, so a future
+            // emission-order change cannot silently strand the reveal.
+            const commitVout = commitTx.outs.findIndex(o => o.script.equals(envelopeContext.commitPayment.output))
+
+            // Control block for the script-path spend: single-leaf tree, no
+            // merkle path, 33 bytes (leaf version + parity bit, then the
+            // internal key). Derived from the SAME payment object that built
+            // the commit output, so it cannot drift from what was committed.
+            const revealPayment = bitcoin.payments.p2tr({
+                internalPubkey: envelopeContext.internalPubkey,
+                scriptTree: { output: envelopeContext.envelopeScript },
+                redeem: { output: envelopeContext.envelopeScript, redeemVersion: TAPROOT_LEAF_VERSION },
+                network: this.network
+            })
+            const controlBlock = revealPayment.witness[revealPayment.witness.length - 1]
+
+            revealPsbt = new bitcoin.Psbt({ network: this.network })
+            // §3.5: reveal input 0 MUST be the commit outpoint; the decoder's
+            // recognition and attribution assume it. RBF preference mirrors the
+            // commit (the sequence toggle is the shipped replacement mechanism).
+            revealPsbt.addInput({
+                hash: commitTxid,
+                index: commitVout,
+                sequence: utxoSequence,
+                witnessUtxo: {
+                    script: envelopeContext.commitPayment.output,
+                    value: envelopeContext.commitValue
+                },
+                tapInternalKey: envelopeContext.internalPubkey,
+                tapLeafScript: [{
+                    leafVersion: TAPROOT_LEAF_VERSION,
+                    script: envelopeContext.envelopeScript,
+                    controlBlock
+                }]
+            })
+            // Change back to the caller: the commit value minus the reveal's
+            // prefunded fee (and minus the floor pad's dust when present) is
+            // exactly the dust floor by construction; it exists because the
+            // reveal must carry an output and it doubles as the CPFP handle.
+            const revealChangeValue = envelopeContext.commitValue
+                - envelopeContext.revealFee
+                - (envelopeContext.revealPadNeeded ? this.dustAmount : 0)
+            revealPsbt.addOutput({
+                address: envelopeContext.revealChangeAddress,
+                value: revealChangeValue
+            })
+            if (envelopeContext.revealPadNeeded){
+                revealPsbt.addOutput({
+                    address: envelopeContext.revealChangeAddress,
+                    value: this.dustAmount
+                })
+            }
+
+            envelopeResult = {
+                commitTxid,
+                commitVout,
+                commitValue: envelopeContext.commitValue,
+                commitAddress: envelopeContext.commitPayment.address,
+                internalPubkey: envelopeContext.internalPubkey.toString('hex'),
+                tapleafHash: envelopeTapLeafHash(envelopeContext.envelopeScript).toString('hex'),
+                controlBlock: controlBlock.toString('hex'),
+                revealFee: envelopeContext.revealFee
             }
         }
 
@@ -1428,10 +1803,78 @@ class XChainEncoder {
         // pushes to concatenate to the action it intended. Passing a forged
         // script means failing one or the other.
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
+
+        // What compression actually did, reported rather than inferred. The
+        // wallet has to show the REAL on-chain size (spec §8), and with the
+        // default ON a caller can no longer assume from its own request whether
+        // the bytes were compressed: `reason` names why they were not.
+        if (compressionResult){
+            result.compression = {
+                compressed:   compressionResult.compressed,
+                rawLength:    compressionResult.rawLength,
+                storedLength: compressionResult.storedLength,
+                reason:       compressionResult.reason
+            }
+        }
         if (preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH){
             result.carrierScripts = (preparedData["dataBufferArray"] || []).map(b => b.toString('hex'))
         }
+        if (revealPsbt){
+            // Two-tx response shape ( spec §6): the caller signs both,
+            // then broadcasts commit followed by reveal. carrierScripts serves
+            // the same verify-before-sign contract as the chunk lanes: hash the
+            // script to the P2TR commit output and require a match, and require
+            // the payload pushes to concatenate to the intended action.
+            // `envelope` carries what the wallet must DURABLY PERSIST BEFORE
+            // BROADCASTING the commit (plus its own internal-key derivation
+            // path): lose the tapleaf hash and the key-path cancel tweak cannot
+            // be reconstructed, stranding the funds (§3.5).
+            result.revealPsbt = revealPsbt
+            result.carrierScripts = (preparedData["dataBufferArray"] || []).map(b => b.toString('hex'))
+            result.envelope = envelopeResult
+        }
         return result
+    }
+
+    /*
+     * Size-aware encoding selection ( spec §6): "smallest footprint by
+     * default" as the platform's behaviour rather than its option. Only reached
+     * when the caller explicitly asked for Encoding.AUTO.
+     *
+     * @param {number} compiledLength  the compiled ACTION stream, AFTER compression
+     * @param {string|null} compressedPubKey  required for the envelope's internal key
+     * @param {object|null} options   { signerSupportsTapscript }
+     * @returns {string} a concrete Encoding
+     */
+    selectEncoding(compiledLength, compressedPubKey, options){
+        const magicBytes = Buffer.from(MAGIC_WORD, 'utf8').length
+        // Small payloads: one output, no reveal, nothing cheaper exists.
+        if (compiledLength + magicBytes <= OP_RETURN_SIZE) return Encoding.OP_RETURN
+
+        const segwit = this.network.supportsSegwit !== false
+
+        // The envelope is ~2x cheaper per byte than P2WSH and replaces ~820
+        // chunk outputs per 390 KB, so it wins whenever it is available. Two
+        // conditions, both fail-closed:
+        //
+        //  - the network must have Taproot at all (DOGE never does, §3.6);
+        //  - the SIGNER must be able to produce a tapscript script-path
+        //    signature. This defaults to NO and must be affirmed by the caller.
+        //    The reveal has to be signable BEFORE the commit is broadcast;
+        //    picking the envelope for a signer that cannot spend it does not
+        //    produce an error message, it produces stranded funds (§6). Hardware
+        //    signers are the live case: the wallet's Trezor integration cannot
+        //    sign the leaf today, so those accounts must land on P2WSH.
+        const tapscriptSigner = !!(options && options.signerSupportsTapscript)
+        if (segwit && tapscriptSigner && compressedPubKey) return Encoding.TAPROOT
+
+        // P2WSH carries 476 bytes per chunk against MULTISIGN's 60, so it is the
+        // segwit fallback. On a non-segwit chain P2SH is the same 476-byte lane
+        // and is therefore preferred over MULTISIGN there too: AUTO never
+        // selects the worst-density carrier, which is what makes MULTISIGN an
+        // explicit-request-only lane from here on (spec §10 Q5).
+        if (segwit) return Encoding.P2WSH
+        return Encoding.P2SH
     }
 
     // Stripped (non-witness) serialized byte count of a PSBT's underlying tx.
@@ -1519,6 +1962,126 @@ class XChainEncoder {
             + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
 
         return sizeEstimated
+    }
+
+    // Key-path cancel of an UNREVEALED envelope commit ( spec §3.5/§3.7):
+    // sweeps the commit output back to the caller before any reveal exists. By
+    // contract this must be buildable from the wallet's PERSISTED RECOVERY
+    // RECORD ALONE ({commit outpoint, internal key derivation path, tapleaf
+    // hash} plus the commit value), surviving a crash between commit and
+    // reveal: nothing here re-derives from the envelope payload, and the P2TR
+    // scriptPubKey is reconstructed from internal key + merkle root (the
+    // tapleaf hash IS the merkle root of the single-leaf tree). The returned
+    // PSBT carries tapInternalKey + tapMerkleRoot so the signer can compute
+    // the BIP341 tweak; it conflicts with the reveal by construction (same
+    // outpoint) and the wallet treats it as a replacement of the reveal.
+    async createEnvelopeCancelTransaction({ commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
+        if (typeof commitTxid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(commitTxid)) {
+            throw new TypeError('commitTxid must be a 64-character hex string')
+        }
+        if (!Number.isInteger(commitVout) || commitVout < 0) {
+            throw new TypeError('commitVout must be a non-negative integer')
+        }
+        const value = parseSatoshiAmount(commitValue, 'commitValue')
+        // Accept the 33-byte compressed form (what create_tx took) or the
+        // 32-byte x-only form (what the recovery record may hold).
+        let internalKeyBuf
+        if (typeof internalPubkey === 'string' && /^(02|03)[0-9a-fA-F]{64}$/.test(internalPubkey)) {
+            internalKeyBuf = Buffer.from(internalPubkey, 'hex').subarray(1)
+        } else if (typeof internalPubkey === 'string' && /^[0-9a-fA-F]{64}$/.test(internalPubkey)) {
+            internalKeyBuf = Buffer.from(internalPubkey, 'hex')
+        } else {
+            throw new TypeError('internalPubkey must be a 66-character compressed or 64-character x-only pubkey hex string')
+        }
+        if (typeof tapleafHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(tapleafHash)) {
+            throw new TypeError('tapleafHash must be a 64-character hex string')
+        }
+        if (typeof destination !== 'string' || destination.length === 0) {
+            throw new TypeError('destination must be a non-empty address string')
+        }
+        if (this.network.supportsSegwit === false) {
+            throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
+        }
+        ensureEccLib()
+        const tapleafHashBuf = Buffer.from(tapleafHash, 'hex')
+
+        // Fee-rate resolution with the same drain guards as createTransaction,
+        // in miniature: the caller rate is clamped to the tighter of the
+        // absolute MAX_FEE_RATE_KB cap and the relative multiplier x the node's
+        // own estimate. A cancel sweeps a prefund that scales with payload size
+        // and fee rate, so an unbounded rate here is a real burn surface.
+        let feePerBytes
+        let nodeFeePerBytes = null
+        if (feePerKb){
+            feePerBytes = feePerKb / 1000 / SATOSHI_UNIT
+            try {
+                nodeFeePerBytes = await this.connector.getFeePerKilobyte(1) / 1000
+            } catch (err) {
+                console.warn('Envelope-cancel relative fee cap skipped: node fee estimate unavailable:', err.message)
+            }
+        } else {
+            feePerBytes = await this.connector.getFeePerKilobyte(1) / 1000
+            nodeFeePerBytes = feePerBytes
+        }
+        let capFeePerBytes = this.maxFeePerBytes
+        if (this.maxFeeRateMultiplier && nodeFeePerBytes != null){
+            const relativeCap = nodeFeePerBytes * this.maxFeeRateMultiplier
+            capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
+        }
+        if (capFeePerBytes != null && feePerBytes > capFeePerBytes){
+            feePerBytes = capFeePerBytes
+        }
+
+        const p2trPayment = bitcoin.payments.p2tr({
+            internalPubkey: internalKeyBuf,
+            hash: tapleafHashBuf,
+            network: this.network
+        })
+
+        // vsize: 10 tx overhead + 58 key-path input (41 stripped + witness) +
+        // destination output + 2 rounding slack; padded to the chain's
+        // stripped-size relay floor exactly like the reveal (the key-path
+        // witness does not count toward stripped size either).
+        const destOutBytes = TxSizeEstimator.estimateOutputSizeForAddress(destination, this.network)
+        const cancelStrippedFloor = this.network.minStandardTxNonWitnessSize
+        const padNeeded = !!(cancelStrippedFloor && (10 + 41 + destOutBytes) < cancelStrippedFloor)
+        let strippedBytes = 10 + 41 + destOutBytes + (padNeeded ? destOutBytes : 0)
+        if (cancelStrippedFloor && strippedBytes < cancelStrippedFloor){
+            strippedBytes = cancelStrippedFloor
+        }
+        const cancelVsize = strippedBytes + Math.ceil((2 + 1 + 1 + 65) / 4) + 2
+        let cancelFee = Math.trunc(cancelVsize * feePerBytes * SATOSHI_UNIT)
+        if (cancelFee < this.dustAmount){
+            cancelFee = this.dustAmount
+        }
+
+        const sweepValue = value - cancelFee - (padNeeded ? this.dustAmount : 0)
+        if (sweepValue < this.dustAmount){
+            throw new OperationalError(
+                'ENVELOPE_CANCEL_BELOW_DUST',
+                `cancel would sweep ${sweepValue} satoshis (commit value ${value} minus fee ${cancelFee}${padNeeded ? ' minus floor pad' : ''}), below the dust floor (${this.dustAmount}); spend it via the reveal or CPFP instead`,
+                { commitValue: value, fee: cancelFee, sweepValue }
+            )
+        }
+
+        const psbt = new bitcoin.Psbt({ network: this.network })
+        psbt.addInput({
+            hash: commitTxid,
+            index: commitVout,
+            sequence: (replacebyfee ? 0x00000001 : 0xffffffff),
+            witnessUtxo: {
+                script: p2trPayment.output,
+                value: value
+            },
+            tapInternalKey: internalKeyBuf,
+            tapMerkleRoot: tapleafHashBuf
+        })
+        psbt.addOutput({ address: destination, value: sweepValue })
+        if (padNeeded){
+            psbt.addOutput({ address: destination, value: this.dustAmount })
+        }
+
+        return { psbt, encoding: Encoding.TAPROOT, cancel: true, fee: cancelFee }
     }
 }
 
