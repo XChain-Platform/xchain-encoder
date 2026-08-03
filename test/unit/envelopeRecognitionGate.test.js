@@ -36,7 +36,11 @@ function gateWithKey(networkKey, tip) {
     };
     return XChainEncoder.prototype.assertEnvelopeRecognized.call(ctx);
 }
-const BTC_MAINNET_HEIGHT = 961000;
+// Read from the shipped map, not a literal: every boundary property below holds
+// at WHATEVER height is armed, and these heights have already moved once
+// (961000 -> 960850 on 2026-08-02). The literal pin lives in the last test, on
+// purpose, so a surprise change trips exactly one assertion instead of ten.
+const BTC_MAINNET_HEIGHT = CryptoNetworks.getEnvelopeRecognitionHeight('bitcoin-mainnet');
 function gateWith(height, tip) {
     // map the height under test onto a real network key carrying it
     const key = height === 0 ? 'bitcoin-regtest'
@@ -60,36 +64,37 @@ describe('assertEnvelopeRecognized() ', function () {
     });
 
     it('allows at the activation height and above', async function () {
-        await gateWith(961000, 961000);
-        await gateWith(961000, 961001);
-        await gateWith(961000, 9999999);
+        await gateWith(BTC_MAINNET_HEIGHT, BTC_MAINNET_HEIGHT);
+        await gateWith(BTC_MAINNET_HEIGHT, BTC_MAINNET_HEIGHT + 1);
+        await gateWith(BTC_MAINNET_HEIGHT, 9999999);
     });
 
     it('REFUSES below the activation height, naming the shortfall', async function () {
-        try { await gateWith(961000, 960601); assert.fail('should have refused'); }
+        const tip = BTC_MAINNET_HEIGHT - 399;
+        try { await gateWith(BTC_MAINNET_HEIGHT, tip); assert.fail('should have refused'); }
         catch (e) {
             assert.strictEqual(e.xchainCode, 'ENVELOPE_NOT_YET_ACTIVE');
             assert.strictEqual(e.operational, true);
             assert.deepStrictEqual(e.details,
-                { recognitionHeight: 961000, chainTip: 960601, blocksRemaining: 399 });
-            assert.ok(/961000/.test(e.message) && /960601/.test(e.message),
+                { recognitionHeight: BTC_MAINNET_HEIGHT, chainTip: tip, blocksRemaining: 399 });
+            assert.ok(new RegExp(BTC_MAINNET_HEIGHT).test(e.message) && new RegExp(tip).test(e.message),
                       'message must name both heights: ' + e.message);
         }
     });
 
     it('refuses one block below and allows exactly at the height (boundary is inclusive)', async function () {
-        await refuses(961000, 960999, 'ENVELOPE_NOT_YET_ACTIVE');
-        await gateWith(961000, 961000);
+        await refuses(BTC_MAINNET_HEIGHT, BTC_MAINNET_HEIGHT - 1, 'ENVELOPE_NOT_YET_ACTIVE');
+        await gateWith(BTC_MAINNET_HEIGHT, BTC_MAINNET_HEIGHT);
     });
 
     it('FAIL-CLOSES when the tip is unknowable, rather than assuming', async function () {
         // a node that cannot answer must not be read as "probably fine"; the cost
         // of guessing wrong is the caller's money
-        await refuses(961000, null, 'ENVELOPE_RECOGNITION_UNKNOWN');
-        await refuses(961000, undefined, 'ENVELOPE_RECOGNITION_UNKNOWN');
-        await refuses(961000, NaN, 'ENVELOPE_RECOGNITION_UNKNOWN');
-        await refuses(961000, 'not-a-height', 'ENVELOPE_RECOGNITION_UNKNOWN');
-        await refuses(961000, 'no-method', 'ENVELOPE_RECOGNITION_UNKNOWN');
+        await refuses(BTC_MAINNET_HEIGHT, null, 'ENVELOPE_RECOGNITION_UNKNOWN');
+        await refuses(BTC_MAINNET_HEIGHT, undefined, 'ENVELOPE_RECOGNITION_UNKNOWN');
+        await refuses(BTC_MAINNET_HEIGHT, NaN, 'ENVELOPE_RECOGNITION_UNKNOWN');
+        await refuses(BTC_MAINNET_HEIGHT, 'not-a-height', 'ENVELOPE_RECOGNITION_UNKNOWN');
+        await refuses(BTC_MAINNET_HEIGHT, 'no-method', 'ENVELOPE_RECOGNITION_UNKNOWN');
     });
 
     it('refuses a network that never recognizes envelopes (null: DOGE, no segwit)', async function () {
@@ -102,8 +107,8 @@ describe('assertEnvelopeRecognized() ', function () {
     });
 
     it('resolves the real shipped heights per network', function () {
-        assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('bitcoin-mainnet'), 961000);
-        assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('litecoin-mainnet'), 3160000);
+        assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('bitcoin-mainnet'), 960850);
+        assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('litecoin-mainnet'), 3153500);
         assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('bitcoin-testnet'), 0);
         assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('bitcoin-regtest'), 0);
         assert.strictEqual(CryptoNetworks.getEnvelopeRecognitionHeight('dogecoin-mainnet'), null);

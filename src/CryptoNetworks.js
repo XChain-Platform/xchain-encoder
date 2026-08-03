@@ -76,10 +76,13 @@ class CryptoNetworks {
 }
 
 // Vendored byte-equal from xchain-documentation/protocol/constants.js.
-// MAINNET ARMED 2026-08-01 (operator §7 cohort call): BTC 961000, LTC 3160000.
+// MAINNET HEIGHTS PULLED IN 2026-08-02 (operator decision): BTC 961000 ->
+// 960850, LTC 3160000 -> 3153500, both ~6 hours out from a measured tip rather
+// than 2 and 12 days. Pre-launch features do not wait on dates ; the
+// fleet already runs this code, so only the constant moves.
 const ENVELOPE_RECOGNITION_ACTIVATION = {
-    BTC:  { mainnet: 961000, testnet: 0, regtest: 0 },
-    LTC:  { mainnet: 3160000, testnet: 0, regtest: 0 },
+    BTC:  { mainnet: 960850, testnet: 0, regtest: 0 },
+    LTC:  { mainnet: 3153500, testnet: 0, regtest: 0 },
     DOGE: { mainnet: null, testnet: null, regtest: null },
 };
 
