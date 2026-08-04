@@ -245,7 +245,10 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
           null, null, null, true, 0.00001
         ),
-        /no utxos|must be an array|splice is not a function|not a function/i
+        // A non-array utxos field is named as such. Before the shape guard this
+        // string was walked character by character and the failure read as
+        // "utxos[0] must be an object", blaming a UTXO that was never there.
+        /utxos field that is not an array/i
       )
     })
   })

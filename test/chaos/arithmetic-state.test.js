@@ -30,84 +30,116 @@ const ADDRESS = getTestAddress(NETWORK)
 
 describe('Chaos Category D: Arithmetic & State Corruption', () => {
 
-  // ── D-1: Fee calculation overflow (silent fund loss) ──────────
-  // BEHAVIORAL CONCERN: encoder returns "success" even when
-  // changeSatoshis is negative. The excess goes to the miner.
+  // ── D-1: Fee calculation overflow (was: silent fund loss) ─────
+  //
+  // These two cases were written against the pre-M-8 encoder, which returned
+  // "success" when changeSatoshis came out negative: the caller signed a PSBT
+  // whose outputs exceeded its inputs, and the excess went to the miner. M-8
+  // (_buildTransaction) now rejects an under-funded selection with a typed
+  // INSUFFICIENT_FUNDS error, so the chaos scenario is unchanged and only the
+  // expected outcome moved: from a quietly-wrong PSBT to a loud refusal.
 
-  describe('D-1: Negative change = silent fund loss', () => {
-    it('1-sat UTXO + 10000-sat fee → changeSatoshis=-9999, PSBT returned', async () => {
+  const assertInsufficientFunds = (err) => {
+    assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS',
+      `expected INSUFFICIENT_FUNDS, got ${err.xchainCode}: ${err.message}`)
+    // The details carry what the caller needs to top up, so assert them rather
+    // than the message text: available must be the real selected total, and
+    // required must exceed it, or the guard fired on the wrong arithmetic.
+    assert.ok(Number(err.details.required) > Number(err.details.available),
+      'required must exceed available for this error to be the right one')
+    return true
+  }
+
+  describe('D-1: Negative change is refused, not signed', () => {
+    it('1-sat UTXO + 10000-sat fee → INSUFFICIENT_FUNDS, no PSBT', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1)
 
-      const result = await encoder.createTransaction(
-        [utxo], ADDRESS, null,
-        actions.makeSend().data, null, 10000, false, null, ADDRESS,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], ADDRESS, null,
+          actions.makeSend().data, null, 10000, false, null, ADDRESS,
+          null, null, null, true, 0.00001
+        ),
+        (err) => {
+          assertInsufficientFunds(err)
+          assert.strictEqual(Number(err.details.available), 1)
+          return true
+        }
       )
-
-      // Encoder does NOT throw; this is the silent fund loss scenario
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0,
-        'negative change = no output added silently')
     })
 
-    it('100-sat UTXOs with 10000-sat fee → all consumed, no throw', async () => {
+    it('3x 100-sat UTXOs with 10000-sat fee → INSUFFICIENT_FUNDS on the whole set', async () => {
       const encoder = makeEncoder(NETWORK)
 
-      const result = await encoder.createTransaction(
-        [
-          makeSegwitUtxo(TXID_A, 0, 100),
-          makeSegwitUtxo(TXID_B, 0, 100),
-          makeSegwitUtxo(TXID_C, 0, 100)
-        ],
-        ADDRESS, null,
-        actions.makeSend().data, null, 10000, false, null, ADDRESS,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [
+            makeSegwitUtxo(TXID_A, 0, 100),
+            makeSegwitUtxo(TXID_B, 0, 100),
+            makeSegwitUtxo(TXID_C, 0, 100)
+          ],
+          ADDRESS, null,
+          actions.makeSend().data, null, 10000, false, null, ADDRESS,
+          null, null, null, true, 0.00001
+        ),
+        (err) => {
+          assertInsufficientFunds(err)
+          // All three were selected before the shortfall was declared, so the
+          // guard is reporting the whole set's total and not giving up early.
+          assert.strictEqual(Number(err.details.available), 300)
+          return true
+        }
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      assert.strictEqual(result.psbt.data.inputs.length, 3,
-        'all 3 UTXOs consumed despite being insufficient')
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0)
     })
   })
 
-  // ── D-2: Insufficient UTXOs return PSBT as "success" ──────────
+  // ── D-2: Insufficient UTXOs never reach the caller as a PSBT ──
 
-  describe('D-2: Insufficient UTXOs produce invalid PSBT', () => {
-    it('total inputs < fee → PSBT returned with no error', async () => {
+  describe('D-2: Insufficient UTXOs produce no PSBT', () => {
+    it('total inputs < fee → rejected instead of returned', async () => {
       const encoder = makeEncoder(NETWORK)
 
       // 3 UTXOs of 100 sats = 300 total. Fee = 10000. Need 10000+.
-      const result = await encoder.createTransaction(
-        [
-          makeSegwitUtxo(TXID_A, 0, 100),
-          makeSegwitUtxo(TXID_B, 0, 100),
-          makeSegwitUtxo(TXID_A, 1, 100)
-        ],
-        ADDRESS, null,
-        actions.makeSend().data, null, 10000, false, null, ADDRESS,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [
+            makeSegwitUtxo(TXID_A, 0, 100),
+            makeSegwitUtxo(TXID_B, 0, 100),
+            makeSegwitUtxo(TXID_A, 1, 100)
+          ],
+          ADDRESS, null,
+          actions.makeSend().data, null, 10000, false, null, ADDRESS,
+          null, null, null, true, 0.00001
+        ),
+        assertInsufficientFunds
       )
-
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      assert.strictEqual(result.psbt.data.inputs.length, 3)
     })
 
-    it('returned PSBT is structurally valid despite insufficient inputs', async () => {
+    it('a single dust UTXO is refused rather than serialized', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100)
 
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], ADDRESS, null,
+          actions.makeSend().data, null, 10000, false, null, ADDRESS,
+          null, null, null, true, 0.00001
+        ),
+        assertInsufficientFunds
+      )
+    })
+
+    it('a funded selection under the same chaos parameters still builds', async () => {
+      // The other side of M-8: the shortfall check must key on the arithmetic,
+      // not simply refuse every transaction these cases feed it.
+      const encoder = makeEncoder(NETWORK)
       const result = await encoder.createTransaction(
-        [utxo], ADDRESS, null,
+        [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,
         actions.makeSend().data, null, 10000, false, null, ADDRESS,
         null, null, null, true, 0.00001
       )
-
-      // PSBT can be serialized to hex without error
-      assert.doesNotThrow(() => result.psbt.toHex())
+      assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
 

@@ -84,8 +84,14 @@ describe('Data/Payload Boundaries', () => {
 
   // ── Empty data string ───────────────────────────────────────────
 
+  //  moved this boundary: an empty payload used to compile to an OP_0
+  // push, take the 4-byte magic word, and ship as a magic-word-only OP_RETURN
+  // carrying no action, so every plain native-coin payment paid for a nulldata
+  // output and announced itself as an XChain transaction. The emission loop now
+  // gets an empty chunk list and writes nothing. These two cases assert the
+  // boundary in its current position: nothing at data="", content one byte in.
   describe('empty data string', () => {
-    it('data="" → OP_RETURN with 1 output', async () => {
+    it('data="" → no nulldata output at all (payment-only, )', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
@@ -95,23 +101,31 @@ describe('Data/Payload Boundaries', () => {
         null, null, null, true, 0.00001
       )
 
+      // Still reported as OP_RETURN: every downstream single-transaction branch
+      // keys off that value, and there is nothing to chunk either way.
       assert.strictEqual(result.encoding, 'OP_RETURN')
-      const opReturnOutputs = result.psbt.txOutputs.filter(o => o.value === 0)
-      assert.strictEqual(opReturnOutputs.length, 1)
+      const opReturnOutputs = result.psbt.txOutputs.filter(
+        o => bitcoin.script.toASM(o.script).startsWith('OP_RETURN'))
+      assert.strictEqual(opReturnOutputs.length, 0,
+        'an empty payload must not buy a nulldata output')
+      // The transaction is not empty, it is just a payment: change survives.
+      assert.ok(result.psbt.txOutputs.some(o => Number(o.value) > 0),
+        'change output is missing')
     })
 
-    it('deobfuscated empty-data payload has MAGIC_WORD', async () => {
+    it('one-byte data is the smallest payload that still emits (MAGIC_WORD)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        '', null, 10000, false, null, address,
+        'X', null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
 
       const payload = extractOpReturnPayload(result, TXID_A)
       assert.strictEqual(payload.magic, MAGIC_WORD)
+      assert.strictEqual(decompilePayload(payload.dataBuffer)[0].toString('utf8'), 'X')
     })
   })
 

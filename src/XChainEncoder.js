@@ -943,6 +943,19 @@ class XChainEncoder {
 
                 utxos = fetched["utxos"]
 
+                // The tracker's utxos field must be an array. Anything else with a
+                // length (a string, most plausibly an error body that got read as the
+                // payload) walks straight past the emptiness check below and is then
+                // indexed element by element, so a malformed tracker response surfaced
+                // as "utxos[0] must be an object" and pointed the operator at a UTXO
+                // that does not exist instead of at the response shape.
+                if ((utxos != null) && !Array.isArray(utxos)){
+                    throw new OperationalError(
+                        'UTXO_TRACKER_ERROR',
+                        `utxo-tracker returned a utxos field that is not an array (got ${typeof utxos})`
+                    )
+                }
+
                 if ((utxos == null) || (utxos.length == 0)){
                     throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
                 }

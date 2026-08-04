@@ -338,9 +338,14 @@ describe('S7: TxSizeEstimator', () => {
   })
 
   it('estimateMultisignOutput returns positive integer', () => {
+    // 114 = 8 (value) + 1 (script-length varint) + 105 (compiled 1-of-3 bare
+    // multisig). The old 111 here came from a 102-byte script figure that
+    // omitted the three push opcodes; 99ebc78 corrected the estimator and this
+    // smoke assertion was left on the undercount. The derivation lives in
+    // test/unit/TxSizeEstimator.test.js, which builds a real p2ms script.
     const size = TxSizeEstimator.estimateMultisignOutput()
     assert.ok(Number.isInteger(size))
-    assert.strictEqual(size, 111)
+    assert.strictEqual(size, 114)
   })
 
   it('estimateInputSize: P2WPKH (segwit) is smaller than P2PKH (legacy)', () => {

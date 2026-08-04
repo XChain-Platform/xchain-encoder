@@ -84,30 +84,43 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   // ── B-2: UTXO values at arithmetic boundaries ────────────────
 
   describe('B-2: UTXO values at arithmetic boundaries', () => {
-    it('value=0 → no throw, no change output', async () => {
+    // value=0 and value=1 used to build a PSBT with negative change (the fee
+    // silently ate more than the inputs held). M-8 rejects the under-funded
+    // selection instead, so both now assert the typed refusal.
+    it('value=0 → INSUFFICIENT_FUNDS, available reported as 0', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeSegwitUtxo(TXID_A, 0, 0)
 
-      const result = await encoder.createTransaction(
-        [utxo], DOGE_ADDR, null,
-        actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], DOGE_ADDR, null,
+          actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
+          null, null, null, true, 0.00001
+        ),
+        (err) => {
+          assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
+          assert.strictEqual(Number(err.details.available), 0)
+          return true
+        }
       )
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
-      const changeOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(changeOutputs.length, 0, 'zero-value UTXO → no change')
     })
 
-    it('value=1 → negative change, no throw', async () => {
+    it('value=1 → INSUFFICIENT_FUNDS rather than negative change', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeSegwitUtxo(TXID_A, 0, 1)
 
-      const result = await encoder.createTransaction(
-        [utxo], DOGE_ADDR, null,
-        actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
-        null, null, null, true, 0.00001
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], DOGE_ADDR, null,
+          actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
+          null, null, null, true, 0.00001
+        ),
+        (err) => {
+          assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
+          assert.ok(Number(err.details.required) > Number(err.details.available))
+          return true
+        }
       )
-      assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
 
     it('hex string value "0xff" is rejected (parseInt would read it as 0)', async () => {

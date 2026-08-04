@@ -190,31 +190,48 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
     })
   })
 
-  // ── C-5: Cross-network pubkey for P2SH ────────────────────────
-  // No monkey-patching needed; uses real encoder with bech32 address
+  // ── C-5: Non-base58 caller identity for P2SH ──────────────────
+  // No monkey-patching needed; uses the real encoder.
+  //
+  // Both cases were written when resolveCallerHash160 was a bare
+  // fromBase58Check, so ANY non-base58 identity crashed with "Non-base58
+  // character".  made that resolver accept every identity form a client
+  // legitimately sends (raw pubkey hex, v0 bech32 P2WPKH) because the P2SH
+  // chunk-lane gate needs the same 20 bytes whichever form arrives, and every
+  // wallet flow sends a raw pubkey. So a bech32 caller is no longer an error,
+  // and the remaining error is a specific, named refusal rather than a library
+  // crash. The chaos value is in that split: what resolves, and what does not.
 
-  describe('C-5: Cross-network / invalid pubkey for P2SH encoding', () => {
-    it('bech32 address as pubkey → fromBase58Check throws', async () => {
+  describe('C-5: Non-base58 caller identity for P2SH encoding', () => {
+    it('bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey ', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      // Generate a bech32 regtest address
       const bech32Addr = bitcoin.payments.p2wpkh({
         pubkey: PUBKEY_BUF,
         network: bitcoin.networks.regtest
       }).address
 
-      await assert.rejects(
-        () => encoder.createTransaction(
-          [utxo], bech32Addr, null,
-          actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
-          null, null, null, true, 0.00001
-        ),
-        /Non-base58|Invalid checksum|Invalid address/i
+      const viaBech32 = await encoder.createTransaction(
+        [utxo], bech32Addr, null,
+        actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
+        null, null, null, true, 0.00001
       )
+      const viaPubkey = await encoder.createTransaction(
+        [makeSegwitUtxo(TXID_A, 0, 100000000)], PUBKEY_BUF.toString('hex'), null,
+        actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
+        null, null, null, true, 0.00001
+      )
+
+      // The witness program IS HASH160(pubkey), so the two identities must
+      // produce byte-identical P2SH outputs. Comparing the built scripts is
+      // what proves the resolver agreed, rather than merely not throwing.
+      assert.deepStrictEqual(
+        viaBech32.psbt.txOutputs.map(o => o.script.toString('hex')),
+        viaPubkey.psbt.txOutputs.map(o => o.script.toString('hex')))
     })
 
-    it('hex string as pubkey → fromBase58Check throws', async () => {
+    it('an identity that is no address and no pubkey is refused by name', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
@@ -224,7 +241,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
           actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
           null, null, null, true, 0.00001
         ),
-        /Non-base58|Invalid checksum|Invalid address|decode/i
+        /cannot resolve a 20-byte caller HASH160/i
       )
     })
   })
