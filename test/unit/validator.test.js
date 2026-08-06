@@ -137,6 +137,22 @@ describe('Encoder input validator', function () {
             assert.doesNotThrow(() => v.validateCombinedDataLength('x'.repeat(200), null, undefined));
         });
 
+        // An AUTO request can resolve to TAPROOT in selectEncoding, so the
+        // pre-flight check must use the envelope ceiling for it; measuring AUTO
+        // against the 8,192-byte legacy ceiling rejected payloads the builder
+        // would have accepted. An OMITTED encoding is a different request and
+        // keeps the legacy ceiling.
+        it('applies the envelope ceiling to AUTO, like TAPROOT', function () {
+            const big = 'x'.repeat(50000);
+            assert.doesNotThrow(() => v.validateCombinedDataLength(big, null, 'TAPROOT'));
+            assert.doesNotThrow(() => v.validateCombinedDataLength(big, null, 'AUTO'));
+            assert.throws(() => v.validateCombinedDataLength(big, null), RangeError);
+            assert.throws(() => v.validateCombinedDataLength(big, null, 'P2WSH'), RangeError);
+            // The envelope ceiling still binds for AUTO.
+            assert.throws(() => v.validateCombinedDataLength('x'.repeat(400000), null, 'AUTO'),
+                /exceeds maximum \(390000, the TAPROOT envelope payload ceiling\)/);
+        });
+
         it('measures rawData-only payloads (data defaults to an OP_0 push)', function () {
             // createTransaction compiles [emptyBuffer, rawDataBuffer]: OP_0 (1 byte)
             // + rawLen + 3 (OP_PUSHDATA2). 8188 -> 8192 == ceiling; 8189 -> 8193.

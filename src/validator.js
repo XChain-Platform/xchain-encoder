@@ -354,14 +354,25 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // undercount the on-chain size and let dual-push payloads slip past this
     // pre-check only to fail the compiled-size ceiling later in createTransaction.
     const compiled = compiledPushSize(dataBytes) + (rawData != null ? compiledPushSize(rawBytes) : 0)
-    // Per-encoding ceiling ( spec §4): only an EXPLICIT encoding:"TAPROOT"
-    // request is measured against the envelope ceiling; an omitted encoding
-    // keeps the legacy ceiling because auto-selection never picks TAPROOT (the
-    // size-aware default is a later, opt-in stage) and the legacy lanes'
-    // decoders silently drop anything over 8,192 compiled bytes.
-    const ceiling = (encoding === 'TAPROOT') ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
+    // Per-encoding ceiling ( spec §4). "TAPROOT" and "AUTO" both get the
+    // envelope ceiling; every other value (including an OMITTED encoding) keeps
+    // the legacy ceiling, because the legacy lanes' decoders silently drop
+    // anything over 8,192 compiled bytes.
+    //
+    // AUTO is here because selectEncoding (XChainEncoder.js) resolves an AUTO
+    // request to TAPROOT once the payload outgrows OP_RETURN and the caller
+    // affirms signerSupportsTapscript with a compressedPubKey. This validator is
+    // network-agnostic (it cannot see network.supportsSegwit) and runs before
+    // that resolution, so it can only apply the WIDEST ceiling any AUTO
+    // resolution could legitimately use, and let _buildTransaction re-check the
+    // resolved lane. Consequence: an AUTO request that resolves to a legacy lane
+    // over 8,192 bytes is refused by the builder (-32603) rather than here
+    // (-32602). Both fail closed. Note an OMITTED encoding is NOT AUTO: it keeps
+    // prepareData's legacy OP_RETURN-else-P2SH fallback and its legacy ceiling.
+    const wideCeiling = (encoding === 'TAPROOT' || encoding === 'AUTO')
+    const ceiling = wideCeiling ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
     if (compiled > ceiling) {
-        throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${ceiling}${encoding === 'TAPROOT' ? ', the TAPROOT envelope payload ceiling' : ''})`)
+        throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${ceiling}${wideCeiling ? ', the TAPROOT envelope payload ceiling' : ''})`)
     }
     // When the caller EXPLICITLY requested OP_RETURN, apply the far tighter 76-byte
     // single-output ceiling here rather than letting the request run the whole
