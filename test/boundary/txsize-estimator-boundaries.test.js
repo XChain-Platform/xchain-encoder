@@ -31,29 +31,42 @@ const {
 
 describe('TxSizeEstimator Boundaries', () => {
 
-  // ── OP_RETURN > 252 bytes (known imprecision) ───────────────────
+  // ── OP_RETURN push-framing and script-varint boundaries ─────────
 
-  describe('estimateOpReturnOutput > 252 bytes (known imprecision)', () => {
-    it('returns 11 + data.length for 252-byte data', () => {
+  describe('estimateOpReturnOutput framing boundaries', () => {
+    // Cross-check against a real compiled script rather than a formula, so the
+    // estimate cannot drift away from what bitcoinjs actually serializes.
+    const trueOutputSize = (data) => {
+      const script = bitcoin.script.compile([bitcoin.opcodes.OP_RETURN, data])
+      return 8 + (script.length < 0xfd ? 1 : 3) + script.length
+    }
+
+    it('matches the compiled script at the 75/76 OP_PUSHDATA1 inflection', () => {
+      for (const len of [75, 76, 80]) {
+        const data = Buffer.alloc(len, 0x41)
+        assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), trueOutputSize(data),
+          'estimate must equal the real output size at ' + len + ' bytes')
+      }
+    })
+
+    it('charges a 3-byte script-length varint once the script reaches 253 bytes', () => {
+      // 252 bytes of data compiles to OP_RETURN + OP_PUSHDATA1 + len + data = 255,
+      // past the 253 compactSize inflection, so the varint costs 3 not 1.
       const data = Buffer.alloc(252, 0x41)
-      const estimate = TxSizeEstimator.estimateOpReturnOutput(data)
-      // The formula is always 11 + data.length regardless of size.
-      // At 252+ bytes the varint scriptPubKey size field needs 3 bytes
-      // instead of 1, making the true size 13 + data.length.
-      // This is a documented TODO in the source.
-      assert.strictEqual(estimate, 11 + 252)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 266)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), trueOutputSize(data))
     })
 
-    it('returns 11 + data.length for 253-byte data (same imprecision)', () => {
+    it('stays exact just past the varint inflection (253-byte data)', () => {
       const data = Buffer.alloc(253, 0x41)
-      const estimate = TxSizeEstimator.estimateOpReturnOutput(data)
-      assert.strictEqual(estimate, 11 + 253)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 267)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), trueOutputSize(data))
     })
 
-    it('is precise for data under 252 bytes', () => {
+    it('is exact for a 100-byte payload (single-byte varint, PUSHDATA1 push)', () => {
       const data = Buffer.alloc(100, 0x41)
-      const estimate = TxSizeEstimator.estimateOpReturnOutput(data)
-      assert.strictEqual(estimate, 11 + 100)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 112)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), trueOutputSize(data))
     })
   })
 

@@ -15,19 +15,19 @@ const TxSizeEstimator = require('../../src/TxSizeEstimator')
 describe('TxSizeEstimator', () => {
 
   describe('.estimateOpReturnOutput(data)', () => {
-    it('returns 11 + data.length for empty data', () => {
+    it('returns 11 for empty data (OP_RETURN + OP_0)', () => {
       const data = Buffer.alloc(0)
       assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 11)
     })
 
-    it('returns 11 + data.length for 76-byte data', () => {
+    it('charges the 2-byte OP_PUSHDATA1 prefix for 76-byte data', () => {
       const data = Buffer.alloc(76)
-      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 87)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 88)
     })
 
-    it('returns 11 + data.length for 80-byte data', () => {
+    it('charges the 2-byte OP_PUSHDATA1 prefix for 80-byte data', () => {
       const data = Buffer.alloc(80)
-      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 91)
+      assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 92)
     })
 
     it('returns 12 for a 1-byte buffer', () => {

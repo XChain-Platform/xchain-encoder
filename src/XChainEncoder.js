@@ -28,7 +28,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean } = require('./validator')
 const { compressPayloadForAction } = require('./compression')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
@@ -2067,6 +2067,13 @@ class XChainEncoder {
         if (this.network.supportsSegwit === false) {
             throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
         }
+        // Same money/boolean guards create_tx gets through validateAll, so both
+        // create paths classify identical bad input identically (-32602). Left
+        // uncoerced, a non-numeric feePerKb becomes NaN, slips past both dust
+        // comparisons (every NaN comparison is false) and surfaces as an opaque
+        // -32603; and the JSON string "false" is truthy, silently arming RBF.
+        const feeRatePerKb = validateFeePerKb(feePerKb)
+        const rbfArmed     = validateOptionalBoolean(replacebyfee, 'replacebyfee') === true
         ensureEccLib()
         const tapleafHashBuf = Buffer.from(tapleafHash, 'hex')
 
@@ -2077,8 +2084,8 @@ class XChainEncoder {
         // and fee rate, so an unbounded rate here is a real burn surface.
         let feePerBytes
         let nodeFeePerBytes = null
-        if (feePerKb){
-            feePerBytes = feePerKb / 1000 / SATOSHI_UNIT
+        if (feeRatePerKb){
+            feePerBytes = feeRatePerKb / 1000 / SATOSHI_UNIT
             try {
                 nodeFeePerBytes = await this.connector.getFeePerKilobyte(1) / 1000
             } catch (err) {
@@ -2133,7 +2140,7 @@ class XChainEncoder {
         psbt.addInput({
             hash: commitTxid,
             index: commitVout,
-            sequence: (replacebyfee ? 0x00000001 : 0xffffffff),
+            sequence: (rbfArmed ? 0x00000001 : 0xffffffff),
             witnessUtxo: {
                 script: p2trPayment.output,
                 value: value

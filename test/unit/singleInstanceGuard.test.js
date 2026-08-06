@@ -317,9 +317,17 @@ describe('singleInstanceGuard', function () {
             return proc
         }
 
-        // Long enough to cover the handler's internal re-raise grace window.
-        const AFTER_GRACE_MS = 120
-        const settle = () => new Promise(resolve => setTimeout(resolve, AFTER_GRACE_MS))
+        // The handler arms a RERAISE_GRACE_MS fallback timer. A fixed sleep
+        // races it: under load the implementation timer can fire after the
+        // test's own timer, so wait on the OUTCOME instead of on wall clock.
+        const settleUntil = async (predicate, what) => {
+            const deadline = Date.now() + 5000
+            while (Date.now() < deadline) {
+                if (predicate()) return
+                await new Promise(resolve => setTimeout(resolve, 5))
+            }
+            throw new Error('timed out waiting for ' + what)
+        }
 
         it('registers a handler for both signals a stop can send', function () {
             const proc = fakeProcess()
@@ -367,11 +375,13 @@ describe('singleInstanceGuard', function () {
             assert.deepStrictEqual(proc.listeners.SIGTERM, [gracefulShutdown])
         })
 
-        it('does not force an exit when the re-raise did kill the process', async function () {
+        it('does not force an exit when the re-raise did kill the process', function () {
             const proc = fakeProcess({ diesOnReraise: true })
             releaseLockOnSignals(() => {}, proc)
             proc.raise('SIGTERM')
-            await settle()
+            // raise() runs the handler synchronously, so the re-raise is already
+            // recorded; there is nothing to wait for and the old grace sleep only
+            // let the unref'd fallback timer race the assertion.
             // A real process is gone here; the fallback timer fires into nothing.
             // What must not happen is a SECOND, different exit path being taken
             // while the signalled death is already in flight.
@@ -387,7 +397,7 @@ describe('singleInstanceGuard', function () {
             const proc = fakeProcess({ diesOnReraise: false })
             releaseLockOnSignals(() => {}, proc)
             proc.raise('SIGTERM')
-            await settle()
+            await settleUntil(() => proc.exited.length > 0, 'the PID-1 fallback exit')
             assert.deepStrictEqual(proc.exited, [143])
         })
 
@@ -395,7 +405,7 @@ describe('singleInstanceGuard', function () {
             const proc = fakeProcess({ diesOnReraise: false })
             releaseLockOnSignals(() => {}, proc)
             proc.raise('SIGINT')
-            await settle()
+            await settleUntil(() => proc.exited.length > 0, 'the PID-1 fallback exit')
             assert.deepStrictEqual(proc.exited, [130])
         })
 

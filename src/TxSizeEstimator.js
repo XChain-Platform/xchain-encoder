@@ -35,10 +35,15 @@ function compactSizeLen(n) {
 }
 
 class TxSizeEstimator {
+    // OP_RETURN output = 8 (value) + script-length compactSize + scriptPubKey,
+    // where scriptPubKey = OP_RETURN (1) + the compiled data push. Push framing
+    // comes from the canonical compiledPushSize (direct opcode <=75, OP_PUSHDATA1
+    // adds a length byte at 76..255); hardcoding a 1-byte prefix undercounted the
+    // 76..80-byte payloads this call site actually reaches, and that estimate
+    // prices the fee and the UTXO-sufficiency check.
     static estimateOpReturnOutput(data){
-        //TODO: this won't be precise if the scriptpubkey is greater than 252 bytes
-        return 11 +//8 for value, 1 for OP_RETURN, 1 for script pubkey size flag, 1 for push data
-             data.length
+        const scriptLength = 1 + compiledPushSize(data.length)
+        return 8 + compactSizeLen(scriptLength) + scriptLength
     }
     
     static estimateP2shOutput(){

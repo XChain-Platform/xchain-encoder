@@ -89,7 +89,12 @@ const COMPRESSION_MAX_RATIO = 150
 const COMPRESSION_MAX_INPUT_BYTES = 16 * 1024 * 1024
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
-const MAX_FEE_SATOSHIS = 2_100_000_000_000 // 21M BTC in satoshis
+// Sanity ceiling on the fee/dust/feeQuote money fields: 21,000 BTC in satoshis.
+// This is deliberately far tighter than the 21M-BTC supply, and the value is the
+// contract, not a rounding of it. Do NOT "repair" it to 2_100_000_000_000_000 to
+// chase a supply figure: that loosens every fee-path ceiling 1000x. Large output
+// amounts do not route here; they go through parseSatoshiAmount's u64 ceiling.
+const MAX_FEE_SATOSHIS = 2_100_000_000_000
 // Maximum accepted raw-transaction hex length, in characters. A standard
 // BTC/LTC/DOGE transaction tops out around 100 KB (200,000 hex chars), so
 // 400,000 chars (a 200 KB transaction) is comfortably above anything the
@@ -767,6 +772,7 @@ module.exports = {
     validateEncoding,
     validateFee,
     validateFeePerKb,
+    validateOptionalBoolean,
     validateDust,
     validateUtxoArray,
     validateUtxoEntry,

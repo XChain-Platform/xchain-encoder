@@ -86,7 +86,14 @@ function buildServer(options){
     const held      = new Promise(resolve => { releaseHeld  = resolve })
     const heldProbe = new Promise(resolve => { releaseProbe = resolve })
 
+    // Arrival counter, so a test can wait on the CONDITION that requests
+    // reached the handler rather than on a fixed sleep. With the gate disabled
+    // its own stats stay at zero, which is the assertion under test, so they
+    // cannot double as the readiness signal.
+    let expensiveArrivals = 0
+
     app.get('/expensive', async (req, res) => {
+        expensiveArrivals++
         await held
         res.json({ ok: true, ip: req.ip })
     })
@@ -100,7 +107,11 @@ function buildServer(options){
     const server = http.createServer(app)
     openServers.push(server)
 
-    return { app, gate, probeGate, server, release: () => releaseHeld(), releaseProbe: () => releaseProbe() }
+    return {
+        app, gate, probeGate, server,
+        arrivals: () => expensiveArrivals,
+        release: () => releaseHeld(), releaseProbe: () => releaseProbe()
+    }
 }
 
 function listen(server){
@@ -234,11 +245,11 @@ describe('Security: global in-flight concurrency cap ', function () {
     })
 
     it('is disabled by a cap of 0 (operator escape hatch)', async function () {
-        const { server, gate, release } = buildServer({ limit: 0 })
+        const { server, gate, release, arrivals } = buildServer({ limit: 0 })
         await listen(server)
 
         const parked = [get(server, '/expensive', 1), get(server, '/expensive', 2), get(server, '/expensive', 3)]
-        await new Promise(r => setTimeout(r, 50))
+        await waitFor(() => arrivals() === 3, 'all three requests to pass the disabled gate')
 
         // A disabled gate counts nothing and sheds nothing; it must not become a
         // cap of zero that refuses every request.

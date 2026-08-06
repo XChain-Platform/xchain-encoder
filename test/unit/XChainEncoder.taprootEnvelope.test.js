@@ -496,6 +496,34 @@ describe('XChainEncoder TAPROOT envelope ( S1)', function () {
         Object.assign({}, base, { destination: '' })), /destination/)
     })
 
+    it('applies the create_tx fee guards to feePerKb and replacebyfee', async function () {
+      const encoder = makeEncoder()
+      const base = {
+        commitTxid: TXID_A, commitVout: 0, commitValue: 100000,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64),
+        destination: callerAddress(encoder.network)
+      }
+      // Unguarded, these spellings became NaN, skipped both dust comparisons
+      // and surfaced as an opaque internal error instead of invalid-params.
+      for (const bad of ['abc', '0x20', '1e3', 'Infinity']) {
+        await assert.rejects(encoder.createEnvelopeCancelTransaction(
+          Object.assign({}, base, { feePerKb: bad })), TypeError,
+          'feePerKb ' + bad + ' must be rejected as a typed error')
+      }
+      await assert.rejects(encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { feePerKb: -1 })), RangeError)
+      // The JSON string 'false' is truthy, so it used to arm RBF silently.
+      await assert.rejects(encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { replacebyfee: 'false' })), /replacebyfee/)
+      // Valid shapes still build, and a real boolean still arms RBF.
+      const armed = await encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { feePerKb: 5000, replacebyfee: true }))
+      assert.strictEqual(armed.psbt.txInputs[0].sequence, 0x00000001)
+      const plain = await encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { feePerKb: '5000' }))
+      assert.strictEqual(plain.psbt.txInputs[0].sequence, 0xffffffff)
+    })
+
     it('accepts the x-only internal key form', async function () {
       const encoder = makeEncoder()
       const cancel = await encoder.createEnvelopeCancelTransaction({
