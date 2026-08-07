@@ -49,6 +49,7 @@ function makeRpcBatchGuard(maxBatch){
 const validator = require('./validator')
 const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./singleInstanceGuard')
 const { upstreamErrorMessage } = require('./errorSanitize')
+const { parseCorsOrigin } = require('./corsOrigin')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // : default-off /metrics + structured log shim
 
@@ -192,8 +193,11 @@ const requestGate = concurrencyGate.createConcurrencyGate({
 })
 app.use(requestGate)
 
-// CORS configuration (default: disabled; set CORS_ORIGIN=* to allow all)
-app.use(cors(CORS_ORIGIN ? { origin: CORS_ORIGIN } : { origin: false }));
+// CORS configuration (default: disabled; `*` allows all; a comma-separated list
+// is an ALLOWLIST matched per-origin). parseCorsOrigin is what makes the list
+// case work: handing `cors` the raw string would echo it verbatim to everyone
+// and be accepted by no browser. See src/corsOrigin.js.
+app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
 
 // : Prometheus /metrics plus a structured log shim, both DEFAULT OFF.
 // Nothing is registered and no timer starts unless METRICS_ENABLED (and, for log

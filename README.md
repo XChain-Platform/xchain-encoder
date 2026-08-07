@@ -92,7 +92,7 @@ npm run api
 | `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `GET /status` and `GET /openrpc.json` are exempt; `0` disables |
 | `ENCODER_MAX_CONCURRENT_PROBES` | No | `16` | Private concurrency reserve for the two exempt probe routes, so healthchecks stay answerable while the cap above sheds without becoming an uncapped bypass; `0` disables |
 | `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
-| `CORS_ORIGIN` | No | Disabled | CORS origin (`*` to allow all) |
+| `CORS_ORIGIN` | No | Disabled | Allowed CORS origin(s): `*` for any, one origin, or a comma-separated allowlist matched per-origin (browser wallet shells each send a different origin). A stray `*` inside a list is not a wildcard, so the grant fails closed |
 
 ## Metrics and log shipping (optional, off by default)
 
