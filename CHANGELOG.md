@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `npm run ci` runs the roundtrip conformance suite, so an encoder that stops producing the golden fixture bytes no longer passes CI ().
 - `CORS_ORIGIN` now accepts a comma-separated allowlist matched per-origin, instead of echoing a multi-value header that no browser accepts .
 - OP_RETURN 76-byte ceiling enforced pre-compile as -32602 invalid-params; manifest fixture re-vendored.
 - Parse satoshi/fee money fields exactly (`parseSatoshiAmount`, `validateFee`, `validateDust`, `validateFeeQuote`) so `"1e8"`, `"100.5"`, `"5abc"` and other non-integer strings are rejected instead of `parseInt`-truncated to a silently-wrong amount.
