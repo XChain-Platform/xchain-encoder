@@ -124,26 +124,26 @@ describe('CryptoNetworks', () => {
       assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-mainnet'), 950000)
     })
 
-    it('returns 138000 for bitcoin-testnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-testnet'), 138000)
+    it('returns 147500 for bitcoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('bitcoin-testnet'), 147500)
     })
 
     it('returns 3120000 for litecoin-mainnet', () => {
       assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-mainnet'), 3120000)
     })
 
-    it('returns 4765000 for litecoin-testnet', () => {
-      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-testnet'), 4765000)
+    it('returns 4855000 for litecoin-testnet', () => {
+      assert.strictEqual(CryptoNetworks.getFirstBlock('litecoin-testnet'), 4855000)
     })
 
     it('returns 6240000 for dogecoin-mainnet', () => {
       assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-mainnet'), 6240000)
     })
 
-    it('returns 64800000 for dogecoin-testnet', () => {
+    it('returns 67815000 for dogecoin-testnet', () => {
       // DOGE testnet mints min-difficulty blocks ~every 20s, so getFirstBlock
       // anchors near the current tip; the chain climbs above this over time.
-      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 64800000)
+      assert.strictEqual(CryptoNetworks.getFirstBlock('dogecoin-testnet'), 67815000)
     })
 
     it('returns 0 for bitcoin-regtest', () => {
