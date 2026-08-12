@@ -18,7 +18,6 @@
  * 
  ********************************************************************/
 
-// Load required libraries
 const bitcoin = require('bitcoinjs-lib');
 const { compiledPushSize } = require('./validator');
 
@@ -56,9 +55,9 @@ class TxSizeEstimator {
     
     // Serialized byte cost of a payment output to `address`: 8 (value) +
     // script-length varint + scriptPubKey. Used to fund the reveal (phase-2)
-    // transaction's miner fee for the customOutputs it has to carry :
-    // the funding tx knows those outputs' VALUE but must also pay for their
-    // BYTES, which nothing accounted for before.
+    // transaction's miner fee for the customOutputs it has to carry: the funding
+    // tx knows those outputs' VALUE but must also pay for their BYTES, which
+    // nothing accounted for before.
     static estimateOutputSizeForAddress(address, network){
         const LARGEST_STANDARD_OUTPUT = 43 // P2WSH/P2TR: 8 + 1 + 34
         if (!address) return LARGEST_STANDARD_OUTPUT
@@ -74,7 +73,7 @@ class TxSizeEstimator {
         return 8 + (script.length < 0xfd ? 1 : 3) + script.length
     }
 
-    // P2TR commit output for the Taproot envelope : 8 (value) + 1
+    // P2TR commit output for the Taproot envelope: 8 (value) + 1
     // (script-length varint) + 34 (OP_1 + push + 32-byte tweaked key) = 43.
     // Same bytes as a P2WSH output; separate method so envelope call sites
     // read as what they are and can diverge if either shape ever does.
@@ -82,7 +81,7 @@ class TxSizeEstimator {
         return 43
     }
 
-    // Virtual size of an envelope reveal transaction ( spec §3.9): one
+    // Virtual size of an envelope reveal transaction: one
     // script-path P2TR input carrying the envelope tapscript, plus
     // `outputsBytes` of serialized outputs (change, and the LTC stripped-floor
     // pad when present). Witness bytes (weight 1, ÷4 toward vsize):
@@ -141,7 +140,6 @@ class TxSizeEstimator {
     // Estimates the final vSize of a UTXO
     // The utxo should have the structure {hash, index, sequence, (witnessUtxo or nonWitnessUtxo)}.
     static estimateInputSize(utxo) {
-        // 1. Obtaining the scriptPubKey
         let scriptPubKey
         let isSegwit = false
 
@@ -170,10 +168,8 @@ class TxSizeEstimator {
             return 350
         }
 
-        // Convert to hex string to detect patterns
         const scriptHex = scriptPubKey.toString('hex')
 
-        // 2. Classification and Estimation for Native SegWit
         if (isSegwit) {
             if (scriptHex.startsWith('0014')) {
                 // P2WPKH: 0014{20-byte hash}
@@ -191,8 +187,6 @@ class TxSizeEstimator {
             }
         }
 
-        // 3. Classification and Estimation for Legacy
-        
         // P2PKH (Legacy): 76a914{20-byte hash}88ac
         if (scriptHex.startsWith('76a914') && scriptHex.endsWith('88ac')) {
             return 180
@@ -207,7 +201,6 @@ class TxSizeEstimator {
             return 289 
         }
         
-        // 4. Fallback
         return 350
     }
 }

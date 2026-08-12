@@ -34,7 +34,6 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('Custom Output Boundaries', () => {
 
-  // ── Non-integer custom output values are rejected ───────────────
   // Previously parseInt silently truncated a decimal amount ("1.5" -> 1),
   // paying a different amount than the caller specified and skewing the change
   // math. The exact-integer parse now rejects any non-integer money value.
@@ -91,8 +90,6 @@ describe('Custom Output Boundaries', () => {
     })
   })
 
-  // ── Many custom outputs ─────────────────────────────────────────
-
   describe('many custom outputs', () => {
     it('10 custom outputs each worth 100000 → correct total in outputSatoshis', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -148,8 +145,6 @@ describe('Custom Output Boundaries', () => {
     })
   })
 
-  // ── Custom output with value=0 ─────────────────────────────────
-
   describe('custom output with value=0', () => {
     // Contract change (input-validation finding): a 0-sat caller output is
     // consensus-valid but relay-rejected as dust, so building it hands the caller
@@ -174,8 +169,6 @@ describe('Custom Output Boundaries', () => {
       )
     })
   })
-
-  // ── Custom output value > inputs ────────────────────────────────
 
   describe('custom output value exceeding inputs', () => {
     // M-8: custom outputs (50000) + fee (10000) exceed the 10000-sat input, so
@@ -202,8 +195,6 @@ describe('Custom Output Boundaries', () => {
       )
     })
   })
-
-  // ── Empty customOutputs array ───────────────────────────────────
 
   describe('empty customOutputs array', () => {
     it('empty array has no effect on outputs or fees', async () => {

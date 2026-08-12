@@ -12,7 +12,7 @@
  *
  **********************************************************************
  *
- * Emit-side FILE payload compression ( spec Part B).
+ * Emit-side FILE payload compression.
  *
  * The encoder is the only service that COMPRESSES; it never inflates. That
  * asymmetry is deliberate: inflation is the attack surface (a hostile payload
@@ -21,14 +21,14 @@
  *
  * Three rules govern this file:
  *
- *  1. ASYNC ONLY. The encoder is a hard single-instance service (
- *     lockfile guard), so a synchronous deflate on the request path would
+ *  1. ASYNC ONLY. The encoder is a hard single-instance service (it holds an
+ *     exclusive lockfile), so a synchronous deflate on the request path would
  *     block every other caller for its whole duration. There is deliberately
  *     no *Sync export.
- *  2. TRY, KEEP IF SMALLER (§5.2). Compression is attempted and kept only
+ *  2. TRY, KEEP IF SMALLER. Compression is attempted and kept only
  *     when it actually shrinks the payload; already-compressed media (JPEG,
  *     MP4, ZIP) silently rides raw.
- *  3. EMIT-TIME RATIO MIRROR (§5.2). A payload that compresses BEYOND the
+ *  3. EMIT-TIME RATIO MIRROR. A payload that compresses BEYOND the
  *     serve-side ratio guard is emitted raw, because a compliant reader would
  *     refuse to inflate it. Legitimately hyper-compressible data (logs,
  *     padding, exports) must fail before broadcast, not after the money is
@@ -162,7 +162,7 @@ async function compressPayloadForAction(actionString, rawDataBuffer, options = {
 
     // GUARD 2: gated FILEs are carved out, and this is the subtle one.
     //
-    // On a gated FILE, COMPRESSION=1 means "inflate AFTER decrypt" (spec §5.4):
+    // On a gated FILE, COMPRESSION=1 means "inflate AFTER decrypt":
     // the field describes the PLAINTEXT, compressed by the client before
     // encryption. If the encoder also compressed the ciphertext and set the
     // same field, the marker would be ambiguous and a reader would try to
@@ -177,7 +177,7 @@ async function compressPayloadForAction(actionString, rawDataBuffer, options = {
         return refuse(TypeError, 'gated-file',
             'Compression requested for a token-gated FILE. On a gated FILE the ' +
             'COMPRESSION field means inflate-after-decrypt and belongs to the client that ' +
-            'performed compress-then-encrypt (spec §5.4); the encoder must not set it. ' +
+            'performed compress-then-encrypt; the encoder must not set it. ' +
             'Compress the plaintext before encrypting and pass the field in the action string.')
 
     // GUARD 3: never overwrite a marker the caller already set. If a caller
@@ -189,7 +189,7 @@ async function compressPayloadForAction(actionString, rawDataBuffer, options = {
             `Compression requested, but the action already declares COMPRESSION='${declared}'. ` +
             'Refusing to re-compress bytes whose codec the caller already asserted.')
 
-    // GUARD 4: pre-compression input cap (§5.2).
+    // GUARD 4: pre-compression input cap.
     if (rawDataBuffer.length > maxInputBytes)
         return refuse(RangeError, 'over-input-cap',
             `Payload of ${rawDataBuffer.length} bytes exceeds the ` +

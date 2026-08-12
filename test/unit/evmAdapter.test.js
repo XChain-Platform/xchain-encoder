@@ -8,7 +8,7 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 //
-// EvmAdapter / finality-gate PRE-WORK STUB tests .
+// EvmAdapter / finality-gate pre-work stub tests.
 // These lock the finality-gate values and THE L2 TRAP guard, and assert the
 // adapter surface is a loud, uniform not-implemented stub (never a silent
 // undefined). They do NOT exercise any real EVM tx path (there is none yet).

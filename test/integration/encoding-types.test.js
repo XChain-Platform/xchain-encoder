@@ -39,8 +39,6 @@ const NETWORK = 'dogecoin-regtest'
 
 describe('Category B: Encoding Type Integration', () => {
 
-  // ── B-1: OP_RETURN script structure ─────────────────────────────
-
   describe('B-1: OP_RETURN script structure', () => {
     it('output has value=0 and script starts with OP_RETURN (0x6a)', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -60,7 +58,6 @@ describe('Category B: Encoding Type Integration', () => {
       assert.ok(opReturnOutput, 'should have an OP_RETURN output')
       assert.strictEqual(opReturnOutput.script[0], bitcoin.opcodes.OP_RETURN)
 
-      // Decompile and verify obfuscated data is present
       const decompiled = bitcoin.script.decompile(opReturnOutput.script)
       assert.ok(Buffer.isBuffer(decompiled[1]), 'data should be a buffer after OP_RETURN')
     })
@@ -81,8 +78,6 @@ describe('Category B: Encoding Type Integration', () => {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
-
-  // ── B-2: P2SH tx1 (funding output) ─────────────────────────────
 
   describe('B-2: P2SH tx1 (funding output)', () => {
     it('creates P2SH output with value >= dustAmount', async () => {
@@ -135,8 +130,6 @@ describe('Category B: Encoding Type Integration', () => {
     })
   })
 
-  // ── B-3: P2SH tx2 (spending input) ─────────────────────────────
-
   describe('B-3: P2SH tx2 (spending input with redeemScript)', () => {
     it('creates tx2 with P2SH input and OP_RETURN marker', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -144,7 +137,6 @@ describe('Category B: Encoding Type Integration', () => {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
-      // Create tx1
       const tx1Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, null, address,
@@ -154,7 +146,6 @@ describe('Category B: Encoding Type Integration', () => {
       const tx1Hex = tx1Result.psbt.__CACHE.__TX.toHex()
       const tx1Id = tx1Result.psbt.__CACHE.__TX.getId()
 
-      // Create tx2
       const tx2Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, null, address,
@@ -163,10 +154,8 @@ describe('Category B: Encoding Type Integration', () => {
 
       assert.strictEqual(tx2Result.encoding, 'P2SH')
 
-      // tx2 should have at least 1 input (the P2SH spend)
       assert.ok(tx2Result.psbt.data.inputs.length >= 1)
 
-      // tx2 should have an OP_RETURN marker output with value 0
       const markerOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
       assert.strictEqual(markerOutput.script[0], bitcoin.opcodes.OP_RETURN)
@@ -193,11 +182,9 @@ describe('Category B: Encoding Type Integration', () => {
         tx1Id, tx1Hex, null, true, 0.00001
       )
 
-      // The first input should have a redeemScript
       const input = tx2Result.psbt.data.inputs[0]
       assert.ok(input.redeemScript, 'P2SH input should have redeemScript')
 
-      // Decompile the redeemScript to verify it contains data
       const decompiled = bitcoin.script.decompile(input.redeemScript)
       assert.ok(Buffer.isBuffer(decompiled[0]), 'first element should be data')
       assert.strictEqual(decompiled[1], bitcoin.opcodes.OP_DROP)
@@ -205,8 +192,6 @@ describe('Category B: Encoding Type Integration', () => {
       assert.strictEqual(decompiled[3], bitcoin.opcodes.OP_HASH160)
     })
   })
-
-  // ── B-4: P2WSH tx1 (funding output) ────────────────────────────
 
   describe('B-4: P2WSH tx1 (funding output)', () => {
     it('creates P2WSH output when explicitly requested', async () => {
@@ -238,8 +223,6 @@ describe('Category B: Encoding Type Integration', () => {
     })
   })
 
-  // ── B-5: P2WSH tx2 (spending input) ────────────────────────────
-
   describe('B-5: P2WSH tx2 (witness input)', () => {
     it('creates tx2 with witnessScript containing ACTION data', async () => {
       // P2WSH requires bech32; use bitcoin-regtest
@@ -249,7 +232,6 @@ describe('Category B: Encoding Type Integration', () => {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
-      // Create tx1
       const tx1Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, 'P2WSH', address,
@@ -259,7 +241,6 @@ describe('Category B: Encoding Type Integration', () => {
       const tx1Hex = tx1Result.psbt.__CACHE.__TX.toHex()
       const tx1Id = tx1Result.psbt.__CACHE.__TX.getId()
 
-      // Create tx2
       const tx2Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, 'P2WSH', address,
@@ -268,22 +249,17 @@ describe('Category B: Encoding Type Integration', () => {
 
       assert.strictEqual(tx2Result.encoding, 'P2WSH')
 
-      // tx2 first input should have a witnessScript
       const input = tx2Result.psbt.data.inputs[0]
       assert.ok(input.witnessScript, 'P2WSH input should have witnessScript')
 
-      // Decompile the witnessScript
       const decompiled = bitcoin.script.decompile(input.witnessScript)
       assert.ok(Buffer.isBuffer(decompiled[0]), 'first element should be data')
       assert.strictEqual(decompiled[1], bitcoin.opcodes.OP_DROP)
 
-      // tx2 should have OP_RETURN marker
       const markerOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
     })
   })
-
-  // ── B-6: MULTISIGN output structure ─────────────────────────────
 
   describe('B-6: MULTISIGN output structure', () => {
     // MULTISIGN requires data that produces valid EC points after obfuscation.
@@ -304,7 +280,6 @@ describe('Category B: Encoding Type Integration', () => {
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
-      // Find the multisig output (value = dustAmount)
       const msOutput = result.psbt.txOutputs.find(o =>
         o.value === encoder.dustAmount
       )
@@ -343,14 +318,12 @@ describe('Category B: Encoding Type Integration', () => {
     })
   })
 
-  // ── B-7: Forced encoding override ──────────────────────────────
-
   describe('B-7: Forced encoding override', () => {
     it('uses P2SH when explicitly requested despite data fitting OP_RETURN', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const action = actions.makeSend() // small data
+      const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -361,8 +334,6 @@ describe('Category B: Encoding Type Integration', () => {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
-
-  // ── B-8: Oversized OP_RETURN rejected ──────────────────────────
 
   describe('B-8: Oversized OP_RETURN rejected', () => {
     it('rejects forced OP_RETURN when data exceeds a single output', async () => {

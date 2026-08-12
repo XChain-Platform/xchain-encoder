@@ -8,7 +8,7 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 //
-// : satoshi amounts above Number.MAX_SAFE_INTEGER (2^53-1, ~90.07M
+// Exercises satoshi amounts above Number.MAX_SAFE_INTEGER (2^53-1, ~90.07M
 // DOGE) through the validator, the PSBT construction, and the 64-bit wire
 // serializers. Exact decimal STRINGS above 2^53-1 are carried as BigInt;
 // already-lossy Numbers stay rejected (fail closed).
@@ -53,9 +53,7 @@ function makeEncoder () {
   return encoder
 }
 
-describe(': large satoshi amounts (>2^53-1)', () => {
-
-  // ── validator ────────────────────────────────────────────────────
+describe('large satoshi amounts (>2^53-1)', () => {
 
   describe('parseSatoshiAmount', () => {
     it('still rejects a >2^53-1 string without allowBig (fail closed)', () => {
@@ -100,8 +98,6 @@ describe(': large satoshi amounts (>2^53-1)', () => {
       assert.strictEqual(outs[0].value, 9007199254740993n)
     })
   })
-
-  // ── PSBT construction end-to-end (no daemon) ─────────────────────
 
   describe('createTransaction', () => {
     it('builds a PSBT paying a >2^53-1-sat custom output with exact change', async () => {
@@ -162,8 +158,6 @@ describe(': large satoshi amounts (>2^53-1)', () => {
       )
     })
   })
-
-  // ── patched serializers stay correct in the safe range ───────────
 
   describe('patched 64-bit serializers', () => {
     it('round-trips safe-range values as Number and big values as BigInt', () => {

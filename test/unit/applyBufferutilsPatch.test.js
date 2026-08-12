@@ -1,8 +1,8 @@
-//  doctrine test-coverage program: unit coverage for
-// src/applyBufferutilsPatch.js. The encoder patches bitcoinjs bufferutils so
-// 64-bit amount fields round-trip through a BigInt-safe path (values above
-// 2^53 would otherwise silently corrupt). This exercises the patched
-// read/write and varint helpers the PSBT builder relies on.
+// Unit coverage for src/applyBufferutilsPatch.js. The encoder patches
+// bitcoinjs bufferutils so 64-bit amount fields round-trip through a
+// BigInt-safe path (values above 2^53 would otherwise silently corrupt).
+// This exercises the patched read/write and varint helpers the PSBT builder
+// relies on.
 
 const assert = require('assert');
 const bufferutils = require('../../src/applyBufferutilsPatch.js');

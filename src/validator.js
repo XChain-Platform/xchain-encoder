@@ -48,19 +48,19 @@ const MAX_DATA_BYTES = MAX_COMPILED_ACTION_DATA_LENGTH - OP_RETURN_PUSH_OVERHEAD
 // which stays the arbiter/backstop; measured pre-compile here only when the caller
 // explicitly requests encoding:"OP_RETURN" so an oversize request is rejected as
 // -32602 invalid-params before any UTXO reservation, instead of failing post-compile
-// as a -32603 internal error (#3137). The compiled value this is compared against is
+// as a -32603 internal error. The compiled value this is compared against is
 // exactly finalDataBuffer.length in createTransaction (same compiledPushSize sum).
 const OP_RETURN_OUTPUT_SIZE = 80
 const OP_RETURN_MAGIC_WORD_LENGTH = 4
 const MAX_OP_RETURN_COMPILED_LENGTH = OP_RETURN_OUTPUT_SIZE - OP_RETURN_MAGIC_WORD_LENGTH  // 76
-// Taproot-envelope payload ceiling ( spec §4), per-encoding by design:
+// Taproot-envelope payload ceiling, per-encoding by design:
 // only encoding:"TAPROOT" gets it, every legacy lane keeps the 8,192-byte
 // compiled ceiling (a global raise would multiply the chunk-lane abuse ceiling
 // ~50x for no benefit). Measures the reassembled envelope payload byte length
 // after concatenation of the payload pushes, which is byte-identical to the
 // compiled action stream (finalDataBuffer) the shipped lanes carry; the
 // envelope's own 520-byte push framing is NOT counted.
-// DERIVED FROM WEIGHT : the binding limit is Bitcoin Core's
+// DERIVED FROM WEIGHT: the binding limit is Bitcoin Core's
 // MAX_STANDARD_TX_WEIGHT of 400,000 WU, not a round byte count. 400,000 payload
 // bytes build a 402,789 WU reveal, which is non-standard and unrelayable; the
 // true maxima are 397,228 (P2WPKH change) and 397,009 (P2TR change + floor pad).
@@ -72,20 +72,20 @@ const ENVELOPE_MAX_PAYLOAD = 390_000
 // derived from. Vendored so the derivation is testable here rather than being
 // arithmetic in a comment. Canonical: xchain-documentation/protocol/constants.js.
 const MAX_STANDARD_TX_WEIGHT = 400_000
-// FILE payload compression ( spec Part B). Vendored byte-identical from
+// FILE payload compression. Vendored byte-identical from
 // xchain-documentation/protocol/constants.js; the conformance suite keeps the
 // copies in lockstep.
 //
 // COMPRESSION is a trailing optional field on FILE v0, empty/absent = raw and
-// '1' = deflate-raw. It is PRESENTATIONAL, never consensus (§5.5): FILE
+// '1' = deflate-raw. It is PRESENTATIONAL, never consensus: FILE
 // validity never inspects rawData content, so no reader may validate it.
 const COMPRESSION_CODE_DEFLATE_RAW = '1'
-// Serve-side ratio cap, mirrored here at EMIT time (§5.2): a payload that
+// Serve-side ratio cap, mirrored here at EMIT time: a payload that
 // compresses beyond it is emitted RAW, because a compliant reader would refuse
 // to inflate it. 150:1 sits well under deflate-raw's ~1032:1 maximum.
 const COMPRESSION_MAX_RATIO = 150
 // Pre-compression input cap on rawData. The encoder is a hard single-instance
-// service ( lockfile guard), so compression is async and bounded.
+// service (it holds an exclusive lockfile), so compression is async and bounded.
 const COMPRESSION_MAX_INPUT_BYTES = 16 * 1024 * 1024
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
@@ -118,8 +118,8 @@ const RAW_TX_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/
 // before it reaches Buffer.from(...,'hex') / bitcoin.script.decompile.
 const MAX_SCRIPTPUBKEY_HEX_LENGTH = 20_000
 // AUTO is not a carrier: it is the caller's explicit request that the encoder
-// pick the smallest-footprint carrier the network and signer support (
-// spec §6). It resolves to one of the others before anything is built. It is an
+// pick the smallest-footprint carrier the network and signer support. It
+// resolves to one of the others before anything is built. It is an
 // OPT-IN precisely because resolving to TAPROOT changes the response shape from
 // one PSBT to a commit/reveal pair, which no existing caller expects.
 const VALID_ENCODINGS = new Set(['OP_RETURN', 'P2SH', 'MULTISIGN', 'P2WSH', 'TAPROOT', 'AUTO'])
@@ -130,7 +130,7 @@ const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 // XChainDecoder.js). Vendored here byte-for-byte from
 // xchain-documentation/protocol/action-manifest.json (wireDecoded slice), the
 // same source xchain-decoder/test/fixtures/action-manifest.json vendors from.
-// : the decoder is the arbiter of which leading ACTION token survives
+// The decoder is the arbiter of which leading ACTION token survives
 // decode (both the confirmed-block and mempool gates reject anything not in
 // this set, after alias expansion, silently no-actioning the tx); the encoder
 // had no equivalent gate, so a typoed or too-new ACTION name would encode, pay
@@ -204,7 +204,7 @@ const MAX_SATOSHI_U64 = 0xffffffffffffffffn
 // exact decimal STRING above 2^53-1 then parses to a BigInt (up to the u64
 // wire ceiling); a Number above 2^53-1 is still rejected because it was
 // already rounded before it reached us (JSON.parse or caller arithmetic).
-// Without allowBig the pre- fail-closed behavior is unchanged.
+// Without allowBig the original fail-closed behavior is unchanged.
 function parseSatoshiAmount(raw, label, opts) {
     const allowBig = !!(opts && opts.allowBig)
     // Already-coerced BigInt (validateUtxoEntry/validateCustomOutput ran
@@ -272,7 +272,7 @@ function firstNonLatin1(str) {
 // the decoder can never reconstruct into the value that was validated, so refuse
 // them here instead. RangeError so api.js maps it to -32602 invalid-params. Only
 // non-roundtrippable inputs are newly rejected, so nothing that used to encode
-// faithfully regresses ().
+// faithfully regresses.
 function validateDataParam(value, fieldName) {
     if (value == null) return null
     if (typeof value !== 'string') {
@@ -342,7 +342,7 @@ function validateActionPushDecodability(data, rawData) {
 // action name nor a known alias. Mirrors exactly how the decoder tokenizes:
 // XChainDecoder.js does `decodedData.split("|")[0]` then
 // `ACTION_ALIASES[rawActionName] ?? rawActionName` against VALID_ACTION_NAMES,
-// at both the confirmed-block and mempool gate sites. : without this
+// at both the confirmed-block and mempool gate sites. Without this
 // check, a typoed or not-yet-deployed ACTION name compiles into a valid,
 // fee-paid, broadcast transaction that the decoder then silently no-actions
 // (parseErrors++, decodedData = "" / tx skipped) with no error back to the
@@ -381,7 +381,7 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // undercount the on-chain size and let dual-push payloads slip past this
     // pre-check only to fail the compiled-size ceiling later in createTransaction.
     const compiled = compiledPushSize(dataBytes) + (rawData != null ? compiledPushSize(rawBytes) : 0)
-    // Per-encoding ceiling ( spec §4). "TAPROOT" and "AUTO" both get the
+    // Per-encoding ceiling. "TAPROOT" and "AUTO" both get the
     // envelope ceiling; every other value (including an OMITTED encoding) keeps
     // the legacy ceiling, because the legacy lanes' decoders silently drop
     // anything over 8,192 compiled bytes.
@@ -525,7 +525,7 @@ function validateUtxoEntry(entry, index) {
 
     // allowBig: a DOGE consolidation UTXO can legitimately exceed 2^53-1 sats;
     // the tracker emits it as an exact decimal string and the encoder's money
-    // path carries it as a BigInt .
+    // path carries it as a BigInt.
     entry.value = parseSatoshiAmount(entry.value, `utxos[${index}].value`, { allowBig: true })
 
     if (typeof entry.scriptPubKey !== 'string' || entry.scriptPubKey.length === 0) {
@@ -580,7 +580,7 @@ function validateCustomOutput(output, index) {
     }
     validateAddress(output.address, `customOutputs[${index}].address`)
     // allowBig: a >2^53-1-sat DOGE payment output is legitimate; it must be
-    // supplied as an exact decimal string .
+    // supplied as an exact decimal string.
     output.value = parseSatoshiAmount(output.value, `customOutputs[${index}].value`, { allowBig: true })
     // A caller-supplied output of 0 sats is consensus-valid but relay-rejected
     // as an unspendable/dust output, so the caller signs a PSBT that can never
@@ -705,7 +705,7 @@ function validateAll(params) {
     const data = validateDataParam(params.data, 'data')
     const rawData = validateDataParam(params.rawData, 'rawData')
     // Resolve encoding before the length check so validateCombinedDataLength can
-    // apply the per-encoding (OP_RETURN) ceiling pre-compile (#3137).
+    // apply the per-encoding (OP_RETURN) ceiling pre-compile.
     const encoding = validateEncoding(params.encoding)
     if (data != null || rawData != null) {
         validateCombinedDataLength(data, rawData, encoding)
@@ -739,7 +739,7 @@ function validateAll(params) {
     }
 
     // TAPROOT is a single-call flow: create_tx returns the {commit, reveal}
-    // PSBT pair together ( spec §6), pre-built against the unsigned
+    // PSBT pair together, pre-built against the unsigned
     // commit's stable txid. The p2shHash/p2shHex second-call reveal flow is a
     // chunk-lane concept and must not engage here.
     if (encoding === 'TAPROOT' && p2shHash != null) {
@@ -766,7 +766,7 @@ function validateAll(params) {
     const rbf = validateOptionalBoolean(params.rbf, 'rbf')
     const unconfirmed = validateOptionalBoolean(params.unconfirmed, 'unconfirmed')
 
-    // : attach each segwit input's FULL previous transaction alongside
+    // Attach each segwit input's FULL previous transaction alongside
     // its witnessUtxo. Off by default because it costs one node round trip per
     // input plus the prev tx's bytes in every copy of the PSBT, and only a
     // hardware signer needs it: Ledger derives the outpoint it signs from the
@@ -775,13 +775,13 @@ function validateAll(params) {
     // produced a valid-looking signature over an outpoint that does not exist).
     const attachPrevTx = validateOptionalBoolean(params.attachPrevTx, 'attachPrevTx')
 
-    //  Part B: transparent FILE payload compression. TRI-STATE since S5 -
-    // absent means "use the deployment default" (ON since S5, spec §5.2), and
-    // an explicit true/false is the caller's own choice. An explicit true that
+    // Transparent FILE payload compression. TRI-STATE: absent means "use the
+    // deployment default" (currently ON), and an explicit true/false is the
+    // caller's own choice. An explicit true that
     // cannot be honoured is an error; the default pass just rides raw.
     const compress = validateOptionalBoolean(params.compress, 'compress')
 
-    // Signer capability for AUTO selection (§6). Absent means "cannot sign a
+    // Signer capability for AUTO selection. Absent means "cannot sign a
     // tapscript spend", the fail-closed direction: the reveal must be signable
     // before the commit is broadcast, so an unaffirmed signer never gets the
     // envelope. Kept in an options bag rather than as another positional

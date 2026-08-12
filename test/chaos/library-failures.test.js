@@ -30,8 +30,6 @@ const DOGE_ADDR = getTestAddress(DOGE)
 
 describe('Chaos Category C: Library & Crypto Failures', () => {
 
-  // ── C-1: Psbt.addInput() rejection ────────────────────────────
-
   describe('C-1: Psbt.addInput() throws', () => {
     let _origAddInput
 
@@ -60,8 +58,6 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
-
-  // ── C-2: Psbt.addOutput() rejection ───────────────────────────
 
   describe('C-2a: Psbt.addOutput() all calls fail', () => {
     let _origAddOutput
@@ -125,8 +121,6 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
     })
   })
 
-  // ── C-3: crypto.createCipheriv failure ────────────────────────
-
   describe('C-3: crypto.createCipheriv failure', () => {
     let _origCreateCipheriv
 
@@ -155,8 +149,6 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
-
-  // ── C-4: bitcoin.script.compile failure ───────────────────────
 
   describe('C-4: bitcoin.script.compile failure', () => {
     let _origCompile
@@ -190,12 +182,11 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
     })
   })
 
-  // ── C-5: Non-base58 caller identity for P2SH ──────────────────
   // No monkey-patching needed; uses the real encoder.
   //
   // Both cases were written when resolveCallerHash160 was a bare
   // fromBase58Check, so ANY non-base58 identity crashed with "Non-base58
-  // character".  made that resolver accept every identity form a client
+  // character". The resolver now accepts every identity form a client
   // legitimately sends (raw pubkey hex, v0 bech32 P2WPKH) because the P2SH
   // chunk-lane gate needs the same 20 bytes whichever form arrives, and every
   // wallet flow sends a raw pubkey. So a bech32 caller is no longer an error,
@@ -203,7 +194,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
   // crash. The chaos value is in that split: what resolves, and what does not.
 
   describe('C-5: Non-base58 caller identity for P2SH encoding', () => {
-    it('bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey ', async () => {
+    it('bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 

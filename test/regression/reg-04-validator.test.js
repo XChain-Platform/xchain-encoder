@@ -58,8 +58,6 @@ function makeValidUtxoEntry () {
 
 describe('REG-04: Validator Functions', function () {
 
-  // ── REG-04.1: validatePubkey ──────────────────────────────────
-
   describe('REG-04.1: validatePubkey()', function () {
     it('returns null for null input', function () {
       assert.strictEqual(validatePubkey(null), null)
@@ -91,8 +89,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.2: validateDataParam ───────────────────────────────
-
   describe('REG-04.2: validateDataParam()', function () {
     it('returns null for null', function () {
       assert.strictEqual(validateDataParam(null, 'data'), null)
@@ -110,8 +106,6 @@ describe('REG-04: Validator Functions', function () {
       assert.throws(() => validateDataParam(true, 'data'), { name: 'TypeError' })
     })
   })
-
-  // ── REG-04.3: validateCombinedDataLength ──────────────────────
 
   describe('REG-04.3: validateCombinedDataLength()', function () {
     it('does nothing for null data', function () {
@@ -142,8 +136,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.4: validateEncoding ────────────────────────────────
-
   describe('REG-04.4: validateEncoding()', function () {
     it('returns null for null', function () {
       assert.strictEqual(validateEncoding(null), null)
@@ -156,7 +148,7 @@ describe('REG-04: Validator Functions', function () {
     })
 
     it('throws TypeError for invalid string', function () {
-      // TAPROOT graduated to a valid encoding ; pin a string that is
+      // TAPROOT graduated to a valid encoding; pin a string that is
       // still genuinely unknown.
       assert.throws(() => validateEncoding('P2TR'), { name: 'TypeError' })
     })
@@ -172,8 +164,6 @@ describe('REG-04: Validator Functions', function () {
       assert.throws(() => validateEncoding('p2sh'), { name: 'TypeError' })
     })
   })
-
-  // ── REG-04.5: validateFee ─────────────────────────────────────
 
   describe('REG-04.5: validateFee()', function () {
     it('returns null for null', function () {
@@ -213,8 +203,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.6: validateFeePerKb ────────────────────────────────
-
   describe('REG-04.6: validateFeePerKb()', function () {
     it('returns null for null', function () {
       assert.strictEqual(validateFeePerKb(null), null)
@@ -245,8 +233,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.7: validateDust ────────────────────────────────────
-
   describe('REG-04.7: validateDust()', function () {
     it('returns null for null', function () {
       assert.strictEqual(validateDust(null), null)
@@ -272,8 +258,6 @@ describe('REG-04: Validator Functions', function () {
       assert.throws(() => validateDust(-1), { name: 'RangeError' })
     })
   })
-
-  // ── REG-04.8: validateUtxoEntry ───────────────────────────────
 
   describe('REG-04.8: validateUtxoEntry()', function () {
     it('validates a complete valid entry and coerces value/vout', function () {
@@ -354,8 +338,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.9: validateUtxoArray ───────────────────────────────
-
   describe('REG-04.9: validateUtxoArray()', function () {
     it('returns null for null input', function () {
       assert.strictEqual(validateUtxoArray(null), null)
@@ -381,8 +363,6 @@ describe('REG-04: Validator Functions', function () {
       assert.doesNotThrow(() => validateUtxoArray(arr))
     })
   })
-
-  // ── REG-04.10: validateCustomOutputs ──────────────────────────
 
   describe('REG-04.10: validateCustomOutputs()', function () {
     it('returns null for null input', function () {
@@ -427,8 +407,6 @@ describe('REG-04: Validator Functions', function () {
       )
     })
   })
-
-  // ── REG-04.11: validateP2shParams ─────────────────────────────
 
   describe('REG-04.11: validateP2shParams()', function () {
     it('returns nulls when both absent', function () {
@@ -478,8 +456,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.12: validateCompressedPubKey ───────────────────────
-
   describe('REG-04.12: validateCompressedPubKey()', function () {
     it('returns null for null', function () {
       assert.strictEqual(validateCompressedPubKey(null), null)
@@ -512,8 +488,6 @@ describe('REG-04: Validator Functions', function () {
     })
   })
 
-  // ── REG-04.13: validateChange ─────────────────────────────────
-
   describe('REG-04.13: validateChange()', function () {
     it('returns null for null', function () {
       assert.strictEqual(validateChange(null), null)
@@ -535,8 +509,6 @@ describe('REG-04: Validator Functions', function () {
       assert.throws(() => validateChange(42), { name: 'TypeError' })
     })
   })
-
-  // ── REG-04.14: validateAll() integration ──────────────────────
 
   describe('REG-04.14: validateAll() integration', function () {
     it('returns sanitized object with all fields for valid input', function () {
@@ -582,7 +554,7 @@ describe('REG-04: Validator Functions', function () {
     })
 
     it('rejects non-boolean rbf and unconfirmed, passes real booleans through', function () {
-      // Hardened behavior (): a non-boolean rbf/unconfirmed (e.g. the string
+      // Hardened behavior: a non-boolean rbf/unconfirmed (e.g. the string
       // "false", which is truthy) would silently flip RBF signaling or unconfirmed-UTXO
       // selection on a money protocol, so validateAll rejects anything but a real JSON
       // boolean instead of coercing; undefined/null still fall through to the defaults.

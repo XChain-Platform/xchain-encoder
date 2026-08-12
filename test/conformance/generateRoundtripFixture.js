@@ -8,8 +8,8 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 //
-// Generator for the shared encoder->decoder roundtrip conformance fixture
-// (). Emits test/fixtures/roundtrip-conformance.json, the single
+// Generator for the shared encoder->decoder roundtrip conformance fixture.
+// Emits test/fixtures/roundtrip-conformance.json, the single
 // golden artifact consumed by BOTH the encoder suite (drift guard) and the
 // decoder suite (real-decoder decode of encoder-built bytes). Regenerate with:
 //   node test/conformance/generateRoundtripFixture.js
@@ -17,10 +17,10 @@
 // the AES-128-CTR obfuscation are pure functions of their inputs.
 //
 // It pins the exact byte path where two shipped cross-service bugs lived:
-//   #1293 rawData-only  -> compile([<empty>, rawData]) emits a leading OP_0 the
-//                          decoder's Buffer gate discards (fee-paid data lost).
-//   #1226 1-byte minimal-op payload -> compile canonicalizes a lone 0x01-0x10 /
-//                          0x81 byte to a bare opcode the decoder discards.
+//   rawData-only  -> compile([<empty>, rawData]) emits a leading OP_0 the
+//                    decoder's Buffer gate discards (fee-paid data lost).
+//   1-byte minimal-op payload -> compile canonicalizes a lone 0x01-0x10 / 0x81
+//                    byte to a bare opcode the decoder discards.
 // Both are captured as `gate: "dropped"` cases so the fixture has teeth: when
 // the flag-day decoder-acceptance change lands, those expectations flip and the
 // conformance test forces the fixture to be updated in lockstep.
@@ -79,7 +79,7 @@ function signerAddress (encoder) {
   return bitcoin.address.toBase58Check(Buffer.alloc(20, 0x11), encoder.network.pubKeyHash)
 }
 
-// BET ( P3). DETAILS carries the whole market definition on-chain as
+// BET. DETAILS carries the whole market definition on-chain as
 // base64 JSON, which makes a create action the largest routine user payload the
 // encoder produces and forces a multi-chunk P2WSH. Built deterministically here
 // so the encoder->decoder roundtrip is pinned at the DETAILS cap rather than at
@@ -116,13 +116,13 @@ const CASES = [
   { name: 'BET place-bet (OP_RETURN sized)', data: 'BET|2|1234|0|25.00000000|Chiefs all day', rawData: null },
   { name: 'action + rawData (ISSUE + metadata)', data: 'ISSUE|0|TICK', rawData: 'extra-metadata-bytes' },
   { name: 'action + binary rawData (high bytes)', data: 'FILE|0|doc', rawData: '\x00\x01\xff\x80\x7f' },
-  { name: 'rawData-only OP_0 leading push (#1293, currently dropped)', data: '', rawData: 'orphan-raw-payload' },
-  { name: '1-byte minimal-op data 0x05 (#1226, currently dropped)', data: '\x05', rawData: null },
+  { name: 'rawData-only OP_0 leading push (currently dropped)', data: '', rawData: 'orphan-raw-payload' },
+  { name: '1-byte minimal-op data 0x05 (currently dropped)', data: '\x05', rawData: null },
   { name: '1-byte non-minimal data 0x41 (safe single push)', data: 'A', rawData: null },
   { name: 'empty data-only (payment-only / no-ACTION, OP_0)', data: '', rawData: null }
 ]
 
-// MULTISIGN cases . prepareData zero-pads every 64-byte slot; the pad
+// MULTISIGN cases. prepareData zero-pads every 64-byte slot; the pad
 // survives deobfuscation and is discarded only by the payload's self-describing
 // compiled-push length at final decompile, so the pinned expectations exercise
 // the decompile-length pad strip explicitly.
@@ -135,7 +135,7 @@ const MULTISIGN_CASES = [
   { name: 'MULTISIGN exact slot boundary (no pad)', data: 'B'.repeat(118), rawData: null }
 ]
 
-// P2SH/P2WSH multi-chunk cases , incl. the 1-byte final-chunk rebalance
+// P2SH/P2WSH multi-chunk cases, incl. the 1-byte final-chunk rebalance
 // boundary: compiled length 477 with last byte 0x05 splits 476+1, and prepareData
 // must repartition to 475+2 so bitcoin.script.compile's asMinimalOP cannot turn
 // the lone 0x05 into a bare OP_5 the decoder's redeem-script Buffer gate drops.
@@ -149,7 +149,7 @@ const P2SH_CASES = [
   { name: 'P2WSH BET create at the DETAILS cap', encoding: 'P2WSH', data: BET_CREATE_MAX_DETAILS, rawData: null, expectedChunkLengths: [476, 476, 476, 476, 476, 476, 476, 476, 476, 476, 476, 319] }
 ]
 
-// Alias-rewrite cases : on-wire payloads carrying a short-form ACTION
+// Alias-rewrite cases: on-wire payloads carrying a short-form ACTION
 // name the decoder must canonicalize (canonicalizeActionPayload) before the
 // VALID_ACTION_NAMES gate, so the DB never stores the alias spelling.
 // A single raw push of N bytes (N >= 256) compiles to N + 3: the OP_PUSHDATA2
@@ -327,12 +327,12 @@ async function main () {
   for (const c of ALIAS_CASES) aliasCases.push(await buildAliasCase(encoder, c))
 
   const fixture = {
-    _comment: 'Shared encoder->decoder roundtrip conformance fixture (; extended by  ' +
-      'with MULTISIGN slots, P2SH/P2WSH multi-chunk incl. the final-chunk rebalance boundary, and ' +
-      'alias-rewrite cases). Generated by test/conformance/generateRoundtripFixture.js; regenerate and ' +
-      'review on change. Consumed by the encoder drift-guard test and the decoder real-decode ' +
-      'conformance test. gate "dropped" cases (#1293, #1226) pin known cross-service data-loss ' +
-      'shapes; when the flag-day decoder-acceptance change lands those expectations flip.',
+    _comment: 'Shared encoder->decoder roundtrip conformance fixture, covering OP_RETURN, ' +
+      'MULTISIGN slots, P2SH/P2WSH multi-chunk (incl. the final-chunk rebalance boundary) and ' +
+      'alias-rewrite cases. Generated by test/conformance/generateRoundtripFixture.js; regenerate ' +
+      'and review on change. Consumed by the encoder drift-guard test and the decoder real-decode ' +
+      'conformance test. gate "dropped" cases pin known cross-service data-loss shapes; when the ' +
+      'flag-day decoder-acceptance change lands those expectations flip.',
     magicWord: MAGIC_WORD,
     cases,
     multisignCases,

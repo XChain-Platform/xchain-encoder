@@ -1,5 +1,5 @@
 /*
- * Unit tests for the single-instance deploy guard .
+ * Unit tests for the single-instance deploy guard.
  *
  * The outpoint-reservation store is an in-process Map; these tests pin the
  * boot-time guards that keep horizontally scaled or duplicate-process deploys
@@ -47,7 +47,7 @@ describe('singleInstanceGuard', function () {
     })
 
     // The lock records { pid, cmd } so a later boot can tell the process that
-    // took it from whatever holds that pid number now . A bare integer
+    // took it from whatever holds that pid number now. A bare integer
     // is still accepted, because a lock can outlive an upgrade.
     function heldPid(file) {
         const text = fs.readFileSync(file, 'utf8')
@@ -121,7 +121,6 @@ describe('singleInstanceGuard', function () {
 
         it('breaks a stale lock held by a dead pid', function () {
             const file = path.join(dir, 'c.lock')
-            // Find a dead pid.
             let deadPid = 99999
             while (isPidAlive(deadPid)) deadPid--
             fs.writeFileSync(file, String(deadPid))
@@ -146,7 +145,7 @@ describe('singleInstanceGuard', function () {
             release()
         })
 
-        // . A bare pid is not an identity: the lockfile lives in the
+        // A bare pid is not an identity: the lockfile lives in the
         // container's writable layer and survives a restart, and the next boot's
         // process tree hands that number to a different live process. Measured on
         // the regtest encoder: the lock held node's pid, that number had become
@@ -289,7 +288,7 @@ describe('singleInstanceGuard', function () {
     })
 
     // The lock is released on the way out through a SIGNAL, because that is how
-    // this process actually dies : `docker stop` and `docker restart`
+    // this process actually dies: `docker stop` and `docker restart`
     // send SIGTERM, and 'exit' does not fire for that. A fake process stands in
     // so the assertions do not depend on signalling the test runner.
     describe('releaseLockOnSignals', function () {
@@ -380,11 +379,9 @@ describe('singleInstanceGuard', function () {
             releaseLockOnSignals(() => {}, proc)
             proc.raise('SIGTERM')
             // raise() runs the handler synchronously, so the re-raise is already
-            // recorded; there is nothing to wait for and the old grace sleep only
-            // let the unref'd fallback timer race the assertion.
-            // A real process is gone here; the fallback timer fires into nothing.
-            // What must not happen is a SECOND, different exit path being taken
-            // while the signalled death is already in flight.
+            // recorded and there is nothing to wait for; the fallback timer fires
+            // into nothing. What must not happen is a SECOND, different exit path
+            // being taken while the signalled death is already in flight.
             assert.deepStrictEqual(proc.killed, [[4242, 'SIGTERM']])
         })
 

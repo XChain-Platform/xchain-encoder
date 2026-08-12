@@ -21,7 +21,7 @@
  * addOutput at 21M BTC in sats (2.1e15). Dogecoin has no supply cap, so a
  * single output can legitimately exceed both ceilings (>~90.07M DOGE for
  * 2^53); without this patch the encoder cannot build such a PSBT at all.
- * Sibling of xchain-decoder/src/applyBufferutilsPatch.js , which
+ * Sibling of xchain-decoder/src/applyBufferutilsPatch.js, which
  * fixes the same 2^53 wall on the read side of the pipeline.
  *
  * The patch teaches the loaded modules to carry a satoshi value as either

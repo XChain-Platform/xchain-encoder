@@ -161,7 +161,7 @@
           "required": false,
           "schema": {
             "type": "array",
-            "description": "extra outputs [{address, value}] (max 100); value is base units, pass amounts above 2^53-1 as an exact decimal string ",
+            "description": "extra outputs [{address, value}] (max 100); value is base units, pass amounts above 2^53-1 as an exact decimal string",
             "items": {
               "type": "object"
             }
@@ -319,7 +319,7 @@
     {
       "name": "create_envelope_cancel_tx",
       "summary": "Build the key-path cancel PSBT sweeping an unrevealed TAPROOT envelope commit back to the caller.",
-      "description": "Rebuilds the sweep from the persisted recovery record alone ( §3.5); the PSBT carries tapInternalKey and tapMerkleRoot so the signer can compute the BIP341 tweak. The cancel conflicts with the reveal by construction (same outpoint): treat it as a replacement of the reveal.",
+      "description": "Rebuilds the sweep from the persisted recovery record alone; the PSBT carries tapInternalKey and tapMerkleRoot so the signer can compute the BIP341 tweak. The cancel conflicts with the reveal by construction (same outpoint): treat it as a replacement of the reveal.",
       "paramStructure": "by-name",
       "params": [
         {

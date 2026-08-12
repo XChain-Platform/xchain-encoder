@@ -53,7 +53,7 @@ class CryptoNetworks {
         return p ? coins.getCoinConfig(p.tick, p.net).firstBlock : 0;
     }
 
-    //  §7 / : the LOCAL block height at/above which decoders recognize
+    // The LOCAL block height at/above which decoders recognize
     // Taproot-envelope reveals as action-bearing. Unlike firstBlock this IS
     // consensus-visible: it is the flag height the whole fleet flips at, so this
     // copy is vendored byte-equal from the canonical
@@ -78,8 +78,8 @@ class CryptoNetworks {
 // Vendored byte-equal from xchain-documentation/protocol/constants.js.
 // MAINNET HEIGHTS PULLED IN 2026-08-02 (operator decision): BTC 961000 ->
 // 960850, LTC 3160000 -> 3153500, both ~6 hours out from a measured tip rather
-// than 2 and 12 days. Pre-launch features do not wait on dates ; the
-// fleet already runs this code, so only the constant moves.
+// than 2 and 12 days. Pre-launch features do not wait on dates; the fleet
+// already runs this code, so only the constant moves.
 const ENVELOPE_RECOGNITION_ACTIVATION = {
     BTC:  { mainnet: 960850, testnet: 0, regtest: 0 },
     LTC:  { mainnet: 3153500, testnet: 0, regtest: 0 },

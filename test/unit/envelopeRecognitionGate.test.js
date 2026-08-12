@@ -1,8 +1,8 @@
 /*********************************************************************
- * Unit: Taproot envelope recognition gate 
+ * Unit: Taproot envelope recognition gate
  *
  * Segwit support alone was the whole TAPROOT gate, and it is not enough.
- * Envelope recognition activates at a per-network height ( §7); below it
+ * Envelope recognition activates at a per-network height (spec §7); below it
  * every decoder on the fleet ignores the reveal, so a build here would hand the
  * caller a valid, broadcastable, correctly signed commit/reveal pair for an
  * action that will never exist, and they pay a real miner fee for it. The
@@ -57,7 +57,7 @@ async function refuses(height, tip, codeOrType) {
     assert.fail(`expected a refusal for height=${height} tip=${tip}`);
 }
 
-describe('assertEnvelopeRecognized() ', function () {
+describe('assertEnvelopeRecognized()', function () {
     it('allows a genesis-active network without consulting the node at all', async function () {
         // regtest/testnet are height 0; asking the node would be a pointless round trip
         await gateWith(0, 'no-method');
@@ -115,7 +115,7 @@ describe('assertEnvelopeRecognized() ', function () {
     });
 });
 
-describe('encoder activation heights are byte-equal to the decoder consensus copy ', function () {
+describe('encoder activation heights are byte-equal to the decoder consensus copy', function () {
     const DECODER = process.env.XCHAIN_DECODER_DIR ||
         path.join(__dirname, '..', '..', '..', 'xchain-decoder');
     const DECODER_CONSTANTS = path.join(DECODER, 'src', 'protocol', 'constants.js');

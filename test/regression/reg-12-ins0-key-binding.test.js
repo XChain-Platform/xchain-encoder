@@ -8,9 +8,9 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Regression tests for review item 2474: the OP_RETURN/MULTISIGN obfuscation key
-// could bind to an outpoint that does not land at ins[0] when a BLOCKING foreign
-// reservation lapses between key binding and input selection.
+// Regression: the OP_RETURN/MULTISIGN obfuscation key could bind to an
+// outpoint that does not land at ins[0] when a BLOCKING foreign reservation
+// lapses between key binding and input selection.
 //
 // The two phases sample the clock separately (nowFirst at pre-reservation, now at
 // selection) with the async data loop in between, and _isOutpointReserved treats
@@ -70,7 +70,7 @@ function lapseReservationDuringDataLoop (encoder, mutate) {
   }
 }
 
-describe('ins[0] / obfuscation-key binding @regression (item 2474)', function () {
+describe('ins[0] / obfuscation-key binding @regression', function () {
   this.timeout(10000)
 
   it('OP_RETURN: a blocking reservation that lapses mid-build cannot steal ins[0]', async function () {

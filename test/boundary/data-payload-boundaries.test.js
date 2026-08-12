@@ -42,8 +42,6 @@ function standardUtxo () {
 
 describe('Data/Payload Boundaries', () => {
 
-  // ── UTF-8 multi-byte at byte boundary ───────────────────────────
-
   describe('UTF-8 multi-byte at byte boundary', () => {
     it('75-byte UTF-8 string (37 two-byte chars + 1 ASCII) → OP_RETURN', async () => {
       // \u00e9 (é) is 2 bytes in UTF-8. 37 * 2 + 1 = 75 bytes.
@@ -82,16 +80,14 @@ describe('Data/Payload Boundaries', () => {
     })
   })
 
-  // ── Empty data string ───────────────────────────────────────────
-
-  //  moved this boundary: an empty payload used to compile to an OP_0
-  // push, take the 4-byte magic word, and ship as a magic-word-only OP_RETURN
-  // carrying no action, so every plain native-coin payment paid for a nulldata
-  // output and announced itself as an XChain transaction. The emission loop now
-  // gets an empty chunk list and writes nothing. These two cases assert the
-  // boundary in its current position: nothing at data="", content one byte in.
+  // An empty payload used to compile to an OP_0 push, take the 4-byte magic
+  // word, and ship as a magic-word-only OP_RETURN carrying no action, so every
+  // plain native-coin payment paid for a nulldata output and announced itself
+  // as an XChain transaction. The emission loop now gets an empty chunk list
+  // and writes nothing instead. These two cases assert the boundary in its
+  // current position: nothing at data="", content one byte in.
   describe('empty data string', () => {
-    it('data="" → no nulldata output at all (payment-only, )', async () => {
+    it('data="" → no nulldata output at all (payment-only)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
@@ -128,8 +124,6 @@ describe('Data/Payload Boundaries', () => {
       assert.strictEqual(decompilePayload(payload.dataBuffer)[0].toString('utf8'), 'X')
     })
   })
-
-  // ── rawData parameter ───────────────────────────────────────────
 
   describe('rawData parameter interactions', () => {
     it('rawData=null: decompiled script has 1 element', async () => {
@@ -194,8 +188,6 @@ describe('Data/Payload Boundaries', () => {
     })
   })
 
-  // ── Null bytes in data ──────────────────────────────────────────
-
   describe('null bytes in data', () => {
     it('data with embedded null bytes survives round-trip intact', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -222,8 +214,6 @@ describe('Data/Payload Boundaries', () => {
         'null bytes should survive encoding round-trip')
     })
   })
-
-  // ── Very large payload requiring multiple chunks ────────────────
 
   describe('very large payload', () => {
     it('1000-byte data forced to OP_RETURN is rejected (exceeds single output)', async () => {

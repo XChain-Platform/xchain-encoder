@@ -12,11 +12,10 @@
  *
  **********************************************************************
  *
- * XChain Encoder - EVM finality-gate constants (PRE-WORK STUB, )
+ * XChain Encoder - EVM finality-gate constants (PRE-WORK STUB)
  *
- * Account-chain (EVM) support pre-work. Per the account-chains support spec
- * (claude/reports/specs/account-chains-support-spec.md §7.5, §12) the ONE
- * EVM-specific safety decision before any adapter build is defining the
+ * Account-chain (EVM) support pre-work. The ONE EVM-specific safety decision
+ * before any adapter build is defining the
  * confirmation/finality GATE the federation must clear before it relays or
  * settles a cross-chain leg that ORIGINATED on an EVM chain. The rollback and
  * cross-chain retraction machinery already exists and is finality-model
@@ -28,7 +27,7 @@
  * for production is a separate coordinated bump that adds a <COIN>.js data file
  * to src/coins/ and a pin entry, exactly as documented in coins/index.js.
  *
- * THE L2 TRAP (spec §12): an L2's own block depth is NOT a safe finality signal.
+ * THE L2 TRAP: an L2's own block depth is NOT a safe finality signal.
  * Sequencer-level L2 state is reversible until the batch is posted to and final
  * on the L1. The gate for an L2 origin chain must therefore observe L1 batch
  * inclusion + L1 finality, NEVER a count of L2 blocks. isL2BlockDepthSafe()
@@ -61,7 +60,7 @@ const FINALITY_MODES = {
 // because no L2 block depth is safe (the gate is a settlement-chain event, not a
 // count). `finalityMode` is the load-bearing field.
 const EVM_FINALITY = {
-    // ── L1 Ethereum ─────────────────────────────────────────────────────────
+    // L1 Ethereum.
     ETH: {
         chainId:        1,
         family:         'evm',
@@ -79,7 +78,7 @@ const EVM_FINALITY = {
         armed:          false, // not in any consensus pin; pre-work only
     },
 
-    // ── L2 rollups (spec recommends an L2 as the FIRST target; Base default) ──
+    // L2 rollups. An L2 is the recommended FIRST target; Base is the default.
     BASE: {
         chainId:        8453,
         family:         'evm',
@@ -115,8 +114,8 @@ const EVM_FINALITY = {
     },
 };
 
-// Spec §11 recommendation: target one EVM L2 first, framed as bridgeless
-// cross-chain reach. Base is the default first target.
+// Target one EVM L2 first, framed as bridgeless cross-chain reach. Base is the
+// default first target.
 const PRIMARY_L2_TARGET = 'BASE';
 
 // Uppercase-normalized lookup. Throws on an unknown chain so a typo never
@@ -128,7 +127,7 @@ function finalityGate(chain){
     return gate;
 }
 
-// THE L2 TRAP guard (spec §12). Returns true only when counting this chain's own
+// THE L2 TRAP guard. Returns true only when counting this chain's own
 // block depth is a sound finality signal. False for every L2: their state is
 // reversible until posted to and final on the settlement L1, so a gate that
 // counts L2 blocks would settle the Bitcoin leg against reversible state.

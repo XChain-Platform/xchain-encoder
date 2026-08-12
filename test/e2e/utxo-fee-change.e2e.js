@@ -40,8 +40,6 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('E2E-5: UTXO, Fee, and Change Integration', () => {
 
-  // ── E2E-5.1: Single UTXO covers all ──────────────────────────
-
   describe('E2E-5.1: Single UTXO covers all', () => {
     it('1 input, OP_RETURN + change; change = input - fee', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -66,8 +64,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.2: Multiple UTXOs aggregated ────────────────────────
-
   describe('E2E-5.2: Multiple UTXOs aggregated', () => {
     it('adds UTXOs largest-first until sufficient', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -87,8 +83,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       assert.ok(result.psbt.data.inputs.length >= 2)
     })
   })
-
-  // ── E2E-5.3: UTXO deduplication ──────────────────────────────
 
   describe('E2E-5.3: UTXO deduplication', () => {
     it('collapses duplicate (txid, vout) pairs', async () => {
@@ -110,8 +104,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.4: Unconfirmed excluded ─────────────────────────────
-
   describe('E2E-5.4: Unconfirmed UTXOs excluded', () => {
     it('filters mempool UTXOs when unconfirmed=false', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -132,8 +124,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.5: Unconfirmed included ─────────────────────────────
-
   describe('E2E-5.5: Unconfirmed UTXOs included', () => {
     it('uses mempool UTXOs when unconfirmed=true', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -151,8 +141,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       assert.strictEqual(result.psbt.data.inputs.length, 1)
     })
   })
-
-  // ── E2E-5.6: UtxoTracker fallback ─────────────────────────────
 
   describe('E2E-5.6: UtxoTracker fallback', () => {
     it('calls UtxoTracker when utxos is null', async () => {
@@ -196,8 +184,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.7: Fee floor enforcement ────────────────────────────
-
   describe('E2E-5.7: Fee floor enforcement', () => {
     it('floors fee to dustAmount when computed fee is lower', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -217,8 +203,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         `fee ${impliedFee} should be >= dustAmount ${encoder.dustAmount}`)
     })
   })
-
-  // ── E2E-5.8: Fee cap enforcement ──────────────────────────────
 
   describe('E2E-5.8: Fee cap enforcement', () => {
     it('caps fee when maxFeeRateKb is set', async () => {
@@ -264,8 +248,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.9: No change address error ──────────────────────────
-
   describe('E2E-5.9: No change address error', () => {
     it('throws when change address missing and surplus > dust', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -283,8 +265,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       )
     })
   })
-
-  // ── E2E-5.10: Legacy UTXO handling ────────────────────────────
 
   describe('E2E-5.10: Legacy UTXO handling', () => {
     it('P2PKH UTXO triggers getTransactionHex and uses nonWitnessUtxo', async () => {
@@ -312,8 +292,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.11: SegWit UTXO handling ────────────────────────────
-
   describe('E2E-5.11: SegWit UTXO handling', () => {
     it('P2WPKH UTXO uses witnessUtxo, no raw tx fetch', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -337,8 +315,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       assert.strictEqual(getHexCalled, false)
     })
   })
-
-  // ── E2E-5.12: RBF sequence flag ───────────────────────────────
 
   describe('E2E-5.12: RBF sequence flag', () => {
     it('rbf=true sets sequence 0x00000001', async () => {
@@ -372,8 +348,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.13: Custom outputs + ACTION ─────────────────────────
-
   describe('E2E-5.13: Custom outputs coexist with ACTION', () => {
     it('custom output value deducted from change', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -400,8 +374,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     })
   })
 
-  // ── E2E-5.14: Fee source: explicit ────────────────────────────
-
   describe('E2E-5.14: Explicit feePerKb bypasses RPC', () => {
     it('does not call getFeePerKilobyte when feePerKb provided', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -421,8 +393,6 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       assert.ok(result.psbt)
     })
   })
-
-  // ── E2E-5.15: Fee source: RPC ─────────────────────────────────
 
   describe('E2E-5.15: Null feePerKb triggers RPC call', () => {
     it('calls getFeePerKilobyte when feePerKb is null', async () => {

@@ -19,7 +19,7 @@
  ********************************************************************/
 
 // Must load before any PSBT is built: teaches bitcoinjs-lib/bip174 to carry
-// satoshi values above 2^53-1 as BigInt (, DOGE has no supply cap).
+// satoshi values above 2^53-1 as BigInt (DOGE has no supply cap).
 require('./applyBufferutilsPatch')
 const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
@@ -45,7 +45,7 @@ const PW2SH_SIZE = 520
 const MULTISIGN_SIZE = 69 // 9 bytes overhead (1 OP_CHECKMULTISIG + 1 m + 1 n + 2 key-length bytes + 4 magic) + 60 raw data bytes = 69 total bytes per chunk
 const MAGIC_WORD = "XCHN"
 
-// Taproot envelope ( spec §3.2): payload rides as 520-byte pushes inside
+// Taproot envelope: the payload rides as 520-byte pushes inside
 // a single tapscript leaf, bounded per element by consensus
 // MAX_SCRIPT_ELEMENT_SIZE exactly like the chunk lanes; tapscript has no
 // 10,000-byte script cap, so ONE leaf carries the whole payload.
@@ -88,7 +88,7 @@ function compactSizeBuffer(n) {
 // For the single-leaf envelope tree this doubles as the taproot merkle root,
 // which is exactly the third element of the wallet's cancel-recovery record
 // {commit outpoint, internal key derivation path, tapleaf hash}: the key-path
-// tweak cannot be reconstructed without it ( spec §3.5).
+// tweak cannot be reconstructed without it.
 function envelopeTapLeafHash(script) {
     return bitcoin.crypto.taggedHash('TapLeaf',
         Buffer.concat([Buffer.from([TAPROOT_LEAF_VERSION]), compactSizeBuffer(script.length), script]))
@@ -106,8 +106,8 @@ function ensureEccLib() {
 }
 
 // Narrow a satoshi amount computed in BigInt back to a Number when it is
-// exactly representable, so pre- consumers (tests, PSBT inspectors)
-// keep seeing Number for every value they could already handle; only a
+// exactly representable, so consumers predating BigInt support (tests, PSBT
+// inspectors) keep seeing Number for every value they could handle; only a
 // genuinely >2^53-1 amount stays BigInt (the patched bitcoinjs/bip174
 // serializers accept both).
 function asSatValue(v) {
@@ -135,7 +135,7 @@ const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
 
 // Ceiling (in blocks) on how far the utxo-tracker's committed view may lag
 // the chain tip before a tracker-fetched UTXO set is refused rather than
-// risked (M-11, encoder half: the "stale-utxo trap"). A lagging tracker can
+// risked (the "stale-utxo trap"). A lagging tracker can
 // hand back a UTXO already spent on-chain, or omit one that only just
 // confirmed, producing a PSBT the network silently rejects. The tracker's
 // own general-purpose readiness signal (SYNCED_THRESHOLD, in
@@ -154,21 +154,17 @@ const DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS = 2
 // reservation helpers and the selection loop.
 const RESERVATION_TTL_MS = 5 * 60 * 1000
 
-// : resolve the 20-byte caller HASH160 that gates a P2SH/P2WSH chunk-lane
-// reveal, from ANY caller identity a client passes (not just a base58 legacy
-// address). The reveal tx that spends a chunk output must satisfy an ordinary
-// P2PKH gate (OP_DUP OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG) with the
-// SOURCE key, so the returned hash MUST equal HASH160(that pubkey). It is the
-// same 20 bytes whichever identity form the caller sends:
-//   - base58 P2PKH/P2SH address       -> fromBase58Check().hash  (legacy, unchanged)
-//   - raw compressed/uncompressed pubkey hex -> crypto.hash160(pubkey)
-//   - v0 bech32 P2WPKH address         -> the witness program IS HASH160(pubkey)
-// The decoder reads ONLY the leading data chunk (redeemScript[0]) and never this
-// trailer hash, so this is compose-side only with NO consensus/wire surface.
-// Before this, every wallet flow (which sends a raw compressed pubkey) and every
-// bech32 source crashed here with "Non-base58 character", killing large FILE,
-// contract DEPLOY, validator UNSTAKE/claim and cross-chain SWAP broadcast on
-// bech32-only venues (all regtest, and any segwit-only caller in production).
+// Resolve the 20-byte caller HASH160 that gates a P2SH/P2WSH chunk-lane reveal,
+// from ANY caller identity form, not just a base58 legacy address. The reveal tx
+// that spends a chunk output must satisfy an ordinary P2PKH gate (OP_DUP
+// OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG) with the SOURCE key, so the
+// returned hash MUST equal HASH160(that pubkey). It is the same 20 bytes whether
+// the caller sends a base58 address, a raw pubkey hex, or a v0 bech32 P2WPKH
+// address (whose witness program already IS that HASH160). The decoder reads
+// ONLY the leading data chunk (redeemScript[0]) and never this trailer hash, so
+// this is compose-side only with NO consensus/wire surface. Base58-only parsing
+// used to throw "Non-base58 character" here, which broke every wallet flow (they
+// send a raw compressed pubkey) and every bech32-only source.
 function resolveCallerHash160(pubKey) {
     // Raw compressed (02/03 + 64 hex) or uncompressed (04 + 128 hex) pubkey first:
     // a base58 address can never match this shape (base58 excludes 0/O/I/l and
@@ -192,20 +188,16 @@ function resolveCallerHash160(pubKey) {
 
 // Sibling of resolveCallerHash160, same "any identity in" contract, but for
 // call sites that need an address STRING rather than a HASH160 (the UTXO
-// tracker's getUtxosFromAddress, and the dust-padding fallback below). Every
-// wallet flow sends its source as a raw compressed pubkey hex in this
-// `pubkey` param (xchain-wallet's `source.publicKey`) - only a legacy caller
-// or a pre-resolved value ever sends an address directly. Before this,
-// getUtxosFromAddress(pubkey) handed bitcoinjs-lib's address.toOutputScript a
-// raw pubkey hex, which is not valid base58 or bech32, so it threw
-// "<hex> has no matching Script" and every UTXO-tracker-backed compose
-// (i.e. every compose that does not pre-supply `utxos`) failed.
+// tracker's getUtxosFromAddress, and the dust-padding fallback below). Wallet
+// flows send their source as a raw compressed pubkey hex in this `pubkey`
+// param, which is neither base58 nor bech32, so handing it straight to
+// address.toOutputScript threw "<hex> has no matching Script" and failed every
+// compose that did not pre-supply `utxos`.
 // Address-type choice for a bare pubkey: this network's default (P2WPKH when
-// segwit-capable, else legacy P2PKH), matching XChain wallet's own default
-// address type for each coin. A caller who actually spends from a different
-// address type (P2SH-P2WPKH, taproot) must keep pre-supplying `utxos` or
-// pass an explicit address - a bare pubkey is inherently address-type-
-// ambiguous and this is the best a single guess can do.
+// segwit-capable, else legacy P2PKH), matching the wallet's own default address
+// type per coin. A caller spending from a different address type (P2SH-P2WPKH,
+// taproot) must pre-supply `utxos` or pass an explicit address, because a bare
+// pubkey is inherently address-type-ambiguous.
 function resolveCallerAddress(pubKey, network) {
     if (typeof pubKey !== 'string' || pubKey.length === 0) return pubKey
     // Already a valid address on this network: pass through unchanged.
@@ -230,13 +222,13 @@ const Encoding = {
     P2WSH: "P2WSH",
     TAPROOT: "TAPROOT",
     // Not a carrier: the caller's explicit request that the encoder pick the
-    // smallest-footprint carrier this network and signer can actually use
-    // ( spec §6). Resolved to one of the above before anything is built,
+    // smallest-footprint carrier this network and signer can actually use.
+    // Resolved to one of the above before anything is built,
     // so no downstream code ever sees it.
     AUTO: "AUTO"
 }
 
-// Deployment default for transparent FILE compression (spec §5.2/§7). ON unless
+// Deployment default for transparent FILE compression. ON unless
 // the operator turns it off for a staged rollout; read per call rather than
 // cached so a restart is not required to change it.
 function defaultCompressionEnabled(){
@@ -253,7 +245,7 @@ function defaultCompressionEnabled(){
 // produced a signable, broadcastable reveal, while the decoder derives its key
 // from the input's real txid, fails the magic-word check, and silently drops the
 // paid ACTION. Called right after the hex is parsed, so it fires before the
-// marker is obfuscated and before any input is added ().
+// marker is obfuscated and before any input is added.
 function assertRevealFundingTxMatches(p2shHash, fundingTxid){
     if (!p2shHash) return
     if (String(p2shHash).toLowerCase() !== String(fundingTxid).toLowerCase()){
@@ -268,7 +260,7 @@ function assertRevealFundingTxMatches(p2shHash, fundingTxid){
 class XChainEncoder {
     constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
-      // : the raw "<coin>-<net>" key. getBitcoinJsNetwork returns only the
+      // The raw "<coin>-<net>" key. getBitcoinJsNetwork returns only the
       // bitcoinjs params, which carry no chain identity, and the envelope
       // recognition gate needs to know WHICH chain+network it is building for.
       this.networkKey = network
@@ -316,7 +308,7 @@ class XChainEncoder {
     }
 
     // Reserve an outpoint AND record the claim on the calling createTransaction's
-    // own ledger, so a later throw can hand it back .
+    // own ledger, so a later throw can hand it back.
     _claimOutpoint(callReservations, key, now) {
         callReservations.push({ key, expiry: this._reserveOutpoint(key, now) })
     }
@@ -394,7 +386,7 @@ class XChainEncoder {
                 // and burns the fee UTXOs. The auto-selection path avoids this by falling
                 // back to P2SH; the explicit-encoding path must reject loudly here instead.
                 //
-                // Always enforce the single-output 80-byte ceiling ().
+                // The single-output 80-byte ceiling is enforced unconditionally.
                 // singleOpReturnPolicy:false used to skip this throw and fall
                 // through to a multi-chunk split loop instead: no shipped decoder
                 // can reassemble a payload split across multiple OP_RETURN pushes
@@ -443,8 +435,6 @@ class XChainEncoder {
 
                 chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
                 
-                // : resolve the caller HASH160 from any identity form (base58
-                // address, raw pubkey hex, or v0 bech32 P2WPKH), not just base58.
                 let pubkeyFromBase58 = resolveCallerHash160(pubKey)
 
                 // Slice the chunk boundaries first so a degenerate 1-byte final
@@ -526,7 +516,7 @@ class XChainEncoder {
 
                 return {"dataBufferArray":dataBufferArray, "encoding": encoding}
             case Encoding.TAPROOT: {
-                /* TAPROOT ENVELOPE LEAF ( spec §3.2, grammar frozen at review)
+                /* TAPROOT ENVELOPE LEAF (grammar frozen at review)
                 OP_FALSE OP_IF
                   <"XCHN">            // 4-byte magic, CLEARTEXT (same constant as every lane)
                   <0x00>              // format byte v0, cleartext
@@ -539,7 +529,7 @@ class XChainEncoder {
                 // what the chunk lanes carry, with the magic excluded because
                 // the envelope header already carries it. Raw by design: the
                 // shipped large-payload (P2WSH) precedent is unobfuscated, and
-                // keying on the commit txid is circular by construction (§3.3).
+                // keying on the commit txid is circular by construction.
                 */
                 // The leaf tail and the key-path cancel both need the caller's
                 // real pubkey; `pubKey` may be a bare address, so the explicit
@@ -619,28 +609,17 @@ class XChainEncoder {
         return Buffer.concat(bufferArray)
     }
     
-    // Public entry point. It owns the per-call reservation ledger: every outpoint
-    // the build claims is recorded there, and if the build throws for ANY reason
-    // (INPUT_SELECTION_RACE, INSUFFICIENT_FUNDS, a fee-cap RangeError, an upstream
-    // node error) those claims are handed back immediately instead of squatting
-    // until RESERVATION_TTL_MS. Without that, the retry an INPUT_SELECTION_RACE
-    // error explicitly asks for hit its OWN dead reservations and came back
-    // INSUFFICIENT_FUNDS for up to five minutes . The release is
-    // ownership-stamped so a concurrent call's entries are never dropped; see
-    // _releaseCallReservations. The success path keeps its reservations on purpose:
-    // the caller is about to sign and broadcast those inputs.
     /**
-     * : refuse to build a Taproot envelope the fleet would ignore.
+     * Refuse to build a Taproot envelope that decoders would ignore.
      *
-     * Envelope recognition activates at a per-network height ( §7). Below it
-     * every decoder treats the reveal as an ordinary P2TR spend, so the caller would
-     * pay a real miner fee, write a real payload on chain, and own an action that
-     * does not exist. Nothing downstream can detect that: the decoder's refusal is
-     * silent and correct by design, which is exactly why the check has to live here.
-     *
-     * Fail-closed on an unknown height: a node that cannot answer getblockcount
-     * leaves us unable to prove recognition is active, and the cost of guessing
-     * wrong is the caller's money, so we refuse rather than assume.
+     * Envelope recognition activates at a per-network height. Below it every decoder
+     * treats the reveal as an ordinary P2TR spend, so the caller would pay a real
+     * miner fee, write a real payload on chain, and own an action that does not
+     * exist. That refusal is silent and correct by design and nothing downstream can
+     * detect the loss, which is exactly why the check has to live here. Fail-closed
+     * on an unknown height too: a node that cannot answer getblockcount leaves us
+     * unable to prove recognition is active, and guessing wrong costs the caller
+     * real money.
      *
      * `null` means the network never recognizes envelopes (DOGE: no segwit). That is
      * already refused by the supportsSegwit gate; this repeats it as a safety net for
@@ -676,6 +655,16 @@ class XChainEncoder {
         }
     }
 
+    // Public entry point. It owns the per-call reservation ledger: every outpoint
+    // the build claims is recorded there, and if the build throws for ANY reason
+    // (INPUT_SELECTION_RACE, INSUFFICIENT_FUNDS, a fee-cap RangeError, an upstream
+    // node error) those claims are handed back immediately instead of squatting
+    // until RESERVATION_TTL_MS. Without that, the retry an INPUT_SELECTION_RACE
+    // error explicitly asks for hit its OWN dead reservations and came back
+    // INSUFFICIENT_FUNDS for up to five minutes. The release is ownership-stamped
+    // so a concurrent call's entries are never dropped; see
+    // _releaseCallReservations. The success path keeps its reservations on purpose:
+    // the caller is about to sign and broadcast those inputs.
     async createTransaction(...args){
         const callReservations = []
         try {
@@ -776,40 +765,25 @@ class XChainEncoder {
             finalDust = dust
         }
         
-        // `data` is optional (openrpc.json create_tx data.required=false), and
-        // validateAll passes null through when omitted. Buffer.from(null,'utf8')
-        // throws a Node TypeError, so a spec-valid data-omitted request (e.g. a
-        // payment-only tx built from customOutputs) would fail with an opaque
-        // internal error. Default a missing payload to '' - identical to the
-        // already-supported empty-string case, which compiles cleanly downstream.
-        // Transparent FILE payload compression ( spec Part B), OPT-IN.
+        // Transparent FILE payload compression, ON by default. Runs HERE, before
+        // the payload buffers are assembled, so everything downstream prices the
+        // bytes that will actually be written: the per-encoding ceiling check
+        // below, the size estimator, the fee quote and the encoding selection.
         //
-        // Runs HERE, before the payload buffers are assembled, so everything
-        // downstream sees the bytes that will actually be written: the
-        // per-encoding ceiling check below, the size estimator, the fee quote
-        // and the encoding selection all price the compressed payload rather
-        // than the caller's original (spec §3.9: "the estimator must run after
-        // compression so quotes reflect real bytes").
+        // `compress` is TRI-STATE: true/false are the caller's explicit choice,
+        // null/undefined take the deployment default. The distinction is not
+        // cosmetic. An EXPLICIT request that cannot be honoured throws, because
+        // the caller asked for something this payload cannot have; the DEFAULT
+        // pass runs over every action, most of which are not compressible FILEs,
+        // so the same conditions are ordinary facts and the payload rides raw
+        // (see compression.js's `explicit` option). Without that split, turning
+        // the default on would break every SEND carrying rawData.
         //
-        // Default ON since  S5 (spec §5.2: "the encoder always attempts
-        // compression of rawData; it emits the compressed form only when
-        // smaller"). `compress` is TRI-STATE: true/false are the caller's
-        // explicit choice, null/undefined take the deployment default.
-        //
-        // The distinction is not cosmetic. An EXPLICIT request that cannot be
-        // honoured throws, because the caller asked for something this payload
-        // cannot have; the DEFAULT pass runs over every action, most of which
-        // are not compressible FILEs, so the same conditions are ordinary facts
-        // and the payload rides raw (see compression.js's `explicit` option).
-        // Without that split, turning the default on would break every SEND
-        // carrying rawData.
-        //
-        // ROLLOUT (spec §7): Part B is consensus-safe but client-coordinated -
+        // ROLLOUT: compression is consensus-safe but client-coordinated, because
         // an old reader serves a compressed FILE as deflated garbage. Reader
         // support must be deployed everywhere BEFORE an encoder carrying this
-        // default. XCHAIN_COMPRESSION_DEFAULT=0 is the deploy-time lever that
-        // lets the code release and the behaviour change land separately, which
-        // is exactly what §7's two-step asks for.
+        // default, and XCHAIN_COMPRESSION_DEFAULT=0 is the deploy-time lever that
+        // lets the code release and the behaviour change land separately.
         const compressExplicit = (compress === true || compress === false)
         const compressEnabled = compressExplicit ? compress : defaultCompressionEnabled()
         let compressionResult = null
@@ -824,6 +798,12 @@ class XChainEncoder {
             }
         }
 
+        // `data` is optional (openrpc.json create_tx data.required=false) and
+        // validateAll passes null through when omitted, but Buffer.from(null,'utf8')
+        // throws a Node TypeError, so a valid data-omitted request (e.g. a
+        // payment-only tx built from customOutputs) would fail with an opaque
+        // internal error. A missing payload defaults to '', identical to the
+        // already-supported empty-string case, which compiles cleanly downstream.
         let dataBuffer = Buffer.from(data == null ? '' : data, 'utf8')
         let dataToCompile = [dataBuffer]
 
@@ -838,7 +818,7 @@ class XChainEncoder {
 
         let finalDataBuffer = bitcoin.script.compile(dataToCompile)
 
-        // : does this transaction carry an XChain ACTION at all?
+        // Does this transaction carry an XChain ACTION at all?
         //
         // `data` being optional already meant "payment-only tx" in the wire
         // contract, but the emission path below still wrote a nulldata output
@@ -850,22 +830,22 @@ class XChainEncoder {
         // A payment with nothing to say should look like an ordinary payment.
         const hasActionPayload = dataBuffer.length > 0 || rawData != null
 
-        // Size-aware encoding selection ( spec §6), behind the caller's
-        // explicit AUTO opt-in. Runs HERE: after compression, so it prices the
-        // bytes that will really be written, and before the ceiling check, so an
-        // over-cap payload is refused against the lane that was actually chosen.
+        // Size-aware encoding selection, behind the caller's explicit AUTO opt-in.
+        // Runs HERE: after compression, so it prices the bytes that will really be
+        // written, and before the ceiling check, so an over-cap payload is refused
+        // against the lane that was actually chosen.
         //
         // Deliberately NOT the same thing as the legacy `!encoding` fallback in
         // prepareData (OP_RETURN, else P2SH), which stays exactly as shipped: a
         // caller who passes no encoding must keep getting today's bytes, because
         // auto-selecting TAPROOT changes the response from one PSBT to a
-        // commit/reveal pair and no existing caller is ready for that (§6).
+        // commit/reveal pair and no existing caller is ready for that.
         if (encoding === Encoding.AUTO){
             encoding = this.selectEncoding(finalDataBuffer.length, compressedPubKey, options)
         }
 
         // Enforce the compiled-push ceiling the indexing decoder applies, PER
-        // ENCODING ( spec §4): every legacy lane keeps the 8,192-byte
+        // ENCODING: every legacy lane keeps the 8,192-byte
         // MAX_ACTION_DATA_LENGTH (the decoder measures the compiled on-chain
         // push and silently drops anything larger, so reject at encode time);
         // only an explicit TAPROOT request gets the envelope ceiling. Note the
@@ -882,7 +862,7 @@ class XChainEncoder {
             throw new TypeError('P2WSH encoding is not supported on this network (no segwit support)')
         }
 
-        // Envelope availability is a property of the network definition (§3.6):
+        // Envelope availability is a property of the network definition:
         // DOGE has no segwit, hence no Taproot; same gate, same error shape as
         // P2WSH. The p2shHash guard exists for direct library callers (the API
         // validator already rejects it): TAPROOT is a single-call flow that
@@ -894,12 +874,12 @@ class XChainEncoder {
             if (p2shHash) {
                 throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
             }
-            // : segwit support is NOT sufficient. Below its recognition height
-            // ( §7) every decoder on the fleet ignores an envelope reveal, so
-            // building one here would hand the caller a valid, broadcastable, correctly
-            // signed pair for an action that will never exist, and they pay real coin
-            // for it. The decoder's refusal is silent and correct, so nothing downstream
-            // can detect the loss; this is the only place it can be caught.
+            // Segwit support is NOT sufficient. Below the network's recognition
+            // height every decoder ignores an envelope reveal, so building one here
+            // would hand the caller a valid, broadcastable, correctly signed pair for
+            // an action that will never exist, and they pay real coin for it. The
+            // decoder's refusal is silent and correct, so nothing downstream can
+            // detect the loss; this is the only place it can be caught.
             await this.assertEnvelopeRecognized()
             ensureEccLib()
         }
@@ -908,7 +888,7 @@ class XChainEncoder {
         
         let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
         // BigInt: a DOGE UTXO set can total past 2^53-1 sats, where Number
-        // arithmetic silently rounds the fee/change math .
+        // arithmetic silently rounds the fee/change math.
         let inputSatoshis = 0n
 
         // The P2SH/P2WSH reveal (phase 2) spends phase-1's OWN funding outputs,
@@ -938,7 +918,7 @@ class XChainEncoder {
                     throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
                 }
 
-                // Freshness gate (M-11, encoder half). get_utxos carries an additive
+                // Freshness gate. get_utxos carries an additive
                 // `sync` sibling field ({tracker_height, node_height, lag, synced,
                 // mempool_ready, halted?, halt_reason?}) on trackers that have picked up
                 // the ce16bdd freshness surface. Refuse to select from a view the tracker
@@ -954,13 +934,12 @@ class XChainEncoder {
                     const overLag = (lag !== null) && (lag > this.maxUtxoTrackerLagBlocks)
                     // Negative lag: the tracker's committed tip sits ABOVE the node's,
                     // so its outputs live in blocks the node reset or reorged away. Only
-                    // the upper bound was checked, so an orphaned view reached selection
-                    // ().
+                    // the upper bound was checked, so an orphaned view reached selection.
                     const behindNode = (lag !== null) && (lag < 0)
                     // Halted: the tracker stopped polling on an unrecoverable reorg and
                     // froze, possibly mid-rollback. It publishes this independently of
                     // `synced`, so a frozen height with an acceptable lag passed this
-                    // gate (). Strict === true keeps an older tracker, whose
+                    // gate. Strict === true keeps an older tracker, whose
                     // sync sibling carries no halt marker, on the existing fail-open path.
                     if (sync.halted === true){
                         throw new OperationalError(
@@ -985,7 +964,7 @@ class XChainEncoder {
                     // Mempool readiness: block sync flips true before the first mempool
                     // rebuild finishes, and until it does an empty mempool index cannot
                     // filter a confirmed output that is already spent in the node's
-                    // mempool, so selection can pick an unspendable input ().
+                    // mempool, so selection can pick an unspendable input.
                     // Strict === false again fails open for a pre-mempool_ready tracker.
                     if (sync.mempool_ready === false){
                         throw new OperationalError(
@@ -1085,7 +1064,7 @@ class XChainEncoder {
         // the decoder failed the magic-word check, and the action silently never happened (valid
         // tx, inputs spent, fee burned).
         //
-        // The carve-out alone is NOT enough (review item 2474). It guarantees the pre-reserved
+        // The carve-out alone is NOT enough. It guarantees the pre-reserved
         // outpoint is SELECTED, not that it is FIRST: the selection loop re-evaluates
         // reservations against a LATER clock, and _isOutpointReserved treats expiry <= now as
         // free, so a foreign reservation blocking an EARLIER-sorted outpoint that lapses during
@@ -1131,7 +1110,6 @@ class XChainEncoder {
             psbt = new bitcoin.Psbt({ network: this.network })
         }
         
-        //Prepare the Data
         // With no action payload there is nothing to encode, chunk or obfuscate,
         // so skip prepareData entirely and hand the emission loop an empty chunk
         // list: it then writes no nulldata output and the transaction is just its
@@ -1157,7 +1135,7 @@ class XChainEncoder {
         // so they are paid exactly once. Single-tx encodings (OP_RETURN/MULTISIGN)
         // are unaffected: they emit customOutputs directly on their only tx.
         //
-        // : value alone is not enough. Each reveal-side customOutput also
+        // Value alone is not enough. Each reveal-side customOutput also
         // makes the reveal BIGGER, and the reveal's whole miner fee comes from
         // these funding outputs. estimateSpendingP2shTx/estimateSpendingP2wshTx
         // size the reveal as "one data input + the OP_RETURN marker" only, so a
@@ -1326,7 +1304,6 @@ class XChainEncoder {
                         let nextInput = {
                             sequence: utxoSequence,
                             hash:p2shHash,
-                            //redeem:{output:nextDataBuffer},
                             witnessScript:nextDataBuffer,
                             index: voutPsbtIndex,
                             witnessUtxo:{
@@ -1462,7 +1439,7 @@ class XChainEncoder {
                     // The reveal's only funding is the commit output, so its
                     // value must prefund the reveal's miner fee plus a change
                     // output at the dust floor (the reveal must carry at least
-                    // one output; change doubles as the §3.5 CPFP handle), plus
+                    // one output; change doubles as the CPFP handle), plus
                     // the stripped-size floor pad where the chain demands one
                     // (LTC: a reveal whose only output is small sits under
                     // minStandardTxNonWitnessSize, exactly like the P2WSH
@@ -1553,7 +1530,7 @@ class XChainEncoder {
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
 
-                //  spec §3.5: envelope commit inputs MUST be segwit. The
+                // Envelope commit inputs MUST be segwit. The
                 // reveal is pre-built against the UNSIGNED commit's txid, which
                 // is only stable when no selected input's signature lands in
                 // the txid-covered serialization. Enforced as native-segwit
@@ -1603,7 +1580,7 @@ class XChainEncoder {
                             value: nextUtxo.value,
                         }
                     }
-                    // : a hardware signer needs the FULL previous
+                    // A hardware signer needs the FULL previous
                     // transaction even for a segwit input, because Ledger takes
                     // the outpoint it signs from those bytes rather than from
                     // the PSBT's own txid. witnessUtxo alone left the device
@@ -1647,7 +1624,7 @@ class XChainEncoder {
                 nextUtxoIndex = nextUtxoIndex + 1
             }
 
-            // M-7: the caller-facing MAX_UTXO_COUNT cap is intentionally NOT
+            // The caller-facing MAX_UTXO_COUNT cap is intentionally NOT
             // applied to the fetched set before selection (a rich address must
             // stay spendable). Bound the SELECTED input count instead: a tx that
             // genuinely needs more inputs than this is over standardness size and
@@ -1658,7 +1635,7 @@ class XChainEncoder {
 
             // No spendable input was selected on the funding/single-tx path: the
             // set was empty of usable outputs or every candidate is reserved by a
-            // concurrent selection (L-1). Report insufficient funds here, before
+            // concurrent selection. Report insufficient funds here, before
             // the fee-rate cap math below, which would otherwise reject a fixed
             // fee against a zero-input transaction's tiny size and mask the real
             // cause. (The reveal path has p2shHash set and never reaches here.)
@@ -1670,7 +1647,7 @@ class XChainEncoder {
                 )
             }
 
-            // Fail-closed ins[0] invariant (review item 2474). OP_RETURN and MULTISIGN
+            // Fail-closed ins[0] invariant. OP_RETURN and MULTISIGN
             // obfuscate their payload with txidFirstInput, and the decoder derives its
             // deobfuscation key from the first input's txid, so the action only decodes if
             // that outpoint actually landed at ins[0]. The head-of-order splice above makes
@@ -1681,7 +1658,7 @@ class XChainEncoder {
             // fee burned). P2SH/P2WSH are excluded: on the funding tx they do not use
             // txidFirstInput at all, and on the reveal tx (p2shHash set) this block does not
             // run and the key is re-bound to the phase-1 txid.
-            // : a payment-only transaction has no action, hence no
+            // A payment-only transaction has no action, hence no
             // obfuscation key bound to the first input. The guard below exists to
             // stop an action from silently decoding to nothing; with nothing to
             // decode it would only fail a perfectly good payment whose input
@@ -1759,7 +1736,7 @@ class XChainEncoder {
         // PSBT whose change is off by up to ~2 sats per 2^53).
         let changeSatoshis = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
 
-        // M-8: reject a genuinely under-funded selection instead of returning an
+        // Reject a genuinely under-funded selection instead of returning an
         // unbroadcastable PSBT whose outputs exceed its inputs (the caller would
         // sign it and the network would reject it). Scoped to the funding/single
         // tx path: the reveal (p2shHash set) funds itself from phase-1 outputs
@@ -1779,7 +1756,7 @@ class XChainEncoder {
         }
 
         if ((changeSatoshis > 0) && (change)) {
-            // M-6: only emit change at or above the per-coin dust threshold
+            // Only emit change at or above the per-coin dust threshold
             // (this.dustAmount, the same constant the burn guard above keys on).
             // Change of 1..dust-1 sats is an unspendable, non-standard output
             // that makes the whole transaction unbroadcastable, so fold it into
@@ -1799,9 +1776,9 @@ class XChainEncoder {
         // NOT the 65-byte CONSENSUS minimum that guards the 64-byte-transaction
         // CVE. coins/BTC.js carried that consensus 65 until 2026-07-31, so this
         // pad never fired on Bitcoin and a single-chunk P2WSH reveal was
-        // unbroadcastable there (, measured live: 71 stripped bytes
-        // rejected "tx-size-small", 82 accepted). Corrected to 82 with the
-        // consensus pin regenerated across every repo vendoring BTC.js.
+        // unbroadcastable there (measured live: 71 stripped bytes rejected
+        // "tx-size-small", 82 accepted). Corrected to 82 with the consensus pin
+        // regenerated across every repo vendoring BTC.js.
         //
         // The payload lives in the witness and does not count toward stripped
         // size, so this shape stays small however large the file is. Lift the
@@ -1821,14 +1798,14 @@ class XChainEncoder {
             }
         }
 
-        // Envelope reveal construction ( spec §3.5/§6). Runs only on the
+        // Envelope reveal construction. Runs only on the
         // TAPROOT funding path, after input selection and change, so the commit
         // transaction is final in shape and its unsigned txid is the txid the
         // network will see (segwit-only inputs, enforced above).
         let revealPsbt = null
         let envelopeResult = null
         if (envelopeContext){
-            // §3.5: every commit input is signed SIGHASH_ALL. Attribution rides
+            // Every commit input is signed SIGHASH_ALL. Attribution rides
             // the commit's ins[0]; ANYONECANPAY-style signing would make index 0
             // third-party-insertable in a replacement. The PSBT field makes the
             // requirement explicit to whatever signs it.
@@ -1856,7 +1833,7 @@ class XChainEncoder {
             const controlBlock = revealPayment.witness[revealPayment.witness.length - 1]
 
             revealPsbt = new bitcoin.Psbt({ network: this.network })
-            // §3.5: reveal input 0 MUST be the commit outpoint; the decoder's
+            // Reveal input 0 MUST be the commit outpoint; the decoder's
             // recognition and attribution assume it. RBF preference mirrors the
             // commit (the sequence toggle is the shipped replacement mechanism).
             revealPsbt.addInput({
@@ -1912,7 +1889,7 @@ class XChainEncoder {
         // action cannot: the payload lives in a redeem script that only exists
         // here, and the commit output is just its hash, so the client had no
         // way to tell a faithful encoding from a substituted one. That residual
-        // trust is what this closes (confirm/decode/pre-flight spec §5.3.2).
+        // trust is what this closes.
         //
         // These are the SAME compiled buffers that became the outputs above
         // (dataBufferArray IS the redeem-script array for these encodings), not
@@ -1927,7 +1904,7 @@ class XChainEncoder {
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
 
         // What compression actually did, reported rather than inferred. The
-        // wallet has to show the REAL on-chain size (spec §8), and with the
+        // wallet has to show the REAL on-chain size, and with the
         // default ON a caller can no longer assume from its own request whether
         // the bytes were compressed: `reason` names why they were not.
         if (compressionResult){
@@ -1942,7 +1919,7 @@ class XChainEncoder {
             result.carrierScripts = (preparedData["dataBufferArray"] || []).map(b => b.toString('hex'))
         }
         if (revealPsbt){
-            // Two-tx response shape ( spec §6): the caller signs both,
+            // Two-tx response shape: the caller signs both,
             // then broadcasts commit followed by reveal. carrierScripts serves
             // the same verify-before-sign contract as the chunk lanes: hash the
             // script to the P2TR commit output and require a match, and require
@@ -1950,7 +1927,7 @@ class XChainEncoder {
             // `envelope` carries what the wallet must DURABLY PERSIST BEFORE
             // BROADCASTING the commit (plus its own internal-key derivation
             // path): lose the tapleaf hash and the key-path cancel tweak cannot
-            // be reconstructed, stranding the funds (§3.5).
+            // be reconstructed, stranding the funds.
             result.revealPsbt = revealPsbt
             result.carrierScripts = (preparedData["dataBufferArray"] || []).map(b => b.toString('hex'))
             result.envelope = envelopeResult
@@ -1959,14 +1936,13 @@ class XChainEncoder {
     }
 
     /*
-     * Size-aware encoding selection ( spec §6): "smallest footprint by
-     * default" as the platform's behaviour rather than its option. Only reached
-     * when the caller explicitly asked for Encoding.AUTO.
+     * Size-aware encoding selection: "smallest footprint by default" as the
+     * platform's behaviour rather than its option. Only reached when the caller
+     * explicitly asked for Encoding.AUTO.
      *
      * @param {number} compiledLength  the compiled ACTION stream, AFTER compression
      * @param {string|null} compressedPubKey  required for the envelope's internal key
      * @param {object|null} options   { signerSupportsTapscript }
-     * @returns {string} a concrete Encoding
      */
     selectEncoding(compiledLength, compressedPubKey, options){
         const magicBytes = Buffer.from(MAGIC_WORD, 'utf8').length
@@ -1979,12 +1955,12 @@ class XChainEncoder {
         // chunk outputs per 390 KB, so it wins whenever it is available. Two
         // conditions, both fail-closed:
         //
-        //  - the network must have Taproot at all (DOGE never does, §3.6);
+        //  - the network must have Taproot at all (DOGE never does);
         //  - the SIGNER must be able to produce a tapscript script-path
         //    signature. This defaults to NO and must be affirmed by the caller.
         //    The reveal has to be signable BEFORE the commit is broadcast;
         //    picking the envelope for a signer that cannot spend it does not
-        //    produce an error message, it produces stranded funds (§6). Hardware
+        //    produce an error message, it produces stranded funds. Hardware
         //    signers are the live case: the wallet's Trezor integration cannot
         //    sign the leaf today, so those accounts must land on P2WSH.
         const tapscriptSigner = !!(options && options.signerSupportsTapscript)
@@ -1994,7 +1970,7 @@ class XChainEncoder {
         // segwit fallback. On a non-segwit chain P2SH is the same 476-byte lane
         // and is therefore preferred over MULTISIGN there too: AUTO never
         // selects the worst-density carrier, which is what makes MULTISIGN an
-        // explicit-request-only lane from here on (spec §10 Q5).
+        // explicit-request-only lane from here on.
         if (segwit) return Encoding.P2WSH
         return Encoding.P2SH
     }
@@ -2086,7 +2062,7 @@ class XChainEncoder {
         return sizeEstimated
     }
 
-    // Key-path cancel of an UNREVEALED envelope commit ( spec §3.5/§3.7):
+    // Key-path cancel of an UNREVEALED envelope commit:
     // sweeps the commit output back to the caller before any reveal exists. By
     // contract this must be buildable from the wallet's PERSISTED RECOVERY
     // RECORD ALONE ({commit outpoint, internal key derivation path, tapleaf

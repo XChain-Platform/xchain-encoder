@@ -8,10 +8,9 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Regression tests for the 2026-07-08 xchain-encoder stress-sweep E1 fix
-// (obfuscation key vs actual first input after a reservation skip). E4 was
-// reverted, so it is intentionally not covered here.
-// See claude/reports/2026-07-08_xchain-encoder-stress-sweep.md.
+// Regression tests for a fix to the obfuscation key binding: it must bind to
+// the actual first input after a reservation skip, not the pre-selection
+// utxos[0]. A related fix was reverted, so it is intentionally not covered here.
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')

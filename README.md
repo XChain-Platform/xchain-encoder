@@ -31,7 +31,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Browser bundle**: Browserify build for client-side PSBT generation without a server
-- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard and rate limiter are in-process only until a shared store exists 
+- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard and rate limiter are in-process only until a shared store exists
 - **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
 
 ## Documentation
@@ -84,8 +84,8 @@ npm run api
 | `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
-| `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression (spec §5.2/§7); set `0`, `false`, or `off` to disable |
-| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until a shared UTXO-reservation store exists  |
+| `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |
+| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until a shared UTXO-reservation store exists |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
 | `ENCODER_MAX_RPC_BATCH` | No | `20` | Maximum JSON-RPC batch array length per request |
@@ -104,7 +104,7 @@ box), and ship logs with `LOG_SHIP_ENABLED=1` plus `LOG_SHIP_URL`. Full
 variable list and the exported metric names are in
 [`src/observability/README.md`](src/observability/README.md).
 
-The module is vendored byte-identically from xchain-hub . Edit it there
+The module is vendored byte-identically from xchain-hub. Edit it there
 and re-run `xchain-hub/bin/sync-observability.sh`; a local edit fails the
 parity gate in `bin/check-observability-parity.js`.
 

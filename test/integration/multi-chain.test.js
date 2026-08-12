@@ -38,8 +38,6 @@ const CHAINS = [
 
 describe('Category F: Multi-Chain Network Configs', () => {
 
-  // ── F-1/F-2/F-3: Basic PSBT construction per chain ───────────
-
   for (const chain of CHAINS) {
     describe(`${chain.name}: basic PSBT construction`, () => {
       it('creates valid OP_RETURN transaction', async () => {
@@ -79,7 +77,6 @@ describe('Category F: Multi-Chain Network Configs', () => {
 
         assert.strictEqual(result.encoding, 'P2SH')
 
-        // Verify the P2SH output has value >= dustThreshold
         const p2shOutput = result.psbt.txOutputs.find(o =>
           o.value > 0 && o.value < 100000000
         )
@@ -89,8 +86,6 @@ describe('Category F: Multi-Chain Network Configs', () => {
       })
     })
   }
-
-  // ── F-4: Litecoin higher dust threshold ───────────────────────
 
   describe('F-4: Litecoin higher dust threshold', () => {
     const MS_DATA = 'A'.repeat(59)
@@ -149,8 +144,6 @@ describe('Category F: Multi-Chain Network Configs', () => {
     })
   })
 
-  // ── F-5: Dogecoin address in P2SH ─────────────────────────────
-
   describe('F-5: Dogecoin address in P2SH redeem script', () => {
     it('P2SH output address uses Dogecoin network params', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
@@ -166,7 +159,6 @@ describe('Category F: Multi-Chain Network Configs', () => {
 
       assert.strictEqual(result.encoding, 'P2SH')
 
-      // The P2SH output should decode to a valid Dogecoin address
       const dogeNetwork = CryptoNetworks.getBitcoinJsNetwork('dogecoin-regtest')
       const p2shOutput = result.psbt.txOutputs.find(o => {
         if (o.value <= 0 || o.value >= 100000000) return false
@@ -182,8 +174,6 @@ describe('Category F: Multi-Chain Network Configs', () => {
       assert.strictEqual(decompiled[2], bitcoin.opcodes.OP_EQUAL)
     })
   })
-
-  // ── Network config completeness ───────────────────────────────
 
   describe('CryptoNetworks completeness', () => {
     const ALL_NETWORKS = [
@@ -203,8 +193,6 @@ describe('Category F: Multi-Chain Network Configs', () => {
       })
     }
   })
-
-  // ── Fee floor uses chain-specific dust ────────────────────────
 
   describe('Fee floor uses chain-specific dust threshold', () => {
     it('Litecoin fee floor is 5460, not 546', async () => {

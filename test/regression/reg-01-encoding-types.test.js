@@ -40,8 +40,6 @@ const COMPRESSED_PUBKEY = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f
 
 describe('REG-01: Core Encoding Types', function () {
 
-  // ── REG-01.1: OP_RETURN ───────────────────────────────────────
-
   describe('REG-01.1: OP_RETURN', function () {
     it('small SEND auto-selects OP_RETURN encoding', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
@@ -107,8 +105,6 @@ describe('REG-01: Core Encoding Types', function () {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
-
-  // ── REG-01.2: P2SH ────────────────────────────────────────────
 
   describe('REG-01.2: P2SH', function () {
     it('large ISSUE payload auto-selects P2SH', async function () {
@@ -189,8 +185,6 @@ describe('REG-01: Core Encoding Types', function () {
     })
   })
 
-  // ── REG-01.3: P2WSH ───────────────────────────────────────────
-
   describe('REG-01.3: P2WSH', function () {
     it('P2WSH encoding accepted on bitcoin-regtest', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -244,8 +238,6 @@ describe('REG-01: Core Encoding Types', function () {
       )
     })
   })
-
-  // ── REG-01.4: MULTISIGN ───────────────────────────────────────
 
   describe('REG-01.4: MULTISIGN', function () {
     it('MULTISIGN produces 1-of-3 multisig output', async function () {
@@ -305,8 +297,6 @@ describe('REG-01: Core Encoding Types', function () {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
-
-  // ── REG-01.5: Return shape ────────────────────────────────────
 
   describe('REG-01.5: Return shape', function () {
     it('result is { psbt, encoding } with Psbt instance', async function () {

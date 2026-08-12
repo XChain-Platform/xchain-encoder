@@ -1,8 +1,8 @@
-//  doctrine test-coverage program: unit coverage for the docs component
-// (docs/openrpc.build.js -> docs/openrpc.json). The OpenRPC document is the
-// published contract for the encoder's JSON-RPC surface; a malformed or
-// truncated build ships a broken API reference. This pins the generated
-// artifact's shape without invoking the (side-effecting) build script.
+// Unit coverage for the docs component (docs/openrpc.build.js ->
+// docs/openrpc.json). The OpenRPC document is the published contract for the
+// encoder's JSON-RPC surface; a malformed or truncated build ships a broken
+// API reference. This pins the generated artifact's shape without invoking
+// the (side-effecting) build script.
 
 const assert = require('assert');
 const doc = require('../../docs/openrpc.json');

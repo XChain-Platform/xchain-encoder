@@ -18,7 +18,6 @@
  *
  ********************************************************************/
 
-// Load required libraries
 const axios = require('axios')
 
 const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
@@ -60,7 +59,6 @@ class BlockchainConnector {
         };
 
         try {
-            // Make the request to the node
             const response = await axios.post(this.url, data, {
                 auth: {
                     username: this.rpcUser,
@@ -71,7 +69,6 @@ class BlockchainConnector {
 
             const responseData = response.data;
 
-            // Verify if there is a result and return it
             if (responseData.result) {
                 return responseData.result;
             } else {
@@ -95,7 +92,6 @@ class BlockchainConnector {
         };
 
         try {
-            // Make the request to the node
             const response = await axios.post(this.url, data, {
                 auth: {
                     username: this.rpcUser,
@@ -106,7 +102,6 @@ class BlockchainConnector {
 
             const responseData = response.data;
 
-            // Verify if there is a result and return it
             if (responseData.result && responseData.result.chain) {
                 this._isRegtestCache = responseData.result.chain == "regtest";
                 return this._isRegtestCache;
@@ -118,7 +113,7 @@ class BlockchainConnector {
         }
     }
 
-    // : current chain tip. Used by the TAPROOT envelope build to refuse an
+    // Current chain tip. Used by the TAPROOT envelope build to refuse an
     // envelope below its network's recognition height, since a reveal the fleet
     // ignores costs the caller real coin for an action that never exists. Returns
     // null rather than throwing when the node cannot answer: the caller decides
@@ -147,7 +142,6 @@ class BlockchainConnector {
                 id: 1,
             };
 
-            // Make the request to the node
             const response = await axios.post(this.url, data, {
                 auth: {
                     username: this.rpcUser,
@@ -158,7 +152,6 @@ class BlockchainConnector {
 
             const responseData = response.data;
 
-            // Verify if there is a result and return the hex
             if (responseData.result && responseData.result.hex) {
                 return responseData.result.hex;
             } else if (responseData.error?.code === -5) {
@@ -260,7 +253,7 @@ class BlockchainConnector {
             // On regtest, ALWAYS use the node's min-relay floor, never estimatesmartfee.
             // Regtest coins are valueless and the smart estimate reflects accumulated
             // test-tx history: on a long-lived regtest chain it balloons far above any
-            // sane rate (0.1386/kB = ~13859 sat/vB observed on a deep devhost chain),
+            // sane rate (0.1386/kB = ~13859 sat/vB observed on a deep regtest chain),
             // and a tx carrying that fee is rejected downstream by the caller's bitcoinjs
             // checkFees safety cap, breaking every SDK-driven build. The earlier version
             // only fell back to relayfee when estimatesmartfee returned NO data (a fresh
@@ -289,7 +282,6 @@ class BlockchainConnector {
                 id: 1,
             };
 
-            // Make the request to the node
             const response = await axios.post(this.url, data, {
                 auth: {
                     username: this.rpcUser,

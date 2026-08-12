@@ -43,8 +43,6 @@ function makeTestEncoder () {
 
 describe('Obfuscation Boundaries', () => {
 
-  // ── Unit-level: obfuscate() ─────────────────────────────────────
-
   describe('unit-level: obfuscate()', () => {
     const encoder = makeTestEncoder()
 
@@ -95,8 +93,6 @@ describe('Obfuscation Boundaries', () => {
     })
   })
 
-  // ── Short/malformed TXID ────────────────────────────────────────
-
   describe('short TXID causes AES failure', () => {
     const encoder = makeTestEncoder()
 
@@ -123,8 +119,6 @@ describe('Obfuscation Boundaries', () => {
     })
   })
 
-  // ── Pipeline: all-zero TXID ─────────────────────────────────────
-
   describe('pipeline: all-zero TXID in first UTXO', () => {
     it('produces valid PSBT with deobfuscatable payload', async () => {
       const zeroTxid = '0'.repeat(64)
@@ -147,8 +141,6 @@ describe('Obfuscation Boundaries', () => {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
-
-  // ── Pipeline: short TXID propagates error ───────────────────────
 
   describe('pipeline: short TXID in first UTXO', () => {
     it('createTransaction throws during obfuscation step', async () => {

@@ -30,8 +30,6 @@ const ADDRESS = getTestAddress(NETWORK)
 
 describe('Chaos Category A: Network & Dependency Failures', () => {
 
-  // ── A-1: Coin daemon completely unreachable ───────────────────
-
   describe('A-1: Coin daemon unreachable (ECONNREFUSED)', () => {
     it('getFeePerKilobyte failure propagates when feePerKb not provided', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -90,8 +88,6 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
     })
   })
 
-  // ── A-2: Coin daemon returns invalid JSON ─────────────────────
-
   describe('A-2: Coin daemon returns invalid JSON (502 HTML)', () => {
     it('SyntaxError from JSON parse propagates', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -111,8 +107,6 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
     })
   })
-
-  // ── A-3: Coin daemon returns RPC error ────────────────────────
 
   describe('A-3: Coin daemon RPC error (node still loading)', () => {
     it('RPC error from getFeePerKilobyte propagates', async () => {
@@ -152,8 +146,6 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
     })
   })
 
-  // ── A-4: UTXO tracker unreachable ─────────────────────────────
-
   describe('A-4: UTXO tracker unreachable', () => {
     it('propagates ECONNREFUSED when utxos=null', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -189,8 +181,6 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
     })
   })
-
-  // ── A-5: UTXO tracker malformed responses ─────────────────────
 
   describe('A-5: UTXO tracker malformed responses', () => {
     it('A-5a: tracker returns null → throws about no utxos', async () => {
@@ -253,8 +243,6 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
     })
   })
 
-  // ── A-6: Intermittent RPC failures ────────────────────────────
-
   describe('A-6: Intermittent RPC failures', () => {
     it('first call succeeds, second call fails (alternating pattern)', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -295,15 +283,13 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
     })
   })
 
-  // ── A-7: Slow RPC responses ───────────────────────────────────
-
   describe('A-7: Slow RPC responses', () => {
     it('150ms delay on getFeePerKilobyte still completes', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
-        await delay(150) // simulate a slow RPC response
+        await delay(150)
         return 0.00001
       }
 
@@ -325,7 +311,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       const { buildRawTxHex } = require('../integration/helpers/utxoFactory')
 
       encoder.connector.getTransactionHex = async () => {
-        await delay(150) // simulate a slow RPC response
+        await delay(150)
         return buildRawTxHex(100000000, NETWORK)
       }
 

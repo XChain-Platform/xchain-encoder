@@ -35,8 +35,6 @@ const NETWORK = 'dogecoin-regtest'
 
 describe('E2E-8: Error Handling & Negative Tests', () => {
 
-  // ── E2E-8.1: No UTXOs available ──────────────────────────────
-
   describe('E2E-8.1: No UTXOs available', () => {
     it('throws when utxos empty and tracker returns empty', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -72,8 +70,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
-
-  // ── E2E-8.2: RPC fee estimation failure ──────────────────────
 
   describe('E2E-8.2: RPC fee estimation failure', () => {
     it('propagates RPC error when fee estimation fails', async () => {
@@ -115,8 +111,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     })
   })
 
-  // ── E2E-8.3: Legacy UTXO raw tx fetch failure ────────────────
-
   describe('E2E-8.3: Legacy UTXO raw tx fetch failure', () => {
     it('propagates error when getTransactionHex fails for legacy UTXO', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -140,8 +134,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     })
   })
 
-  // ── E2E-8.4: UtxoTracker unreachable ──────────────────────────
-
   describe('E2E-8.4: UtxoTracker unreachable', () => {
     it('propagates ECONNREFUSED when tracker down and utxos=null', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -163,8 +155,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     })
   })
 
-  // ── E2E-8.5: Invalid network name ─────────────────────────────
-
   describe('E2E-8.5: Invalid network name', () => {
     it('throws TypeError during construction', () => {
       assert.throws(
@@ -175,8 +165,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
-
-  // ── E2E-8.6: MULTISIGN without compressedPubKey ──────────────
 
   describe('E2E-8.6: MULTISIGN without compressedPubKey', () => {
     it('throws when compressedPubKey is null', async () => {
@@ -195,8 +183,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     })
   })
 
-  // ── E2E-8.7: Invalid pubkey address for P2SH ─────────────────
-
   describe('E2E-8.7: Invalid address for P2SH', () => {
     it('throws on invalid base58 address', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -212,8 +198,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
-
-  // ── E2E-8.8: No change address with surplus ───────────────────
 
   describe('E2E-8.8: No change address with surplus funds', () => {
     it('throws descriptive "burn satoshis" error', async () => {
@@ -233,32 +217,26 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     })
   })
 
-  // ── E2E-8.9: Empty data string ────────────────────────────────
-
   describe('E2E-8.9: Empty data string', () => {
     it('handles empty string without crashing', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      // Empty string should either succeed with minimal payload or throw
-      // This test documents the actual behavior
+      // An empty ACTION string has no specified behavior; either a minimal
+      // valid PSBT or a meaningful error is acceptable.
       try {
         const result = await encoder.createTransaction(
           [utxo], address, null,
           '', null, 10000, false, null, address,
           null, null, null, true, 0.00001
         )
-        // If it succeeds, it should still be a valid PSBT
         assert.ok(result.psbt)
       } catch (err) {
-        // If it throws, the error should be meaningful
         assert.ok(err.message.length > 0, 'error message should not be empty')
       }
     })
   })
-
-  // ── E2E-8.10: Null data parameter ────────────────────────────
 
   describe('E2E-8.10: Null data parameter', () => {
     it('handles null data gracefully', async () => {
@@ -279,8 +257,6 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     })
   })
 
-  // ── E2E-8.11: Negative fee value ──────────────────────────────
-
   describe('E2E-8.11: Negative fee value', () => {
     it('does not produce negative-value outputs', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -295,18 +271,14 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
           null, null, null, true, 0.00001
         )
 
-        // If it succeeds, no output should have negative value
         for (const output of result.psbt.txOutputs) {
           assert.ok(output.value >= 0, `output value ${output.value} should not be negative`)
         }
       } catch (err) {
-        // Throwing is also acceptable
         assert.ok(err)
       }
     })
   })
-
-  // ── E2E-8.12: Insufficient UTXO value ────────────────────────
 
   describe('E2E-8.12: UTXO value insufficient for fee', () => {
     it('handles gracefully when total UTXO value barely covers fee', async () => {
@@ -324,16 +296,12 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
           null, null, null, true, 0.00001
         )
 
-        // If it somehow succeeds, verify structural validity
         assert.ok(result.psbt)
       } catch (err) {
-        // Expected to throw due to insufficient funds
         assert.ok(err)
       }
     })
   })
-
-  // ── Return value shape ────────────────────────────────────────
 
   describe('Return value shape validation', () => {
     it('returns { psbt: Psbt, encoding: string } with valid enum', async () => {

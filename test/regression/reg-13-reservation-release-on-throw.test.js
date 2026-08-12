@@ -8,8 +8,8 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Regression tests for : a createTransaction that throws must release the
-// outpoint reservations IT took, and only those.
+// Regression: a createTransaction that throws must release the outpoint
+// reservations IT took, and only those.
 //
 // The reservation map exists to stop two concurrent create_tx calls for one
 // address from selecting the same UTXOs and emitting conflicting double-spends.
@@ -66,7 +66,7 @@ function sendTx (encoder, address, amount = '42') {
   )
 }
 
-describe('reservation release on throw @regression ', function () {
+describe('reservation release on throw @regression', function () {
   this.timeout(10000)
 
   it('INPUT_SELECTION_RACE: the retry it asks for succeeds inside the TTL', async function () {

@@ -39,8 +39,6 @@ const NETWORK = 'dogecoin-regtest'
 
 describe('REG-02: Obfuscation Round-Trip', function () {
 
-  // ── REG-02.1: Basic obfuscate() method ────────────────────────
-
   describe('REG-02.1: Basic obfuscate() method', function () {
     it('output length equals input length (CTR mode is length-preserving)', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -85,8 +83,6 @@ describe('REG-02: Obfuscation Round-Trip', function () {
     })
   })
 
-  // ── REG-02.2: TXID sensitivity ────────────────────────────────
-
   describe('REG-02.2: TXID sensitivity', function () {
     it('same ACTION with different TXIDs produces different ciphertext', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -105,8 +101,6 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       assert.notStrictEqual(prefix, MAGIC_WORD, 'wrong key should not produce XCHN prefix')
     })
   })
-
-  // ── REG-02.3: UTXO sort → obfuscation key ────────────────────
 
   describe('REG-02.3: UTXO sort determines obfuscation key', function () {
     it('largest UTXO TXID is always the obfuscation key', async function () {
@@ -149,8 +143,6 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
-
-  // ── REG-02.4: P2SH/P2WSH marker strings ──────────────────────
 
   describe('REG-02.4: P2SH/P2WSH marker strings', function () {
     it('P2SH tx2 OP_RETURN marker deobfuscates to XCHNp2sh', async function () {

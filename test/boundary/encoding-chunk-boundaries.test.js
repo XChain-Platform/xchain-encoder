@@ -53,8 +53,6 @@ function standardUtxo (txid = TXID_A) {
 
 describe('Encoding Chunk Boundaries: Full Pipeline', () => {
 
-  // ── OP_RETURN auto-select threshold ─────────────────────────────
-
   describe('OP_RETURN auto-select threshold (75/76 chars)', () => {
     it('75-char data (compiled=76) → OP_RETURN (exactly fits 76+4=80)', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -98,8 +96,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── OP_RETURN chunk-split threshold (forced) ────────────────────
-
   describe('OP_RETURN chunk-split threshold (forced encoding)', () => {
     it('75-char data → 1 OP_RETURN output', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -140,7 +136,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('150-char data (compiled=152) → rejected', async () => {
-      // singleOpReturnPolicy=true on every shipped coin, so this rejects; use bitcoin-regtest
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
@@ -156,7 +151,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('151-char data (compiled=153) → rejected', async () => {
-      // singleOpReturnPolicy=true on every shipped coin, so this rejects; use bitcoin-regtest
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
@@ -171,8 +165,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
       )
     })
   })
-
-  // ── P2SH chunk-split threshold ──────────────────────────────────
 
   describe('P2SH chunk-split threshold', () => {
     // P2SH chunksSize = 520 - 44 = 476
@@ -248,8 +240,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── P2WSH chunk-split threshold ─────────────────────────────────
-
   describe('P2WSH real-world boundary (bitcoin-regtest only)', () => {
     // PW2SH_SIZE = 520, giving a chunk capacity of 476 bytes, the same as
     // P2SH. Each data chunk is pushed as a single script element inside the
@@ -309,8 +299,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── P2WSH on Dogecoin (no bech32) ──────────────────────────────
-
   describe('P2WSH on Dogecoin (no bech32 in network config)', () => {
     it('throws because bitcoin.payments.p2wsh requires bech32 prefix', async () => {
       const encoder = makeEncoder(NETWORK) // dogecoin-regtest has no bech32
@@ -325,8 +313,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
       )
     })
   })
-
-  // ── MULTISIGN chunk boundary and dataToPubkey limit ─────────────
 
   describe('MULTISIGN encoding boundaries', () => {
     // MULTISIGN chunk capacity = MULTISIGN_SIZE(69) - 4(magic) - 5(overhead) = 60
@@ -406,8 +392,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── dataToPubkey boundaries ─────────────────────────────────────
-
   describe('dataToPubkey unit boundaries', () => {
     const encoder = new (require('../../src/XChainEncoder'))(
       'bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
@@ -460,8 +444,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── Encoding type forced override ───────────────────────────────
-
   describe('forced encoding override', () => {
     it('small data forced to P2SH produces P2SH output', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -492,8 +474,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
   })
 
-  // ── singleOpReturnPolicy fail-closed semantics () ──────
-
   describe('singleOpReturnPolicy enforcement (always fail-closed)', () => {
     it('throws RangeError for an oversized OP_RETURN when the flag is absent', () => {
       // A network config that omits singleOpReturnPolicy must STILL enforce the
@@ -507,8 +487,8 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     it('throws RangeError for an oversized OP_RETURN even when singleOpReturnPolicy is explicitly false', () => {
       // The multi-chunk split path this used to opt into is unreassemblable (no
       // shipped decoder reads more than one OP_RETURN push) and unrelayable (Core's
-      // IsStandardTx rejects multi-OP_RETURN as non-standard). : the flag
-      // no longer disarms the ceiling; an oversized OP_RETURN payload always throws.
+      // IsStandardTx rejects multi-OP_RETURN as non-standard). The flag no longer
+      // disarms the ceiling; an oversized OP_RETURN payload always throws.
       const encoder = makeEncoder(NETWORK)
       encoder.network.singleOpReturnPolicy = false
       const oversized = Buffer.alloc(100)
@@ -524,8 +504,6 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
       assert.strictEqual(prepared.dataBufferArray[0].length, 76 + 4) // + 4-byte magic word
     })
   })
-
-  // ── P2SH/P2WSH chunk stays under MAX_SCRIPT_ELEMENT_SIZE (520) ───
 
   describe('P2SH/P2WSH compiled chunk size ceiling', () => {
     it('every compiled chunk is <= 520 bytes at the chunk boundary (P2SH and P2WSH)', () => {

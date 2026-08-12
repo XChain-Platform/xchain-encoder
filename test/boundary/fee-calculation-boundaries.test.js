@@ -43,8 +43,6 @@ const DOGE_DUST = 100000
 
 describe('Fee Calculation Boundaries', () => {
 
-  // ── feePerKb = 0 → floored to dustAmount ────────────────────────
-
   describe('feePerKb = 0 → floored to dustAmount', () => {
     it('BTC/DOGE: fee floors to 546 sats', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -98,8 +96,6 @@ describe('Fee Calculation Boundaries', () => {
     })
   })
 
-  // ── Negative feePerKb ───────────────────────────────────────────
-
   describe('negative feePerKb → floored to dustAmount', () => {
     it('negative feePerKb does not produce negative fee', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -118,8 +114,6 @@ describe('Fee Calculation Boundaries', () => {
         `fee ${impliedFee} should be >= dustAmount ${BTC_DUST} even with negative feePerKb`)
     })
   })
-
-  // ── maxFeeRateKb capping ────────────────────────────────────────
 
   describe('maxFeeRateKb caps feePerBytes', () => {
     it('high feePerKb with cap produces lower fee than without cap', async () => {
@@ -192,8 +186,6 @@ describe('Fee Calculation Boundaries', () => {
     })
   })
 
-  // ── Math.trunc truncation ───────────────────────────────────────
-
   describe('Math.trunc precision', () => {
     it('fractional fee is truncated toward zero, not rounded', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -217,8 +209,6 @@ describe('Fee Calculation Boundaries', () => {
       assert.ok(impliedFee >= BTC_DUST, 'fee should be at least dust')
     })
   })
-
-  // ── Fee > total inputs ──────────────────────────────────────────
 
   describe('fee exceeding total inputs', () => {
     // M-8: the dust-floored fee (546) exceeds the 1-sat input, so the encoder
@@ -265,8 +255,6 @@ describe('Fee Calculation Boundaries', () => {
       )
     })
   })
-
-  // ── Explicit fee parameter ──────────────────────────────────────
 
   describe('explicit fee parameter', () => {
     it('fee=10000 sets estimatedFee=10000 regardless of tx size', async () => {

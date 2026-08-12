@@ -8,18 +8,18 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Cross-repo ACTION-manifest conformance guard, encoder side ().
+// Cross-repo ACTION-manifest conformance guard, encoder side.
 // The encoder's validateActionName gate (src/validator.js) must reject
 // exactly the leading ACTION tokens the decoder would reject, or it either
 // blocks a name the decoder actually accepts (false-positive reject on a
-// valid caller) or lets a name through that the decoder silently drops
-// (the original #1507 gap). The authoritative set lives in
-// xchain-documentation/protocol/action-manifest.json and is vendored here
-// byte-identically (mirroring xchain-decoder/test/fixtures/action-manifest.json).
-// This guard asserts the encoder's local VALID_ACTION_NAMES/ACTION_ALIASES
-// literals equal the manifest's wireDecoded slice + aliases, so drift between
-// the encoder's pre-check and the decoder's actual arbiter fails loud instead
-// of silently re-opening #1507.
+// valid caller) or lets a name through that the decoder silently drops. The
+// authoritative set lives in xchain-documentation/protocol/action-manifest.json
+// and is vendored here byte-identically (mirroring
+// xchain-decoder/test/fixtures/action-manifest.json). This guard asserts the
+// encoder's local VALID_ACTION_NAMES/ACTION_ALIASES literals equal the
+// manifest's wireDecoded slice + aliases, so drift between the encoder's
+// pre-check and the decoder's actual arbiter fails loud instead of silently
+// letting a rejected-elsewhere name back through.
 
 const assert = require('assert');
 const fs   = require('fs');

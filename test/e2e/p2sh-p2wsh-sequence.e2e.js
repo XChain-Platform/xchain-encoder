@@ -72,8 +72,6 @@ async function createTxPair (action, opts = {}) {
 
 describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
 
-  // ── E2E-2.1: P2SH full sequence ──────────────────────────────
-
   describe('E2E-2.1: P2SH full sequence (ISSUE)', () => {
     it('tx1 creates P2SH output, tx2 spends with redeemScript', async () => {
       const action = actions.makeIssueFull('BIGTOKEN')
@@ -108,8 +106,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
     })
   })
 
-  // ── E2E-2.2: P2SH tx2 marker ─────────────────────────────────
-
   describe('E2E-2.2: P2SH tx2 OP_RETURN marker', () => {
     it('tx2 marker deobfuscates to XCHNp2sh', async () => {
       const action = actions.makeIssueFull('BIGTOKEN')
@@ -124,8 +120,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2sh')
     })
   })
-
-  // ── E2E-2.3: P2SH data fidelity ──────────────────────────────
 
   describe('E2E-2.3: P2SH data fidelity', () => {
     it('redeemScript contains original ACTION data (unobfuscated)', async () => {
@@ -146,8 +140,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
-
-  // ── E2E-2.4: P2WSH full sequence ─────────────────────────────
 
   describe('E2E-2.4: P2WSH full sequence (FILE)', () => {
     it('tx1 creates P2WSH output, tx2 spends with witnessScript', async () => {
@@ -180,8 +172,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
     })
   })
 
-  // ── E2E-2.5: P2WSH tx2 marker ────────────────────────────────
-
   describe('E2E-2.5: P2WSH tx2 OP_RETURN marker', () => {
     it('tx2 marker deobfuscates to XCHNp2sh', async () => {
       const action = actions.makeFileLarge()
@@ -198,8 +188,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2wsh')
     })
   })
-
-  // ── E2E-2.6: P2WSH data fidelity ─────────────────────────────
 
   describe('E2E-2.6: P2WSH data fidelity', () => {
     it('witnessScript contains original ACTION data (unobfuscated)', async () => {
@@ -229,8 +217,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
     })
   })
 
-  // ── E2E-2.7: tx1→tx2 ID chaining ─────────────────────────────
-
   describe('E2E-2.7: tx1→tx2 ID chaining', () => {
     it('tx2 references tx1 ID as input hash', async () => {
       const action = actions.makeIssueFull('CHAIN')
@@ -241,8 +227,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       assert.strictEqual(tx2InputHash, tx1Id)
     })
   })
-
-  // ── E2E-2.8: tx1→tx2 hex chaining ────────────────────────────
 
   describe('E2E-2.8: tx1→tx2 hex chaining', () => {
     it('tx2 nonWitnessUtxo matches tx1 raw hex', async () => {
@@ -255,8 +239,6 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       assert.strictEqual(input.nonWitnessUtxo.toString('hex'), tx1Hex)
     })
   })
-
-  // ── E2E-2.9: Multi-chunk P2SH ────────────────────────────────
 
   describe('E2E-2.9: Multi-chunk P2SH', () => {
     it('large ACTION requiring multiple P2SH outputs all have valid structure', async () => {

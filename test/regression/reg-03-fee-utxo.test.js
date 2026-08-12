@@ -41,8 +41,6 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('REG-03: Fee & UTXO Selection', function () {
 
-  // ── REG-03.1: UTXO selection order ────────────────────────────
-
   describe('REG-03.1: UTXO selection order', function () {
     it('largest UTXO is used first (sorted descending by value)', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -111,8 +109,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
     })
   })
 
-  // ── REG-03.2: Deduplication ───────────────────────────────────
-
   describe('REG-03.2: Deduplication', function () {
     it('duplicate txid+vout entries collapsed to one input', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -131,8 +127,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       assert.strictEqual(result.psbt.txInputs.length, 1)
     })
   })
-
-  // ── REG-03.3: Unconfirmed filtering ───────────────────────────
 
   describe('REG-03.3: Unconfirmed filtering', function () {
     it('mempool UTXOs excluded when unconfirmed=false', async function () {
@@ -174,8 +168,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       assert.strictEqual(firstHash, TXID_B)
     })
   })
-
-  // ── REG-03.4: Fee calculation ─────────────────────────────────
 
   describe('REG-03.4: Fee calculation', function () {
     it('explicit fee parameter is used verbatim', async function () {
@@ -284,8 +276,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
     })
   })
 
-  // ── REG-03.5: Change output ───────────────────────────────────
-
   describe('REG-03.5: Change output', function () {
     it('change output value = input - outputs - fee', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -321,8 +311,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       )
     })
   })
-
-  // ── REG-03.6: UTXO tracker fallback ───────────────────────────
 
   describe('REG-03.6: UTXO tracker fallback', function () {
     it('calls tracker when utxos param is null', async function () {
@@ -364,8 +352,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       )
     })
   })
-
-  // ── REG-03.7: Legacy UTXO handling ────────────────────────────
 
   describe('REG-03.7: Legacy UTXO handling', function () {
     it('fetches raw tx hex via connector for P2PKH UTXOs', async function () {

@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Emit-side FILE payload compression ( spec Part B), encoder side.
+ * Emit-side FILE payload compression (spec Part B), encoder side.
  *
  * The load-bearing assertions here are the REFUSALS. Compression is opt-in and
  * mutates the published ACTION string, so every way it could publish
@@ -24,7 +24,7 @@
  *    would refuse to inflate them (emit-time mirror of the serve guard).
  *
  * Plus the two properties that make the feature safe to ship dark:
- *  - the default (ON since S5, spec §5.2) and the explicit opt-out;
+ *  - the default (ON, per spec §5.2) and the explicit opt-out;
  *  - the estimator prices the COMPRESSED bytes, not the caller's original.
  */
 
@@ -85,7 +85,7 @@ function callerAddress(network) {
     return bitcoin.payments.p2wpkh({ pubkey: PUBKEY, network }).address
 }
 
-describe('encoder FILE payload compression ( Part B)', function () {
+describe('encoder FILE payload compression (spec Part B)', function () {
 
     describe('compressPayloadForAction', function () {
 
@@ -213,7 +213,7 @@ describe('encoder FILE payload compression ( Part B)', function () {
 
     describe('createTransaction integration', function () {
 
-        // S5 flipped this default ON (spec §5.2/§7). The assertion also had to
+        // The default is ON (spec §5.2/§7). The assertion also had to
         // change in KIND: the previous version inspected the input constant,
         // which proved nothing about what the encoder built and would have
         // passed whichever way the default went. It now reads the encoder's own

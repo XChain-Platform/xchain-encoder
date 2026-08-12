@@ -16,7 +16,6 @@ const { execSync } = require('child_process');
 const nodeHelper = require('./nodeHelper')
 const { waitFor } = require('./helpers/timing')
 
-// Función para ejecutar comandos del sistema
 function executeCommand(comando) {
   let options = {stdio : 'pipe' };
   return execSync(comando, options);
@@ -24,14 +23,11 @@ function executeCommand(comando) {
 
 function checkNode(){
   try {
-    // Obtener la información de la red utilizando bitcoin-cli
     const networkInfo = executeCommand('bitcoin-cli -regtest getnetworkinfo');
 
-	// Analizar la salida para verificar si el nodo regtest está en ejecución
     const parsedNetworkInfo = JSON.parse(networkInfo);
     return parsedNetworkInfo.networkactive === true;
   } catch (error) {
-    // Manejar errores si es necesario
 	return false
   }
 }
@@ -39,19 +35,15 @@ function checkNode(){
 exports.mochaHooks = {
    async beforeAll(){
 	 if (checkNode()){
-	   // Stop regtest node
        console.log("Stopping node")
        executeCommand('bitcoin-cli -regtest stop');
 	 } else {
 	   console.log("The node is not working, continuing execution")
-	   //Assuming regtest node is not executing
 	 }
 
-     // Limpiar la cadena de bloques y los datos del nodo regtest (opcional)
 	 console.log("Cleaning node")
      executeCommand('rm -rf ~/.bitcoin/regtest');
 
-     // Inicializar el nodo regtest
      console.log("Restarting node")
      executeCommand('bitcoind -regtest -daemon -fallbackfee=1.0 -maxtxfee=1.1');
 
@@ -65,7 +57,6 @@ exports.mochaHooks = {
        message: 'regtest bitcoind did not become ready'
      })
 
-    // Puedes realizar más acciones después de reiniciar el nodo si es necesario
     console.log('Nodo regtest reset and ready.');
 	
 	console.log("Creating the wallet 'test-wallet'")

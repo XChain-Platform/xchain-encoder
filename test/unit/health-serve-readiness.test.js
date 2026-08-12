@@ -13,7 +13,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * health / GET /status serve-readiness gate (#2263).
+ * health / GET /status serve-readiness gate.
  *
  * tracker_synced must mean "create_tx will serve", not the tracker's raw
  * 3-block SYNCED_THRESHOLD verdict: create_tx refuses at the tighter
@@ -70,7 +70,7 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
         } finally { restore(); }
     });
 
-    // : the tracker publishes halted independently of synced, so a tracker
+    // The tracker publishes halted independently of synced, so a tracker
     // frozen on an unrecoverable reorg whose last committed height still shows an
     // acceptable lag painted Online on the board.
     it('a halted tracker reads NOT synced even at lag 0', async function () {
@@ -92,7 +92,7 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
         } finally { restore(); }
     });
 
-    // : only the upper lag bound was checked here, so a tracker committed
+    // Only the upper lag bound was checked here, so a tracker committed
     // ABOVE the node's tip (node reset or reindex) read Online while its outputs sat
     // in blocks the node no longer recognizes.
     it('a tracker ahead of the node reads NOT synced', async function () {
@@ -104,10 +104,10 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
         } finally { restore(); }
     });
 
-    // : create_tx refuses UTXO_TRACKER_NOT_READY for the whole post-restart
+    // create_tx refuses UTXO_TRACKER_NOT_READY for the whole post-restart
     // window in which the mempool index is still rebuilding, so a probe blind to that
     // state paints Online on an encoder that will serve nothing: the same divergence
-    // #2263 fixed for lag.
+    // already fixed for lag.
     it('a tracker whose mempool has not reconverged reads NOT synced at lag 0', async function () {
         const restore = stubSync({ synced: true, lag: 0, mempool_ready: false });
         try {

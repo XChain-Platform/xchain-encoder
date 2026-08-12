@@ -9,12 +9,9 @@
 # vendored manifest against ../xchain-documentation/protocol/action-manifest.json.
 #
 # Both SKIP when the sibling is absent, which is right for a standalone deploy
-# but was a trap on a shared venue : $CI_ROOT/work kept a checkout per
-# repo ever gated there, so an undeclared sibling was not absent at all, it was
-# whatever revision another repo's run had left behind, and the guard silently
-# compared against that. This repo was the original casualty - a 2026-07-25 push
-# went red here against hub dad518a and reported drift in the OPPOSITE direction
-# from the real one, while the same commit passed on test-host. Declaring them makes
-# the harness ship canonical and rm -rf any leftover.
+# but is a trap on a shared CI venue that keeps a persistent checkout per repo:
+# an undeclared sibling is then not absent at all, it is whatever revision
+# another repo's run left behind, and the guard silently compares against that.
+# Declaring them makes the harness ship canonical and remove any leftover.
 xchain-hub
 xchain-documentation

@@ -9,16 +9,17 @@
 // contact legal@dankest.llc.
 //
 // Regression: bitcoin.script.compile minimal-op canonicalization drops pushes
-// the paired decoder cannot read (). A 1-byte minimal-op-range payload
-// (0x01-0x10, 0x81) or a degenerate 1-byte final P2SH/P2WSH chunk canonicalizes
-// to a bare opcode the decoder then skips. Fixes are encoder-side:
-// validateActionPushDecodability refuses the undecodable single-byte shapes at
-// validate time, and prepareData rebalances a degenerate 1-byte final chunk so
-// the compiled redeem script never carries a bare-opcode data element.
+// the paired decoder cannot read (the "minimal-op single-byte drop"). A 1-byte
+// minimal-op-range payload (0x01-0x10, 0x81) or a degenerate 1-byte final
+// P2SH/P2WSH chunk canonicalizes to a bare opcode the decoder then skips.
+// Fixes are encoder-side: validateActionPushDecodability refuses the
+// undecodable single-byte shapes at validate time, and prepareData rebalances
+// a degenerate 1-byte final chunk so the compiled redeem script never carries
+// a bare-opcode data element.
 //
-// The empty-data OP_0 rawData-only shape () is intentionally NOT
-// touched here: it is a deliberately-supported, tested contract, and restoring
-// it end-to-end is a decoder-side (consensus) flag-day change, not an encoder
+// The empty-data OP_0 rawData-only shape is intentionally NOT touched here:
+// it is a deliberately-supported, tested contract, and restoring it
+// end-to-end is a decoder-side (consensus) flag-day change, not an encoder
 // refusal. Note `data` is measured as UTF-8, so only bytes 0x01-0x10 are
 // reachable as a lone-byte data push (0x81 encodes to 2 UTF-8 bytes); rawData
 // is measured as Latin-1, so 0x01-0x10 and 0x81 are all reachable there.
@@ -41,7 +42,7 @@ function makeEncoder () {
   return new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
 }
 
-describe('minimal-op canonicalization guards (#1226; #1293 flag-day scoped)', () => {
+describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)', () => {
 
   describe('isMinimalOpSingleByte predicate', () => {
     it('flags 1-byte minimal-op values', () => {
@@ -51,12 +52,12 @@ describe('minimal-op canonicalization guards (#1226; #1293 flag-day scoped)', ()
         assert.strictEqual(Buffer.isBuffer(decompiled[0]), false)
       }
     })
-    // isMinimalOpSingleByte excludes the empty buffer (that is the #1293 shape);
-    // the empty buffer compiles to OP_0, which the removed compilesToBareOpcode
-    // predicate used to flag, but that predicate is dead (no production call
-    // sites) and has been deleted. isMinimalOpSingleByte's actual behavior
-    // (false for empty) is the one asserted here.
-    it('excludes the empty buffer (that is the #1293 shape)', () => {
+    // isMinimalOpSingleByte excludes the empty buffer (that is the deliberately-
+    // supported empty-data shape); the empty buffer compiles to OP_0, which the
+    // removed compilesToBareOpcode predicate used to flag, but that predicate is
+    // dead (no production call sites) and has been deleted. isMinimalOpSingleByte's
+    // actual behavior (false for empty) is the one asserted here.
+    it('excludes the empty buffer (the deliberately-supported empty-data shape)', () => {
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.alloc(0)), false)
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([0x05])), true)
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from([0x81])), true)
@@ -72,7 +73,7 @@ describe('minimal-op canonicalization guards (#1226; #1293 flag-day scoped)', ()
     })
   })
 
-  describe('validateActionPushDecodability (#1226 single-byte minimal-op drop)', () => {
+  describe('validateActionPushDecodability (single-byte minimal-op drop)', () => {
     it('rejects a 1-byte minimal-op data-only action (0x05, 0x0f)', () => {
       assert.throws(() => validator.validateActionPushDecodability(B05, null), /data/)
       assert.throws(() => validator.validateActionPushDecodability(B0F, null), /data/)
@@ -92,7 +93,7 @@ describe('minimal-op canonicalization guards (#1226; #1293 flag-day scoped)', ()
     })
   })
 
-  describe('empty-data shapes remain intentionally supported (#1293 is flag-day scoped)', () => {
+  describe('empty-data shapes remain intentionally supported (flag-day scoped)', () => {
     it('does NOT reject empty data-only (payment-only / no-ACTION tx)', () => {
       assert.doesNotThrow(() => validator.validateActionPushDecodability('', null))
       assert.doesNotThrow(() => validator.validateActionPushDecodability(null, null))
@@ -113,7 +114,7 @@ describe('minimal-op canonicalization guards (#1226; #1293 flag-day scoped)', ()
     })
   })
 
-  describe('prepareData rebalances a degenerate 1-byte final P2SH/P2WSH chunk (#1226)', () => {
+  describe('prepareData rebalances a degenerate 1-byte final P2SH/P2WSH chunk', () => {
     const encoder = makeEncoder()
 
     // chunksSize for P2SH/P2WSH is 520 - 44 = 476. A payload of 476*k + 1 bytes

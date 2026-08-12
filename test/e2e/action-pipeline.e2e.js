@@ -70,8 +70,6 @@ async function encodeFull (actionObj, opts = {}) {
 
 describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
 
-  // ── E2E-1.1: Simple token send ────────────────────────────────
-
   describe('E2E-1.1: Simple SEND v0', () => {
     it('SEND|0|JDOG|100|<addr> encodes to valid OP_RETURN PSBT with exact payload', async () => {
       const action = actions.makeSend('JDOG', '100', actions.ADDR_BTC)
@@ -79,8 +77,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── E2E-1.2: Send with memo ───────────────────────────────────
 
   describe('E2E-1.2: SEND with memo', () => {
     it('memo field survives full pipeline', async () => {
@@ -90,8 +86,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('Payment for services'))
     })
   })
-
-  // ── E2E-1.3: Multi-output send v1 ────────────────────────────
 
   describe('E2E-1.3: SEND v1 multi-output', () => {
     it('multiple AMOUNT|DEST pairs preserved', async () => {
@@ -104,8 +98,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.startsWith('SEND|1|'))
     })
   })
-
-  // ── E2E-1.4: Multi-token send v2 ─────────────────────────────
 
   describe('E2E-1.4: SEND v2 multi-token', () => {
     it('multi-token TICK|AMT|DEST triplets preserved', async () => {
@@ -121,8 +113,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.5: Multi-token+memo send v3 ────────────────────────
-
   describe('E2E-1.5: SEND v3 multi-token with per-transfer memo', () => {
     it('per-transfer memos preserved', async () => {
       const action = actions.makeMultiSendV3([
@@ -136,8 +126,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('bye'))
     })
   })
-
-  // ── E2E-1.6: Full ISSUE (P2SH) ───────────────────────────────
 
   describe('E2E-1.6: Full ISSUE with all 25+ fields (P2SH)', () => {
     it('produces valid P2SH PSBT with correctly structured output', async () => {
@@ -166,8 +154,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.7: Minimal ISSUE (OP_RETURN) ───────────────────────
-
   describe('E2E-1.7: Minimal ISSUE', () => {
     it('ISSUE|0|X auto-selects OP_RETURN', async () => {
       const action = actions.makeIssueMinimal('X')
@@ -176,8 +162,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, 'ISSUE|0|X')
     })
   })
-
-  // ── E2E-1.8: Description edit (ISSUE v1) ─────────────────────
 
   describe('E2E-1.8: ISSUE v1 description edit', () => {
     it('version 1 format with description preserved', async () => {
@@ -189,8 +173,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.9: MINT ────────────────────────────────────────────
-
   describe('E2E-1.9: MINT', () => {
     it('tick and amount preserved', async () => {
       const action = actions.makeMint('JDOG', '999')
@@ -200,8 +182,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.10: DESTROY ────────────────────────────────────────
-
   describe('E2E-1.10: DESTROY', () => {
     it('burn amount preserved', async () => {
       const action = actions.makeDestroy('JDOG', '50')
@@ -210,8 +190,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.11: CALLBACK ───────────────────────────────────────
-
   describe('E2E-1.11: CALLBACK', () => {
     it('minimal callback payload preserved', async () => {
       const action = actions.makeCallback('JDOG')
@@ -219,8 +197,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── E2E-1.12: SLEEP ──────────────────────────────────────────
 
   describe('E2E-1.12: SLEEP', () => {
     it('resume block number preserved', async () => {
@@ -231,8 +207,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.13: SWEEP ──────────────────────────────────────────
-
   describe('E2E-1.13: SWEEP', () => {
     it('destination address preserved', async () => {
       const action = actions.makeSweep(actions.ADDR_BTC)
@@ -241,8 +215,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.14: AIRDROP ────────────────────────────────────────
-
   describe('E2E-1.14: AIRDROP', () => {
     it('list index reference preserved', async () => {
       const action = actions.makeAirdrop('JDOG', '100', '10')
@@ -250,8 +222,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── E2E-1.15: DIVIDEND ───────────────────────────────────────
 
   describe('E2E-1.15: DIVIDEND', () => {
     it('two-tick relationship preserved', async () => {
@@ -263,8 +233,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.16: ORDER (BUY) ────────────────────────────────────
-
   describe('E2E-1.16: ORDER BUY', () => {
     it('all DEX fields preserved', async () => {
       const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
@@ -273,8 +241,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('BUY'))
     })
   })
-
-  // ── E2E-1.17: ORDER (SELL) ───────────────────────────────────
 
   describe('E2E-1.17: ORDER SELL', () => {
     it('SELL type preserved', async () => {
@@ -285,8 +251,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.18: COINPAY ────────────────────────────────────────
-
   describe('E2E-1.18: COINPAY', () => {
     it('order match index preserved', async () => {
       const action = actions.makeCoinpay('42')
@@ -296,8 +260,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.19: DISPENSER ──────────────────────────────────────
-
   describe('E2E-1.19: DISPENSER', () => {
     it('all dispenser params preserved', async () => {
       const action = actions.makeDispenser('JDOG', '100', '10', '1', actions.ADDR_BTC)
@@ -305,8 +267,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── E2E-1.20: SWAP ───────────────────────────────────────────
 
   describe('E2E-1.20: SWAP', () => {
     it('cross-chain identifiers preserved', async () => {
@@ -318,8 +278,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.21: BROADCAST ──────────────────────────────────────
-
   describe('E2E-1.21: BROADCAST', () => {
     it('message text preserved', async () => {
       const action = actions.makeBroadcast('Hello XChain World')
@@ -328,8 +286,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.22: MESSAGE ────────────────────────────────────────
-
   describe('E2E-1.22: MESSAGE', () => {
     it('address + text preserved', async () => {
       const action = actions.makeMessage(actions.ADDR_BTC, 'Hello')
@@ -337,8 +293,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── E2E-1.23: FILE (small, P2SH) ─────────────────────────────
 
   describe('E2E-1.23: FILE small (P2SH)', () => {
     it('file metadata + content encoded as P2SH', async () => {
@@ -355,8 +309,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(p2shOutput, 'should have P2SH output')
     })
   })
-
-  // ── E2E-1.24: FILE (large, P2WSH) ────────────────────────────
 
   describe('E2E-1.24: FILE large (P2WSH)', () => {
     it('large file encoded as P2WSH when forced', async () => {
@@ -375,8 +327,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.25: ADDRESS ────────────────────────────────────────
-
   describe('E2E-1.25: ADDRESS', () => {
     it('require-memo flag preserved', async () => {
       const action = actions.makeAddress('1')
@@ -384,8 +334,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── E2E-1.26: LINK ───────────────────────────────────────────
 
   describe('E2E-1.26: LINK', () => {
     it('action indices preserved', async () => {
@@ -396,8 +344,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('99'))
     })
   })
-
-  // ── E2E-1.27: LIST ───────────────────────────────────────────
 
   describe('E2E-1.27: LIST', () => {
     it('comma-separated items encoded successfully', async () => {
@@ -416,8 +362,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.28: BATCH (multi-action) ───────────────────────────
-
   describe('E2E-1.28: BATCH', () => {
     it('semicolon-separated actions preserved', async () => {
       const batch = actions.makeBatch([
@@ -429,8 +373,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes(';'))
     })
   })
-
-  // ── E2E-1.29: Large BATCH (P2SH) ─────────────────────────────
 
   describe('E2E-1.29: Large BATCH forces P2SH', () => {
     it('5+ actions in batch exceeds OP_RETURN and auto-selects P2SH', async () => {
@@ -446,8 +388,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
     })
   })
 
-  // ── E2E-1.30: TICK by ID (caret prefix) ──────────────────────
-
   describe('E2E-1.30: TICK by ID reference', () => {
     it('caret prefix preserved', async () => {
       const action = actions.makeSendByTickId('1234', '100', actions.ADDR_BTC)
@@ -456,8 +396,6 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('^1234'))
     })
   })
-
-  // ── Structural invariants across all types ────────────────────
 
   describe('Structural invariants across all ACTION types', () => {
     const allActions = [

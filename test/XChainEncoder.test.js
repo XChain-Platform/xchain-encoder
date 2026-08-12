@@ -12,7 +12,6 @@
  *
  ********************************************************************/
 
-// XChainEncoder.test.js
 import { BIP32Factory } from 'bip32'
 import * as ecc from 'tiny-secp256k1'
 const bip32 = BIP32Factory(ecc)
@@ -28,16 +27,7 @@ import {ECPairFactory} from 'ecpair'
 function xchainP2shFinalizer(inputIndex, input, script, isSegwit, isP2SH, isP2WSH){
     if (isP2SH){
         const decompiled = bitcoin.script.decompile(script);
-        
-        /*if (!decompiled 
-          || decompiled[1] !== bitcoin.opcodes.OP_DROP
-          || decompiled[2] !== bitcoin.opcodes.OP_DUP
-          || decompiled[3] !== bitcoin.opcodes.OP_HASH160
-          || decompiled[5] !== bitcoin.opcodes.OP_EQUALVERIFY
-          || decompiled[6] !== bitcoin.opcodes.OP_CHECKSIG) {
-            throw new Error(`Can not finalize input #${inputIndex}`);
-        }*/
-        
+
         let payment = {
             network: bitcoin.networks.regtest,
             input: 
@@ -76,16 +66,16 @@ function xchainP2shFinalizer(inputIndex, input, script, isSegwit, isP2SH, isP2WS
         });
         
         return {
-            finalScriptSig: undefined,//payment.input,
+            finalScriptSig: undefined,
             finalScriptWitness: psbtutils.witnessStackToScriptWitness(payment.witness)
-        };  
+        };
     } else {
         throw new Error(`Can not finalize input #${inputIndex}. This finalizer is meant for only p2sh inputs`);
     }
-    
-    
+
+
     const decompiled = bitcoin.script.decompile(script);
-    
+
 }
 
 
@@ -125,7 +115,6 @@ describe('XChainEncoder', () => {
                 }
             }
             
-            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -136,12 +125,10 @@ describe('XChainEncoder', () => {
             const changeAddress = testAddress;
             const exactFee = 10000;
 
-            // Llamar a la función createTransaction
             console.log("Creating the transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
 
-            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -220,7 +207,6 @@ describe('XChainEncoder', () => {
                 }
             }
             
-            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -231,12 +217,10 @@ describe('XChainEncoder', () => {
             const changeAddress = testAddress;
             const exactFee = 10000;
 
-            // Llamar a la función createTransaction
             console.log("Creating the first transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
             
-            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -252,27 +236,22 @@ describe('XChainEncoder', () => {
             let tx1Hex = tx1.toHex()
             let tx1Id = tx1.getId()
             
-            //Cargar el psbt2
             console.log("Creating the second transaction with XchainEncoder")
             const psbt2Resultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, tx1Id, tx1Hex);
             const psbt2Base64 = psbt2Resultante.toBase64()
             const psbt2ParaFirmar = bitcoin.Psbt.fromBase64(psbt2Base64)
             
             for (let proxInputIndex in psbt2ParaFirmar.data.inputs){
-                //let proxInput = psbt2ParaFirmar.data.inputs[proxInputIndex]             
                 let intIndex = parseInt(proxInputIndex)
-                //psbt2ParaFirmar.updateInput(intIndex, {nonWitnessUtxo:Buffer.from(tx1Hex, 'hex')})
                 psbt2ParaFirmar.signInput(intIndex, keyToSign);
             }
             
-            //psbt2ParaFirmar.finalizeAllInputs();
             psbt2ParaFirmar.finalizeInput(0,xchainP2shFinalizer);
             
             let tx2 = psbt2ParaFirmar.extractTransaction()
             let tx2Hex = tx2.toHex()
             let tx2Id = tx2.getId()
             
-            //Broadcast first p2sh tx
             console.log("Broadcasting the first p2sh transacion to the node")
             let txHash = await nodeHelper.broadcastTx(tx1Hex)
             
@@ -284,7 +263,6 @@ describe('XChainEncoder', () => {
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
             
-            //Broadcast second p2sh tx
             console.log("Broadcasting the second p2sh transacion to the node")
             let tx2Hash = await nodeHelper.broadcastTx(tx2Hex)
             assert((tx2Hash != null) && (tx2Hash.length == 64))
@@ -308,7 +286,7 @@ describe('XChainEncoder', () => {
             
             let decodedScriptSig = bitcoin.script.decompile(Buffer.from(tx2Obj["vin"][0]["scriptSig"]["hex"], "hex"))
             let decodedRedeemScript = bitcoin.script.decompile(decodedScriptSig[2])
-            let decodedData = Buffer.from(decodedRedeemScript[0])//.toString("utf-8")
+            let decodedData = Buffer.from(decodedRedeemScript[0])
 			
 			
 			let decompiledData = bitcoin.script.decompile(decodedData)
@@ -317,7 +295,6 @@ describe('XChainEncoder', () => {
 			assert(decompiledData[0] == data)
 			assert(decompiledData[1] == rawData)
 			
-            //assert(decodedData == data)
         });
         it('should create a multisign tx', async () => {
             var network = bitcoin.networks.regtest
@@ -354,7 +331,6 @@ describe('XChainEncoder', () => {
                 }
             }
             
-            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -367,12 +343,10 @@ describe('XChainEncoder', () => {
             const compressedPubKey = address.publicKey.toString("hex")
 
 
-            // Llamar a la función createTransaction
             console.log("Creating the first transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, null, null, compressedPubKey);
             const psbtBase64 = psbtResultante.toBase64()
             
-            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -388,7 +362,6 @@ describe('XChainEncoder', () => {
             let tx1Hex = tx1.toHex()
             let tx1Id = tx1.getId()
             
-            //Broadcast multisign tx
             console.log("Broadcasting the multisign transacion to the node")
             let txHash = await nodeHelper.broadcastTx(tx1Hex)
             
@@ -407,7 +380,6 @@ describe('XChainEncoder', () => {
             
             let pubkey1 = decompiledScript[1].subarray(1) //removing the 02 at the beginning
             let pubkey2 = decompiledScript[2].subarray(1) //removing the 02 at the beginning
-            //let pubkey3 = decompiledScript[3]
             
             let dataConcat = Buffer.concat([pubkey1, pubkey2])
             
@@ -421,7 +393,6 @@ describe('XChainEncoder', () => {
             
             let decodedData = await nodeHelper.removeObfuscation(dataConcat, txObj["vin"][0]["txid"])
             decodedDataString = decodedData.toString("utf-8")
-            //decodedData = decodedDataString.substr()
             
             assert(decodedDataString.substr(0,4) == "XCHN")
 			
@@ -431,7 +402,6 @@ describe('XChainEncoder', () => {
 			assert(decompiledData[0] == data)
 			assert(decompiledData[1] == rawData)
 			
-            //assert(decodedData.substr(4) == data)
         });
         it('should create a P2WSH tx', async () => {
             var network = bitcoin.networks.regtest
@@ -467,7 +437,6 @@ describe('XChainEncoder', () => {
                 }
             }
             
-            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -478,12 +447,10 @@ describe('XChainEncoder', () => {
             const changeAddress = testAddress;
             const exactFee = 10000;
 
-            // Llamar a la función createTransaction
             console.log("Creating the first transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
             
-            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -499,7 +466,6 @@ describe('XChainEncoder', () => {
             let tx1Hex = tx1.toHex()
             let tx1Id = tx1.getId()
             
-            //Cargar el psbt2
             console.log("Creating the second transaction with XchainEncoder")
             const psbt2Resultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, tx1Id, tx1Hex);
             const psbt2Base64 = psbt2Resultante.toBase64()
@@ -511,13 +477,11 @@ describe('XChainEncoder', () => {
             }
             
             psbt2ParaFirmar.finalizeInput(0,xchainP2shFinalizer);
-            //psbt2ParaFirmar.finalizeInput(0);
             
             let tx2 = psbt2ParaFirmar.extractTransaction()
             let tx2Hex = tx2.toHex()
             let tx2Id = tx2.getId()
             
-            //Broadcast first p2wsh tx
             console.log("Broadcasting the first p2wsh transacion to the node")
             let txHash = await nodeHelper.broadcastTx(tx1Hex)
             
@@ -529,7 +493,6 @@ describe('XChainEncoder', () => {
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
             
-            //Broadcast second p2wsh tx
             console.log("Broadcasting the second p2wsh transacion to the node")
             let tx2Hash = await nodeHelper.broadcastTx(tx2Hex)
             assert((tx2Hash != null) && (tx2Hash.length == 64))
@@ -551,7 +514,7 @@ describe('XChainEncoder', () => {
             assert(txDataStr.substr(4) == "p2wsh")
             
             let decodedRedeemScript = bitcoin.script.decompile(Buffer.from(tx2Obj["vin"][0]["txinwitness"][2], "hex"))
-            let decodedData = Buffer.from(decodedRedeemScript[0])//.toString("utf-8")
+            let decodedData = Buffer.from(decodedRedeemScript[0])
 			
 			let decompiledData = bitcoin.script.decompile(decodedData)
 			assert(decompiledData.length == 2)
@@ -559,7 +522,6 @@ describe('XChainEncoder', () => {
 			assert(decompiledData[0] == data)
 			assert(decompiledData[1] == rawData)
 			
-            //assert(decodedData == data)
         });
     });
 });

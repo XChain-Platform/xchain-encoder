@@ -33,8 +33,6 @@ const BTC_ADDR = getTestAddress(BTC)
 
 describe('Chaos Category F: API Layer Failures', () => {
 
-  // ── F-1: Validator with malformed params ──────────────────────
-
   describe('F-1: Validator with malformed params', () => {
     it('null params → TypeError', () => {
       assert.throws(
@@ -82,7 +80,7 @@ describe('Chaos Category F: API Layer Failures', () => {
       )
     })
 
-    it('unknown/typoed ACTION name → RangeError ()', () => {
+    it('unknown/typoed ACTION name → RangeError', () => {
       assert.throws(
         () => validator.validateAll({ data: 'test', pubkey: 'test' }),
         { name: 'RangeError' }
@@ -90,7 +88,6 @@ describe('Chaos Category F: API Layer Failures', () => {
     })
   })
 
-  // ── F-3: psbt.toHex() callability ─────────────────────────────
   // api.js line 124 calls psbt.toHex() OUTSIDE the try/catch block.
   // If toHex() throws, it would be an unhandled error in the API.
 
@@ -160,7 +157,6 @@ describe('Chaos Category F: API Layer Failures', () => {
       )
       assert.ok(result.psbt instanceof bitcoin.Psbt)
 
-      // But the api.js line 124 call would crash:
       assert.throws(
         () => result.psbt.toHex(),
         /chaos: toHex failed/

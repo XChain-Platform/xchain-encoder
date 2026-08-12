@@ -12,10 +12,6 @@ const assert = require('assert')
 const axios = require('axios')
 const UtxoTracker = require('../../src/UtxoTracker')
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
 function makeTracker () {
   return new UtxoTracker('127.0.0.1', 18420)
 }
@@ -73,10 +69,6 @@ function stubSyncedThenUtxos (utxos) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constructor
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('UtxoTracker constructor', () => {
   it('builds the correct URL from host and port', () => {
     const t = new UtxoTracker('myhost', 12345)
@@ -88,10 +80,6 @@ describe('UtxoTracker constructor', () => {
     assert.strictEqual(t.port, 9999)
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// getSyncStatus
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('UtxoTracker.getSyncStatus()', () => {
   it('sends get_sync_status JSON-RPC method', async () => {
@@ -172,10 +160,6 @@ describe('UtxoTracker.getSyncStatus()', () => {
     assert.ok(typeof capturedOptions.timeout === 'number' && capturedOptions.timeout > 0)
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// getUtxosFromAddress
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('UtxoTracker.getUtxosFromAddress()', () => {
   const ADDRESS = 'mhqpGkU1tUYKFrmtFDXEcBiMqzaZTbEPxX'
@@ -282,7 +266,7 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
     )
   })
 
-  // : halted is published independently of synced, so a tracker frozen on
+  // halted is published independently of synced, so a tracker frozen on
   // an unrecoverable reorg whose frozen height still shows an acceptable lag passed
   // this preflight and its rolled-back UTXOs reached input selection.
   it('throws when the tracker is halted, even at lag 0 with synced=true', async () => {
@@ -301,7 +285,7 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
     )
   })
 
-  // : a negative lag means the node reset or reindexed below our committed
+  // A negative lag means the node reset or reindexed below our committed
   // tip, so the outputs we would select live in blocks it no longer recognizes. The
   // encoder checks it itself because it fails open on trackers lacking the fix.
   it('throws when the tracker is ahead of the node (negative lag)', async () => {
@@ -320,7 +304,7 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
     )
   })
 
-  // : block sync flips true before the first mempool rebuild finishes, so at
+  // Block sync flips true before the first mempool rebuild finishes, so at
   // lag 0 with synced:true the tracker can still hand back a confirmed output already
   // spent in the node's mempool, which its empty index cannot filter.
   it('throws when the tracker has not reconverged its mempool, even at lag 0', async () => {
@@ -344,7 +328,7 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
   // mempool_ready:false as well and BOTH gates are eligible. The operator must be told
   // the block lag, which is actionable and self-clearing, not sent hunting a mempool
   // rebuild that is not the fault. Pins the ordering, so moving the readiness gate back
-  // above the sync gate reddens here ( rework).
+  // above the sync gate reddens here.
   it('names the block lag, not mempool reconvergence, when a lagging tracker de-asserts both', async () => {
     let callCount = 0
     axios.post = async () => {

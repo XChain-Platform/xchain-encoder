@@ -12,9 +12,9 @@
  *
  **********************************************************************
  *
- * XChain Encoder - ChainAdapter interface (PRE-WORK STUB, )
+ * XChain Encoder - ChainAdapter interface (PRE-WORK STUB)
  *
- * The account-chains support spec (§5) prescribes ONE implementation per chain
+ * The account-chains support design prescribes ONE implementation per chain
  * FAMILY behind a single interface, rather than scattering if(coin === 'ETH')
  * across the encoder/decoder/indexer. Today the platform is UTXO-only and has
  * no such seam; the existing PSBT path in XChainEncoder.js IS the (implicit)
@@ -22,7 +22,7 @@
  * contract to implement, and so a future UtxoAdapter refactor and any SvmAdapter
  * share one shape.
  *
- * Minimum adapter surface (spec §5):
+ * Minimum adapter surface:
  *   buildUnsignedTx(action, source, feeCtx)   PSBT | EIP-1559 typed tx
  *   estimateFee(tx)                            sat/byte | gasLimit * gasPrice
  *   resolveSource(tx)                          ins[0] owner chase | tx.from
@@ -37,7 +37,7 @@
 // so api.js could branch on it were an unbuilt adapter ever wired to a live route.
 class AdapterNotImplementedError extends Error {
     constructor(family, method){
-        super(family + ' adapter: ' + method + '() is not implemented (pre-work stub, )');
+        super(family + ' adapter: ' + method + '() is not implemented (pre-work stub)');
         this.name = 'AdapterNotImplementedError';
         this.notImplemented = true;
         this.family = family;

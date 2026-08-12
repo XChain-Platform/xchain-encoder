@@ -8,24 +8,9 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Additional tests targeting the branches in XChainEncoder.js not yet
-// covered by the existing test files, specifically:
-//   - P2WSH encoding: tx1 (funding), tx2 (spending), segwit-unsupported guard
-//   - Non-segwit (P2PKH) UTXO path that calls connector.getTransactionHex
-//   - feeQuote injection into customOutputs
-//   - payload-too-large guard (MAX_COMPILED_ACTION_DATA_LENGTH)
-//   - fee=null/false fast-path vs computed fee increment loop
-//   - changeSatoshis ≤ 0 / ≤ dustAmount with no change address (no-throw path)
-//   - estimateSpendingP2wshTx() across all three push-size brackets
-//   - maxFeeRateKb cap on computed fee rate
-
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared fixtures
-// ─────────────────────────────────────────────────────────────────────────────
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -101,10 +86,6 @@ function makeEncoder (network) {
   return encoder
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Non-segwit (legacy P2PKH) UTXO path
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('XChainEncoder.createTransaction(): non-segwit UTXO path', () => {
   it('calls connector.getTransactionHex for a P2PKH UTXO', async () => {
     const encoder = makeEncoder()
@@ -165,10 +146,6 @@ describe('XChainEncoder.createTransaction(): non-segwit UTXO path', () => {
     assert.strictEqual(result.psbt.data.inputs.length, 2)
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// P2WSH encoding path (tx1: funding)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('XChainEncoder.createTransaction(): P2WSH tx1 (funding)', () => {
   it('throws TypeError when P2WSH is used on a no-segwit network', async () => {
@@ -236,10 +213,6 @@ describe('XChainEncoder.createTransaction(): P2WSH tx1 (funding)', () => {
       `total outputs (${outputTotal}) must not exceed total inputs (${inputValue})`)
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// P2WSH encoding path (tx2: spending)
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
   it('creates P2WSH input with witnessScript and OP_RETURN marker', async () => {
@@ -331,10 +304,6 @@ describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Payload too large guard
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('XChainEncoder.createTransaction(): payload size guard', () => {
   it('throws RangeError when compiled payload exceeds MAX_COMPILED_ACTION_DATA_LENGTH (8192)', async () => {
     const encoder = makeEncoder()
@@ -352,10 +321,6 @@ describe('XChainEncoder.createTransaction(): payload size guard', () => {
     )
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// feeQuote injection
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
   it('adds feeQuote as an extra output when address and amount > 0', async () => {
@@ -411,10 +376,6 @@ describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// maxFeeRateKb cap
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('XChainEncoder.createTransaction() - maxFeeRateKb cap', () => {
   it('caps the fee rate when connector returns a rate above maxFeeRateKb', async () => {
     // Create encoder with maxFeeRateKb = 1 (sat/kB, very low cap)
@@ -447,10 +408,6 @@ describe('XChainEncoder.createTransaction() - maxFeeRateKb cap', () => {
       `fee ${impliedFee} should be well under 1% of input with cap applied`)
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Change output edge cases
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('XChainEncoder.createTransaction() - change edge cases', () => {
   it('does not add change output when changeSatoshis is 0', async () => {
@@ -498,10 +455,6 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Invalid fee
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('XChainEncoder.createTransaction() - invalid fee', () => {
   it('throws RangeError for a NaN fee string', async () => {
     const encoder = makeEncoder()
@@ -532,10 +485,6 @@ describe('XChainEncoder.createTransaction() - invalid fee', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// estimateSpendingP2wshTx: all push-size brackets
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
   const TxSizeEstimator = require('../../src/TxSizeEstimator')
   const MAGIC_WORD = 'XCHN'
@@ -544,8 +493,8 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
     const len = witnessData.length
     // Witness stack items are framed by a compactSize varint (1 byte below 253,
     // 3 bytes through 65535), NOT by script push opcodes. The old mirror here
-    // used the 76/256 script-push brackets and so pinned the defect fixed in
-    // estimateSpendingP2wshTx (review item 2688).
+    // used the 76/256 script-push brackets and so pinned the defect that was
+    // fixed in estimateSpendingP2wshTx.
     const witnessScriptPrefix = len < 253 ? 1 : 3
     const witnessBytes = 2 + 1 + (1 + 72) + (1 + 33) + (witnessScriptPrefix + len)
     const nonWitnessBytes =
@@ -575,7 +524,7 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
     assert.strictEqual(encoder.estimateSpendingP2wshTx(data), expectedSize(data))
   })
 
-  // Regression, review item 2688. The mirror above moves with the implementation,
+  // Regression: the mirror above moves with the implementation,
   // so these two cases pin the framing rule independently of it, in the only
   // places where the old script-push model is observable through the ÷4 witness
   // discount. estimateSpendingP2wshTx returns
@@ -642,11 +591,8 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Remaining uncovered branches: customOutputs invalid value, UTXO invalid value,
-// unconfirmed=false depletes all UTXOs (line 325), changeSatoshis non-finite
-// ─────────────────────────────────────────────────────────────────────────────
-
+// unconfirmed=false depletes all UTXOs, changeSatoshis non-finite.
 describe('XChainEncoder.createTransaction() - remaining branch coverage', () => {
   it('throws RangeError when customOutputs[i].value is not a valid satoshi amount', async () => {
     const encoder = makeEncoder()
@@ -709,10 +655,6 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
     )
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// rawData parameter path
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('XChainEncoder.createTransaction() - rawData parameter', () => {
   it('accepts rawData and includes it in the compiled payload', async () => {

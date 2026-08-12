@@ -51,7 +51,7 @@ const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = requ
 const { upstreamErrorMessage } = require('./errorSanitize')
 const { parseCorsOrigin } = require('./corsOrigin')
 const { version: ENCODER_VERSION } = require('../package.json')
-const { installObservability } = require('./observability');   // : default-off /metrics + structured log shim
+const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
 
 
 const NETWORK = process.env.NETWORK
@@ -70,8 +70,8 @@ const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_F
 const _maxFeeRateMultiplier = parseFloat(process.env.MAX_FEE_RATE_MULTIPLIER)
 const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFeeRateMultiplier : undefined
 // Max blocks the utxo-tracker's per-response freshness `sync` field may report
-// as lag before create_tx refuses to select UTXOs from it (UTXO_TRACKER_STALE,
-// M-11). Unset/unparseable falls through to XChainEncoder's own default
+// as lag before create_tx refuses to select UTXOs from it
+// (UTXO_TRACKER_STALE). Unset/unparseable falls through to XChainEncoder's own default
 // (DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) via the `undefined` fallback, same
 // pattern as MAX_FEE_RATE_MULTIPLIER above.
 const _utxoTrackerMaxLagBlocks = parseInt(process.env.UTXO_TRACKER_MAX_LAG_BLOCKS, 10)
@@ -89,7 +89,7 @@ function keyEquals(provided, expected){
     return crypto.timingSafeEqual(a, b)
 }
 
-// API key authentication is OPTIONAL (see components/encoder/README.md, default: Disabled).
+// API key authentication is OPTIONAL (see README.md; default: disabled).
 // When API_KEY is unset the encoder runs open; setting it opts into x-api-key enforcement.
 if (!API_KEY) {
     console.warn('NOTICE: API_KEY not set. Encoder API authentication is DISABLED (open access).')
@@ -104,7 +104,7 @@ const app = express();
 // with the encoder behind a fronting proxy (see docs/README deployment
 // notes), so every visitor's requests arrive from the proxy's IP and all
 // clients share ONE rate-limit bucket, tripping 429s under modest concurrent
-// load (encoder-status-board-parity #2468). `true` must NOT be the default:
+// load. `true` must NOT be the default:
 // it would trust ANY client-supplied X-Forwarded-For, letting callers spoof
 // their IP past the per-IP limiter (express-rate-limit's
 // ERR_ERL_PERMISSIVE_TRUST_PROXY warning). The default trusts loopback plus
@@ -124,7 +124,7 @@ app.set('trust proxy', trustProxy);
 app.use(helmet());
 
 // 3mb (was 1mb): the TAPROOT envelope raises the largest legitimate request
-// well past 1mb ( spec §4). A create_tx may carry ~400 KB of rawData
+// well past 1mb. A create_tx may carry ~400 KB of rawData
 // that arrives base64/hex-encoded (~0.5-0.8 MB) or, worst case, as
 // JSON-escaped Latin-1 (up to 6 bytes per payload byte); a broadcast_tx of a
 // signed reveal is ~810,000 hex chars on its own. The per-method validators
@@ -157,7 +157,7 @@ const limiter = rateLimit({
 })
 app.use(limiter)
 
-// Global in-flight concurrency cap . The limiter above keys on the
+// Global in-flight concurrency cap. The limiter above keys on the
 // client IP, so a stampede spread across thousands of distinct IPs never trips
 // it while every create_tx still fans out into coin-node and utxo-tracker RPCs
 // on a shared, un-pooled upstream. This caps how many requests are being served
@@ -199,7 +199,7 @@ app.use(requestGate)
 // and be accepted by no browser. See src/corsOrigin.js.
 app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
 
-// : Prometheus /metrics plus a structured log shim, both DEFAULT OFF.
+// Prometheus /metrics plus a structured log shim, both DEFAULT OFF.
 // Nothing is registered and no timer starts unless METRICS_ENABLED (and, for log
 // shipping, LOG_SHIP_ENABLED + LOG_SHIP_URL) are set, so the encoder gains no new
 // listening surface by accident. Wired AFTER the rate limiter and concurrency
@@ -214,7 +214,7 @@ installObservability(app, {
 });
 
 // Serve-readiness probe shared by the JSON-RPC health() method and GET
-// /status (#2472), so the two endpoints can never drift apart: probes the
+// /status, so the two endpoints can never drift apart: probes the
 // UTXO tracker and returns its reachability / sync state. Fields:
 // tracker_reachable (bool), tracker_synced (bool), tracker_lag (number|null),
 // tracker_halted (bool), tracker_mempool_ready (bool).
@@ -224,16 +224,16 @@ installObservability(app, {
 // (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money
 // safety). Without the extra gate a 3-block lag read synced:true here while
 // create_tx refused UTXO_TRACKER_STALE, so the status board painted Online
-// on an un-serveable encoder (#2263). Null lag fails open, exactly like
+// on an un-serveable encoder. Null lag fails open, exactly like
 // create_tx's overLag gate.
 //
 // A halted tracker (stopped polling on an unrecoverable reorg) and a negative
 // lag (its committed tip sits above the node's, so its outputs are orphaned)
 // are both un-serveable regardless of what `synced` says, and both were painting
-// Online here because only the upper lag bound was checked ().
-// A tracker whose mempool has not reconverged is un-serveable for the same reason:
-// create_tx refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe
-// recreated the #2263 divergence the probe exists to prevent ().
+// Online here because only the upper lag bound was checked. A tracker whose
+// mempool has not reconverged is un-serveable for the same reason: create_tx
+// refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe recreated
+// the same board-versus-encoder divergence the probe exists to prevent.
 async function getServeReadiness() {
     let tracker_reachable = false
     let tracker_synced = false
@@ -265,7 +265,7 @@ const jsonRpcController = {
     // Probes hard dependencies (UTXO tracker) and returns their reachability /
     // sync state. Unlike ping, a health failure means the encoder cannot serve
     // requests correctly. See getServeReadiness() for the readiness gate,
-    // shared with GET /status below (#2472).
+    // shared with GET /status below.
     async health() {
         return getServeReadiness()
     },
@@ -335,15 +335,15 @@ const jsonRpcController = {
         }
 
         psbt["psbt"] = psbt["psbt"].toHex()
-        // TAPROOT envelope : one call returns the {commit, reveal}
+        // TAPROOT envelope: one call returns the {commit, reveal}
         // pair; the caller signs both and broadcasts commit then reveal.
         if (psbt["revealPsbt"]) {
             psbt["revealPsbt"] = psbt["revealPsbt"].toHex()
         }
         return psbt;
     },
-    // Key-path cancel of an unrevealed TAPROOT envelope commit ( spec
-    // §3.5): rebuilds the sweep PSBT from the wallet's persisted recovery
+    // Key-path cancel of an unrevealed TAPROOT envelope commit: rebuilds the
+    // sweep PSBT from the wallet's persisted recovery
     // record alone. Validation lives in the encoder method (typed
     // TypeError/RangeError -> -32602, OperationalError -> -32010).
     async create_envelope_cancel_tx(rawParams) {
@@ -401,7 +401,6 @@ const jsonRpcController = {
             throw e
         }
     },
-    // Function to fetch UTXOs for an address (proxies to UTXO tracker)
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
         if (!address) {
@@ -435,17 +434,16 @@ const jsonRpcController = {
 // and the UTXO tracker is synced, or 503 when not. Distinct from the JSON-RPC
 // `health` method so load-balancer / uptime monitors can rely on the HTTP status
 // code directly (the JSON-RPC catch-all routes all GETs to 200 today). Shares
-// the readiness gate with health() via getServeReadiness() above (#2472) so
+// the readiness gate with health() via getServeReadiness() above so
 // the two endpoints cannot drift apart.
 app.get('/status', async (req, res) => {
     // tracker_halted and tracker_mempool_ready travel alongside so the board names WHY
-    // an unhealthy encoder is unhealthy; both already fold into tracker_synced above
-    // ().
+    // an unhealthy encoder is unhealthy; both already fold into tracker_synced above.
     const { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready } = await getServeReadiness()
     const healthy = tracker_reachable && tracker_synced
     const code = healthy ? 200 : 503
     // request_gate exposes the global concurrency cap and how many requests it
-    // has shed ; a climbing shed count is the only outward sign that a
+    // has shed; a climbing shed count is the only outward sign that a
     // distinct-IP stampede is being refused.
     res.status(code).json({ status: healthy ? 'healthy' : 'unhealthy', tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, request_gate: requestGate.getStats(), probe_gate: probeGate.getStats() })
 })
@@ -468,7 +466,6 @@ app.get('/openrpc.json', (req, res) => {
 // length (default 20, ENCODER_MAX_RPC_BATCH). Must run after bodyParser and before the router.
 app.use(makeRpcBatchGuard(parseInt(process.env.ENCODER_MAX_RPC_BATCH, 10) || 20))
 
-// Allow JSON-RPC requests
 // Express 5 / body-parser 2.x leaves req.body undefined when a request carries
 // no JSON body (a GET, or a POST without application/json), whereas body-parser
 // 1.x set it to {}. express-json-rpc-router requires req.body to be an object or
@@ -492,7 +489,7 @@ if (require.main === module) {
   process.on('exit', releaseInstanceLock)
   // 'exit' covers only a self-directed exit. `docker stop`/`docker restart`
   // kill this process with SIGTERM, which needs its own release or the lockfile
-  // outlives every restart .
+  // outlives every restart.
   releaseLockOnSignals(releaseInstanceLock)
   app.listen(ENCODER_API_PORT, () => {
     console.log('API listening on port '+ENCODER_API_PORT);

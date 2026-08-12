@@ -44,8 +44,6 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('Category D: UTXO & Fee Integration', () => {
 
-  // ── D-1: Single large UTXO covers everything ─────────────────
-
   describe('D-1: Single large UTXO covers everything', () => {
     it('produces 1 input, 2 outputs (OP_RETURN + change)', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -62,7 +60,6 @@ describe('Category D: UTXO & Fee Integration', () => {
       assert.strictEqual(result.psbt.data.inputs.length, 1)
       assert.strictEqual(result.psbt.txOutputs.length, 2)
 
-      // One OP_RETURN (value=0), one change
       const opReturn = result.psbt.txOutputs.filter(o => o.value === 0)
       const change = result.psbt.txOutputs.filter(o => o.value > 0)
       assert.strictEqual(opReturn.length, 1)
@@ -70,8 +67,6 @@ describe('Category D: UTXO & Fee Integration', () => {
       assert.strictEqual(change[0].value, 100000000 - 10000)
     })
   })
-
-  // ── D-2: Multiple UTXOs needed ────────────────────────────────
 
   describe('D-2: Multiple UTXOs needed', () => {
     it('adds UTXOs until inputs cover outputs + fee', async () => {
@@ -92,13 +87,10 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
-      // Should need multiple inputs to cover the fee
       assert.ok(result.psbt.data.inputs.length >= 2,
         `expected >= 2 inputs, got ${result.psbt.data.inputs.length}`)
     })
   })
-
-  // ── D-3: Duplicate UTXO deduplication ─────────────────────────
 
   describe('D-3: Duplicate UTXO deduplication', () => {
     it('removes duplicate UTXOs with same txid+vout', async () => {
@@ -117,13 +109,10 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
-      // Should have at most 2 unique UTXOs as inputs
       assert.ok(result.psbt.data.inputs.length <= 2,
         `expected <= 2 inputs after dedup, got ${result.psbt.data.inputs.length}`)
     })
   })
-
-  // ── D-4: Unconfirmed filtering ────────────────────────────────
 
   describe('D-4: Unconfirmed filtering with unconfirmed=false', () => {
     it('excludes mempool UTXOs when unconfirmed=false', async () => {
@@ -160,8 +149,6 @@ describe('Category D: UTXO & Fee Integration', () => {
       assert.strictEqual(result.psbt.data.inputs.length, 1)
     })
   })
-
-  // ── D-5: UtxoTracker fallback ─────────────────────────────────
 
   describe('D-5: UtxoTracker fallback', () => {
     it('calls UtxoTracker when utxos param is null', async () => {
@@ -205,8 +192,6 @@ describe('Category D: UTXO & Fee Integration', () => {
     })
   })
 
-  // ── D-6: No UTXOs available ───────────────────────────────────
-
   describe('D-6: No UTXOs available', () => {
     it('throws when utxos empty and tracker returns empty', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -247,11 +232,8 @@ describe('Category D: UTXO & Fee Integration', () => {
     })
   })
 
-  // ── D-7: Fee capped by maxFeePerBytes ─────────────────────────
-
   describe('D-7: Fee capped by maxFeePerBytes', () => {
     it('limits fee when maxFeeRateKb is set', async () => {
-      // Create encoder WITH fee cap
       const capped = new XChainEncoder(
         NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 1000 // 1000 sat/kB cap
       )
@@ -277,23 +259,19 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 100000000 // very high: 1e8 sat/kB = 100000 sat/byte
       )
 
-      // Create uncapped encoder for comparison
       const uncapped = makeEncoder(NETWORK)
       const resultUncapped = await uncapped.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 100000000 // same high fee
+        null, null, null, true, 100000000
       )
 
-      // Capped encoder should produce lower fee (more change)
       const cappedChange = result.psbt.txOutputs.find(o => o.value > 0)
       const uncappedChange = resultUncapped.psbt.txOutputs.find(o => o.value > 0)
       assert.ok(cappedChange.value > uncappedChange.value,
         'capped fee should leave more change than uncapped')
     })
   })
-
-  // ── D-8: Dust floor on fee ────────────────────────────────────
 
   describe('D-8: Dust floor on fee', () => {
     it('floors fee to dustAmount when computed fee is lower', async () => {
@@ -315,8 +293,6 @@ describe('Category D: UTXO & Fee Integration', () => {
     })
   })
 
-  // ── D-9: No change address throws ─────────────────────────────
-
   describe('D-9: No change address throws when change > dust', () => {
     it('throws error about burning satoshis', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -334,8 +310,6 @@ describe('Category D: UTXO & Fee Integration', () => {
       )
     })
   })
-
-  // ── D-10: Legacy UTXO handling ────────────────────────────────
 
   describe('D-10: Legacy (non-segwit) UTXO handling', () => {
     it('fetches raw tx hex for nonWitnessUtxo via connector', async () => {
@@ -388,8 +362,6 @@ describe('Category D: UTXO & Fee Integration', () => {
     })
   })
 
-  // ── UTXO sorting (largest first) ──────────────────────────────
-
   describe('UTXO sorting (largest first)', () => {
     it('uses largest UTXO first, needing fewer inputs', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -405,12 +377,9 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
-      // The large UTXO alone covers everything, so only 1 input needed
       assert.strictEqual(result.psbt.data.inputs.length, 1)
     })
   })
-
-  // ── Replace-by-fee sequence ───────────────────────────────────
 
   describe('Replace-by-fee sequence', () => {
     it('sets sequence to 0x00000001 when rbf=true', async () => {
@@ -443,8 +412,6 @@ describe('Category D: UTXO & Fee Integration', () => {
       assert.strictEqual(result.psbt.txInputs[0].sequence, 0xffffffff)
     })
   })
-
-  // ── Fee source selection ──────────────────────────────────────
 
   describe('Fee source selection', () => {
     it('uses feePerKb parameter without RPC call', async () => {

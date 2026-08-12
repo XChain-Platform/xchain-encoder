@@ -13,13 +13,10 @@ const bitcoin = require('bitcoinjs-lib')
 const crypto = require('crypto')
 const XChainEncoder = require('../../src/XChainEncoder')
 
-// Generate a deterministic keypair for test fixtures
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
   'hex'
 )
-// TEST_ADDRESS will be set after DOGE_REGTEST is available (see below)
-
 // A valid-looking 64-char hex txid
 const TXID_A = 'a'.repeat(64)
 const TXID_B = 'b'.repeat(64)
@@ -27,7 +24,6 @@ const TXID_B = 'b'.repeat(64)
 // (found by brute-force: 'A'.repeat(59) compiled to 60 bytes → 64-byte chunk after magic)
 const TXID_MS = '4e3472b63a459d2188711abcff6aa2548948f90c527aa60ec4a1101136879fe8'
 
-// Build a minimal valid raw transaction hex for nonWitnessUtxo mocking
 function buildRawTxHex (value) {
   const tx = new bitcoin.Transaction()
   tx.addInput(Buffer.alloc(32, 0x11), 0)
@@ -44,7 +40,6 @@ const RAW_TX_HEX = buildRawTxHex(100000000) // 1 BTC in sats
 // Build segwit UTXO fixtures (use DOGE_REGTEST-compatible scripts won't work for
 // p2wpkh since dogecoin doesn't have bech32, so we craft a raw P2WPKH scriptPubKey)
 function makeSegwitUtxo (txid, vout, value) {
-  // Craft a P2WPKH scriptPubKey directly: OP_0 <20-byte-hash>
   const p2wpkh = bitcoin.payments.p2wpkh({
     pubkey: pubkeyBuf,
     network: bitcoin.networks.regtest
@@ -65,18 +60,16 @@ function makeEncoder () {
   const encoder = new XChainEncoder(
     'dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
   )
-  // Mock the BlockchainConnector
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
     // Returns a bare hex STRING, which is what BlockchainConnector.getTransactionHex
     // actually resolves with (`responseData.result.hex`). It used to answer
     // `{ hex }`, a shape the real class has never returned; that went unnoticed
-    // because every fixture here is segwit and nothing called it.  makes the
-    // segwit path call it, so a fake modelled on nothing would now be modelling
+    // because every fixture here is segwit and nothing called it. Now that the
+    // segwit path calls it too, a fake modelled on nothing would be modelling
     // the code under test.
     getTransactionHex: async () => RAW_TX_HEX
   }
-  // Mock the UtxoTracker
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => ({
       utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)]
@@ -85,7 +78,6 @@ function makeEncoder () {
   return encoder
 }
 
-// Dogecoin regtest network for address generation in tests
 const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
@@ -94,8 +86,6 @@ const TEST_ADDRESS = bitcoin.payments.p2pkh({
 
 describe('XChainEncoder.createTransaction()', () => {
 
-  // ── : prev tx attached for hardware signers ────────────────
-  //
   // Ledger derives the outpoint it signs from the bytes of the previous
   // transaction it is handed, so a witnessUtxo-only input cannot be signed on
   // a device at all. Opt-in, because it costs a node round trip and the prev
@@ -152,8 +142,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── UTXO deduplication ───────────────────────────────────────────
-
   describe('UTXO deduplication', () => {
     it('removes duplicate UTXOs with same txid+vout', async () => {
       const encoder = makeEncoder()
@@ -167,12 +155,9 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, true, 0.00001
       )
 
-      // Should have used at most 2 unique UTXOs as inputs
       assert.ok(result.psbt.data.inputs.length <= 2)
     })
   })
-
-  // ── Unconfirmed filtering ────────────────────────────────────────
 
   describe('unconfirmed filtering', () => {
     it('excludes mempool UTXOs when unconfirmed=false', async () => {
@@ -188,7 +173,6 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, false, 0.00001
       )
 
-      // Only the confirmed UTXO should be used
       assert.strictEqual(result.psbt.data.inputs.length, 1)
     })
 
@@ -207,8 +191,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── UTXO sorting ─────────────────────────────────────────────────
-
   describe('UTXO sorting (largest first)', () => {
     it('uses the largest UTXO first', async () => {
       const encoder = makeEncoder()
@@ -225,8 +207,6 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.strictEqual(result.psbt.data.inputs.length, 1)
     })
   })
-
-  // ── Replace-by-fee ───────────────────────────────────────────────
 
   describe('replace-by-fee sequence', () => {
     it('sets sequence to 0x00000001 when rbf=true', async () => {
@@ -257,8 +237,6 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.strictEqual(inputData.sequence, 0xffffffff)
     })
   })
-
-  // ── Fee handling ─────────────────────────────────────────────────
 
   describe('fee handling', () => {
     it('uses custom fee when provided', async () => {
@@ -318,7 +296,6 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, true, 0.0000001 // very low fee rate
       )
 
-      // The change should reflect dust-floored fee
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
       const impliedFee = 100000000 - changeOutput.value
       assert.ok(impliedFee >= encoder.dustAmount,
@@ -333,7 +310,6 @@ describe('XChainEncoder.createTransaction()', () => {
       }
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      // Should not throw because feePerKb is provided
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, null,
         'test', null, null, false, null, TEST_ADDRESS,
@@ -360,8 +336,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── Custom dust ──────────────────────────────────────────────────
-
   describe('custom dust parameter', () => {
     it('overrides finalDust for MULTISIGN output value', async () => {
       const encoder = makeEncoder()
@@ -378,7 +352,6 @@ describe('XChainEncoder.createTransaction()', () => {
         true, 0.00001, customDust
       )
 
-      // The MULTISIGN output should use the custom dust value
       const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
       assert.ok(msOutput, 'MULTISIGN output should use custom dust value of 1234')
     })
@@ -402,8 +375,6 @@ describe('XChainEncoder.createTransaction()', () => {
         `fee ${impliedFee} should be >= network dustAmount ${encoder.dustAmount}`)
     })
   })
-
-  // ── Change output ────────────────────────────────────────────────
 
   describe('change output', () => {
     it('adds change output when there is leftover and change address given', async () => {
@@ -439,8 +410,6 @@ describe('XChainEncoder.createTransaction()', () => {
       )
     })
   })
-
-  // ── No UTXOs error ───────────────────────────────────────────────
 
   describe('no UTXOs available', () => {
     it('throws when utxos is empty and tracker returns nothing', async () => {
@@ -522,8 +491,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── Custom outputs ───────────────────────────────────────────────
-
   describe('custom outputs', () => {
     it('adds custom outputs with correct address and value', async () => {
       const encoder = makeEncoder()
@@ -577,8 +544,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── OP_RETURN encoding path ──────────────────────────────────────
-
   describe('OP_RETURN encoding path', () => {
     it('auto-selects OP_RETURN for small data and returns correct encoding', async () => {
       const encoder = makeEncoder()
@@ -622,8 +587,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── P2SH encoding path (tx1: funding) ───────────────────────────
-
   describe('P2SH encoding path (tx1: funding)', () => {
     it('creates P2SH output for large data', async () => {
       const encoder = makeEncoder()
@@ -662,8 +625,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── P2SH encoding path (tx2: spending) ──────────────────────────
-
   describe('P2SH encoding path (tx2: spending)', () => {
     it('creates tx2 with P2SH input and OP_RETURN marker', async () => {
       const encoder = makeEncoder()
@@ -698,14 +659,13 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── P2SH two-phase native-fee customOutputs (#5352) ──────────────
   // On native-fee chains a real FEE_DESTINATION rides as a customOutputs entry.
   // The indexer treats the P2SH REVEAL (phase 2) as the action and reads the fee
   // output from it, so the fee output must land on the reveal, never on the
   // funding tx. But the reveal's only inputs are the funding outputs, so the
   // funding tx must over-fund by the fee value (without emitting the output) or
   // the reveal cannot pay it. These tests pin both halves of that contract.
-  describe('P2SH native-fee customOutputs (#5352)', () => {
+  describe('P2SH native-fee customOutputs', () => {
     const FEE_VALUE = 10678 // a representative native-fee output value (sats/koinu)
     const bigData = 'x'.repeat(80) // exceeds OP_RETURN limit, forces P2SH
 
@@ -758,9 +718,9 @@ describe('XChainEncoder.createTransaction()', () => {
       const baseFunding = findFundingOutput(base.psbt).value
 
       // Same call but with the fee customOutput: the funding output must grow by
-      // FEE_VALUE so the reveal can pay the fee, plus  the reveal's
-      // miner fee for the bytes that output adds to the reveal. Without the
-      // second term the reveal lands under the node's min-relay floor.
+      // FEE_VALUE so the reveal can pay the fee, plus the reveal's own miner
+      // fee for the bytes that output adds to the reveal. Without the second
+      // term the reveal lands under the node's min-relay floor.
       const withFee = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, feeOutputs(),
         bigData, null, 10000, false, null, TEST_ADDRESS,
@@ -803,7 +763,7 @@ describe('XChainEncoder.createTransaction()', () => {
       const feeOut = tx2.psbt.txOutputs.find(o => o.value === FEE_VALUE)
       assert.ok(feeOut, 'reveal must emit the fee-destination output')
 
-      // And it is not a bare OP_RETURN-only tx (the #5352 failure mode).
+      // And it is not a bare OP_RETURN-only tx (the fee-drop failure mode).
       const opReturnOnly = tx2.psbt.txOutputs.every(o => o.value === 0)
       assert.ok(!opReturnOnly, 'reveal must not be OP_RETURN-only')
 
@@ -814,8 +774,6 @@ describe('XChainEncoder.createTransaction()', () => {
         'phase-1 funding output must cover the reveal fee output')
     })
   })
-
-  // ── MULTISIGN encoding path ──────────────────────────────────────
 
   describe('MULTISIGN encoding path', () => {
     // MULTISIGN requires fake pubkeys that are valid EC points on secp256k1.
@@ -882,7 +840,6 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.deepStrictEqual(decompiled[3], pubkeyBuf)
     })
 
-    // ── Regression: outputs must never exceed inputs ─────────────────
     // The MULTISIGN data output carries real value (a relay-fee dust floor),
     // so that value MUST be counted toward the running output total before
     // change is computed. If it isn't, change is over-credited by exactly the
@@ -912,7 +869,6 @@ describe('XChainEncoder.createTransaction()', () => {
       )
     })
 
-    // ── Regression: short final chunk (≤28 data bytes) ───────────────
     // A payload whose last chunk holds ≤28 data bytes produces a final
     // magic(4)+data buffer of ≤32 bytes. Before each chunk was padded to a
     // full 64-byte slot, obfuscatedData.slice(32) was empty, so dataToPubkey()
@@ -953,8 +909,6 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 
-  // ── Return value shape ───────────────────────────────────────────
-
   describe('return value', () => {
     it('returns { psbt, encoding } where psbt is a Psbt instance', async () => {
       const encoder = makeEncoder()
@@ -970,8 +924,6 @@ describe('XChainEncoder.createTransaction()', () => {
       assert.strictEqual(typeof result.encoding, 'string')
     })
   })
-
-  // ── estimateSpendingP2shTx ───────────────────────────────────────
 
   describe('estimateSpendingP2shTx()', () => {
     it('returns 10 + P2SH input + OP_RETURN + 8-byte safety margin', () => {
@@ -1002,8 +954,6 @@ describe('XChainEncoder.createTransaction()', () => {
   })
 })
 
-// ── Payment-only transactions  ─────────────────────────────
-//
 // `data` has always been optional on the wire ("payment-only tx"), but the
 // emission path still wrote a nulldata output for it: the empty payload
 // compiled to an OP_0 push, took the 4-byte magic word, and shipped as a
@@ -1011,7 +961,7 @@ describe('XChainEncoder.createTransaction()', () => {
 // the wallet made paid for that output and announced itself as an XChain
 // transaction while containing nothing to decode.
 
-describe('XChainEncoder.createTransaction() payment-only ', () => {
+describe('XChainEncoder.createTransaction() payment-only', () => {
   const opReturnOutputs = (psbt) =>
     psbt.txOutputs.filter((o) => bitcoin.script.toASM(o.script).startsWith('OP_RETURN'))
 

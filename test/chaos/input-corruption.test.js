@@ -33,7 +33,6 @@ const BTC_ADDR = getTestAddress(BTC)
 
 describe('Chaos Category B: Input & Data Corruption', () => {
 
-  // ── B-1: Empty UTXO array after deduplication ─────────────────
   // KNOWN BUG: line 277 of XChainEncoder.js has no guard for empty
   // array. utxos[0]["txid"] throws TypeError on undefined.
 
@@ -80,8 +79,6 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
-
-  // ── B-2: UTXO values at arithmetic boundaries ────────────────
 
   describe('B-2: UTXO values at arithmetic boundaries', () => {
     // value=0 and value=1 used to build a PSBT with negative change (the fee
@@ -147,8 +144,6 @@ describe('Chaos Category B: Input & Data Corruption', () => {
     })
   })
 
-  // ── B-3: Obfuscation key edge cases ───────────────────────────
-
   describe('B-3: Obfuscation key edge cases (degenerate AES keys)', () => {
     it('all-zero txid (000...0) works as AES key', async () => {
       const encoder = makeEncoder(DOGE)
@@ -194,8 +189,6 @@ describe('Chaos Category B: Input & Data Corruption', () => {
     })
   })
 
-  // ── B-4: Maximum payload stress ───────────────────────────────
-
   // The encoder caps the *compiled* on-chain push at MAX_COMPILED_ACTION_DATA_LENGTH
   // (8192), the same ceiling the indexing decoder enforces. An 8189-byte payload
   // compiles to 8189 + 3 (OP_PUSHDATA2 prefix) = 8192 (the limit); 8190 bytes
@@ -230,8 +223,6 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       )
     })
   })
-
-  // ── B-5: Corrupted scriptPubKey ───────────────────────────────
 
   describe('B-5: Corrupted scriptPubKey in UTXOs', () => {
     function makeCorruptUtxo (scriptPubKey) {
@@ -274,8 +265,6 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
-
-  // ── B-6: ACTION payload with binary/NUL content ───────────────
 
   describe('B-6: Binary/NUL content in ACTION data', () => {
     it('NUL bytes in data produce valid PSBT', async () => {

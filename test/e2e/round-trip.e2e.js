@@ -42,8 +42,6 @@ function stdUtxo () {
 
 describe('E2E-9: Round-Trip Verification', () => {
 
-  // ── E2E-9.1: OP_RETURN SEND round-trip ────────────────────────
-
   describe('E2E-9.1: OP_RETURN SEND round-trip', () => {
     it('encode → extract → deobfuscate → decompile → exact match', async () => {
       const action = actions.makeSend('JDOG', '42', actions.ADDR_BTC, 'test memo')
@@ -78,8 +76,6 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), action.data)
     })
   })
-
-  // ── E2E-9.2: P2SH ISSUE round-trip ───────────────────────────
 
   describe('E2E-9.2: P2SH ISSUE round-trip (all 25+ fields)', () => {
     it('all ISSUE fields survive P2SH tx1→tx2 round-trip', async () => {
@@ -130,8 +126,6 @@ describe('E2E-9: Round-Trip Verification', () => {
     })
   })
 
-  // ── E2E-9.3: MULTISIGN round-trip ────────────────────────────
-
   describe('E2E-9.3: MULTISIGN round-trip', () => {
     it('data encoded in fake pubkeys recovers original payload', async () => {
       const MS_DATA = 'A'.repeat(59)
@@ -155,8 +149,6 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), MS_DATA)
     })
   })
-
-  // ── E2E-9.4: P2WSH FILE round-trip ───────────────────────────
 
   describe('E2E-9.4: P2WSH FILE round-trip', () => {
     it('large file content survives P2WSH encoding', async () => {
@@ -197,16 +189,11 @@ describe('E2E-9: Round-Trip Verification', () => {
     })
   })
 
-  // ── E2E-9.5: Oversized OP_RETURN rejected ────────────────────
-
   describe('E2E-9.5: Oversized OP_RETURN rejected', () => {
     it('forced OP_RETURN beyond a single output is rejected', async () => {
-      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
-      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
-      // A payload larger than one 76-byte chunk must be rejected at
-      // construction. Large payloads round-trip via the P2SH path instead.
-      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
-      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      // Bitcoin permits only one OP_RETURN per transaction; large payloads
+      // round-trip via the P2SH path instead. Force the bitcoin network since
+      // dogecoin/litecoin allow multiple OP_RETURNs.
       const bigData = 'X'.repeat(200)
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
@@ -222,8 +209,6 @@ describe('E2E-9: Round-Trip Verification', () => {
       )
     })
   })
-
-  // ── E2E-9.6: BATCH round-trip ────────────────────────────────
 
   describe('E2E-9.6: BATCH round-trip', () => {
     it('semicolon-separated batch survives encoding', async () => {
@@ -262,8 +247,6 @@ describe('E2E-9: Round-Trip Verification', () => {
       }
     })
   })
-
-  // ── E2E-9.7: Cross-chain decode match ────────────────────────
 
   describe('E2E-9.7: Cross-chain decode equivalence', () => {
     it('same ACTION on BTC/DOGE/LTC produces identical decoded payloads', async () => {

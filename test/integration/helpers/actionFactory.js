@@ -23,8 +23,6 @@
 const ADDR_BTC = '1JDogZS6tQcSxwfxhv6XKKjcyicYA4Feev'
 const ADDR_BTC_2 = '1BoogrfDADPLQpq8LMASmWQUVYDp4t2hF9'
 
-// ── Token Lifecycle ─────────────────────────────────────────────
-
 function makeSend (tick = 'JDOG', amount = '1', dest = ADDR_BTC, memo = null) {
   const parts = ['SEND', '0', tick, amount, dest]
   if (memo) parts.push(memo)
@@ -121,8 +119,6 @@ function makeSleep (tick = 'JDOG', resumeBlock = '900000', memo = null) {
   return { data: parts.join('|'), rawData: null }
 }
 
-// ── Transfers ───────────────────────────────────────────────────
-
 function makeSweep (dest = ADDR_BTC, memo = null) {
   const parts = ['SWEEP', '0', dest]
   if (memo) parts.push(memo)
@@ -140,8 +136,6 @@ function makeDividend (tick = 'JDOG', dividendTick = 'BRRR', amount = '1000', me
   if (memo) parts.push(memo)
   return { data: parts.join('|'), rawData: null }
 }
-
-// ── DEX ─────────────────────────────────────────────────────────
 
 function makeOrder (type = 'BUY', giveTick = 'JDOG', giveAmount = '100', getTick = 'BRRR', getAmount = '50', expiration = '0') {
   return {
@@ -168,8 +162,6 @@ function makeSwap (tick = 'JDOG', amount = '100', destChain = 'LTC', destTick = 
   }
 }
 
-// ── Data and Communication ──────────────────────────────────────
-
 function makeBroadcast (text = 'Hello XChain World') {
   return { data: `BROADCAST|0|${text}`, rawData: null }
 }
@@ -194,8 +186,6 @@ function makeFileLarge () {
   return { data: `FILE|0|bigfile.bin|application/octet-stream|${content}`, rawData: null }
 }
 
-// ── Utility ─────────────────────────────────────────────────────
-
 function makeAddress (requireMemo = '1', memo = null) {
   const parts = ['ADDRESS', '0', requireMemo]
   if (memo) parts.push(memo)
@@ -217,8 +207,6 @@ function makeLink (actionIndex = '42', linkedActionIndex = '99', memo = null) {
 function makeList (items = [ADDR_BTC, ADDR_BTC_2]) {
   return { data: `LIST|0|${items.join(',')}`, rawData: null }
 }
-
-// ── Special edge-case payloads ──────────────────────────────────
 
 /**
  * Generate an ACTION string of exactly the given byte length.

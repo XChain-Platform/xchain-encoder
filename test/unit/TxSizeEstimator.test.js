@@ -48,7 +48,7 @@ describe('TxSizeEstimator', () => {
     })
   })
 
-  // : the P2SH/P2WSH funding tx has to pay the reveal's miner fee for
+  // The P2SH/P2WSH funding tx has to pay the reveal's miner fee for
   // every reveal-side customOutput, so it needs those outputs' byte cost.
   describe('.estimateOutputSizeForAddress(address, network)', () => {
     const NET = bitcoin.networks.regtest

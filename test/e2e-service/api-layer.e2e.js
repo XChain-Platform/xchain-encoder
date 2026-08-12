@@ -19,7 +19,7 @@
  * REQUIRES: API server running on localhost:3000 (`npm run api`)
  * REQUIRES: bitcoind running in regtest mode
  *
- * Service-gated : lives outside test/e2e/ so `npm run ci`
+ * Service-gated: lives outside test/e2e/ so `npm run ci`
  * (the pre-push gate, which has no live encoder node) never runs it.
  * Run via `npm run test:e2e:service` on a host with the API up.
  *
@@ -76,8 +76,8 @@ function jsonRpcCall (method, params) {
  * Check if the listener on API_PORT is actually the encoder API.
  * A bare "port is open" check is not enough: an unrelated service on
  * the port would answer with non-JSON-RPC bodies and turn every test
- * into a false failure . Require a well-formed JSON-RPC reply
- * to ping before treating the API as available.
+ * into a false failure. Require a well-formed JSON-RPC reply to ping
+ * before treating the API as available.
  */
 async function isApiRunning () {
   try {
@@ -100,8 +100,6 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       this.skip()
     }
   })
-
-  // ── E2E-10.1: create_tx with full params ─────────────────────
 
   describe('E2E-10.1: create_tx with full params', () => {
     it('returns {psbt: hex, encoding: string}', async function () {
@@ -127,8 +125,6 @@ describe('E2E-10: JSON-RPC API Layer', function () {
     })
   })
 
-  // ── E2E-10.2: create_tx minimal params ───────────────────────
-
   describe('E2E-10.2: create_tx minimal params', () => {
     it('applies defaults for missing optional params', async function () {
       if (!apiAvailable) this.skip()
@@ -143,8 +139,6 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       assert.ok(res.body.result || res.body.error)
     })
   })
-
-  // ── E2E-10.3: PSBT hex validity ──────────────────────────────
 
   describe('E2E-10.3: PSBT hex validity', () => {
     it('returned hex can be parsed by Psbt.fromHex()', async function () {
@@ -167,8 +161,6 @@ describe('E2E-10: JSON-RPC API Layer', function () {
     })
   })
 
-  // ── E2E-10.4: Error response format ──────────────────────────
-
   describe('E2E-10.4: Error response format', () => {
     it('invalid method returns JSON-RPC error', async function () {
       if (!apiAvailable) this.skip()
@@ -179,8 +171,6 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       assert.ok(res.body.error || res.status !== 200)
     })
   })
-
-  // ── E2E-10.5: CORS headers ───────────────────────────────────
 
   describe('E2E-10.5: CORS headers', () => {
     it('response includes Access-Control-Allow-Origin', async function () {
@@ -201,8 +191,6 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       )
     })
   })
-
-  // ── E2E-10.6: Concurrent requests ────────────────────────────
 
   describe('E2E-10.6: Concurrent requests', () => {
     it('multiple simultaneous requests do not interfere', async function () {

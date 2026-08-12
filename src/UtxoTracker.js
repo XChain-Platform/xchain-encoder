@@ -18,7 +18,6 @@
  *
  ********************************************************************/
 
-// Load required libraries
 const axios = require('axios')
 
 // How long to wait on the tracker before giving up on a request.
@@ -77,7 +76,7 @@ class UtxoTracker {
             // Halt is a verdict the tracker publishes independently of `synced`: it
             // has stopped polling on an unrecoverable reorg and its store is frozen,
             // possibly mid-rollback. A frozen height whose lag still looked acceptable
-            // sailed past both checks below, so gate on it first ().
+            // sailed past both checks below, so gate on it first.
             if (syncStatus.halted === true) {
                 throw new Error(`utxo-tracker is halted (${syncStatus.halt_reason || 'unrecoverable reorg'}); refusing to fetch UTXOs`)
             }
@@ -85,7 +84,7 @@ class UtxoTracker {
             // reset or reindexed below us and those outputs sit in blocks it no longer
             // recognizes. Checked here as well as at the tracker so an un-upgraded
             // tracker still reporting synced:true cannot authorize selection over
-            // orphaned UTXOs (, the fail-open boundary's own guard).
+            // orphaned UTXOs (the fail-open boundary's own guard).
             if (lag < 0) {
                 throw new Error(`utxo-tracker is ${-lag} blocks ahead of the node (node reset or reorged below its tip); refusing to fetch UTXOs`)
             }
@@ -99,7 +98,7 @@ class UtxoTracker {
             // it does the empty mempool index cannot filter a confirmed output already
             // spent in the node's mempool, so the fetch hands back unspendable inputs.
             // Same refusal create_tx makes as UTXO_TRACKER_NOT_READY; strict === false
-            // keeps a tracker predating the field on the fail-open path ().
+            // keeps a tracker predating the field on the fail-open path.
             // Ordered LAST of the three, most specific cause first, exactly as
             // XChainEncoder.js orders its own gates: get_sync_status derives
             // mempool_ready as `synced && isMempoolReconverged()`, so a merely
@@ -145,7 +144,6 @@ class UtxoTracker {
                     id: 1
                 };
 
-                // Make the request to the node
                 const response = await axios.post(this.url, data, {
                     timeout: TRACKER_TIMEOUT
                 });

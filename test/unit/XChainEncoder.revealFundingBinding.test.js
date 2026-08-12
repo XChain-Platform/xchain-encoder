@@ -13,7 +13,7 @@
 // p2shHash. Nothing bound the two, so a caller mixing the id of one funding tx
 // with the hex of an equivalent other one built a signable reveal whose marker
 // the decoder could never decrypt: the ACTION is dropped and the inputs are
-// spent anyway. These tests pin the equality guard ().
+// spent anyway. These tests pin the equality guard.
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
@@ -95,7 +95,7 @@ async function buildFunding (encoder, encoding, address) {
   }
 }
 
-describe('XChainEncoder reveal: p2shHash must be the id of p2shHex ()', () => {
+describe('XChainEncoder reveal: p2shHash must be the id of p2shHex', () => {
   it('rejects a P2WSH reveal whose p2shHash is not the funding tx id', async () => {
     const encoder = makeEncoder('bitcoin-regtest')
     const funding = await buildFunding(encoder, 'P2WSH', BTC_REGTEST_ADDR)

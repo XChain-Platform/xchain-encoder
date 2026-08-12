@@ -38,8 +38,6 @@ describe('XChainEncoder.prepareData()', () => {
     encoder = makeEncoder()
   })
 
-  // ── Auto-selection ───────────────────────────────────────────────
-
   describe('auto-selection (encoding = null/undefined)', () => {
     it('selects OP_RETURN when data fits within 76 bytes (80 - 4 magic)', () => {
       const data = Buffer.alloc(76) // exactly at limit
@@ -65,8 +63,6 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
-
-  // ── OP_RETURN ────────────────────────────────────────────────────
 
   describe('OP_RETURN encoding', () => {
     it('produces a single chunk for data that fits', () => {
@@ -127,8 +123,6 @@ describe('XChainEncoder.prepareData()', () => {
     })
   })
 
-  // ── P2SH ─────────────────────────────────────────────────────────
-
   describe('P2SH encoding', () => {
     const chunkDataSize = P2SH_SIZE - 44 // 476
 
@@ -176,15 +170,13 @@ describe('XChainEncoder.prepareData()', () => {
     })
   })
 
-  // ── : caller identity forms for the chunk-lane P2PKH gate ──
-  //
   // The chunk-lane redeem script gates its reveal spend with HASH160(caller
   // pubkey). prepareData must derive that 20-byte hash from ANY identity form a
   // client passes: a base58 P2PKH address (legacy), a raw compressed pubkey hex
   // (what every wallet flow sends), or a v0 bech32 P2WPKH address. Before the
   // fix only base58 worked and the other two threw "Non-base58 character",
   // blocking large FILE / DEPLOY / UNSTAKE / cross-chain SWAP on bech32 venues.
-  describe(': caller identity resolution (P2SH chunk lane)', () => {
+  describe('caller identity resolution (P2SH chunk lane)', () => {
     const PUBKEY_HEX = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
     const pubkeyBuf = Buffer.from(PUBKEY_HEX, 'hex')
     const EXPECTED_HASH160 = bitcoin.crypto.hash160(pubkeyBuf).toString('hex')
@@ -226,8 +218,6 @@ describe('XChainEncoder.prepareData()', () => {
     })
   })
 
-  // ── P2WSH ────────────────────────────────────────────────────────
-
   describe('P2WSH encoding', () => {
     const chunkDataSize = PW2SH_SIZE - 44 // 476
 
@@ -257,8 +247,6 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(result.dataBufferArray.length, 2)
     })
   })
-
-  // ── MULTISIGN ────────────────────────────────────────────────────
 
   describe('MULTISIGN encoding', () => {
     // MULTISIGN_SIZE(69) - MAGIC_LEN(4) - 1 - 1 - 1 - 1 - 1 = 60
@@ -307,7 +295,6 @@ describe('XChainEncoder.prepareData()', () => {
       assert.ok(result)
     })
 
-    // ── Regression: multi-chunk last-chunk sizing ──────────────────
     // Every MULTISIGN output splits its 64 data bytes across two 32-byte
     // pubkey halves. A short final chunk used to leave the second half empty
     // or near-empty, so dataToPubkey() produced an all-zero / low-entropy EC
@@ -335,8 +322,6 @@ describe('XChainEncoder.prepareData()', () => {
       }
     })
   })
-
-  // ── Invalid encoding ─────────────────────────────────────────────
 
   describe('invalid encoding', () => {
     it('throws TypeError for unrecognized encoding string', () => {

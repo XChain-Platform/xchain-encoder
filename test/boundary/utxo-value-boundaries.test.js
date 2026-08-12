@@ -37,8 +37,6 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('UTXO Value Boundaries', () => {
 
-  // ── Minimum value UTXOs ─────────────────────────────────────────
-
   describe('minimum value UTXOs', () => {
     // M-8: a 1-sat input cannot cover the fee, so the encoder throws a typed
     // INSUFFICIENT_FUNDS error instead of returning an unbroadcastable PSBT
@@ -79,8 +77,6 @@ describe('UTXO Value Boundaries', () => {
     })
   })
 
-  // ── String-typed UTXO values ────────────────────────────────────
-
   describe('string-typed UTXO values (parseInt coercion)', () => {
     it('"1000000" string value → treated as 1000000 sats correctly', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -112,8 +108,6 @@ describe('UTXO Value Boundaries', () => {
       ), /must be a non-negative integer/)
     })
   })
-
-  // ── All-duplicate UTXOs ─────────────────────────────────────────
 
   describe('all-duplicate UTXOs', () => {
     it('3 identical UTXOs dedup to 1; if sufficient, single input', async () => {
@@ -158,8 +152,6 @@ describe('UTXO Value Boundaries', () => {
     })
   })
 
-  // ── Large UTXO value ────────────────────────────────────────────
-
   describe('UTXO with large value', () => {
     it('value = 2.1 trillion sats (21M BTC max supply) works correctly', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -177,10 +169,11 @@ describe('UTXO Value Boundaries', () => {
       assert.strictEqual(changeOutput.value, maxBtcSats - 10000)
     })
 
-    it('value = MAX_SAFE_INTEGER builds exact change ( lifts the Satoshi type cap)', async () => {
-      // Pre-, bitcoinjs-lib's Satoshi type check (21M BTC cap) rejected
-      // this; the applyBufferutilsPatch relaxes it to the u64 wire ceiling
-      // because DOGE has no supply cap. The value itself is still Number-exact.
+    it('value = MAX_SAFE_INTEGER builds exact change above the library Satoshi type cap', async () => {
+      // Before large-value support landed, bitcoinjs-lib's Satoshi type check
+      // (21M BTC cap) rejected this; the applyBufferutilsPatch relaxes it to
+      // the u64 wire ceiling because DOGE has no supply cap. The value itself
+      // is still Number-exact.
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, Number.MAX_SAFE_INTEGER)
@@ -194,10 +187,10 @@ describe('UTXO Value Boundaries', () => {
       assert.strictEqual(changeOutput.value, Number.MAX_SAFE_INTEGER - 10000)
     })
 
-    it('full-precision string value above MAX_SAFE_INTEGER builds exact BigInt change (DOGE consolidation, )', async () => {
+    it('full-precision string value above MAX_SAFE_INTEGER builds exact BigInt change (DOGE consolidation)', async () => {
       // The utxo-tracker hands the encoder a full-precision decimal string, so a
       // DOGE consolidation UTXO above 2^53-1 sats (~90.07M DOGE) reaches the
-      // encoder intact. Pre- this was rejected fail-closed; the value now
+      // encoder intact. This used to be rejected fail-closed; the value now
       // flows through the BigInt money path with no precision loss.
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -216,8 +209,6 @@ describe('UTXO Value Boundaries', () => {
       )
     })
   })
-
-  // ── Unconfirmed filtering edge case ─────────────────────────────
 
   describe('unconfirmed filtering exhaustion', () => {
     it('all UTXOs mempool + unconfirmed=false → falls to UtxoTracker', async () => {
@@ -247,8 +238,6 @@ describe('UTXO Value Boundaries', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
-
-  // ── UTXO sorting correctness ────────────────────────────────────
 
   describe('UTXO sorting with mixed values', () => {
     it('largest UTXO is always used as first input (txidFirstInput)', async () => {

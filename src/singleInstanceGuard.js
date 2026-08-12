@@ -107,7 +107,7 @@ function selfDescription() {
 // ENCODER_REPLICAS above is the cross-host declaration. Returns a release
 // function.
 //
-// : the lock used to hold a bare pid, and a bare pid is not an identity.
+// The lock used to hold a bare pid, and a bare pid is not an identity.
 // The file lives in the container's writable layer, so it SURVIVES a restart,
 // and the next boot's process tree hands that same pid number to a different
 // live process: measured on the regtest encoder, the lock held node's pid while
@@ -213,7 +213,7 @@ const RERAISE_GRACE_MS = 50
 // exits on its own. `process.on('exit')` never fires for a signalled death and
 // a signal is exactly how this process normally dies: `docker stop` and
 // `docker restart` send SIGTERM. Without this the lockfile outlives every
-// restart , which is the precondition for the pid-reuse trap the
+// restart, which is the precondition for the pid-reuse trap the
 // acquire path above now also defends against.
 // `proc` is injectable so the tests can drive this without signalling mocha.
 function releaseLockOnSignals(release, proc = process) {

@@ -72,8 +72,6 @@ async function createTxPair (action, opts = {}) {
 
 describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
 
-  // ── REG-06.1: P2SH tx1 structure ──────────────────────────────
-
   describe('REG-06.1: P2SH tx1 structure', function () {
     it('tx1 auto-selects P2SH for ISSUE payload', async function () {
       const action = actions.makeIssueFull('REGTEST')
@@ -105,8 +103,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.ok(changeOutput.value > 0, 'should have a change output')
     })
   })
-
-  // ── REG-06.2: P2SH tx2 structure ──────────────────────────────
 
   describe('REG-06.2: P2SH tx2 structure', function () {
     it('tx2 has P2SH input with redeemScript', async function () {
@@ -143,8 +139,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
     })
   })
 
-  // ── REG-06.3: P2SH chaining integrity ────────────────────────
-
   describe('REG-06.3: P2SH chaining integrity', function () {
     it('tx2 first input hash references tx1 ID', async function () {
       const action = actions.makeIssueFull('CHAIN')
@@ -174,8 +168,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
     })
   })
 
-  // ── REG-06.4: P2SH data fidelity ─────────────────────────────
-
   describe('REG-06.4: P2SH data fidelity', function () {
     it('redeemScript data chunk decompiles back to original ACTION string', async function () {
       const action = actions.makeIssueFull('FIDELITY')
@@ -188,8 +180,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
-
-  // ── REG-06.5: P2WSH tx1 structure ─────────────────────────────
 
   describe('REG-06.5: P2WSH tx1 structure', function () {
     it('tx1 creates P2WSH output (OP_0 <32-byte-hash>)', async function () {
@@ -210,8 +200,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.ok(p2wshOutput, 'tx1 should have P2WSH output')
     })
   })
-
-  // ── REG-06.6: P2WSH tx2 structure ─────────────────────────────
 
   describe('REG-06.6: P2WSH tx2 structure', function () {
     it('tx2 has witnessScript in input', async function () {
@@ -253,8 +241,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
     })
   })
 
-  // ── REG-06.7: P2WSH data fidelity ────────────────────────────
-
   describe('REG-06.7: P2WSH data fidelity', function () {
     it('witnessScript data chunks reassemble to the original ACTION string', async function () {
       const action = actions.makeFileLarge()
@@ -278,8 +264,6 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
     })
   })
 
-  // ── REG-06.8: P2WSH single-chunk stripped-size floor ──────────
-  //
   // A P2WSH reveal that spends a single data chunk is just 1 input + 1
   // OP_RETURN marker = 71 stripped (non-witness) bytes, because the payload
   // lives in the witness and does not count toward stripped size. BOTH chains
@@ -287,8 +271,8 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   // MIN_STANDARD_TX_NONWITNESS_SIZE is 82. (This block previously asserted
   // Bitcoin relayed it, on the strength of the 65 that coins/BTC.js carried;
   // 65 is the CONSENSUS minimum guarding the 64-byte-transaction CVE, which no
-  // relay enforces alone. , measured live on BTC regtest: 71 rejected,
-  // 82 accepted.) The encoder must pad the reveal over the target chain's
+  // relay enforces alone; measured live on BTC regtest, 71 is rejected and
+  // 82 is accepted.) The encoder must pad the reveal over the target chain's
   // minStandardTxNonWitnessSize on every chain. Both the minimum (75) and
   // maximum (476) single-chunk compiled-payload sizes must clear the floor.
 

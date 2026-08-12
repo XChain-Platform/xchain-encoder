@@ -8,8 +8,8 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Regression tests for the 2026-07-08 xchain-encoder stress-sweep fixes (E2, E3, E5).
-// See claude/reports/2026-07-08_xchain-encoder-stress-sweep.md.
+// Regression tests for the encoder's JSON-RPC batch-size guard, MULTISIGN
+// validation, and UtxoTracker pagination bound.
 
 const assert = require('assert')
 
@@ -36,7 +36,7 @@ const UtxoTracker = require('../../src/UtxoTracker')
 describe('encoder stress-sweep unit @regression', function () {
     this.timeout(10000)
 
-    describe('E2: JSON-RPC batch-size guard', function () {
+    describe('JSON-RPC batch-size guard', function () {
         function fakeRes(){
             return { _code: null, _json: null, status(c){ this._code = c; return this }, json(o){ this._json = o; return this } }
         }
@@ -56,7 +56,7 @@ describe('encoder stress-sweep unit @regression', function () {
         })
     })
 
-    describe('E3: MULTISIGN requires compressedPubKey', function () {
+    describe('MULTISIGN requires compressedPubKey', function () {
         it('validateAll throws when encoding is MULTISIGN and compressedPubKey is absent', function () {
             assert.throws(
                 () => v.validateAll({ data: 'SEND|JDOG|1|addr', pubkey: 'senderaddr', encoding: 'MULTISIGN' }),
@@ -72,7 +72,7 @@ describe('encoder stress-sweep unit @regression', function () {
         })
     })
 
-    describe('E5: UtxoTracker pagination is bounded', function () {
+    describe('UtxoTracker pagination is bounded', function () {
         const origPost = axios.post
         afterEach(() => { axios.post = origPost })
 

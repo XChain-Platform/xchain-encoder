@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * REG-14: the P2SH/P2WSH reveal must clear the 1 sat/vB relay floor .
+ * REG-14: the P2SH/P2WSH reveal must clear the 1 sat/vB relay floor.
  *
  * The two-transaction flow funds the reveal (phase-2) transaction entirely
  * from the funding (phase-1) data outputs: whatever those outputs carry, minus
@@ -19,8 +19,8 @@
  * those outputs from "one data input + the OP_RETURN marker" and never charged
  * for the customOutputs the reveal has to emit (the native-fee output), so a
  * single-chunk reveal came out ~25 bytes short of the floor and the node
- * rejected it with min-relay-fee-not-met (observed on the devhost
- * bitcoin-regtest stack: 649 < 675, 582 < 607, 546 < 569).
+ * rejected it with min-relay-fee-not-met (observed on a regtest node:
+ * 649 < 675, 582 < 607, 546 < 569).
  *
  * These tests build both transactions with the real encoder, then sign and
  * finalize them exactly as xchain-e2e-test/test/transactionHelper.js does, and
@@ -135,7 +135,7 @@ async function buildRevealed (payload, { encoding = 'P2SH', customOutputs = null
   }
 }
 
-describe('REG-14: P2SH/P2WSH reveal clears the min-relay fee floor ', () => {
+describe('REG-14: P2SH/P2WSH reveal clears the min-relay fee floor', () => {
 
   // 400 bytes compiles to a single data chunk whose reveal lands well above the
   // dust floor, so the fee is estimate-driven: the exact regime that failed.

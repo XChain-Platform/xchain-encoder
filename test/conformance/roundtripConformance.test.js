@@ -8,7 +8,7 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 //
-// Encoder half of the shared roundtrip conformance fixture (). Asserts
+// Encoder half of the shared roundtrip conformance fixture. Asserts
 // the encoder still produces the golden compiled + obfuscated bytes for every
 // case (a drift guard: any change to the compile construction or obfuscation
 // step that would desync the decoder fails here) and that bitcoin.script.compile
@@ -35,7 +35,7 @@ function compileAction (dataHex, rawDataHex) {
   return bitcoin.script.compile(toCompile)
 }
 
-describe('roundtrip conformance fixture: encoder emit ()', () => {
+describe('roundtrip conformance fixture: encoder emit', () => {
   const encoder = makeEncoder()
 
   it('has cases', () => assert.ok(fixture.cases.length > 0))
@@ -69,11 +69,11 @@ describe('roundtrip conformance fixture: encoder emit ()', () => {
   })
 })
 
-// : drift guards for the MULTISIGN / P2SH / P2WSH / alias extensions.
+// Drift guards for the MULTISIGN / P2SH / P2WSH / alias extensions.
 // Re-run the REAL encoder chunking primitives (prepareData, obfuscate,
 // dataToPubkey) over each case's inputs and require byte-identity with the
 // golden artifacts the decoder half consumes.
-describe('roundtrip conformance fixture: MULTISIGN emit ', () => {
+describe('roundtrip conformance fixture: MULTISIGN emit', () => {
   const encoder = makeEncoder()
 
   it('has cases', () => assert.ok(fixture.multisignCases.length > 0))
@@ -119,7 +119,7 @@ describe('roundtrip conformance fixture: MULTISIGN emit ', () => {
   })
 })
 
-describe('roundtrip conformance fixture: P2SH/P2WSH emit ', () => {
+describe('roundtrip conformance fixture: P2SH/P2WSH emit', () => {
   const encoder = makeEncoder()
 
   it('has cases', () => assert.ok(fixture.p2shCases.length > 0))
@@ -173,7 +173,7 @@ describe('roundtrip conformance fixture: P2SH/P2WSH emit ', () => {
   })
 })
 
-describe('roundtrip conformance fixture: alias cases emit ', () => {
+describe('roundtrip conformance fixture: alias cases emit', () => {
   const encoder = makeEncoder()
 
   it('has cases', () => assert.ok(fixture.aliasCases.length > 0))

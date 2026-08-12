@@ -45,8 +45,6 @@ const ALL_NETWORKS = [
 
 describe('REG-05: Multi-Chain Network Configs', function () {
 
-  // ── REG-05.1: All 9 networks resolve ──────────────────────────
-
   describe('REG-05.1: All 9 networks resolve', function () {
     for (const network of ALL_NETWORKS) {
       it(`${network} resolves with dustThreshold`, function () {
@@ -64,8 +62,6 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       )
     })
   })
-
-  // ── REG-05.2: Bitcoin (regtest) OP_RETURN ─────────────────────
 
   describe('REG-05.2: Bitcoin (regtest) OP_RETURN', function () {
     it('produces valid PSBT with correct encoding', async function () {
@@ -90,8 +86,6 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       assert.strictEqual(encoder.dustAmount, 546)
     })
   })
-
-  // ── REG-05.3: Dogecoin (regtest) OP_RETURN ────────────────────
 
   describe('REG-05.3: Dogecoin (regtest) OP_RETURN', function () {
     it('produces valid PSBT with correct encoding', async function () {
@@ -130,8 +124,6 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       )
     })
   })
-
-  // ── REG-05.4: Litecoin (regtest) OP_RETURN ────────────────────
 
   describe('REG-05.4: Litecoin (regtest) OP_RETURN', function () {
     it('produces valid PSBT with correct encoding', async function () {
@@ -173,8 +165,6 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     })
   })
 
-  // ── REG-05.5: P2SH dust per chain ────────────────────────────
-
   describe('REG-05.5: P2SH dust per chain', function () {
     for (const [network, expectedDust] of [
       ['bitcoin-regtest', 546],
@@ -208,8 +198,6 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       })
     }
   })
-
-  // ── REG-05.6: MULTISIGN dust per chain ────────────────────────
 
   describe('REG-05.6: MULTISIGN dust per chain', function () {
     for (const [network, expectedDust] of [

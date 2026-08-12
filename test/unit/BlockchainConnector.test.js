@@ -12,10 +12,6 @@ const assert = require('assert')
 const axios = require('axios')
 const BlockchainConnector = require('../../src/BlockchainConnector')
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
 function makeConnector () {
   return new BlockchainConnector('127.0.0.1', 18332, 'rpcuser', 'rpcpass')
 }
@@ -39,10 +35,6 @@ function stubAxiosPostThrow (err) {
   axios.post = async () => { throw err }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constructor
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('BlockchainConnector constructor', () => {
   it('builds the correct URL from host and port', () => {
     const c = new BlockchainConnector('myhost', 9999, 'u', 'p')
@@ -55,10 +47,6 @@ describe('BlockchainConnector constructor', () => {
     assert.strictEqual(c.rpcPassword, 'secret')
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// getNetworkInfo
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('BlockchainConnector.getNetworkInfo()', () => {
   it('sends the correct JSON-RPC method', async () => {
@@ -127,10 +115,6 @@ describe('BlockchainConnector.getNetworkInfo()', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// isRegtest
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('BlockchainConnector.isRegtest()', () => {
   it('sends getblockchaininfo method', async () => {
     let capturedPayload
@@ -188,10 +172,6 @@ describe('BlockchainConnector.isRegtest()', () => {
     )
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// getTransactionHex
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('BlockchainConnector.getTransactionHex()', () => {
   const TXID = 'a'.repeat(64)
@@ -275,10 +255,6 @@ describe('BlockchainConnector.getTransactionHex()', () => {
     assert.strictEqual(capturedOptions.auth.password, 'rpcpass')
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// sendRawTransaction
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('BlockchainConnector.sendRawTransaction()', () => {
   const TX_HEX = '0100000001' + '0'.repeat(60) + 'ffffffff'
@@ -392,11 +368,7 @@ describe('BlockchainConnector.sendRawTransaction()', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// sendRawTransaction regtest-gated maxfeerate retry (mirrors
-// xchain-e2e-test/src/BlockchainConnector.js broadcastTx)
-// ─────────────────────────────────────────────────────────────────────────────
-
+// Mirrors xchain-e2e-test/src/BlockchainConnector.js broadcastTx.
 describe('BlockchainConnector.sendRawTransaction() maxfeerate retry', () => {
   const TX_HEX = '0100000001' + '0'.repeat(60) + 'ffffffff'
   const TXID_RESULT = 'c'.repeat(64)
@@ -504,10 +476,6 @@ describe('BlockchainConnector.sendRawTransaction() maxfeerate retry', () => {
     assert.strictEqual(sends.length, 2)
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// getFeePerKilobyte
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('BlockchainConnector.getFeePerKilobyte()', () => {
   // getFeePerKilobyte now consults isRegtest() FIRST (getblockchaininfo): on regtest

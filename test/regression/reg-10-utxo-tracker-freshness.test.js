@@ -101,8 +101,8 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
     })
   })
 
-  // : the gate read only `synced` and an upper lag bound, so
-  // three views the tracker itself considers unusable reached input selection on the
+  // The gate used to read only `synced` and an upper lag bound, so three views
+  // the tracker itself considers unusable reached input selection on the
   // money path: one it halted on, one whose committed tip sits above the node's, and
   // one whose mempool index is still empty and cannot filter an already-spent
   // confirmed output.
@@ -171,7 +171,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
     // The shape a FIXED tracker actually publishes at lag -100: its own floor
     // de-asserts synced and mempool_ready together, so both refusals are eligible and
     // the ordering decides which cause the operator is told. It must be the node
-    // regression, not mempool reconvergence, which is merely collateral ().
+    // regression, not mempool reconvergence, which is merely collateral.
     it('names the orphaned view, not mempool readiness, when both are de-asserted', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')

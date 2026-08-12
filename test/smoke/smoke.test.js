@@ -22,9 +22,6 @@
 const assert = require('assert')
 const crypto = require('crypto')
 
-// ---------------------------------------------------------------------------
-// S1: Module Loading & Dependency Resolution
-// ---------------------------------------------------------------------------
 describe('S1: Module Loading', () => {
   it('loads XChainEncoder', () => {
     const mod = require('../../src/XChainEncoder')
@@ -67,9 +64,6 @@ describe('S1: Module Loading', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S2: Encoder Instantiation
-// ---------------------------------------------------------------------------
 describe('S2: Encoder Instantiation', () => {
   const XChainEncoder = require('../../src/XChainEncoder')
 
@@ -101,9 +95,6 @@ describe('S2: Encoder Instantiation', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S3: CryptoNetworks Integrity
-// ---------------------------------------------------------------------------
 describe('S3: CryptoNetworks Integrity', () => {
   const CryptoNetworks = require('../../src/CryptoNetworks')
 
@@ -145,9 +136,6 @@ describe('S3: CryptoNetworks Integrity', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S4: PSBT Object Creation
-// ---------------------------------------------------------------------------
 describe('S4: PSBT Creation', () => {
   const bitcoin = require('bitcoinjs-lib')
   const CryptoNetworks = require('../../src/CryptoNetworks')
@@ -183,9 +171,6 @@ describe('S4: PSBT Creation', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S5: prepareData: All Encoding Types
-// ---------------------------------------------------------------------------
 describe('S5: prepareData', () => {
   const bitcoin = require('bitcoinjs-lib')
   const XChainEncoder = require('../../src/XChainEncoder')
@@ -256,18 +241,14 @@ describe('S5: prepareData', () => {
   })
 
   it('oversized OP_RETURN is rejected (single output per transaction)', () => {
-    // A transaction may carry at most one OP_RETURN output; Bitcoin Core
-    // rejects multi-OP_RETURN transactions as non-standard. A payload larger
-    // than one 76-byte chunk must throw rather than split into outputs.
+    // Bitcoin permits only one OP_RETURN per transaction, so a payload too
+    // large for one must throw rather than split into multiple outputs.
     const data = Buffer.alloc(200, 0x44)
     const compiled = bitcoin.script.compile([data])
     assert.throws(() => encoder.prepareData(compiled, 'OP_RETURN', testAddress), RangeError)
   })
 })
 
-// ---------------------------------------------------------------------------
-// S6: Obfuscation Round-Trip
-// ---------------------------------------------------------------------------
 describe('S6: Obfuscation Round-Trip', () => {
   const XChainEncoder = require('../../src/XChainEncoder')
   const TXID = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
@@ -311,9 +292,6 @@ describe('S6: Obfuscation Round-Trip', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S7: TxSizeEstimator Sanity
-// ---------------------------------------------------------------------------
 describe('S7: TxSizeEstimator', () => {
   const TxSizeEstimator = require('../../src/TxSizeEstimator')
   const bitcoin = require('bitcoinjs-lib')
@@ -386,9 +364,6 @@ describe('S7: TxSizeEstimator', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S8: Segwit UTXO Detection
-// ---------------------------------------------------------------------------
 describe('S8: Segwit UTXO Detection', () => {
   const XChainEncoder = require('../../src/XChainEncoder')
   const bitcoin = require('bitcoinjs-lib')
@@ -447,9 +422,6 @@ describe('S8: Segwit UTXO Detection', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S9: dataToPubkey Conversion
-// ---------------------------------------------------------------------------
 describe('S9: dataToPubkey', () => {
   const XChainEncoder = require('../../src/XChainEncoder')
 
@@ -484,9 +456,6 @@ describe('S9: dataToPubkey', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// S10: API Server Startup (ping only, no coin node needed)
-// ---------------------------------------------------------------------------
 describe('S10: API Server Startup', () => {
   const express = require('express')
   const bodyParser = require('body-parser')

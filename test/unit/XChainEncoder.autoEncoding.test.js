@@ -11,7 +11,7 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- *  S5: the two default flips (spec §5.2, §6, §7).
+ * The two default flips (spec §5.2, §6, §7).
  *
  * 1. Size-aware encoding selection behind the caller's explicit AUTO opt-in.
  *    The load-bearing assertions are the ones about what does NOT change:
@@ -77,7 +77,7 @@ function compressibleText(n) {
 
 const FILE_ACTION = 'FILE|0|report.log|text/plain|Report|memo'
 
-describe(' S5: size-aware encoding selection (§6)', function () {
+describe('size-aware encoding selection (§6)', function () {
 
     describe('selectEncoding', function () {
         const opts = { signerSupportsTapscript: true }
@@ -152,8 +152,8 @@ describe(' S5: size-aware encoding selection (§6)', function () {
                     null, false, 'AUTO', callerAddress(network),
                     null, null, PUBKEY_HEX, true, null, null, null, false, false,
                     { signerSupportsTapscript: true }),
-                // Derived from the constant, never hardcoded: the cap moved once
-                // already  and a literal here just goes stale silently.
+                // Derived from the constant, never hardcoded: the cap has moved
+                // before, and a literal here would just go stale silently.
                 (err) => err instanceof RangeError &&
                     new RegExp(`exceeds maximum ${validator.ENVELOPE_MAX_PAYLOAD}`).test(err.message))
         })
@@ -215,7 +215,7 @@ describe(' S5: size-aware encoding selection (§6)', function () {
     })
 })
 
-describe(' S5: compression ON by default (§5.2/§7)', function () {
+describe('compression ON by default (§5.2/§7)', function () {
 
     afterEach(function () { delete process.env.XCHAIN_COMPRESSION_DEFAULT })
 

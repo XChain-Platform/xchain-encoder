@@ -71,7 +71,6 @@ async function encodeAndExtract (actionObj) {
 }
 
 describe('Category A: ACTION Payload Encoding Fidelity', () => {
-  // ── A-1: Minimal SEND ───────────────────────────────────────────
 
   describe('A-1: Minimal SEND (fits OP_RETURN)', () => {
     it('SEND|0|JDOG|1|<addr> survives encoding round-trip', async () => {
@@ -81,8 +80,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
     })
   })
 
-  // ── A-2: SEND with memo ─────────────────────────────────────────
-
   describe('A-2: SEND with memo', () => {
     it('memo field is preserved through encoding', async () => {
       const action = actions.makeSend('JDOG', '100', actions.ADDR_BTC, 'Payment for services')
@@ -91,8 +88,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.ok(dataString.includes('Payment for services'))
     })
   })
-
-  // ── A-3: Multi-send (version 1) ────────────────────────────────
 
   describe('A-3: Multi-send version 1', () => {
     it('multiple AMOUNT|DESTINATION pairs survive', async () => {
@@ -105,8 +100,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── A-4: Full ISSUE (large, requires P2SH) ─────────────────────
 
   describe('A-4: Full ISSUE with all fields (P2SH)', () => {
     it('encodes as P2SH and preserves all 25+ fields', async () => {
@@ -135,8 +128,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
     })
   })
 
-  // ── A-5: Short ISSUE (fits OP_RETURN) ──────────────────────────
-
   describe('A-5: Short ISSUE (fits OP_RETURN)', () => {
     it('ISSUE|0|X auto-selects OP_RETURN', async () => {
       const action = actions.makeIssueMinimal('X')
@@ -144,8 +135,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(dataString, 'ISSUE|0|X')
     })
   })
-
-  // ── A-6: BATCH with multiple commands ──────────────────────────
 
   describe('A-6: BATCH with multiple commands', () => {
     it('semicolon-separated commands preserved', async () => {
@@ -160,8 +149,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
     })
   })
 
-  // ── A-9: ORDER action ──────────────────────────────────────────
-
   describe('A-9: ORDER action', () => {
     it('DEX order fields preserved', async () => {
       const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
@@ -170,8 +157,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
     })
   })
 
-  // ── A-10: DISPENSER action ─────────────────────────────────────
-
   describe('A-10: DISPENSER action', () => {
     it('dispenser params preserved', async () => {
       const action = actions.makeDispenser()
@@ -179,8 +164,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
-
-  // ── A-11: TICK with special characters ─────────────────────────
 
   describe('A-11: TICK with special characters', () => {
     it('special chars in TICK name survive encoding', async () => {
@@ -191,8 +174,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
     })
   })
 
-  // ── A-12: TICK by ID reference (caret prefix) ─────────────────
-
   describe('A-12: TICK by ID reference', () => {
     it('caret prefix for TICK_ID preserved', async () => {
       const action = actions.makeSendByTickId('1234', '100', actions.ADDR_BTC)
@@ -201,8 +182,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.ok(dataString.includes('^1234'))
     })
   })
-
-  // ── A-13: Maximum OP_RETURN boundary ──────────────────────────
 
   describe('A-13: Maximum OP_RETURN boundary', () => {
     it('ACTION of exactly 72 bytes fits in single OP_RETURN', async () => {
@@ -227,8 +206,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
     })
   })
 
-  // ── A-14: One byte over OP_RETURN boundary ────────────────────
-
   describe('A-14: One byte over OP_RETURN boundary', () => {
     it('ACTION exceeding 76 compiled bytes auto-selects P2SH', async () => {
       // 76-byte string → compile → 77 bytes (1 push + 76 data, actually uses
@@ -247,8 +224,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
-
-  // ── All 19 ACTION types: basic encoding ───────────────────────
 
   describe('All ACTION types: basic OP_RETURN encoding', () => {
     const smallActions = [
@@ -294,7 +269,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
         assert.ok(result.psbt instanceof bitcoin.Psbt)
         assert.ok(['OP_RETURN', 'P2SH'].includes(result.encoding))
 
-        // For OP_RETURN results, verify full round-trip
         if (result.encoding === 'OP_RETURN') {
           const payload = extractOpReturnPayload(result, TXID_A)
           assert.strictEqual(payload.magic, MAGIC_WORD)
@@ -304,8 +278,6 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       })
     }
   })
-
-  // ── data + rawData dual parameter ─────────────────────────────
 
   describe('data + rawData dual parameter', () => {
     it('both data and rawData are preserved in encoding', async () => {

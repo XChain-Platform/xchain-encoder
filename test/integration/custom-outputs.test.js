@@ -31,8 +31,6 @@ const NETWORK = 'dogecoin-regtest'
 
 describe('Category E: Custom Outputs (COINPAY Integration)', () => {
 
-  // ── E-1: Custom outputs added to PSBT ─────────────────────────
-
   describe('E-1: Custom outputs added with correct address and value', () => {
     it('includes both custom outputs in PSBT', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -61,8 +59,6 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.strictEqual(customValues.length, 2)
     })
   })
-
-  // ── E-2: Custom outputs affect fee/change calculation ─────────
 
   describe('E-2: Custom outputs affect change calculation', () => {
     it('custom output value is deducted from change', async () => {
@@ -97,8 +93,6 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     })
   })
 
-  // ── E-3: Non-array customOutputs ignored ──────────────────────
-
   describe('E-3: Non-array customOutputs ignored', () => {
     it('object instead of array is silently skipped', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -131,8 +125,6 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.strictEqual(result.psbt.txOutputs.length, 2)
     })
   })
-
-  // ── E-4: Custom outputs + large ACTION payload ────────────────
 
   describe('E-4: Custom outputs + P2SH ACTION payload', () => {
     // P2SH/P2WSH is a two-transaction flow. The funding (phase-1) tx creates the
@@ -216,8 +208,6 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.strictEqual(reveal.psbt.txOutputs.filter(o => o.value === CUSTOM_VALUE).length, 1)
     })
   })
-
-  // ── Empty custom outputs array ────────────────────────────────
 
   describe('Empty customOutputs array', () => {
     it('empty array produces no extra outputs', async () => {

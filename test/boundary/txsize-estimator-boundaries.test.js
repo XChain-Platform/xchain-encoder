@@ -31,8 +31,6 @@ const {
 
 describe('TxSizeEstimator Boundaries', () => {
 
-  // ── OP_RETURN push-framing and script-varint boundaries ─────────
-
   describe('estimateOpReturnOutput framing boundaries', () => {
     // Cross-check against a real compiled script rather than a formula, so the
     // estimate cannot drift away from what bitcoinjs actually serializes.
@@ -70,8 +68,6 @@ describe('TxSizeEstimator Boundaries', () => {
     })
   })
 
-  // ── estimateInputSize with null return ──────────────────────────
-
   describe('estimateInputSize with missing UTXO data', () => {
     it('returns 350 (conservative fallback) for UTXO with neither witnessUtxo nor nonWitnessUtxo', () => {
       const utxo = { hash: TXID_A, index: 0, sequence: 0xffffffff }
@@ -88,8 +84,6 @@ describe('TxSizeEstimator Boundaries', () => {
         'fallback of 350 contributes to fee estimation')
     })
   })
-
-  // ── estimateInputSize with out-of-bounds vout ───────────────────
 
   describe('estimateInputSize with out-of-bounds vout index', () => {
     it('returns 180 (P2PKH fallback) when output at vout does not exist', () => {
@@ -114,8 +108,6 @@ describe('TxSizeEstimator Boundaries', () => {
     })
   })
 
-  // ── estimateInputSize script type detection ─────────────────────
-
   describe('estimateInputSize unknown script type', () => {
     it('returns 350-byte fallback for unrecognized script', () => {
       // Create a UTXO with a non-standard scriptPubKey
@@ -134,8 +126,6 @@ describe('TxSizeEstimator Boundaries', () => {
     })
   })
 
-  // ── estimateP2shInputWithRedeem boundary ────────────────────────
-
   describe('estimateP2shInputWithRedeem', () => {
     it('returns overhead (149) for 0-byte redeem script', () => {
       const estimate = TxSizeEstimator.estimateP2shInputWithRedeem(Buffer.alloc(0))
@@ -149,8 +139,6 @@ describe('TxSizeEstimator Boundaries', () => {
       assert.strictEqual(estimate, 629)
     })
   })
-
-  // ── null propagation in full pipeline ───────────────────────────
 
   describe('conservative fallback in pipeline', () => {
     it('missing UTXO data uses 350-byte fallback → fee includes input estimate', async () => {

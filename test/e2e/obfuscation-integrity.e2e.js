@@ -45,8 +45,6 @@ function stdUtxo (txid) {
 
 describe('E2E-4: Obfuscation Integrity', () => {
 
-  // ── E2E-4.1: OP_RETURN round-trip ─────────────────────────────
-
   describe('E2E-4.1: OP_RETURN obfuscation round-trip', () => {
     it('deobfuscated OP_RETURN data has XCHN prefix and original ACTION', async () => {
       const action = actions.makeSend('JDOG', '100', actions.ADDR_BTC)
@@ -78,8 +76,6 @@ describe('E2E-4: Obfuscation Integrity', () => {
     })
   })
 
-  // ── E2E-4.2: MULTISIGN round-trip ─────────────────────────────
-
   describe('E2E-4.2: MULTISIGN obfuscation round-trip', () => {
     it('fake pubkey data deobfuscates to original payload', async () => {
       const MS_DATA = 'A'.repeat(59)
@@ -100,8 +96,6 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), MS_DATA)
     })
   })
-
-  // ── E2E-4.3: P2SH redeemScript round-trip ────────────────────
 
   describe('E2E-4.3: P2SH tx2 marker obfuscation round-trip', () => {
     it('tx2 OP_RETURN marker deobfuscates with tx1 ID to XCHNp2sh', async () => {
@@ -143,8 +137,6 @@ describe('E2E-4: Obfuscation Integrity', () => {
     })
   })
 
-  // ── E2E-4.4: TXID sensitivity ────────────────────────────────
-
   describe('E2E-4.4: TXID sensitivity', () => {
     it('same ACTION with different TXIDs produces different ciphertext', async () => {
       const action = actions.makeSend()
@@ -181,8 +173,6 @@ describe('E2E-4: Obfuscation Integrity', () => {
     })
   })
 
-  // ── E2E-4.5: UTXO sort stability ─────────────────────────────
-
   describe('E2E-4.5: UTXO sorting preserves obfuscation key', () => {
     it('key derives from largest-value UTXO regardless of input order', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -205,8 +195,6 @@ describe('E2E-4: Obfuscation Integrity', () => {
     })
   })
 
-  // ── E2E-4.6: Wrong TXID detection ────────────────────────────
-
   describe('E2E-4.6: Wrong TXID detection (negative test)', () => {
     it('deobfuscation with wrong TXID does not produce XCHN magic', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -225,16 +213,12 @@ describe('E2E-4: Obfuscation Integrity', () => {
     })
   })
 
-  // ── E2E-4.7: Oversized OP_RETURN rejected ─────────────────────
-
   describe('E2E-4.7: Oversized OP_RETURN rejected', () => {
     it('forced OP_RETURN beyond a single output is rejected', async () => {
-      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
-      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
-      // A payload larger than one 76-byte chunk must be rejected at
-      // construction rather than split into independently-obfuscated outputs.
-      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
-      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      // Bitcoin permits only one OP_RETURN per transaction, so an oversized
+      // payload must reject here rather than split into independently
+      // obfuscated outputs; force the bitcoin network since dogecoin/litecoin
+      // allow multiple OP_RETURNs.
       const bigData = 'Y'.repeat(200)
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)

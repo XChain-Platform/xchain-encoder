@@ -35,8 +35,6 @@ const NETWORK = 'dogecoin-regtest'
 
 describe('Category H: Error Handling at Integration Boundaries', () => {
 
-  // ── H-1: BlockchainConnector.getFeePerKilobyte() failure ──────
-
   describe('H-1: BlockchainConnector.getFeePerKilobyte() failure', () => {
     it('propagates error when fee estimation RPC fails', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -78,8 +76,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     })
   })
 
-  // ── H-2: BlockchainConnector.getTransactionHex() failure ──────
-
   describe('H-2: BlockchainConnector.getTransactionHex() failure', () => {
     it('propagates error when fetching raw tx for legacy UTXO fails', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -111,8 +107,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     })
   })
 
-  // ── H-3: UtxoTracker unreachable ──────────────────────────────
-
   describe('H-3: UtxoTracker unreachable', () => {
     it('propagates error when tracker is down and utxos=null', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -134,8 +128,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     })
   })
 
-  // ── H-4: Invalid network name ─────────────────────────────────
-
   describe('H-4: Invalid network name', () => {
     it('throws TypeError during construction for invalid network', () => {
       assert.throws(
@@ -146,8 +138,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
-
-  // ── H-5: MULTISIGN without compressedPubKey ───────────────────
 
   describe('H-5: MULTISIGN without compressedPubKey', () => {
     it('throws when compressedPubKey is null', async () => {
@@ -166,8 +156,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     })
   })
 
-  // ── H-6: P2SH without valid pubkey address ────────────────────
-
   describe('H-6: P2SH without valid pubkey address', () => {
     it('throws when pubkey is not a valid base58 address', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -183,8 +171,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
-
-  // ── Return value shape ────────────────────────────────────────
 
   describe('Return value shape', () => {
     it('returns { psbt, encoding } where psbt is a Psbt instance', async () => {
@@ -205,8 +191,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     })
   })
 
-  // ── Custom dust parameter ─────────────────────────────────────
-
   describe('Custom dust parameter', () => {
     it('overrides dust for MULTISIGN output value but not fee floor', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -223,7 +207,6 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
         true, 0.00001, customDust
       )
 
-      // MULTISIGN output should use custom dust
       const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
       assert.ok(msOutput, 'MULTISIGN output should use custom dust value')
     })

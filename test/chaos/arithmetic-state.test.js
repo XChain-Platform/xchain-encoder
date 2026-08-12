@@ -30,8 +30,6 @@ const ADDRESS = getTestAddress(NETWORK)
 
 describe('Chaos Category D: Arithmetic & State Corruption', () => {
 
-  // ── D-1: Fee calculation overflow (was: silent fund loss) ─────
-  //
   // These two cases were written against the pre-M-8 encoder, which returned
   // "success" when changeSatoshis came out negative: the caller signed a PSBT
   // whose outputs exceeded its inputs, and the excess went to the miner. M-8
@@ -94,8 +92,6 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     })
   })
 
-  // ── D-2: Insufficient UTXOs never reach the caller as a PSBT ──
-
   describe('D-2: Insufficient UTXOs produce no PSBT', () => {
     it('total inputs < fee → rejected instead of returned', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -142,8 +138,6 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
-
-  // ── D-3: Concurrent state mutation ────────────────────────────
 
   describe('D-3: Concurrent calls with shared UTXO array', () => {
     it('two concurrent calls with independent arrays both succeed', async () => {
@@ -195,8 +189,6 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     })
   })
 
-  // ── D-4: UTXO reuse / in-place mutation ───────────────────────
-
   describe('D-4: UTXO array mutation across calls', () => {
     it('createTransaction mutates the caller\'s utxos array in-place', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -226,14 +218,12 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
         makeSegwitUtxo(TXID_B, 0, 50000000)
       ]
 
-      // First call
       await encoder.createTransaction(
         utxos, ADDRESS, null,
         actions.makeSend().data, null, 10000, false, null, ADDRESS,
         null, null, null, true, 0.00001
       )
 
-      // Second call with already-sorted array
       const result2 = await encoder.createTransaction(
         utxos, ADDRESS, null,
         actions.makeSend().data, null, 10000, false, null, ADDRESS,

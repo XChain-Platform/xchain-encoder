@@ -57,7 +57,7 @@ const METHODS = [
             { name: 'data', schema: str('ACTION payload string (pipe-delimited, from xchain-sdk createAction)') },
             { name: 'rawData', schema: str('additional raw bytes, Latin-1 decoded (gated-FILE ciphertext, ECIES envelopes)') },
             { name: 'utxos', schema: { type: 'array', description: 'explicit UTXOs; fetched from the UTXO tracker when omitted (max 500)', items: { type: 'object' } } },
-            { name: 'customOutputs', schema: { type: 'array', description: 'extra outputs [{address, value}] (max 100); value is base units, pass amounts above 2^53-1 as an exact decimal string ', items: { type: 'object' } } },
+            { name: 'customOutputs', schema: { type: 'array', description: 'extra outputs [{address, value}] (max 100); value is base units, pass amounts above 2^53-1 as an exact decimal string', items: { type: 'object' } } },
             { name: 'feeQuote', schema: { type: 'object', description: 'protocol fee output {address, amount} from the hub/indexer fee quote' } },
             { name: 'fee', schema: int('absolute fee in base units (rejected if over the fee-rate cap)') },
             { name: 'feePerKb', schema: int('fee rate in base units per kB (clamped to the fee-rate cap)') },
@@ -77,7 +77,7 @@ const METHODS = [
     {
         name: 'create_envelope_cancel_tx',
         summary: 'Build the key-path cancel PSBT sweeping an unrevealed TAPROOT envelope commit back to the caller.',
-        description: 'Rebuilds the sweep from the persisted recovery record alone ( §3.5); the PSBT carries '
+        description: 'Rebuilds the sweep from the persisted recovery record alone; the PSBT carries '
             + 'tapInternalKey and tapMerkleRoot so the signer can compute the BIP341 tweak. The cancel conflicts '
             + 'with the reveal by construction (same outpoint): treat it as a replacement of the reveal.',
         params: [

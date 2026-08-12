@@ -42,7 +42,7 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateDataParam(5, 'rawData'), /rawData must be a string/);
         });
 
-        // : the emitter converts data with Buffer.from(...,'utf8') and rawData
+        // The emitter converts data with Buffer.from(...,'utf8') and rawData
         // with Buffer.from(...,'binary'), and neither is reversible for every JS string.
         // A validated value that the wire encoding mutates can never be reconstructed by
         // the decoder, so it must be refused here rather than silently corrupted.
@@ -73,7 +73,7 @@ describe('Encoder input validator', function () {
         });
     });
 
-    describe('validateActionName (: encoder ACTION-name gate)', function () {
+    describe('validateActionName (encoder ACTION-name gate)', function () {
         it('accepts every canonical ACTION name from VALID_ACTION_NAMES', function () {
             for (const name of v.VALID_ACTION_NAMES) {
                 assert.doesNotThrow(() => v.validateActionName(`${name}|0|X|1|a`), name);
@@ -147,7 +147,7 @@ describe('Encoder input validator', function () {
             const rawData = 'y'.repeat(4095);
             assert.throws(() => v.validateCombinedDataLength(data, rawData), RangeError);
         });
-        // #3137: explicit encoding:"OP_RETURN" gets the tighter 76-byte ceiling
+        // Explicit encoding:"OP_RETURN" gets the tighter 76-byte ceiling
         // pre-compile, so an oversize request is rejected as invalid-params before
         // any UTXO reservation instead of failing post-compile as -32603 internal.
         it('rejects an explicit OP_RETURN payload above the 76-byte ceiling', function () {
@@ -191,7 +191,7 @@ describe('Encoder input validator', function () {
         });
     });
 
-    describe('alias expansion at the compiled ceiling (item 2740)', function () {
+    describe('alias expansion at the compiled ceiling', function () {
         // MAX_COMPILED_ACTION_DATA_LENGTH bounds the COMPILED on-chain push - i.e.
         // the alias/wire spelling - measured BEFORE the decoder canonicalizes the
         // name. Several aliases EXPAND during that canonicalization (ADDR->ADDRESS
@@ -411,7 +411,7 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateRawTxHex('zz00'), /even-length hex/);
         });
         it('accepts hex between the p2shHex cap and the broadcast cap (an envelope reveal)', function () {
-            // : a signed TAPROOT envelope reveal is ~810,000 hex chars,
+            // A signed TAPROOT envelope reveal is ~810,000 hex chars,
             // above MAX_RAW_TX_HEX_LENGTH (which still bounds p2shHex) but
             // within the broadcast_tx ceiling.
             const hex = 'ab'.repeat(v.MAX_RAW_TX_HEX_LENGTH / 2 + 1);

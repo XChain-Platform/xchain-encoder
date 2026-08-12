@@ -8,7 +8,7 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 //
-//  S1: the Taproot envelope encoding (encoding:"TAPROOT"), unit-only.
+// The Taproot envelope encoding (encoding:"TAPROOT"), unit-only.
 // Covers the §3.2 grammar (pinned against the golden vector in
 // xchain-documentation/protocol/test-vectors/taproot_envelope.json), the
 // commit/reveal pair construction, the §3.5 rules (segwit-only inputs,
@@ -80,7 +80,7 @@ function payloadPushes (envelopeScript) {
   return d.slice(4, endifIndex)
 }
 
-describe('XChainEncoder TAPROOT envelope ( S1)', function () {
+describe('XChainEncoder TAPROOT envelope', function () {
   describe('prepareData grammar (§3.2)', function () {
     const encoder = makeEncoder()
 
@@ -269,13 +269,13 @@ describe('XChainEncoder TAPROOT envelope ( S1)', function () {
       assert.ok(result.revealPsbt)
     })
 
-    // . The ceiling is DERIVED from MAX_STANDARD_TX_WEIGHT, so the
+    // The ceiling is DERIVED from MAX_STANDARD_TX_WEIGHT, so the
     // derivation itself needs a test: a payload at exactly the ceiling must
     // still build a reveal a node will relay. The original 400,000 passed every
     // validator-level boundary test while producing a 402,789 WU reveal that no
     // node accepts, because nothing measured the thing that actually binds. A
     // byte-count assertion cannot catch that; only weight can.
-    it('a payload at exactly the ceiling builds a reveal within MAX_STANDARD_TX_WEIGHT (§4, )', async function () {
+    it('a payload at exactly the ceiling builds a reveal within MAX_STANDARD_TX_WEIGHT (§4)', async function () {
       this.timeout(30000)
       const encoder = makeEncoder()
       const network = encoder.network

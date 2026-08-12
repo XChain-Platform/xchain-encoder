@@ -54,8 +54,6 @@ async function encode (data, opts = {}) {
 
 describe('E2E-3: Encoding Type Selection & Boundaries', () => {
 
-  // ── E2E-3.1: Minimum OP_RETURN ────────────────────────────────
-
   describe('E2E-3.1: Minimum OP_RETURN (1-byte ACTION)', () => {
     it('single byte payload fits OP_RETURN', async () => {
       const result = await encode('X')
@@ -65,8 +63,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
-
-  // ── E2E-3.2: Maximum OP_RETURN ────────────────────────────────
 
   describe('E2E-3.2: Maximum OP_RETURN boundary (75-byte string)', () => {
     it('75-byte ACTION compiles to 76 bytes, fits OP_RETURN (76 + 4 magic = 80)', async () => {
@@ -78,8 +74,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
     })
   })
 
-  // ── E2E-3.3: OP_RETURN+1 boundary ────────────────────────────
-
   describe('E2E-3.3: One byte over OP_RETURN boundary', () => {
     it('80-byte ACTION exceeds OP_RETURN, auto-selects P2SH', async () => {
       const action = actions.makeActionOfSize(80)
@@ -87,8 +81,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
-
-  // ── E2E-3.4: Forced OP_RETURN with large data is rejected ────
 
   describe('E2E-3.4: Forced OP_RETURN with large data is rejected', () => {
     it('200-byte data forced to OP_RETURN is rejected', async () => {
@@ -112,8 +104,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
     })
   })
 
-  // ── E2E-3.5: Forced P2SH with small data ─────────────────────
-
   describe('E2E-3.5: Forced P2SH despite data fitting OP_RETURN', () => {
     it('encoding override to P2SH is honored', async () => {
       const action = actions.makeSend() // small
@@ -129,8 +119,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.ok(p2shOutput, 'should have P2SH output')
     })
   })
-
-  // ── E2E-3.6: Forced P2WSH ────────────────────────────────────
 
   describe('E2E-3.6: Forced P2WSH', () => {
     it('encoding override to P2WSH produces witness output', async () => {
@@ -151,8 +139,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.ok(p2wshOutput, 'should have P2WSH output')
     })
   })
-
-  // ── E2E-3.7: Forced MULTISIGN ────────────────────────────────
 
   describe('E2E-3.7: Forced MULTISIGN', () => {
     it('encoding override to MULTISIGN produces 1-of-3 multisig', async () => {
@@ -175,8 +161,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
     })
   })
 
-  // ── E2E-3.8: Near P2SH max chunk ─────────────────────────────
-
   describe('E2E-3.8: Near P2SH max chunk size', () => {
     it('400-byte data fits in single P2SH chunk', async () => {
       const data = 'Z'.repeat(400)
@@ -192,8 +176,6 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.strictEqual(p2shOutputs.length, 1, 'should fit in single P2SH chunk')
     })
   })
-
-  // ── E2E-3.9: P2WSH handles very large data ───────────────────
 
   describe('E2E-3.9: P2WSH handles larger-than-P2SH payload', () => {
     it('1000-byte file data splits across multiple P2WSH chunks', async () => {

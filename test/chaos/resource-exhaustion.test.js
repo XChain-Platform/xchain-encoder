@@ -32,8 +32,6 @@ const DOGE_ADDR = getTestAddress(DOGE)
 
 describe('Chaos Category E: Resource Exhaustion', () => {
 
-  // ── E-1: Large P2WSH encoding ─────────────────────────────────
-
   describe('E-1: Large P2WSH encoding (memory stress)', () => {
     it('8189-byte payload (compiled 8192, at limit) with P2WSH completes in <5s', async () => {
       const encoder = makeEncoder(BTC)
@@ -74,8 +72,6 @@ describe('Chaos Category E: Resource Exhaustion', () => {
       )
     })
   })
-
-  // ── E-2: 500 UTXOs ───────────────────────────────────────────
 
   // Both cases fund the 500 UTXOs at 1000 sats and set the fee to exactly the
   // 500-UTXO total. They were written at 100 sats against a fee of 100000,

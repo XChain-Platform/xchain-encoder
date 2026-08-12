@@ -59,8 +59,6 @@ async function encodeAndExtract (actionObj, opts = {}) {
 
 describe('REG-07: Action Pipeline Regression', function () {
 
-  // ── REG-07.1: SEND baseline ───────────────────────────────────
-
   describe('REG-07.1: SEND baseline round-trip', function () {
     it('SEND|0|JDOG|1|<addr> encodes and decodes exactly', async function () {
       const action = actions.makeSend('JDOG', '1')
@@ -79,8 +77,6 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(decoded, action.data)
     })
   })
-
-  // ── REG-07.2: ISSUE P2SH path ────────────────────────────────
 
   describe('REG-07.2: ISSUE P2SH path', function () {
     it('full ISSUE (25+ fields) auto-selects P2SH', async function () {
@@ -105,8 +101,6 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.3: MULTISEND v2 ───────────────────────────────────
-
   describe('REG-07.3: MULTISEND v2 (multiple recipients)', function () {
     it('two TICK|AMOUNT|DEST triplets preserved', async function () {
       // Use short addresses to keep payload within OP_RETURN limit
@@ -122,8 +116,6 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.4: ORDER DEX round-trip ────────────────────────────
-
   describe('REG-07.4: ORDER DEX round-trip', function () {
     it('ORDER|0|BUY|JDOG|100|BRRR|50|0 survives encoding', async function () {
       const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
@@ -131,8 +123,6 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(decompiled[0].toString('utf8'), action.data)
     })
   })
-
-  // ── REG-07.5: BROADCAST oversized OP_RETURN rejected ───────────
 
   describe('REG-07.5: BROADCAST oversized OP_RETURN rejected', function () {
     it('long broadcast forced to OP_RETURN is rejected', async function () {
@@ -174,8 +164,6 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.6: FILE P2WSH path ────────────────────────────────
-
   describe('REG-07.6: FILE P2WSH path (bitcoin-regtest)', function () {
     it('large FILE uses P2WSH on segwit-capable network', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -193,8 +181,6 @@ describe('REG-07: Action Pipeline Regression', function () {
     })
   })
 
-  // ── REG-07.7: BATCH semicolon delimiter ───────────────────────
-
   describe('REG-07.7: BATCH semicolon delimiter', function () {
     it('semicolon-separated commands preserved verbatim', async function () {
       const action = actions.makeBatch([
@@ -208,8 +194,6 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.ok(decoded.includes(';'), 'should contain semicolon separator')
     })
   })
-
-  // ── REG-07.8: data + rawData dual field ───────────────────────
 
   describe('REG-07.8: data + rawData dual field', function () {
     it('both data and rawData present in decompiled output', async function () {
@@ -230,8 +214,6 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(decompiled[1].toString('utf8'), 'extra-raw-data')
     })
   })
-
-  // ── REG-07.9: Special characters ──────────────────────────────
 
   describe('REG-07.9: Special characters in payload', function () {
     it('TICK name with special chars preserved', async function () {

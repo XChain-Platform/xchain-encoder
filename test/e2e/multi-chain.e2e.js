@@ -47,8 +47,6 @@ const CHAINS = [
 
 describe('E2E-6: Multi-Chain Validation', () => {
 
-  // ── E2E-6.1/6.2/6.3: OP_RETURN per chain ─────────────────────
-
   for (const chain of CHAINS) {
     describe(`E2E-6.${CHAINS.indexOf(chain) + 1}: ${chain.name} OP_RETURN`, () => {
       it('creates valid OP_RETURN PSBT with correct dust threshold', async () => {
@@ -75,8 +73,6 @@ describe('E2E-6: Multi-Chain Validation', () => {
       })
     })
   }
-
-  // ── E2E-6.4/6.5/6.6: P2SH per chain ─────────────────────────
 
   for (const chain of CHAINS) {
     describe(`${chain.name} P2SH`, () => {
@@ -106,8 +102,6 @@ describe('E2E-6: Multi-Chain Validation', () => {
     })
   }
 
-  // ── E2E-6.7: Bitcoin P2WSH ────────────────────────────────────
-
   describe('E2E-6.7: Bitcoin P2WSH', () => {
     it('creates P2WSH witness output on bitcoin-regtest', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -133,8 +127,6 @@ describe('E2E-6: Multi-Chain Validation', () => {
     })
   })
 
-  // ── E2E-6.8: Bitcoin MULTISIGN ────────────────────────────────
-
   describe('E2E-6.8: Bitcoin MULTISIGN (dust=546)', () => {
     it('multisig output at 546 sats', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -159,8 +151,6 @@ describe('E2E-6: Multi-Chain Validation', () => {
     })
   })
 
-  // ── E2E-6.9: Litecoin MULTISIGN ──────────────────────────────
-
   describe('E2E-6.9: Litecoin MULTISIGN (dust=5460)', () => {
     it('multisig output at 5460 sats', async () => {
       const encoder = makeEncoder('litecoin-regtest')
@@ -179,8 +169,6 @@ describe('E2E-6: Multi-Chain Validation', () => {
     })
   })
 
-  // ── E2E-6.10: All 9 network configs ──────────────────────────
-
   describe('E2E-6.10: All 9 network configs valid', () => {
     const ALL_NETWORKS = [
       'bitcoin-mainnet', 'bitcoin-testnet', 'bitcoin-regtest',
@@ -197,8 +185,6 @@ describe('E2E-6: Multi-Chain Validation', () => {
       })
     }
   })
-
-  // ── Fee floor uses chain-specific dust ────────────────────────
 
   describe('Fee floor uses chain-specific dust', () => {
     it('Litecoin fee floor is 5460, not 546', async () => {

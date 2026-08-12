@@ -64,8 +64,6 @@ async function simulateCreateTx (rawParams, encoder) {
 
 describe('REG-08: API Contract Regression', function () {
 
-  // ── REG-08.1: Parameter flow ──────────────────────────────────
-
   describe('REG-08.1: validateAll → createTransaction parameter mapping', function () {
     it('valid params flow through without error', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -142,8 +140,6 @@ describe('REG-08: API Contract Regression', function () {
     })
   })
 
-  // ── REG-08.2: Validation errors (would be -32602) ────────────
-
   describe('REG-08.2: Validation errors (code -32602 pattern)', function () {
     it('invalid encoding value produces TypeError', function () {
       assert.throws(
@@ -174,8 +170,6 @@ describe('REG-08: API Contract Regression', function () {
     })
   })
 
-  // ── REG-08.3: Encoder errors (would be -32603) ───────────────
-
   describe('REG-08.3: Encoder errors (code -32603 pattern)', function () {
     it('no UTXOs error is a plain Error', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -204,8 +198,6 @@ describe('REG-08: API Contract Regression', function () {
       )
     })
   })
-
-  // ── REG-08.4: PSBT serialization ──────────────────────────────
 
   describe('REG-08.4: PSBT serialization', function () {
     it('result.psbt hex is non-empty and valid hex', async function () {
