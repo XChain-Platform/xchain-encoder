@@ -256,10 +256,37 @@ function validatePubkey(pubkey) {
     return validateAddress(pubkey, 'pubkey')
 }
 
+// Index of the first code unit a latin-1 byte cannot hold, or -1. Written as a scan
+// rather than a regex so the source carries no literal high or control characters.
+function firstNonLatin1(str) {
+    for (let i = 0; i < str.length; i++) if (str.charCodeAt(i) > 0xFF) return i
+    return -1
+}
+
+// Gate `data` and `rawData` on what their wire encodings can actually carry, not
+// just on being strings. prepareData converts data with Buffer.from(data,'utf8')
+// and rawData with Buffer.from(rawData,'binary') (XChainEncoder.js), and neither
+// conversion is reversible for every JS string: an unpaired surrogate becomes
+// U+FFFD under utf8, and a code unit above U+00FF is truncated to its low byte
+// under latin-1. Accepting those silently mutates a fee-paid payload into bytes
+// the decoder can never reconstruct into the value that was validated, so refuse
+// them here instead. RangeError so api.js maps it to -32602 invalid-params. Only
+// non-roundtrippable inputs are newly rejected, so nothing that used to encode
+// faithfully regresses ().
 function validateDataParam(value, fieldName) {
     if (value == null) return null
     if (typeof value !== 'string') {
         throw new TypeError(`${fieldName} must be a string`)
+    }
+    if (fieldName === 'rawData') {
+        // Latin-1 wire: every code unit must fit one byte.
+        const bad = firstNonLatin1(value)
+        if (bad !== -1) {
+            throw new RangeError(`${fieldName} contains a code point above U+00FF at index ${bad} that cannot be encoded as a latin-1 byte`)
+        }
+    } else if (!value.isWellFormed()) {
+        // UTF-8 wire: an unpaired surrogate would be replaced with U+FFFD.
+        throw new RangeError(`${fieldName} is not well-formed Unicode (unpaired surrogate) and cannot round-trip through UTF-8`)
     }
     return value
 }

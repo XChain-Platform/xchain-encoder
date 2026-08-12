@@ -74,11 +74,39 @@ class UtxoTracker {
             if (lag === null || typeof lag === 'undefined') {
                 throw new Error('utxo-tracker has not indexed any blocks yet; refusing to fetch UTXOs')
             }
+            // Halt is a verdict the tracker publishes independently of `synced`: it
+            // has stopped polling on an unrecoverable reorg and its store is frozen,
+            // possibly mid-rollback. A frozen height whose lag still looked acceptable
+            // sailed past both checks below, so gate on it first ().
+            if (syncStatus.halted === true) {
+                throw new Error(`utxo-tracker is halted (${syncStatus.halt_reason || 'unrecoverable reorg'}); refusing to fetch UTXOs`)
+            }
+            // A negative lag means our committed tip is ABOVE the node's, i.e. the node
+            // reset or reindexed below us and those outputs sit in blocks it no longer
+            // recognizes. Checked here as well as at the tracker so an un-upgraded
+            // tracker still reporting synced:true cannot authorize selection over
+            // orphaned UTXOs (, the fail-open boundary's own guard).
+            if (lag < 0) {
+                throw new Error(`utxo-tracker is ${-lag} blocks ahead of the node (node reset or reorged below its tip); refusing to fetch UTXOs`)
+            }
             // Delegate the sync verdict to the tracker, which computes `synced`
             // against its own authoritative threshold. Avoids drift from keeping
             // a local copy of the threshold here.
             if (!syncStatus.synced) {
                 throw new Error(`utxo-tracker is lagging by ${lag} blocks; refusing to fetch UTXOs`)
+            }
+            // Block sync flips true before the first mempool rebuild finishes, and until
+            // it does the empty mempool index cannot filter a confirmed output already
+            // spent in the node's mempool, so the fetch hands back unspendable inputs.
+            // Same refusal create_tx makes as UTXO_TRACKER_NOT_READY; strict === false
+            // keeps a tracker predating the field on the fail-open path ().
+            // Ordered LAST of the three, most specific cause first, exactly as
+            // XChainEncoder.js orders its own gates: get_sync_status derives
+            // mempool_ready as `synced && isMempoolReconverged()`, so a merely
+            // lagging tracker de-asserts it too, and checking it first blamed
+            // mempool reconvergence for a fault that is really block lag.
+            if (syncStatus.mempool_ready === false) {
+                throw new Error('utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to fetch UTXOs')
             }
         } catch (error) {
             console.error('Error checking UTXO tracker sync status:', error);

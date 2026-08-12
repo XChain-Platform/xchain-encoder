@@ -101,6 +101,115 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
     })
   })
 
+  // : the gate read only `synced` and an upper lag bound, so
+  // three views the tracker itself considers unusable reached input selection on the
+  // money path: one it halted on, one whose committed tip sits above the node's, and
+  // one whose mempool index is still empty and cannot filter an already-spent
+  // confirmed output.
+  describe('unusable-source gates fire', () => {
+    function stubSync(encoder, sync) {
+      encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
+        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        sync
+      })
+    }
+    function build(encoder, address) {
+      return encoder.createTransaction(
+        null, address, null, 'test', null, 10000, false, null, address,
+        null, null, null, true, 0.00001
+      )
+    }
+
+    it('throws UTXO_TRACKER_HALTED when the tracker halted, even at lag 0 and synced=true', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      stubSync(encoder, {
+        tracker_height: 100, node_height: 100, lag: 0, synced: true, mempool_ready: true,
+        halted: true, halt_reason: 'rolled back past the recovery window'
+      })
+
+      await assert.rejects(
+        () => build(encoder, address),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'UTXO_TRACKER_HALTED' &&
+                 err.details.halt_reason === 'rolled back past the recovery window'
+      )
+    })
+
+    it('throws UTXO_TRACKER_NOT_READY while the mempool has not reconverged', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      // Exactly the post-restart window: block sync is done, the mempool index is not.
+      stubSync(encoder, {
+        tracker_height: 100, node_height: 100, lag: 0, synced: true, mempool_ready: false
+      })
+
+      await assert.rejects(
+        () => build(encoder, address),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'UTXO_TRACKER_NOT_READY' &&
+                 err.details.lag === 0
+      )
+    })
+
+    it('throws UTXO_TRACKER_STALE when the tracker is ahead of the node (negative lag)', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      stubSync(encoder, {
+        tracker_height: 1000, node_height: 900, lag: -100, synced: true, mempool_ready: true
+      })
+
+      await assert.rejects(
+        () => build(encoder, address),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'UTXO_TRACKER_STALE' &&
+                 err.details.lag === -100 &&
+                 /orphaned/.test(err.message)
+      )
+    })
+
+    // The shape a FIXED tracker actually publishes at lag -100: its own floor
+    // de-asserts synced and mempool_ready together, so both refusals are eligible and
+    // the ordering decides which cause the operator is told. It must be the node
+    // regression, not mempool reconvergence, which is merely collateral ().
+    it('names the orphaned view, not mempool readiness, when both are de-asserted', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      stubSync(encoder, {
+        tracker_height: 1000, node_height: 900, lag: -100, synced: false, mempool_ready: false
+      })
+
+      await assert.rejects(
+        () => build(encoder, address),
+        (err) => err.operational === true &&
+                 err.xchainCode === 'UTXO_TRACKER_STALE' &&
+                 /orphaned/.test(err.message)
+      )
+    })
+
+    // The gate ships ahead of the fleet, so a tracker whose sync sibling predates
+    // these fields must keep serving rather than being refused wholesale.
+    it('fails open for a tracker whose sync sibling carries neither field', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      stubSync(encoder, { tracker_height: 100, node_height: 100, lag: 0, synced: true })
+
+      const result = await build(encoder, address)
+      assert.ok(result.psbt, 'absent halted/mempool_ready must not block an older tracker')
+    })
+
+    it('builds normally once the mempool has reconverged and the tracker is running', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
+      const address = getTestAddress('bitcoin-regtest')
+      stubSync(encoder, {
+        tracker_height: 100, node_height: 100, lag: 0, synced: true, mempool_ready: true
+      })
+
+      const result = await build(encoder, address)
+      assert.ok(result.psbt)
+    })
+  })
+
   describe('lag below threshold passes', () => {
     it('builds normally when lag is under the default 2-block threshold', async () => {
       const encoder = makeEncoder('bitcoin-regtest')

@@ -68,14 +68,22 @@
             },
             "tracker_synced": {
               "type": "boolean",
-              "description": "tracker reports itself synced"
+              "description": "tracker is serveable: synced, inside our lag bounds on both sides, not halted, and mempool-reconverged"
             },
             "tracker_lag": {
               "type": [
                 "integer",
                 "null"
               ],
-              "description": "tracker block lag, or null when unknown/unreachable"
+              "description": "tracker block lag, or null when unknown/unreachable; negative means the tracker is ahead of the node"
+            },
+            "tracker_halted": {
+              "type": "boolean",
+              "description": "tracker stopped polling on an unrecoverable reorg"
+            },
+            "tracker_mempool_ready": {
+              "type": "boolean",
+              "description": "tracker has reconverged its mempool, so an already-spent confirmed output can be filtered out"
             }
           }
         }

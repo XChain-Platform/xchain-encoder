@@ -245,6 +245,25 @@ function defaultCompressionEnabled(){
     return !(raw === '0' || raw.toLowerCase() === 'false' || raw.toLowerCase() === 'off')
 }
 
+// Bind the reveal's marker key to the outpoint it actually spends.
+// The P2SH/P2WSH reveal obfuscates its OP_RETURN marker with the id of the
+// funding tx parsed from p2shHex, but builds every input outpoint from the
+// separately supplied p2shHash, and nothing checked the two agree. A caller
+// mixing the id of one funding tx with the hex of an equivalent other one still
+// produced a signable, broadcastable reveal, while the decoder derives its key
+// from the input's real txid, fails the magic-word check, and silently drops the
+// paid ACTION. Called right after the hex is parsed, so it fires before the
+// marker is obfuscated and before any input is added ().
+function assertRevealFundingTxMatches(p2shHash, fundingTxid){
+    if (!p2shHash) return
+    if (String(p2shHash).toLowerCase() !== String(fundingTxid).toLowerCase()){
+        throw new TypeError(
+            `p2shHash (${p2shHash}) does not match the txid of the supplied p2shHex transaction (${fundingTxid}); ` +
+            `the reveal would spend one funding transaction while keying its marker to another`
+        )
+    }
+}
+
 
 class XChainEncoder {
     constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) {
@@ -920,10 +939,12 @@ class XChainEncoder {
                 }
 
                 // Freshness gate (M-11, encoder half). get_utxos carries an additive
-                // `sync` sibling field ({tracker_height, node_height, lag, synced}) on
-                // trackers that have picked up the ce16bdd freshness surface. Refuse to
-                // select from a view the tracker itself flags NOT synced, or whose lag
-                // exceeds our own (tighter) threshold, before any input is chosen.
+                // `sync` sibling field ({tracker_height, node_height, lag, synced,
+                // mempool_ready, halted?, halt_reason?}) on trackers that have picked up
+                // the ce16bdd freshness surface. Refuse to select from a view the tracker
+                // itself flags NOT synced or NOT mempool-ready, one it has halted on, or
+                // one whose lag is outside our own (tighter) bounds, before any input is
+                // chosen.
                 // `sync` is absent on an older tracker: fail OPEN (old behavior) rather
                 // than block every create_tx, since this ships ahead of every tracker
                 // in the fleet being upgraded.
@@ -931,11 +952,45 @@ class XChainEncoder {
                 if (sync && typeof sync === 'object'){
                     const lag = (typeof sync.lag === 'number') ? sync.lag : null
                     const overLag = (lag !== null) && (lag > this.maxUtxoTrackerLagBlocks)
-                    if (sync.synced === false || overLag){
+                    // Negative lag: the tracker's committed tip sits ABOVE the node's,
+                    // so its outputs live in blocks the node reset or reorged away. Only
+                    // the upper bound was checked, so an orphaned view reached selection
+                    // ().
+                    const behindNode = (lag !== null) && (lag < 0)
+                    // Halted: the tracker stopped polling on an unrecoverable reorg and
+                    // froze, possibly mid-rollback. It publishes this independently of
+                    // `synced`, so a frozen height with an acceptable lag passed this
+                    // gate (). Strict === true keeps an older tracker, whose
+                    // sync sibling carries no halt marker, on the existing fail-open path.
+                    if (sync.halted === true){
+                        throw new OperationalError(
+                            'UTXO_TRACKER_HALTED',
+                            `utxo-tracker is halted (${sync.halt_reason || 'unrecoverable reorg'}); refusing to select utxos from it`,
+                            { lag, tracker_height: sync.tracker_height, node_height: sync.node_height, halt_reason: sync.halt_reason || null }
+                        )
+                    }
+                    // Position before readiness, most specific cause first. An orphaned or
+                    // lagging view de-asserts mempool_ready too (the tracker floors that
+                    // field on the same negative lag), so checking readiness first would
+                    // name mempool reconvergence for a fault that is really a node reset.
+                    if (sync.synced === false || overLag || behindNode){
                         throw new OperationalError(
                             'UTXO_TRACKER_STALE',
                             `utxo-tracker view is stale (lag ${lag === null ? 'unknown' : lag} blocks` +
-                            `${overLag ? `, exceeds ${this.maxUtxoTrackerLagBlocks}-block threshold` : ''}); refusing to select utxos from it`,
+                            `${overLag ? `, exceeds ${this.maxUtxoTrackerLagBlocks}-block threshold` : ''}` +
+                            `${behindNode ? `, tracker is ahead of the node so its view is orphaned` : ''}); refusing to select utxos from it`,
+                            { lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
+                        )
+                    }
+                    // Mempool readiness: block sync flips true before the first mempool
+                    // rebuild finishes, and until it does an empty mempool index cannot
+                    // filter a confirmed output that is already spent in the node's
+                    // mempool, so selection can pick an unspendable input ().
+                    // Strict === false again fails open for a pre-mempool_ready tracker.
+                    if (sync.mempool_ready === false){
+                        throw new OperationalError(
+                            'UTXO_TRACKER_NOT_READY',
+                            'utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to select utxos from it',
                             { lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
                         )
                     }
@@ -1170,6 +1225,7 @@ class XChainEncoder {
                     if (p2shHex && !p2shTx){
                         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
+                        assertRevealFundingTxMatches(p2shHash, txidFirstInput)
                     }
 
                     if (p2shHash){
@@ -1242,6 +1298,7 @@ class XChainEncoder {
                     if (p2shHex && !p2shTx){
                         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
                         txidFirstInput = p2shTx.getId()
+                        assertRevealFundingTxMatches(p2shHash, txidFirstInput)
                     }
                     
                     if (p2shHash){

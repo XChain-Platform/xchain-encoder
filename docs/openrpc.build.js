@@ -31,7 +31,7 @@ const METHODS = [
         description: 'Unlike ping, a health failure means the encoder cannot serve requests correctly. '
             + 'When the tracker is unreachable the fields stay at their defaults (false / null).',
         params: [],
-        result: { name: 'health', schema: { type: 'object', properties: { tracker_reachable: bool('UTXO tracker reachable'), tracker_synced: bool('tracker reports itself synced'), tracker_lag: { type: ['integer', 'null'], description: 'tracker block lag, or null when unknown/unreachable' } } } },
+        result: { name: 'health', schema: { type: 'object', properties: { tracker_reachable: bool('UTXO tracker reachable'), tracker_synced: bool('tracker is serveable: synced, inside our lag bounds on both sides, not halted, and mempool-reconverged'), tracker_lag: { type: ['integer', 'null'], description: 'tracker block lag, or null when unknown/unreachable; negative means the tracker is ahead of the node' }, tracker_halted: bool('tracker stopped polling on an unrecoverable reorg'), tracker_mempool_ready: bool('tracker has reconverged its mempool, so an already-spent confirmed output can be filtered out') } } },
     },
     {
         name: 'estimate_fee',

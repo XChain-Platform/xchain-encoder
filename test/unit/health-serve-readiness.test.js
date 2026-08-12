@@ -69,4 +69,72 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
             assert.strictEqual(h.tracker_synced, false);
         } finally { restore(); }
     });
+
+    // : the tracker publishes halted independently of synced, so a tracker
+    // frozen on an unrecoverable reorg whose last committed height still shows an
+    // acceptable lag painted Online on the board.
+    it('a halted tracker reads NOT synced even at lag 0', async function () {
+        const restore = stubSync({ synced: true, lag: 0, halted: true, halt_reason: 'rolled back past the recovery window' });
+        try {
+            const h = await jsonRpcController.health();
+            assert.strictEqual(h.tracker_halted, true);
+            assert.strictEqual(h.tracker_synced, false,
+                'a tracker that stopped polling must never read Online on the board');
+        } finally { restore(); }
+    });
+
+    it('reports tracker_halted false for a running tracker', async function () {
+        const restore = stubSync({ synced: true, lag: 0 });
+        try {
+            const h = await jsonRpcController.health();
+            assert.strictEqual(h.tracker_halted, false);
+            assert.strictEqual(h.tracker_synced, true);
+        } finally { restore(); }
+    });
+
+    // : only the upper lag bound was checked here, so a tracker committed
+    // ABOVE the node's tip (node reset or reindex) read Online while its outputs sat
+    // in blocks the node no longer recognizes.
+    it('a tracker ahead of the node reads NOT synced', async function () {
+        const restore = stubSync({ synced: true, lag: -100 });
+        try {
+            const h = await jsonRpcController.health();
+            assert.strictEqual(h.tracker_synced, false);
+            assert.strictEqual(h.tracker_lag, -100);
+        } finally { restore(); }
+    });
+
+    // : create_tx refuses UTXO_TRACKER_NOT_READY for the whole post-restart
+    // window in which the mempool index is still rebuilding, so a probe blind to that
+    // state paints Online on an encoder that will serve nothing: the same divergence
+    // #2263 fixed for lag.
+    it('a tracker whose mempool has not reconverged reads NOT synced at lag 0', async function () {
+        const restore = stubSync({ synced: true, lag: 0, mempool_ready: false });
+        try {
+            const h = await jsonRpcController.health();
+            assert.strictEqual(h.tracker_mempool_ready, false);
+            assert.strictEqual(h.tracker_synced, false,
+                'create_tx refuses here, so the board must not read Online');
+        } finally { restore(); }
+    });
+
+    it('a reconverged tracker reads synced and mempool-ready', async function () {
+        const restore = stubSync({ synced: true, lag: 0, mempool_ready: true });
+        try {
+            const h = await jsonRpcController.health();
+            assert.strictEqual(h.tracker_mempool_ready, true);
+            assert.strictEqual(h.tracker_synced, true);
+        } finally { restore(); }
+    });
+
+    // Fail-open parity with create_tx: a tracker predating the field omits it and must
+    // not read as unready, or every un-upgraded tracker in the fleet goes dark.
+    it('a tracker that omits mempool_ready fails open', async function () {
+        const restore = stubSync({ synced: true, lag: 0 });
+        try {
+            const h = await jsonRpcController.health();
+            assert.strictEqual(h.tracker_mempool_ready, true);
+            assert.strictEqual(h.tracker_synced, true);
+        } finally { restore(); }
+    });
 });
