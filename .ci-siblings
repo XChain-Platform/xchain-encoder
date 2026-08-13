@@ -1,17 +1,27 @@
-# Siblings the CI gate checks out (at their canonical origin head) next to this
-# repo so the encoder's cross-repo byte-identity guards resolve them
-# deterministically.
+# Repos the encoder suite needs checked out BESIDE it on the CI venue.
 #
-# xchain-hub: test/unit/coins-conformance.test.js compares src/coins against the
-# canonical ../xchain-hub/src/coins.
+# Declaring a sibling here is what makes its cross-repo guards actually run. An
+# UNdeclared sibling is not a neutral omission: every guard written against it
+# resolves with existsSync, calls this.skip(), and the gate still prints PASS,
+# so the run reports green having exercised none of them. Measured 2026-08-12,
+# that gap was 3 guards (a venue carrying only hub + documentation ran 581
+# passing / 6 pending where a full local checkout runs 584 / 3). See
+# test/unit/sibling-coverage.test.js, which reports the surface this file leaves
+# uncovered; the same gap applies to a sibling that is declared but missing.
 #
-# xchain-documentation: test/unit/ActionManifestConformance.test.js compares the
-# vendored manifest against ../xchain-documentation/protocol/action-manifest.json.
-#
-# Both SKIP when the sibling is absent, which is right for a standalone deploy
-# but is a trap on a shared CI venue that keeps a persistent checkout per repo:
-# an undeclared sibling is then not absent at all, it is whatever revision
-# another repo's run left behind, and the guard silently compares against that.
-# Declaring them makes the harness ship canonical and remove any leftover.
+# ci-dispatch.sh ships each of these at its canonical origin head (falling back
+# to local HEAD) and REFUSES the push if one is not a checkout beside this repo.
+# It also removes any leftover at the venue: on a shared venue that keeps a
+# persistent checkout per repo, an undeclared sibling is not absent at all, it
+# is whatever revision another repo's run left behind, and the guard silently
+# compares against that.
+
+# Vendored coins-registry byte-identity: BTC/LTC/DOGE/index/consensus_pin.
 xchain-hub
+# Action-manifest conformance, taproot-envelope golden vectors, and the
+# compression-parameter reference.
 xchain-documentation
+# The envelope-recognition gate against the authoritative decoder.
+xchain-decoder
+# Compression-parameter twin parity.
+xchain-sdk
