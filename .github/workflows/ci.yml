@@ -78,6 +78,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The ratchet re-runs the unit suite, so it needs the same siblings the gate
+      # gets, or the tests that read xchain-documentation skip and the measured
+      # coverage lands under a floor that was set with them running. Same roster
+      # and same layout as the shared workflow uses.
+      - name: Check out declared sibling repositories
+        env:
+          SIBLINGS_REF: ${{ github.ref == 'refs/heads/master' && 'master' || 'develop' }}
+        run: |
+          set -euo pipefail
+          repos=$(sed 's/#.*//' .ci-siblings | tr -d '\r' | awk 'NF')
+          cd "$GITHUB_WORKSPACE/.."
+          for repo in $repos; do
+            rm -rf "$repo"
+            url="https://github.com/${{ github.repository_owner }}/$repo.git"
+            git clone --quiet --depth 1 --branch "$SIBLINGS_REF" "$url" "$repo" 2>/dev/null \
+              || git clone --quiet --depth 1 "$url" "$repo"
+            echo "sibling $repo @ $(git -C "$repo" rev-parse --abbrev-ref HEAD) $(git -C "$repo" rev-parse --short HEAD)"
+          done
+
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
