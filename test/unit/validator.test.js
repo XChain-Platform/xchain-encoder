@@ -183,6 +183,41 @@ describe('Encoder input validator', function () {
                 /exceeds maximum \(390000, the TAPROOT envelope payload ceiling\)/);
         });
 
+        // bitcoin.script.compile frames a push of >= 65,536 bytes with
+        // OP_PUSHDATA4 (+5), a band compiledPushSize does not model because it is
+        // pinned byte-for-byte against the decoder's copy. Only the envelope
+        // ceiling reaches that band, and _buildTransaction refuses on the REAL
+        // compiled buffer, so under-counting here by 2 per large push moved the
+        // boundary payload from this -32602 pre-check to a -32603 builder error.
+        it('counts the OP_PUSHDATA4 band on a push past 65,535 bytes', function () {
+            const bitcoin = require('bitcoinjs-lib');
+            // The widest rawData whose real compiled size is exactly the ceiling:
+            // OP_0 (1 byte, the empty data push) + rawLen + 5.
+            const atCeiling = v.ENVELOPE_MAX_PAYLOAD - 1 - 5;
+            assert.strictEqual(
+                bitcoin.script.compile([Buffer.alloc(0), Buffer.alloc(atCeiling)]).length,
+                v.ENVELOPE_MAX_PAYLOAD,
+                'the fixture must sit exactly on the ceiling or the boundary is untested');
+            assert.doesNotThrow(() => v.validateCombinedDataLength(null, 'y'.repeat(atCeiling), 'TAPROOT'));
+            // One byte more is one byte over, and must be refused HERE rather
+            // than surviving to _buildTransaction.
+            assert.strictEqual(
+                bitcoin.script.compile([Buffer.alloc(0), Buffer.alloc(atCeiling + 1)]).length,
+                v.ENVELOPE_MAX_PAYLOAD + 1);
+            assert.throws(() => v.validateCombinedDataLength(null, 'y'.repeat(atCeiling + 1), 'TAPROOT'),
+                RangeError);
+        });
+
+        it('leaves the OP_PUSHDATA2 band alone at its upper edge', function () {
+            const bitcoin = require('bitcoinjs-lib');
+            // 65,535 is still +3, so the correction must not start a byte early,
+            // and compiledPushSize itself must stay unforked for the decoder pin.
+            assert.strictEqual(bitcoin.script.compile([Buffer.alloc(65535)]).length, 65538);
+            assert.strictEqual(v.compiledPushSize(65535), 65538);
+            assert.strictEqual(v.compiledPushSize(65536), 65539);
+            assert.strictEqual(bitcoin.script.compile([Buffer.alloc(65536)]).length, 65541);
+        });
+
         it('measures rawData-only payloads (data defaults to an OP_0 push)', function () {
             // createTransaction compiles [emptyBuffer, rawDataBuffer]: OP_0 (1 byte)
             // + rawLen + 3 (OP_PUSHDATA2). 8188 -> 8192 == ceiling; 8189 -> 8193.
