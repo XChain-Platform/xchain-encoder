@@ -38,7 +38,7 @@
     "test": "npx mocha --timeout 10000 'test/unit/**/*.test.js' --recursive --exit",
     "test:regtest": "mocha --timeout 0 --require ./test/prepareRegtest.test.js",
     "coverage": "c8 --reporter=text --reporter=html --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",
-    "coverage:check": "c8 --check-coverage --lines 86 --statements 86 --branches 85 --functions 66 --reporter=text-summary --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",
+    "coverage:check": "c8 --check-coverage --lines 86.2 --statements 86.2 --branches 85.1 --functions 66 --reporter=text-summary --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",
     "ci": "npx mocha --timeout 10000 'test/unit/**/*.test.js' --recursive --exit && npm run ci:security && npm run ci:regression && npm run ci:e2e && npm run ci:conformance",
     "ci:security": "npx mocha --timeout 30000 'test/security/**/*.test.js' --recursive --exit",
     "ci:regression": "npx mocha --timeout 30000 'test/regression/**/*.test.js' --recursive --exit",
@@ -63,7 +63,7 @@
     "mutate:quick": "npx stryker run test/mutation/stryker.conf.quick.json"
   },
   "overrides": {
-    "brace-expansion": "^5.0.8",
+    "brace-expansion": "^5.0.9",
     "minimatch": "^10.2.5",
     "ajv": "^8.18.0",
     "elliptic": "^6.6.1",
@@ -75,7 +75,7 @@
     "ip-address": "^10.3.1",
     "tough-cookie": "^4.1.3",
     "form-data": "^4.0.6",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
     "shell-quote": "^1.9.0"
   },
   "engines": {
