@@ -28,7 +28,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress } = require('./validator')
 const { compressPayloadForAction } = require('./compression')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
@@ -2094,9 +2094,11 @@ class XChainEncoder {
         if (typeof tapleafHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(tapleafHash)) {
             throw new TypeError('tapleafHash must be a 64-character hex string')
         }
-        if (typeof destination !== 'string' || destination.length === 0) {
-            throw new TypeError('destination must be a non-empty address string')
-        }
+        // validateAddress, not a local non-empty check: this is the one create
+        // path api.js does not route through validateAll, so without it the
+        // 100-char cap every other address field gets is missing here and an
+        // unbounded string reaches bs58check (quadratic) and psbt.addOutput.
+        validateAddress(destination, 'destination')
         if (this.network.supportsSegwit === false) {
             throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
         }

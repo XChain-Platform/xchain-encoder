@@ -47,15 +47,21 @@ class CryptoNetworks {
         return coins.getCoinConfig(p.tick, p.net).net;
     }
 
-    // Indexing start height (not part of any consensus hash). Unknown/regtest -> 0.
+    // Indexing start height, and a CONSENSUS input: coins/index.js folds firstBlock into
+    // consensusSubset() (REGENERATED 2026-08-06, see coins/consensus_pin.js), because the
+    // decoder reads it as the chain's start height, so it decides which block the action
+    // history begins at. A node bundling a higher value skips the actions below it and
+    // replays a different history while its pin verifies clean, so this is never a
+    // locally-tunable operational value. Unknown/regtest -> 0.
     static getFirstBlock(networkName){
         const p = parseNetworkName(networkName);
         return p ? coins.getCoinConfig(p.tick, p.net).firstBlock : 0;
     }
 
     // The LOCAL block height at/above which decoders recognize
-    // Taproot-envelope reveals as action-bearing. Unlike firstBlock this IS
-    // consensus-visible: it is the flag height the whole fleet flips at, so this
+    // Taproot-envelope reveals as action-bearing. Like firstBlock above, this IS
+    // consensus-visible (pinned by a different mechanism, not consensusSubset()):
+    // it is the flag height the whole fleet flips at, so this
     // copy is vendored byte-equal from the canonical
     // xchain-documentation/protocol/constants.js (and xchain-decoder's copy of it),
     // and a unit test fails if it ever drifts.

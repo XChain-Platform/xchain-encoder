@@ -494,6 +494,19 @@ describe('XChainEncoder TAPROOT envelope', function () {
         Object.assign({}, base, { tapleafHash: 'nope' })), /tapleafHash/)
       await assert.rejects(encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { destination: '' })), /destination/)
+      // The 100-char shared address cap, which this path used to miss because
+      // it is the one create path api.js does not route through validateAll.
+      // Uncapped, a multi-megabyte destination under the 3 MB body limit reaches
+      // bs58check's quadratic decode on a single-instance service.
+      await assert.rejects(encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { destination: 'a'.repeat(101) })),
+        (err) => err instanceof TypeError && /destination exceeds maximum length \(100\)/.test(err.message))
+      await assert.rejects(encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { destination: 'a'.repeat(3_000_000) })),
+        (err) => err instanceof TypeError && /destination exceeds maximum length \(100\)/.test(err.message))
+      await assert.rejects(encoder.createEnvelopeCancelTransaction(
+        Object.assign({}, base, { destination: 12345 })),
+        (err) => err instanceof TypeError && /destination must be a non-empty string/.test(err.message))
     })
 
     it('applies the create_tx fee guards to feePerKb and replacebyfee', async function () {

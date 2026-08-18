@@ -294,10 +294,26 @@ function validateDataParam(value, fieldName) {
 // Size of a single script push once bitcoin.script.compile adds its length
 // prefix: a direct push opcode for <=75 bytes, OP_PUSHDATA1 (+2) for <=255, or
 // OP_PUSHDATA2 (+3) beyond that. Mirrors how prepareData compiles data/rawData.
+// Deliberately has no OP_PUSHDATA4 band: this formula is pinned byte-for-byte
+// against the decoder's identical copy by xchain-decoder's
+// compiledPushSizeConformance test, so a band added on one side alone diverges
+// the pair. Callers measuring a push that can reach 65,536 bytes correct for it
+// themselves (envelopePushSize below).
 function compiledPushSize(byteLength) {
     if (byteLength <= 75)  return byteLength + 1   // direct push opcode
     if (byteLength <= 255) return byteLength + 2   // OP_PUSHDATA1
     return byteLength + 3                           // OP_PUSHDATA2
+}
+
+// compiledPushSize with the OP_PUSHDATA4 band restored: bitcoin.script.compile
+// frames a push of >= 65,536 bytes with a 4-byte length prefix (+5), not the
+// 2-byte one (+3) that compiledPushSize stops at. Only reachable under the
+// 390,000-byte TAPROOT/AUTO envelope ceiling, where a single rawData push
+// routinely clears 65,535 bytes; under the 8,192-byte legacy ceiling such a push
+// is refused on either model, so applying the correction unconditionally costs
+// nothing and keeps one rule to reason about.
+function envelopePushSize(byteLength) {
+    return compiledPushSize(byteLength) + (byteLength > 0xffff ? 2 : 0)
 }
 
 // True only for a 1-byte buffer whose value bitcoinjs canonicalizes to a bare
@@ -380,7 +396,12 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // carries its own length-prefix overhead. Summing the raw byte counts would
     // undercount the on-chain size and let dual-push payloads slip past this
     // pre-check only to fail the compiled-size ceiling later in createTransaction.
-    const compiled = compiledPushSize(dataBytes) + (rawData != null ? compiledPushSize(rawBytes) : 0)
+    // envelopePushSize, not compiledPushSize: this sum is compared against the
+    // 390,000-byte envelope ceiling below, and _buildTransaction refuses on the
+    // REAL compiled buffer, so a push framed with OP_PUSHDATA4 must be counted
+    // the way bitcoin.script.compile frames it or the two ceilings disagree by
+    // 2 bytes per large push and a payload lands as -32603 instead of -32602.
+    const compiled = envelopePushSize(dataBytes) + (rawData != null ? envelopePushSize(rawBytes) : 0)
     // Per-encoding ceiling. "TAPROOT" and "AUTO" both get the
     // envelope ceiling; every other value (including an OMITTED encoding) keeps
     // the legacy ceiling, because the legacy lanes' decoders silently drop
