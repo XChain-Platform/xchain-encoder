@@ -1318,11 +1318,12 @@ class XChainEncoder {
                     } else {
                         // Size this P2WSH data output to fund its share of the
                         // reveal (spending) transaction's fee, mirroring the
-                        // P2SH branch above. A flat dust value (546) leaves the
-                        // multi-input reveal tx below the node's min-relay-fee
-                        // floor (observed: 1638 sat across 3 dust outputs vs a
-                        // ~2228 sat floor), so the broadcast is rejected. The
-                        // estimate uses witness-discounted sizing because P2WSH
+                        // P2SH branch above. A flat per-output dust value leaves
+                        // the multi-input reveal tx below the node's min-relay-fee
+                        // floor (observed on bitcoin-regtest, whose dustThreshold
+                        // is 546: 1638 sat across 3 dust outputs vs a ~2228 sat
+                        // floor), so the broadcast is rejected. The estimate uses
+                        // witness-discounted sizing because P2WSH
                         // reveal data lives in the (÷4-weighted) witness.
                         let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer)
                         let spendingP2wshEstimatedFee = Math.trunc((spendingP2wshEstimatedSize * feePerBytes) * SATOSHI_UNIT)
@@ -1402,11 +1403,13 @@ class XChainEncoder {
                         }
                     )
                     
-                    // A bare multisig output is larger than a P2PKH, so the flat
-                    // P2PKH dust floor (this.dustAmount = 546) is below the node's
-                    // relay dust threshold and the broadcast is rejected with
-                    // {"code":-26,"message":"dust"}. Size the floor from the actual
-                    // output script using Bitcoin Core's dust formula:
+                    // A bare multisig output is larger than a P2PKH, so the P2PKH
+                    // dust floor (this.dustAmount, read per network from the coin
+                    // bundle's dustThreshold: BTC 546, LTC 5460, DOGE 100000) is
+                    // below the node's relay dust threshold and the broadcast is
+                    // rejected with {"code":-26,"message":"dust"}. Never hard-code a
+                    // flat 546 here: DOGE shares this path at 100000. Size the floor
+                    // from the actual output script using Bitcoin Core's dust formula:
                     // (output_bytes + spend_input_bytes) * 3 sat/byte. The spend cost
                     // assumes a 148-byte P2PKH-style input. For standard 1-of-3
                     // compressed-key scripts (105 bytes) this is ~786 sat.

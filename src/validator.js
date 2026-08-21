@@ -380,6 +380,33 @@ function validateActionName(data) {
     }
 }
 
+// MEASURAND: the CALLER'S bytes, before compression, deliberately (AML #5308).
+//
+// api.js runs validateAll on the raw params, and XChainEncoder.js's transparent
+// FILE compression rewrites both `data` and `rawData` afterwards, so this
+// pre-check and the compiled-size ceiling in _buildTransaction measure two
+// different byte streams. That is the contract, not an oversight: the same
+// pre-compression cap is what xchain-sdk documents (protocol/constants.js
+// MAX_ACTION_DATA_LENGTH) and what xchain-wallet gates uploads on
+// (flows/fileSizeLimits.js), so a caller sizes a payload the same way on all
+// three surfaces without knowing whether the encoder it is talking to has
+// compression enabled (XCHAIN_COMPRESSION_DEFAULT is a deploy-time lever this
+// module cannot see, the same way it cannot see network.supportsSegwit).
+//
+// Two consequences, both fail closed behind the compiled-size ceiling:
+//   - compression cannot rescue an oversize payload. A FILE whose RAW bytes
+//     exceed the ceiling is refused here as -32602 even where deflate would
+//     have fitted it. Raising that is a cross-repo contract change (encoder +
+//     SDK + wallet together), never an encoder-only relaxation.
+//   - a payload within ~8 bytes of the ceiling can still fail post-compression:
+//     compression.js keeps a result that is smaller by as little as one byte
+//     while withCompressionField pads the action string out to the COMPRESSION
+//     field. Those land as the builder's -32603 rather than this -32602.
+//
+// XChainEncoder.js's "everything downstream prices the bytes that will actually
+// be written" is about the passes that run AFTER compression; this one runs
+// before it. The compiled-size ceiling still runs ahead of the UTXO fetch, so
+// what a deferred rejection costs is the error CODE, not reservation work.
 function validateCombinedDataLength(data, rawData, encoding) {
     if (data == null && rawData == null) return
     // createTransaction defaults a missing `data` to '' and still compiles it

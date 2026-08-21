@@ -101,6 +101,13 @@ function withCompressionField(actionString, value){
     return parts.join('|')
 }
 
+// SIZE CEILINGS ARE NOT THIS PASS'S JOB (AML #5308). validator.js measures the
+// caller's PRE-compression bytes and refuses an oversize payload before this
+// runs, so compression never rescues one; it only shrinks what is already
+// admissible. Deliberate: xchain-sdk and xchain-wallet publish the same
+// pre-compression cap and cannot see whether a given encoder deployment has
+// compression on. Widening it is a three-repo change, not a carve-out here or
+// in validateCombinedDataLength.
 /**
  * Decide, and apply, transparent compression for one create_tx payload.
  *
