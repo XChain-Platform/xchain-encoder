@@ -830,6 +830,20 @@ class XChainEncoder {
         // A payment with nothing to say should look like an ordinary payment.
         const hasActionPayload = dataBuffer.length > 0 || rawData != null
 
+        // rawData with no `data` compiles to an OP_0-led payload, and every shipped
+        // decoder blanks that stream and never reads the trailing push (the arbiter gate
+        // in xchain-decoder/src/XChainDecoder.js, which counts it and logs it but leaves
+        // ACCEPTANCE unchanged on purpose). So the transaction confirms, the fee is paid,
+        // and the payload is never indexed as an ACTION.
+        //
+        // Reported, not refused. Whether this wire shape becomes readable end to end is a
+        // cross-service flag-day decision that governs the decoder gate and validator.js
+        // together (see isMinimalOpSingleByte), so refusing it here would settle half of a
+        // joint decision unilaterally and strand the decoder half when it lands. Telling
+        // the fee-payer before it signs needs no acceptance change at all. Drop this when
+        // the flag day lands.
+        const rawDataOnlyPayload = dataBuffer.length === 0 && rawData != null
+
         // Size-aware encoding selection, behind the caller's explicit AUTO opt-in.
         // Runs HERE: after compression, so it prices the bytes that will really be
         // written, and before the ceiling check, so an over-cap payload is refused
@@ -1104,8 +1118,16 @@ class XChainEncoder {
                 // Caller-supplied UTXOs are the caller's own coin-control; ins[0] is utxos[0].
                 txidFirstInput = utxos[0]["txid"]
             }
+            // Lowercase where the key BINDS, not only at validation: this string is the
+            // obfuscation key itself, the decoder's half of it always renders lowercase,
+            // and the ins[0] guard below compares against a lowercase hex rendering of the
+            // PSBT input. validateUtxoEntry canonicalizes both ingest paths, but a caller
+            // using the encoder as a library reaches createTransaction without it, and a
+            // mixed-case txid must not turn into a permanent failure wearing a retryable
+            // INPUT_SELECTION_RACE label.
+            if (txidFirstInput != null) txidFirstInput = String(txidFirstInput).toLowerCase()
         }
-        
+
         if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
             psbt = new bitcoin.Psbt({ network: this.network })
         }
@@ -1318,11 +1340,12 @@ class XChainEncoder {
                     } else {
                         // Size this P2WSH data output to fund its share of the
                         // reveal (spending) transaction's fee, mirroring the
-                        // P2SH branch above. A flat dust value (546) leaves the
-                        // multi-input reveal tx below the node's min-relay-fee
-                        // floor (observed: 1638 sat across 3 dust outputs vs a
-                        // ~2228 sat floor), so the broadcast is rejected. The
-                        // estimate uses witness-discounted sizing because P2WSH
+                        // P2SH branch above. A flat per-output dust value leaves
+                        // the multi-input reveal tx below the node's min-relay-fee
+                        // floor (observed on bitcoin-regtest, whose dustThreshold
+                        // is 546: 1638 sat across 3 dust outputs vs a ~2228 sat
+                        // floor), so the broadcast is rejected. The estimate uses
+                        // witness-discounted sizing because P2WSH
                         // reveal data lives in the (÷4-weighted) witness.
                         let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer)
                         let spendingP2wshEstimatedFee = Math.trunc((spendingP2wshEstimatedSize * feePerBytes) * SATOSHI_UNIT)
@@ -1402,11 +1425,13 @@ class XChainEncoder {
                         }
                     )
                     
-                    // A bare multisig output is larger than a P2PKH, so the flat
-                    // P2PKH dust floor (this.dustAmount = 546) is below the node's
-                    // relay dust threshold and the broadcast is rejected with
-                    // {"code":-26,"message":"dust"}. Size the floor from the actual
-                    // output script using Bitcoin Core's dust formula:
+                    // A bare multisig output is larger than a P2PKH, so the P2PKH
+                    // dust floor (this.dustAmount, read per network from the coin
+                    // bundle's dustThreshold: BTC 546, LTC 5460, DOGE 100000) is
+                    // below the node's relay dust threshold and the broadcast is
+                    // rejected with {"code":-26,"message":"dust"}. Never hard-code a
+                    // flat 546 here: DOGE shares this path at 100000. Size the floor
+                    // from the actual output script using Bitcoin Core's dust formula:
                     // (output_bytes + spend_input_bytes) * 3 sat/byte. The spend cost
                     // assumes a 148-byte P2PKH-style input. For standard 1-of-3
                     // compressed-key scripts (105 bytes) this is ~786 sat.
@@ -1902,6 +1927,18 @@ class XChainEncoder {
         // pushes to concatenate to the action it intended. Passing a forged
         // script means failing one or the other.
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
+
+        // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive
+        // result field, the same shape `compression` already established, so a caller
+        // that does not read it is unaffected.
+        if (rawDataOnlyPayload){
+            result.warnings = [{
+                code: 'RAWDATA_ONLY_NOT_DECODED',
+                message: 'rawData without data compiles to an OP_0-led payload that current ' +
+                    'XChain decoders read as empty: the transaction will confirm and the fee ' +
+                    'will be paid, but the payload will not be indexed as an ACTION'
+            }]
+        }
 
         // What compression actually did, reported rather than inferred. The
         // wallet has to show the REAL on-chain size, and with the

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-18
+
+### Fixed
+- A multi-page UTXO fetch refuses to merge pages that came from different tracker snapshots, so a rollback between pages can no longer leave orphaned outputs behind a healthy-looking freshness check.
+- The key-bearing input txid is lowercased at ingest, so a mixed-case caller no longer surfaces a bogus input-selection race.
+- A `rawData` payload with no data is reported back to the fee-payer as a warning, because it confirms and pays a fee without ever indexing as an action.
+- The compiled size ceiling is measured after compression.
+- The runtime image is pinned rather than floating.
+- Code-review round fixes across the encode path (5 files).
+
+### Security
+- Raised the brace-expansion and js-yaml dependency floors and the advisory guards that pin them.
+
 ## [0.9.0] - 2026-08-14
 
 First release of the XChain Platform release train. Every component in the train

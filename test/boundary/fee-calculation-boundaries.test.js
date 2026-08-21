@@ -44,7 +44,7 @@ const DOGE_DUST = 100000
 describe('Fee Calculation Boundaries', () => {
 
   describe('feePerKb = 0 → floored to dustAmount', () => {
-    it('BTC/DOGE: fee floors to 546 sats', async () => {
+    it('BTC: fee floors to 546 sats', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
