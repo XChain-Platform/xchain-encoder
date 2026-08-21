@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.10.0] - 2026-08-18
 
 ### Fixed
+- A multi-page UTXO fetch refuses to merge pages that came from different tracker snapshots, so a rollback between pages can no longer leave orphaned outputs behind a healthy-looking freshness check.
+- The key-bearing input txid is lowercased at ingest, so a mixed-case caller no longer surfaces a bogus input-selection race.
+- A `rawData` payload with no data is reported back to the fee-payer as a warning, because it confirms and pays a fee without ever indexing as an action.
+- The compiled size ceiling is measured after compression.
+- The runtime image is pinned rather than floating.
 - Code-review round fixes across the encode path (5 files).
 
 ### Security
