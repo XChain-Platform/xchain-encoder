@@ -311,6 +311,21 @@
               "items": {
                 "type": "string"
               }
+            },
+            "warnings": {
+              "type": "array",
+              "description": "present only when the built transaction carries a caveat the caller should see before signing; each entry is {code, message}. RAWDATA_ONLY_NOT_DECODED: rawData sent without data compiles to an OP_0-led payload that current decoders read as empty, so the transaction confirms and the fee is paid but the payload is not indexed as an ACTION.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
         }

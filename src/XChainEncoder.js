@@ -830,6 +830,20 @@ class XChainEncoder {
         // A payment with nothing to say should look like an ordinary payment.
         const hasActionPayload = dataBuffer.length > 0 || rawData != null
 
+        // rawData with no `data` compiles to an OP_0-led payload, and every shipped
+        // decoder blanks that stream and never reads the trailing push (the arbiter gate
+        // in xchain-decoder/src/XChainDecoder.js, which counts it and logs it but leaves
+        // ACCEPTANCE unchanged on purpose). So the transaction confirms, the fee is paid,
+        // and the payload is never indexed as an ACTION.
+        //
+        // Reported, not refused. Whether this wire shape becomes readable end to end is a
+        // cross-service flag-day decision that governs the decoder gate and validator.js
+        // together (see isMinimalOpSingleByte), so refusing it here would settle half of a
+        // joint decision unilaterally and strand the decoder half when it lands. Telling
+        // the fee-payer before it signs needs no acceptance change at all. Drop this when
+        // the flag day lands.
+        const rawDataOnlyPayload = dataBuffer.length === 0 && rawData != null
+
         // Size-aware encoding selection, behind the caller's explicit AUTO opt-in.
         // Runs HERE: after compression, so it prices the bytes that will really be
         // written, and before the ceiling check, so an over-cap payload is refused
@@ -1104,8 +1118,16 @@ class XChainEncoder {
                 // Caller-supplied UTXOs are the caller's own coin-control; ins[0] is utxos[0].
                 txidFirstInput = utxos[0]["txid"]
             }
+            // Lowercase where the key BINDS, not only at validation: this string is the
+            // obfuscation key itself, the decoder's half of it always renders lowercase,
+            // and the ins[0] guard below compares against a lowercase hex rendering of the
+            // PSBT input. validateUtxoEntry canonicalizes both ingest paths, but a caller
+            // using the encoder as a library reaches createTransaction without it, and a
+            // mixed-case txid must not turn into a permanent failure wearing a retryable
+            // INPUT_SELECTION_RACE label.
+            if (txidFirstInput != null) txidFirstInput = String(txidFirstInput).toLowerCase()
         }
-        
+
         if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
             psbt = new bitcoin.Psbt({ network: this.network })
         }
@@ -1905,6 +1927,18 @@ class XChainEncoder {
         // pushes to concatenate to the action it intended. Passing a forged
         // script means failing one or the other.
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
+
+        // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive
+        // result field, the same shape `compression` already established, so a caller
+        // that does not read it is unaffected.
+        if (rawDataOnlyPayload){
+            result.warnings = [{
+                code: 'RAWDATA_ONLY_NOT_DECODED',
+                message: 'rawData without data compiles to an OP_0-led payload that current ' +
+                    'XChain decoders read as empty: the transaction will confirm and the fee ' +
+                    'will be paid, but the payload will not be indexed as an ACTION'
+            }]
+        }
 
         // What compression actually did, reported rather than inferred. The
         // wallet has to show the REAL on-chain size, and with the

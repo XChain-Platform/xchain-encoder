@@ -560,6 +560,15 @@ function validateUtxoEntry(entry, index) {
     if (typeof entry.txid !== 'string' || !HEX_64_RE.test(entry.txid)) {
         throw new TypeError(`utxos[${index}].txid must be a 64-character hex string`)
     }
+    // Canonicalize case, because on the OP_RETURN/MULTISIGN path this string IS the
+    // AES-128-CTR obfuscation key (XChainEncoder.obfuscate splits it with substr), and
+    // the decoder derives its key from the wire bytes, which render as lowercase hex.
+    // 'A' (0x41) and 'a' (0x61) are different key bytes, so an accepted mixed-case txid
+    // could never round-trip; the ins[0] guard then rejected the build as a bogus
+    // INPUT_SELECTION_RACE. Normalizing here also makes the reservation keys and the
+    // duplicate filter below compare one form of each outpoint. Mutating in place is
+    // this function's established contract (vout, value and confirmations already are).
+    entry.txid = entry.txid.toLowerCase()
     // Route vout through toExactInt (rejecting NaN), not bare Number(): on the
     // money path a JSON null/''/false/[] all coerce via Number() to a plausible
     // index (0), so the encoder would build a PSBT spending txid:0, a different

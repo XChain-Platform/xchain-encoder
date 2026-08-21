@@ -28,6 +28,40 @@ const TRACKER_TIMEOUT = 15000
 // it reach bitcoinjs-lib's psbt.addInput() and throw at construction time.
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 
+// Do two pages of one paginated fetch describe the SAME chain state?
+//
+// Every get_utxos page carries its own `sync` sibling, and a multi-page fetch is
+// several separate reads of a store that keeps moving between them. Only the LAST
+// page's `sync` survives the merge, so a rollback between page N and page N+1 leaves
+// outputs the rewind orphaned sitting in the early pages while the freshness gate in
+// XChainEncoder reads the final page and sees a healthy tracker. Selection then builds
+// a PSBT over an outpoint the node no longer recognizes.
+//
+// Any height movement counts as a different snapshot, not just a backward one: a rewind
+// that re-applies to a HIGHER height looks like forward progress, and the page sibling
+// carries no reorg counter to tell the two apart (get_sync_status publishes reorg_count,
+// get_utxos does not). reorg_count is compared anyway when a tracker does publish it,
+// since it is the only way to catch a rewind that re-applies to the SAME height. Erring
+// toward a refusal is the direction every other gate on this path takes, and it costs a
+// retry only on an address holding more than one page of UTXOs.
+//
+// Returns a reason string when the pages disagree, null when they are one snapshot.
+function snapshotDivergence(first, later){
+    if (!first || !later) return null
+    if (later.halted === true) return 'the tracker halted mid-fetch (' + (later.halt_reason || 'unrecoverable reorg') + ')'
+    if (later.synced === false) return 'the tracker stopped reporting synced mid-fetch'
+    if (typeof later.lag === 'number' && later.lag < 0) return 'the tracker went ' + (-later.lag) + ' blocks ahead of the node mid-fetch'
+    if (typeof first.tracker_height === 'number' && typeof later.tracker_height === 'number' &&
+        first.tracker_height !== later.tracker_height){
+        return 'the tracker moved from height ' + first.tracker_height + ' to ' + later.tracker_height + ' mid-fetch'
+    }
+    if (typeof first.reorg_count === 'number' && typeof later.reorg_count === 'number' &&
+        first.reorg_count !== later.reorg_count){
+        return 'the tracker recorded a reorg mid-fetch (reorg_count ' + first.reorg_count + ' to ' + later.reorg_count + ')'
+    }
+    return null
+}
+
 class UtxoTracker {
     constructor(url, port) {
         this.url = "http://"+url+":"+port
@@ -127,6 +161,11 @@ class UtxoTracker {
         const seenCursors = new Set()
         let cursor = undefined
         let pageCount = 0
+        // Snapshot identity of page 1, compared against every later page (see
+        // snapshotDivergence). Stays null against a tracker that predates the per-page
+        // `sync` sibling: the single up-front get_sync_status above is then the only
+        // freshness evidence available, exactly as before this guard existed.
+        let firstPageSync = null
         try {
             while (true) {
                 if (++pageCount > MAX_PAGES) {
@@ -156,6 +195,20 @@ class UtxoTracker {
                     if (!Array.isArray(result.utxos)) {
                         throw new TypeError('UTXO tracker result missing utxos array')
                     }
+
+                    // Refuse a merged set that spans two chain states. Checked BEFORE the
+                    // page's rows are appended, so a diverged page contributes nothing.
+                    const pageSync = (result.sync && typeof result.sync === 'object') ? result.sync : null
+                    if (pageCount === 1) {
+                        firstPageSync = pageSync
+                    } else {
+                        const divergence = snapshotDivergence(firstPageSync, pageSync)
+                        if (divergence) {
+                            throw new Error(`utxo-tracker chain state changed while paginating utxos for ${address}: ` +
+                                `${divergence}; refusing to merge pages read at different chain states (retry the request)`)
+                        }
+                    }
+
                     // pageOffset is the count before this page so globalIdx
                     // across pages matches what a single-page caller would see.
                     const pageOffset = allUtxos.length
