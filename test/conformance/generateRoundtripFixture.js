@@ -79,6 +79,42 @@ function signerAddress (encoder) {
   return bitcoin.address.toBase58Check(Buffer.alloc(20, 0x11), encoder.network.pubKeyHash)
 }
 
+// Deterministic compressed signer pubkey for the TAPROOT lane. prepareData
+// strips the 0x02/0x03 prefix and uses the remaining 32 bytes as the envelope
+// leaf's internal key, so this is what the decoder's grammar walk expects to
+// find after OP_ENDIF.
+const ENVELOPE_COMPRESSED_PUBKEY = '02' + '7c'.repeat(32)
+
+// Walk an encoder-emitted envelope tapscript with the SAME grammar the decoder
+// pattern-matches (detectEnvelopeWitness): OP_FALSE OP_IF <"XCHN"> <0x00>
+// <payload push 1..n> OP_ENDIF <32-byte key> OP_CHECKSIG. Returns the payload
+// pushes in order. Throws on any divergence, so the generator itself refuses to
+// emit a fixture case the decoder would not recognize.
+function envelopePayloadPushes (envelopeScript, internalPubkey) {
+  const d = bitcoin.script.decompile(envelopeScript)
+  if (d == null || d.length < 8) throw new Error('envelope tapscript did not decompile to the envelope grammar')
+  let i = 0
+  if (d[i++] !== bitcoin.opcodes.OP_0) throw new Error('envelope leaf must open with OP_FALSE')
+  if (d[i++] !== bitcoin.opcodes.OP_IF) throw new Error('envelope leaf must open with OP_IF')
+  if (!Buffer.isBuffer(d[i]) || !d[i].equals(MAGIC_BUFFER)) throw new Error('envelope leaf must carry the cleartext magic')
+  i++
+  if (!Buffer.isBuffer(d[i]) || d[i].length !== 1 || d[i][0] !== 0x00) throw new Error('envelope leaf must carry format byte v0')
+  i++
+  const pushes = []
+  while (i < d.length && Buffer.isBuffer(d[i])) { pushes.push(d[i]); i++ }
+  // A payload chunk that decompiled to a bare opcode stops the walk early and
+  // trips this check: exactly the failure prepareData's final-chunk rebalance
+  // exists to prevent, so the generator catches a rebalance regression here
+  // rather than shipping a fixture the decoder cannot read.
+  if (pushes.length === 0) throw new Error('envelope leaf carries no payload push')
+  if (d[i++] !== bitcoin.opcodes.OP_ENDIF) throw new Error('envelope payload did not terminate at OP_ENDIF (a chunk decompiled to a bare opcode)')
+  if (!Buffer.isBuffer(d[i]) || !d[i].equals(internalPubkey)) throw new Error('envelope leaf tail must carry the 32-byte internal key')
+  i++
+  if (d[i++] !== bitcoin.opcodes.OP_CHECKSIG) throw new Error('envelope leaf must end with OP_CHECKSIG')
+  if (i !== d.length) throw new Error('envelope leaf carries trailing elements')
+  return pushes
+}
+
 // BET. DETAILS carries the whole market definition on-chain as
 // base64 JSON, which makes a create action the largest routine user payload the
 // encoder produces and forces a multi-chunk P2WSH. Built deterministically here
@@ -172,6 +208,43 @@ const ALIAS_CASES = [
   // xchain-decoder/test/unit/aliasExpansionBoundary.test.js. canonicalDataHex
   // below is the >cap BROADCAST record the roundtrip is expected to store.
   { name: 'alias rewrite CAST -> BROADCAST at the compiled ceiling', data: CAST_CEILING_DATA, rawData: null, expectedRawActionName: 'CAST', expectedActionName: 'BROADCAST' }
+]
+
+// TAPROOT-envelope cases. This is the one lane where the two services measure
+// the same bytes with DIFFERENT machinery on purpose (the encoder corrects for
+// the OP_PUSHDATA4 band in envelopePushSize; the decoder refuses to re-measure
+// an envelope payload at all), so it is also the lane where an unpinned
+// roundtrip costs the most. The arithmetic half of that asymmetry is pinned
+// directly by xchain-decoder/test/unit/compiledPushSizeConformance.test.js's
+// envelope band block; these cases pin the STRUCTURAL half - an
+// encoder-emitted envelope reaching the stored record - which no test reached
+// before. Deliberately no case above 65,535 bytes: this artifact is vendored
+// verbatim into xchain-decoder and xchain-sdk, so a ceiling-sized payload would
+// add ~780 KB of hex to three repos forever to re-assert arithmetic the band
+// block already asserts for free.
+//
+// compiled length picks the chunk split: prepareData cuts the payload into
+// 520-byte pushes (TAPROOT_ENVELOPE_CHUNK_SIZE).
+const ENVELOPE_ACTION_PREFIX = 'BROADCAST|0|'
+const ENVELOPE_MULTI_CHUNK_DATA = ENVELOPE_ACTION_PREFIX +
+  'b'.repeat(1200 - ENVELOPE_ACTION_PREFIX.length)           // compiled 1203 = 2*520 + 163
+// A real BROADCAST, not filler: the rebalance case has to reach the stored
+// record like the others, or it would only ever pin the rejected-ACTION branch.
+const ENVELOPE_REBALANCE_DATA = ENVELOPE_ACTION_PREFIX +
+  'd'.repeat(1038 - ENVELOPE_ACTION_PREFIX.length - 1) + '\x05'  // compiled 1041 = 2*520 + 1
+
+const ENVELOPE_CASES = [
+  { name: 'envelope action-only (SEND)', data: 'SEND|0|TICK|mh5CE8Nbj38iND267s4XnvhSmhDW7yWc6Q|100', rawData: null, expectedChunkLengths: [51] },
+  { name: 'envelope action + rawData (ISSUE + metadata)', data: 'ISSUE|0|TICK', rawData: 'extra-metadata-bytes', expectedChunkLengths: [34] },
+  // Multi-chunk: the payload spans three 520-byte pushes the decoder must
+  // reassemble in order before it decompiles anything.
+  { name: 'envelope multi-chunk BROADCAST', data: ENVELOPE_MULTI_CHUNK_DATA, rawData: null, expectedChunkLengths: [520, 520, 163] },
+  // The envelope lane's own asMinimalOP hazard: a compiled length of 520n + 1
+  // whose final byte is 0x01-0x10 would leave a lone minimal-op chunk that
+  // bitcoin.script.compile canonicalizes to a bare opcode, breaking the
+  // decoder's payload walk. prepareData repartitions to 519 + 2; nothing pinned
+  // that branch before, on either side of the seam.
+  { name: 'envelope final-chunk rebalance boundary (last byte 0x05)', data: ENVELOPE_REBALANCE_DATA, rawData: null, expectedChunkLengths: [520, 519, 2] }
 ]
 
 async function buildMultisignCase (encoder, c) {
@@ -291,6 +364,45 @@ async function buildAliasCase (encoder, c) {
   }
 }
 
+async function buildEnvelopeCase (encoder, c) {
+  const compiled = compileAction(c.data, c.rawData)
+  const prepared = encoder.prepareData(compiled, 'TAPROOT', signerAddress(encoder), ENVELOPE_COMPRESSED_PUBKEY)
+  if (prepared.dataBufferArray.length !== 1) {
+    throw new Error(`${c.name}: TAPROOT prepareData must return exactly one tapscript, got ${prepared.dataBufferArray.length}`)
+  }
+  const envelopeScript = prepared.dataBufferArray[0]
+  const pushes = envelopePayloadPushes(envelopeScript, prepared.internalPubkey)
+  const chunkLengths = pushes.map((p) => p.length)
+  if (JSON.stringify(chunkLengths) !== JSON.stringify(c.expectedChunkLengths)) {
+    throw new Error(`${c.name}: chunk lengths ${JSON.stringify(chunkLengths)} != expected ${JSON.stringify(c.expectedChunkLengths)} (case no longer covers the intended boundary)`)
+  }
+  // The payload is raw by design (envelope spec §3.3: no obfuscation step), so
+  // the decoder's reassembly is a plain concatenation and must reproduce the
+  // compiled stream byte for byte.
+  const reassembled = Buffer.concat(pushes)
+  if (!reassembled.equals(compiled)) {
+    throw new Error(`${c.name}: envelope chunk concatenation diverges from the compiled payload`)
+  }
+  const outcome = gateOutcome(reassembled)
+  return {
+    name: c.name,
+    encoding: 'TAPROOT',
+    firstInputTxid: FIRST_INPUT_TXID,
+    inputDataHex: Buffer.from(c.data, 'utf8').toString('hex'),
+    inputRawDataHex: c.rawData == null ? null : Buffer.from(c.rawData, 'binary').toString('hex'),
+    compiledHex: compiled.toString('hex'),
+    compressedPubKey: ENVELOPE_COMPRESSED_PUBKEY,
+    internalPubkeyHex: prepared.internalPubkey.toString('hex'),
+    envelopeScriptHex: envelopeScript.toString('hex'),
+    chunkLengths,
+    expected: {
+      gate: outcome.gate,
+      dataHex: outcome.data == null ? null : outcome.data.toString('hex'),
+      rawDataHex: outcome.rawData == null ? null : outcome.rawData.toString('hex')
+    }
+  }
+}
+
 async function main () {
   const encoder = new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   const cases = []
@@ -326,10 +438,14 @@ async function main () {
   const aliasCases = []
   for (const c of ALIAS_CASES) aliasCases.push(await buildAliasCase(encoder, c))
 
+  const envelopeCases = []
+  for (const c of ENVELOPE_CASES) envelopeCases.push(await buildEnvelopeCase(encoder, c))
+
   const fixture = {
     _comment: 'Shared encoder->decoder roundtrip conformance fixture, covering OP_RETURN, ' +
-      'MULTISIGN slots, P2SH/P2WSH multi-chunk (incl. the final-chunk rebalance boundary) and ' +
-      'alias-rewrite cases. Generated by test/conformance/generateRoundtripFixture.js; regenerate ' +
+      'MULTISIGN slots, P2SH/P2WSH multi-chunk (incl. the final-chunk rebalance boundary), ' +
+      'alias-rewrite and TAPROOT-envelope cases. Generated by ' +
+      'test/conformance/generateRoundtripFixture.js; regenerate ' +
       'and review on change. Consumed by the encoder drift-guard test and the decoder real-decode ' +
       'conformance test. gate "dropped" cases pin known cross-service data-loss shapes; when the ' +
       'flag-day decoder-acceptance change lands those expectations flip.',
@@ -337,14 +453,16 @@ async function main () {
     cases,
     multisignCases,
     p2shCases,
-    aliasCases
+    aliasCases,
+    envelopeCases
   }
 
   const outPath = path.join(__dirname, '..', 'fixtures', 'roundtrip-conformance.json')
   fs.mkdirSync(path.dirname(outPath), { recursive: true })
   fs.writeFileSync(outPath, JSON.stringify(fixture, null, 2) + '\n')
   console.log(`wrote ${cases.length} OP_RETURN + ${multisignCases.length} MULTISIGN + ` +
-    `${p2shCases.length} P2SH/P2WSH + ${aliasCases.length} alias cases to ${outPath}`)
+    `${p2shCases.length} P2SH/P2WSH + ${aliasCases.length} alias + ` +
+    `${envelopeCases.length} TAPROOT envelope cases to ${outPath}`)
 }
 
 main().catch((err) => { console.error(err); process.exit(1) })

@@ -871,6 +871,13 @@ module.exports = {
     // Exported for the decoder's compiledPushSizeConformance test, which pins
     // this formula against the decoder's identical arbiter-side helper.
     compiledPushSize,
+    // Exported for the envelope band of that same test. compiledPushSize stops
+    // at OP_PUSHDATA2, and the decoder deliberately refuses to re-measure an
+    // envelope payload for exactly that reason (its `!envelopeCarrier` guard),
+    // so above 0xffff the two helpers are SUPPOSED to differ by 2. That gap was
+    // prose on both sides and an assertion on neither: the cross-service sweep
+    // stopped at n=8300, far below where the band opens.
+    envelopePushSize,
     validateEncoding,
     validateFee,
     validateFeePerKb,
