@@ -547,6 +547,10 @@ describe('Encoder input validator', function () {
         it('exercises validateFeeQuote validation paths through validateAll', function () {
             const base = { data: 'SEND', pubkey: '02ab' };
             assert.throws(() => v.validateAll({ ...base, feeQuote: 'no' }), /feeQuote must be an object/);
+            // An array is typeof 'object'; it must fail the SHAPE check, not the
+            // address check one line later.
+            assert.throws(() => v.validateAll({ ...base, feeQuote: [] }), /feeQuote must be an object/);
+            assert.throws(() => v.validateAll({ ...base, feeQuote: ['1Addr', 1000] }), /feeQuote must be an object/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: '', amount: 1 } }), /address must be a non-empty/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: 'x'.repeat(101), amount: 1 } }), /maximum length/);
             assert.throws(() => v.validateAll({ ...base, feeQuote: { address: 'a', amount: 0 } }), /positive integer/);
