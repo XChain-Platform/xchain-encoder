@@ -5,10 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.0] - 2026-08-25
+
+### Changed
+- Updated the BTC mainnet validator reward pool address.
+- Resynced the testnet genesis registry (BTC, LTC, and DOGE first-block heights and pins) so the public testnet starts effectively empty.
 
 ### Fixed
 - The fee rate chosen for a caller who supplies none is capped on test chains, where the node has no fee market to estimate from and returns a fallback that prices an ordinary action above the balance funding it.
+- `feeQuote` validation now rejects an array, which previously passed the object-shape check and failed later with a misleading address error instead of a shape error.
+- Cumulative log-shipper totals (`log_lines_shipped_total`, `log_lines_dropped_total`, `log_ship_failures_total`) are now published as counters instead of gauges, so rate() queries over them behave correctly.
 
 ## [0.10.0] - 2026-08-18
 
