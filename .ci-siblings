@@ -25,3 +25,6 @@ xchain-documentation
 xchain-decoder
 # Compression-parameter twin parity.
 xchain-sdk
+# The inbound UTXO-record contract, the one seam carrying records INTO the
+# encoder rather than out of it.
+xchain-utxo-tracker

@@ -25,7 +25,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Fee estimation**: byte-accurate transaction size estimation per format via `TxSizeEstimator`; dust floor enforcement
 - **Fee rate caps**: caller-supplied `fee`/`feePerKb` is capped at `MAX_FEE_RATE_MULTIPLIER` x the node's own fee estimate (default 100x), so a hostile or buggy request cannot drain inputs into miner fee; `MAX_FEE_RATE_KB` adds an optional absolute cap
 - **Input validation**: centralized parameter validation (`validator.js`) with typed errors for all 15 `createTransaction` parameters
-- **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin on mainnet, testnet, and regtest (9 network configs)
+- **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin today on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee**: optional RBF signaling via sequence number
 - **Custom outputs**: arbitrary address/value outputs (e.g., COINPay native coin payments)
 - **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string

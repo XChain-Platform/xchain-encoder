@@ -277,10 +277,16 @@ const jsonRpcController = {
     async estimate_fee() {
         const targets = { low: 6, medium: 3, high: 1 };
         const out = {};
+        // Same test-chain ceiling createTx applies to a caller who supplies no
+        // rate, so the quote matches what the build would actually charge.
+        const capPerByte = XChainEncoder.suggestedFeeCeilingPerByte(NETWORK, 100000000);
+        const capPerVbyte = capPerByte == null ? null : Math.max(1, Math.round(capPerByte * 100000000));
         try {
             for (const tier of Object.keys(targets)) {
                 const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
-                out[tier] = Math.max(1, Math.round(Number(feerate) * 100000));            // -> base-unit/byte
+                let perVbyte = Math.max(1, Math.round(Number(feerate) * 100000));         // -> base-unit/byte
+                if (capPerVbyte != null && perVbyte > capPerVbyte) perVbyte = capPerVbyte;
+                out[tier] = perVbyte;
             }
         } catch (err) {
             console.error('Fee estimation error:', err)

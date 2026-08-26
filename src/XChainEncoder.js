@@ -133,6 +133,35 @@ function jsonSafeSat(v) {
 // multiples above the market rate.
 const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
 
+// Ceiling on the SUGGESTED fee rate (base units per vByte) for a caller that
+// supplies none, applied on test chains only. estimatesmartfee needs a populated
+// fee market to mean anything; a quiet test chain returns a large fallback at
+// every confirmation target, which prices an ordinary action above the balance
+// funding it and fails the build outright. Mainnet is deliberately unclamped:
+// there the estimate is real and a ceiling would underpay a genuine fee spike.
+// This bounds only the rate CHOSEN on the caller's behalf, never a rate the
+// caller supplied and never the anchor the fee-drain caps derive from.
+const DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE = 20
+
+// Test chains by network key suffix; everything else is treated as mainnet.
+const TEST_NETWORK_SUFFIXES = ['-testnet', '-testnet4', '-regtest', '-signet']
+
+function isTestNetworkKey(networkKey){
+    const key = String(networkKey || '').toLowerCase()
+    return TEST_NETWORK_SUFFIXES.some(s => key.endsWith(s))
+}
+
+// The suggested-rate ceiling in BTC/byte for `networkKey`, or null when this
+// chain is unclamped. SUGGESTED_FEE_MAX_PER_VBYTE overrides the default; 0
+// disables the clamp entirely.
+function suggestedFeeCeilingPerByte(networkKey, satoshiUnit){
+    const raw = parseFloat(process.env.SUGGESTED_FEE_MAX_PER_VBYTE)
+    const perVbyte = Number.isFinite(raw) ? raw
+        : (isTestNetworkKey(networkKey) ? DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE : 0)
+    if (!(perVbyte > 0)) return null
+    return perVbyte / satoshiUnit
+}
+
 // Ceiling (in blocks) on how far the utxo-tracker's committed view may lag
 // the chain tip before a tracker-fetched UTXO set is refused rather than
 // risked (the "stale-utxo trap"). A lagging tracker can
@@ -719,6 +748,19 @@ class XChainEncoder {
         } else {
             feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
             nodeFeePerBytes = feePerBytes
+            // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
+            // chain. nodeFeePerBytes keeps the raw estimate so the fee-drain caps
+            // below still anchor to what the node actually reported.
+            const suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
+            if (suggestedCap != null && feePerBytes > suggestedCap){
+                if (!this._suggestedFeeClampWarned){
+                    this._suggestedFeeClampWarned = true
+                    console.warn(`Suggested fee rate ${Math.round(feePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
+                        `test-chain ceiling; using ${Math.round(suggestedCap * SATOSHI_UNIT)} per vByte. ` +
+                        `Set SUGGESTED_FEE_MAX_PER_VBYTE to change or 0 to disable.`)
+                }
+                feePerBytes = suggestedCap
+            }
         }
 
         // Relative-cap anchor fallback. On non-regtest chains getFeePerKilobyte
@@ -2228,5 +2270,12 @@ class XChainEncoder {
         return { psbt, encoding: Encoding.TAPROOT, cancel: true, fee: cancelFee }
     }
 }
+
+// The suggested-rate ceiling is exported so the estimate_fee endpoint quotes the
+// same rate createTx would charge; a quote the builder then ignores is worse than
+// no quote, because a wallet shows the user a fee that never applies.
+XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
+XChainEncoder.isTestNetworkKey = isTestNetworkKey
+XChainEncoder.DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE = DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE
 
 module.exports = XChainEncoder

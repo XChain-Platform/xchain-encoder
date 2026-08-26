@@ -298,11 +298,13 @@ function validateDataParam(value, fieldName) {
 // against the decoder's identical copy by xchain-decoder's
 // compiledPushSizeConformance test, so a band added on one side alone diverges
 // the pair. Callers measuring a push that can reach 65,536 bytes correct for it
-// themselves (envelopePushSize below).
+// themselves (envelopePushSize below). Only the OP_PUSHDATA2 branch names a
+// constant: the +1/+2 branches are different opcodes that OP_RETURN_PUSH_OVERHEAD
+// does not describe.
 function compiledPushSize(byteLength) {
     if (byteLength <= 75)  return byteLength + 1   // direct push opcode
     if (byteLength <= 255) return byteLength + 2   // OP_PUSHDATA1
-    return byteLength + 3                           // OP_PUSHDATA2
+    return byteLength + OP_RETURN_PUSH_OVERHEAD    // OP_PUSHDATA2
 }
 
 // compiledPushSize with the OP_PUSHDATA4 band restored: bitcoin.script.compile
@@ -669,7 +671,12 @@ function validateCustomOutputs(customOutputs) {
 
 function validateFeeQuote(feeQuote) {
     if (feeQuote == null) return null
-    if (typeof feeQuote !== 'object') {
+    // Array.isArray, because typeof [] is 'object': a JSON array cleared this gate
+    // and died one line later on validateAddress(undefined), reporting an address
+    // error for what is a shape error. Same guard the other object-shaped
+    // validators carry (lines 481/557/635). No === null clause: the line above
+    // already returns for a null/absent quote, which is legal.
+    if (typeof feeQuote !== 'object' || Array.isArray(feeQuote)) {
         throw new TypeError('feeQuote must be an object with address and amount')
     }
     validateAddress(feeQuote.address, 'feeQuote.address')
@@ -864,6 +871,13 @@ module.exports = {
     // Exported for the decoder's compiledPushSizeConformance test, which pins
     // this formula against the decoder's identical arbiter-side helper.
     compiledPushSize,
+    // Exported for the envelope band of that same test. compiledPushSize stops
+    // at OP_PUSHDATA2, and the decoder deliberately refuses to re-measure an
+    // envelope payload for exactly that reason (its `!envelopeCarrier` guard),
+    // so above 0xffff the two helpers are SUPPOSED to differ by 2. That gap was
+    // prose on both sides and an assertion on neither: the cross-service sweep
+    // stopped at n=8300, far below where the band opens.
+    envelopePushSize,
     validateEncoding,
     validateFee,
     validateFeePerKb,

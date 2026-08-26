@@ -69,6 +69,9 @@ const SIBLINGS = [
     { repo: 'xchain-sdk', envs: ['XCHAIN_SDK_DIR'],
       marker: 'src',
       guards: 'compression-parameter twin parity' },
+    { repo: 'xchain-utxo-tracker', envs: ['XCHAIN_UTXO_TRACKER_DIR'],
+      marker: 'src',
+      guards: 'the inbound UTXO-record contract, the one seam carrying records INTO the encoder' },
 ];
 
 function resolve(entry) {
