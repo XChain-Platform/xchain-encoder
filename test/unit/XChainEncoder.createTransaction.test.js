@@ -721,6 +721,14 @@ describe('XChainEncoder.createTransaction()', () => {
       // FEE_VALUE so the reveal can pay the fee, plus the reveal's own miner
       // fee for the bytes that output adds to the reveal. Without the second
       // term the reveal lands under the node's min-relay floor.
+      //
+      // It grows by one dust LESS than that, and the difference is the point.
+      // The baseline reveal emits no value output of its own, so its funding
+      // must also carry a dust for the change output that keeps it from burning
+      // every satoshi to miners. A reveal already carrying a
+      // fee output leaves value by definition and needs no change output, so
+      // funding that dust too would buy the caller a third output they never
+      // asked for - which is what REG-14 pins against on this exact shape.
       const withFee = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, feeOutputs(),
         bigData, null, 10000, false, null, TEST_ADDRESS,
@@ -733,8 +741,9 @@ describe('XChainEncoder.createTransaction()', () => {
       const feeOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(TEST_ADDRESS, DOGE_REGTEST)
       const revealByteFee = Math.ceil(feeOutputBytes * feePerBytes * 1e8)
 
-      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee,
-        'funding output must grow by the fee value plus the fee output byte cost')
+      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee - encoder.dustAmount,
+        'funding output must grow by the fee value plus the fee output byte cost, ' +
+        'less the change dust only the outputless baseline needs')
     })
 
     it('phase 2 (reveal) emits the fee-destination output funded by phase 1', async () => {

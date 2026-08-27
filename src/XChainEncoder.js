@@ -1227,6 +1227,15 @@ class XChainEncoder {
         let voutPsbtIndex = 0
         let obfuscatedData
 
+        // Reveal-headroom state for the P2SH two-phase flow.
+        // p2shRevealHeadroomFunded marks the one-time first-leg top-up on the
+        // FUNDING tx (the reveal's whole fee plus one dust for the change output
+        // the reveal must leave); phaseLegInputSatoshis accumulates the funding
+        // leg values the REVEAL spends, so the surplus sweep after the emission
+        // loop can price the change output it returns to the caller.
+        let p2shRevealHeadroomFunded = false
+        let phaseLegInputSatoshis = 0n
+
         // Reconstructed phase-1 funding tx on the reveal path, shared by the P2SH
         // and P2WSH branches below (both spend its outputs by index). Hoisted to the
         // loop's enclosing scope so the input-index bounds guard can reuse it, and
@@ -1305,8 +1314,12 @@ class XChainEncoder {
 
                         psbt.addInput(nextInput)
                         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-                        
-                        voutPsbtIndex = voutPsbtIndex + 1                   
+                        // Leg value this reveal input consumes; the surplus sweep
+                        // after the emission loop needs the total to price the
+                        // change output.
+                        phaseLegInputSatoshis = phaseLegInputSatoshis + BigInt(p2shTx.outs[voutPsbtIndex].value)
+
+                        voutPsbtIndex = voutPsbtIndex + 1
                     } else {
                         let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
                         let spendingP2shEstimatedFee = Math.trunc((spendingP2shEstimatedSize * feePerBytes) * SATOSHI_UNIT)
@@ -1323,6 +1336,58 @@ class XChainEncoder {
                             spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + revealCustomOutputsValue + BigInt(revealCustomOutputsFee))
                             revealCustomOutputsValue = 0n
                             revealCustomOutputsFee = 0
+                        }
+
+                        // The reveal's ONLY inputs are these
+                        // funding legs (the reveal path runs no input selection),
+                        // so every satoshi the reveal spends - its miner fee AND
+                        // any output it leaves - must be prefunded here. Sizing
+                        // each leg at max(per-chunk fee share, dust floor) alone
+                        // left the reveal unable to leave a single output on
+                        // Dogecoin, where the dust floor (100000 koinu) is the
+                        // whole leg and the reveal's own required fee consumes
+                        // it: the SDK's FULL_BURN_FEE guard then (correctly)
+                        // refused to sign and the confirmed phase-1 commit was
+                        // stranded. Top the FIRST leg up (consumed once, like
+                        // the customOutputs fold above) so the legs total covers
+                        // the whole reveal's fee AS THE REVEAL ITSELF WILL PRICE
+                        // IT (estimateP2shRevealTx, shared by both phases), plus
+                        // one dust (this.dustAmount, the same constant the
+                        // reveal-side sweep compares against) for the change
+                        // output the reveal returns to the caller. The 43 is the
+                        // same worst-case change-output size constant the
+                        // single-tx path reserves below.
+                        //
+                        // That change output is needed ONLY when the reveal would
+                        // otherwise emit no value output at all. A reveal already
+                        // carrying customOutputs (the native protocol fee) leaves
+                        // value by definition, so the burn guard is satisfied and
+                        // funding a change output too would buy the caller a
+                        // third output they did not ask for - which is what REG-14
+                        // pins against on the legacy-fee-output case. So the fee
+                        // base keeps the 43-byte change slot either way - both
+                        // shapes stay priced identically, which is the other half
+                        // REG-14 pins - and only the dust that would make a change
+                        // output emittable is conditional. With customOutputs the
+                        // surplus then lands at zero, below the sweep's dust
+                        // threshold, and the reveal keeps exactly its two outputs.
+                        if (!p2shRevealHeadroomFunded){
+                            p2shRevealHeadroomFunded = true
+                            let needsChangeOutput = (revealCustomOutputsBytes === 0)
+                            let baseLegsTotal = 0
+                            for (const chunkBuffer of preparedData["dataBufferArray"]){
+                                let chunkLegFee = Math.trunc((this.estimateSpendingP2shTx(chunkBuffer) * feePerBytes) * SATOSHI_UNIT)
+                                baseLegsTotal = baseLegsTotal + Math.max(chunkLegFee, finalDust)
+                            }
+                            let revealFeeNeeded = Math.trunc((this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43) * feePerBytes) * SATOSHI_UNIT)
+                            if (revealFeeNeeded < this.dustAmount){
+                                // Mirrors the reveal path's own dust floor on
+                                // estimatedFee, so both phases price the same fee.
+                                revealFeeNeeded = this.dustAmount
+                            }
+                            let revealShortfall = Math.max(0, revealFeeNeeded - baseLegsTotal)
+                            let changeHeadroom = needsChangeOutput ? BigInt(this.dustAmount) : 0n
+                            spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
                         }
 
                         psbt.addOutput({
@@ -1865,6 +1930,40 @@ class XChainEncoder {
             }
         }
 
+        // Sweep the P2SH reveal's leg surplus back to the
+        // caller. The funding tx (P2SH funding branch above) tops the first leg
+        // up by the reveal's own fee plus one dust precisely so this output can
+        // exist: without it the reveal's only output is the zero-value OP_RETURN
+        // marker, every satoshi of the legs goes to miners, and the SDK's
+        // FULL_BURN_FEE guard (correctly) refuses to sign, stranding the
+        // confirmed commit. The fee the reveal keeps is the larger of the
+        // dust-/explicit-fee-floored estimatedFee above and the same
+        // whole-reveal size estimate the funding side used (estimateP2shRevealTx,
+        // at this call's fee rate, including the emitted customOutputs' bytes);
+        // everything above it returns to `change` or the caller's own address.
+        // Legs funded before this fix carry no headroom, leave no surplus at or
+        // above dust, and produce a byte-identical (still outputless) reveal.
+        if (p2shHash && preparedData["encoding"] === Encoding.P2SH && phaseLegInputSatoshis > 0n){
+            let revealEmittedOutputBytes = 43 // change output (worst case), matching the reserve above
+            if (customOutputs && Array.isArray(customOutputs)){
+                for (let i = 0; i < customOutputs.length; i++){
+                    revealEmittedOutputBytes = revealEmittedOutputBytes + TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
+                }
+            }
+            let revealFeeKept = Math.trunc((this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes) * feePerBytes) * SATOSHI_UNIT)
+            if (revealFeeKept < estimatedFee){
+                revealFeeKept = estimatedFee
+            }
+            let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
+            let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
+            if (sweepAddress && revealSurplus >= BigInt(this.dustAmount)){
+                psbt.addOutput({
+                    address: sweepAddress,
+                    value: asSatValue(revealSurplus)
+                })
+            }
+        }
+
         // Envelope reveal construction. Runs only on the
         // TAPROOT funding path, after input selection and change, so the commit
         // transaction is final in shape and its unsigned txid is the txid the
@@ -2087,6 +2186,34 @@ class XChainEncoder {
             + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
 
         return sizeEstimated
+    }
+
+    // Whole-tx size of the P2SH reveal (phase 2): every chunk input carrying its
+    // redeem script, the OP_RETURN marker output, plus extraOutputsBytes for the
+    // value outputs the reveal emits (the change sweep, reveal-side
+    // customOutputs). estimateSpendingP2shTx above is the PER-CHUNK share that
+    // sizes each funding leg; this is the fee base for the ONE transaction
+    // that spends all of them, so the funding side can top the first leg up to
+    // what the reveal will actually need. Both phases MUST
+    // price the reveal with this function: the reveal path's generic
+    // TxSizeEstimator.estimateInputSize() models a P2SH input as 2-of-3
+    // multisig (289 bytes flat) and disagrees with the funding side's
+    // redeem-aware estimate, and that drift is exactly what would leave the
+    // funded change headroom a few satoshis short of emittable. The per-input
+    // +8 is the same DER-signature-length-jitter margin estimateSpendingP2shTx
+    // carries.
+    estimateP2shRevealTx(dataBufferArray, extraOutputsBytes = 0){
+        let inputsBytes = 0
+        for (const redeemData of dataBufferArray){
+            inputsBytes = inputsBytes + TxSizeEstimator.estimateP2shInputWithRedeem(redeemData) + 8
+        }
+        return 10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
+            + inputsBytes
+            + TxSizeEstimator.estimateOpReturnOutput(Buffer.concat([
+                Buffer.from(MAGIC_WORD,'utf8'),
+                Buffer.from("p2sh",'utf8')
+            ]))
+            + extraOutputsBytes
     }
 
     estimateSpendingP2wshTx(witnessData){
