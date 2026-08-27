@@ -382,7 +382,7 @@ describe('Category D: UTXO & Fee Integration', () => {
   })
 
   describe('Replace-by-fee sequence', () => {
-    it('sets sequence to 0x00000001 when rbf=true', async () => {
+    it('sets sequence to 0xfffffffd when rbf=true (RBF armed, BIP68 disabled)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -394,7 +394,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.psbt.txInputs[0].sequence, 0x00000001)
+      assert.strictEqual(result.psbt.txInputs[0].sequence, 0xfffffffd)
     })
 
     it('sets sequence to 0xffffffff when rbf=false', async () => {

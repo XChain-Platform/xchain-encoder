@@ -942,7 +942,15 @@ class XChainEncoder {
 
         let psbt = null
         
-        let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
+        // 0xfffffffd, not 1. Any value below 0xfffffffe signals RBF (BIP125), but
+        // bit 31 (0x80000000) is what DISABLES BIP68 relative locktime. nSequence=1
+        // leaves that bit clear, so it also asserts "this input must be 1 block
+        // old" - invisible when spending confirmed outputs, and fatal when spending
+        // unconfirmed change, where the node rejects the transaction as
+        // `non-BIP68-final`. That made RBF and chained sends mutually exclusive:
+        // measured 2026-08-27 driving three chained MINTs. 0xfffffffd
+        // signals RBF and keeps BIP68 off, which is what Bitcoin Core itself uses.
+        let utxoSequence = (replacebyfee? 0xfffffffd: 0xffffffff)
         // BigInt: a DOGE UTXO set can total past 2^53-1 sats, where Number
         // arithmetic silently rounds the fee/change math.
         let inputSatoshis = 0n
@@ -2381,7 +2389,9 @@ class XChainEncoder {
         psbt.addInput({
             hash: commitTxid,
             index: commitVout,
-            sequence: (rbfArmed ? 0x00000001 : 0xffffffff),
+            // Same BIP68 trap as the funding path above: 0xfffffffd signals RBF
+            // without enabling relative locktime.
+            sequence: (rbfArmed ? 0xfffffffd : 0xffffffff),
             witnessUtxo: {
                 script: p2trPayment.output,
                 value: value

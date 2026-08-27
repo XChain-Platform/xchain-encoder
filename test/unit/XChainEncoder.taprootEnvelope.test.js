@@ -326,8 +326,8 @@ describe('XChainEncoder TAPROOT envelope', function () {
       const result = await encoder.createTransaction(
         [makeSegwitUtxo(network, TXID_A, 0, 10000000)], callerAddress(network), null,
         'FILE|0|rbf', 'x'.repeat(100), null, true, 'TAPROOT', callerAddress(network), null, null, PUBKEY_HEX)
-      assert.strictEqual(result.psbt.txInputs[0].sequence, 0x00000001)
-      assert.strictEqual(result.revealPsbt.txInputs[0].sequence, 0x00000001)
+      assert.strictEqual(result.psbt.txInputs[0].sequence, 0xfffffffd)
+      assert.strictEqual(result.revealPsbt.txInputs[0].sequence, 0xfffffffd)
     })
 
     it('pads the reveal over the LTC stripped-size floor and prefunds the pad (§3.5)', async function () {
@@ -531,7 +531,7 @@ describe('XChainEncoder TAPROOT envelope', function () {
       // Valid shapes still build, and a real boolean still arms RBF.
       const armed = await encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { feePerKb: 5000, replacebyfee: true }))
-      assert.strictEqual(armed.psbt.txInputs[0].sequence, 0x00000001)
+      assert.strictEqual(armed.psbt.txInputs[0].sequence, 0xfffffffd)
       const plain = await encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { feePerKb: '5000' }))
       assert.strictEqual(plain.psbt.txInputs[0].sequence, 0xffffffff)

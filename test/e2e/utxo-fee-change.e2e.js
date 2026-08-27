@@ -317,7 +317,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
   })
 
   describe('E2E-5.12: RBF sequence flag', () => {
-    it('rbf=true sets sequence 0x00000001', async () => {
+    it('rbf=true sets sequence 0xfffffffd (RBF armed, BIP68 disabled)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -329,7 +329,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.psbt.txInputs[0].sequence, 0x00000001)
+      assert.strictEqual(result.psbt.txInputs[0].sequence, 0xfffffffd)
     })
 
     it('rbf=false sets sequence 0xffffffff', async () => {
