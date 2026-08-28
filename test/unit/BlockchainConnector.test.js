@@ -562,6 +562,46 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
     assert.ok(Math.abs(feerate - 0.01) < 1e-12, 'expected 0.01 DOGE/kB, got ' + feerate)
   })
 
+  // The documented 10x rate is not always minable: on Dogecoin testnet, measured
+  // over 400 blocks, transactions land at 0.03 and around 1.0 DOGE per kB while
+  // 0.0102 sat unmined. Only the operator running a given chain can measure what
+  // it takes there, so the multiple is deployment-tunable.
+  it('honours FEE_NO_ESTIMATE_RELAY_MULTIPLIER for the no-estimate fallback', async () => {
+    process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER = '100'
+    try {
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1 } } }
+        if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(6)
+      assert.ok(Math.abs(feerate - 0.1) < 1e-12, 'expected 0.1 DOGE/kB at 100x, got ' + feerate)
+    } finally {
+      delete process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER
+    }
+  })
+
+  it('ignores a non-positive or unparseable multiplier and keeps the default', async () => {
+    for (const bad of ['0', '-5', 'abc']) {
+      process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER = bad
+      try {
+        axios.post = async (url, data) => {
+          if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+          if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1 } } }
+          if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+          return { data: { result: {} } }
+        }
+        const c = makeConnector()
+        const feerate = await c.getFeePerKilobyte(6)
+        assert.ok(Math.abs(feerate - 0.01) < 1e-12, bad + ' must fall back to 10x, got ' + feerate)
+      } finally {
+        delete process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER
+      }
+    }
+  })
+
   it('still prefers the estimate over the relayfee floor on testnet when one exists', async () => {
     let networkInfoCalled = false
     axios.post = async (url, data) => {

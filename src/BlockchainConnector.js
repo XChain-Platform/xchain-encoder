@@ -23,7 +23,19 @@ const axios = require('axios')
 const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
 // Fee-rate multiple of the node's relay floor used on non-mainnet chains when
 // estimatesmartfee has no data. Rationale at getFeePerKilobyte.
-const NO_ESTIMATE_RELAY_MULTIPLIER = 10
+//
+// Ten is the documented recommended rate, and on Dogecoin testnet it is NOT
+// enough to be mined: measured over 400 blocks there, transactions land at
+// 0.03 and around 1.0 DOGE per kB, while 0.0102 sat unmined for an hour. The
+// one that did land below that paid 0.0044 and got in on legacy coin-age
+// priority, which a chain of freshly spent change can never have. So the
+// multiple is deployment-tunable: a quiet chain whose miners ignore the
+// documented rate needs a higher one, and only the operator running that chain
+// can measure what it actually takes.
+function noEstimateRelayMultiplier(){
+    const raw = parseFloat(process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER)
+    return (Number.isFinite(raw) && raw > 0) ? raw : 10
+}
 
 // Sanitize an axios error before it is logged or re-thrown. RPC calls pass
 // auth:{username,password} to axios, which attaches the request config to the
@@ -456,9 +468,11 @@ class BlockchainConnector {
                 const info = await this.getNetworkInfo();
                 const relayfee = Number(info && info.relayfee);
                 if (relayfee > 0) {
-                    const feerate = relayfee * NO_ESTIMATE_RELAY_MULTIPLIER;
+                    const multiplier = noEstimateRelayMultiplier();
+                    const feerate = relayfee * multiplier;
                     console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using ' +
-                        NO_ESTIMATE_RELAY_MULTIPLIER + 'x the node relayfee floor: ' + feerate + '/kB');
+                        multiplier + 'x the node relayfee floor: ' + feerate + '/kB ' +
+                        '(FEE_NO_ESTIMATE_RELAY_MULTIPLIER to change)');
                     return feerate;
                 }
             }
