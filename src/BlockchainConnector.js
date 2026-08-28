@@ -47,6 +47,23 @@ function sanitizeRpcError(error){
     return (error && error.message) ? error.message : String(error)
 }
 
+// Size and fee off one getmempoolentry-shaped record, across both field layouts
+// the fleet's nodes use: Core 0.14 (Dogecoin 1.14) reports flat `size` and `fee`,
+// while modern Core reports `vsize` and nests the fee under `fees.base`. Either
+// reader returns null on a value it cannot price, which the caller treats as an
+// unusable package rather than as a zero-fee ancestor.
+function entrySize(entry){
+    const raw = entry && (entry.vsize !== undefined ? entry.vsize : entry.size)
+    const size = Number(raw)
+    return (Number.isFinite(size) && size > 0) ? size : null
+}
+
+function entryFee(entry){
+    const raw = entry && (entry.fees && entry.fees.base !== undefined ? entry.fees.base : entry.fee)
+    const fee = Number(raw)
+    return (Number.isFinite(fee) && fee >= 0) ? fee : null
+}
+
 class BlockchainConnector {
     constructor(url, port, rpcUser, rpcPassword) {
         this.url = "http://"+url+":"+port
@@ -254,6 +271,119 @@ class BlockchainConnector {
             console.error('Error:', sanitizeRpcError(error));
             throw error;
         }
+    }
+
+    // One JSON-RPC round trip for the mempool-inspection calls, which must never
+    // break a build. Returns a verdict rather than throwing: {ok:true, result},
+    // {ok:false, absent:true} for a txid the mempool does not hold (RPC -5, the
+    // normal answer for an already-confirmed parent), or {ok:false} for anything
+    // else. Mirrors _sendRaw in reading the node's JSON-RPC error body off
+    // error.response, because LTC/DOGE answer HTTP 500 for RPC-level errors.
+    async _mempoolRpc(method, params) {
+        const classify = (rpcError) => {
+            const code = rpcError && rpcError.code
+            const message = (rpcError && rpcError.message) || ''
+            if (code === -5 || /not in mempool|No such mempool/i.test(message)) {
+                return { ok: false, absent: true }
+            }
+            return { ok: false }
+        }
+        try {
+            const response = await axios.post(this.url, {
+                jsonrpc: '2.0', method, params, id: 1,
+            }, {
+                auth: { username: this.rpcUser, password: this.rpcPassword },
+                timeout: RPC_TIMEOUT
+            })
+            const body = response && response.data
+            if (body && body.error) return classify(body.error)
+            if (body && body.result !== undefined && body.result !== null) {
+                return { ok: true, result: body.result }
+            }
+            return { ok: false }
+        } catch (error) {
+            const body = error.response && error.response.data
+            if (body && body.error) return classify(body.error)
+            console.warn(`Mempool RPC ${method} failed:`, sanitizeRpcError(error))
+            return { ok: false }
+        }
+    }
+
+    /**
+     * The unconfirmed ancestor package behind a set of input txids, as
+     * {size, fees}: total bytes and total fee in COIN units (the unit
+     * getmempoolentry reports, and the unit getFeePerKilobyte returns).
+     *
+     * A miner selects by ancestor fee rate, not by the rate of one transaction, so
+     * a child spending unconfirmed parents only gets mined when the whole package
+     * clears the block-inclusion floor. Sizing that child needs the package it
+     * inherits, which is this.
+     *
+     * Every entry is keyed by txid in one map, so two inputs that share a parent
+     * (or a grandparent) count that ancestor once; double counting would inflate
+     * the package and overpay. Txids the mempool does not hold are confirmed and
+     * contribute nothing. Returns null when the node cannot answer or reports an
+     * entry this cannot read: the caller then prices the transaction on its own,
+     * which is what it did before package sizing existed.
+     */
+    async getUnconfirmedAncestorPackage(txids) {
+        const roots = []
+        const seenRoots = new Set()
+        for (const txid of (Array.isArray(txids) ? txids : [])) {
+            if (typeof txid !== 'string' || txid.length === 0) continue
+            const key = txid.toLowerCase()
+            if (seenRoots.has(key)) continue
+            seenRoots.add(key)
+            roots.push(txid)
+        }
+        if (roots.length === 0) return { size: 0, fees: 0 }
+
+        // txid -> {size, fee}. The dedupe surface for shared ancestors.
+        const packageEntries = new Map()
+        const record = (txid, entry) => {
+            const key = String(txid).toLowerCase()
+            if (packageEntries.has(key)) return true
+            const size = entrySize(entry)
+            const fee = entryFee(entry)
+            if (size === null || fee === null) return false
+            packageEntries.set(key, { size, fee })
+            return true
+        }
+
+        for (const txid of roots) {
+            const self = await this._mempoolRpc('getmempoolentry', [txid])
+            if (!self.ok) {
+                if (self.absent) continue        // already confirmed, nothing to carry
+                return null
+            }
+            if (!record(txid, self.result)) return null
+
+            // verbose=true: the ancestors come back as a txid-keyed map of the same
+            // entries, so one call per input covers the whole branch above it.
+            const ancestors = await this._mempoolRpc('getmempoolancestors', [txid, true])
+            if (!ancestors.ok) {
+                if (ancestors.absent) continue
+                return null
+            }
+            const result = ancestors.result
+            if (result && typeof result === 'object' && !Array.isArray(result)) {
+                for (const ancestorTxid of Object.keys(result)) {
+                    if (!record(ancestorTxid, result[ancestorTxid])) return null
+                }
+            } else {
+                // A non-verbose (array) answer carries no size or fee, so the package
+                // cannot be priced from it.
+                return null
+            }
+        }
+
+        let size = 0
+        let fees = 0
+        for (const entry of packageEntries.values()) {
+            size += entry.size
+            fees += entry.fee
+        }
+        return { size, fees }
     }
 
     async getFeePerKilobyte(blocksNumber) {

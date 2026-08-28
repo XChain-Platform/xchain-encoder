@@ -55,6 +55,16 @@ describe('suggested fee-rate ceiling @regression @tier1', function () {
         assert.ok(floor < ceiling('bitcoin-testnet'));
     });
 
+    // A ceiling equal to the node rate is the ordinary DOGE test-chain case: both
+    // sides are ten times relayfee, and float division leaves them one ULP apart.
+    // Clamping there reassigns the same number and logs a breach that did not happen.
+    it('treats a ceiling equal to the node rate as NOT a breach', function () {
+        const nodeRate = 0.01 / 1000;                                   // DOGE/byte
+        const cap      = XChainEncoder.suggestedFeeCeilingFloorPerByte(0.001);
+        assert.ok(Math.abs(nodeRate - cap) < nodeRate * 1e-9, 'the two must be equal to within float noise');
+        assert.ok(!(nodeRate > cap * (1 + 1e-12)), 'an equal rate must not read as exceeding the ceiling');
+    });
+
     it('returns null for a missing or non-positive relayfee', function () {
         assert.strictEqual(XChainEncoder.suggestedFeeCeilingFloorPerByte(undefined), null);
         assert.strictEqual(XChainEncoder.suggestedFeeCeilingFloorPerByte(0), null);

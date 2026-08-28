@@ -178,6 +178,50 @@ function suggestedFeeCeilingFloorPerByte(relayfeePerKb){
     return (relayfee / 1000) * SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER
 }
 
+// Hard ceiling (base units) on what CPFP package sizing may ADD to one
+// transaction's fee, on top of every rate cap the build already enforces. The
+// rate caps bound a fee against THIS transaction's size; a package uplift is
+// paid for someone else's bytes, so a mempool ancestor chain that is large,
+// cheap, or misreported could otherwise buy an arbitrarily large fee with the
+// caller's coin. 10,000,000 base units is 0.1 DOGE (ten times the block-
+// inclusion floor for a 10 kB package, so it clears any realistic real chain)
+// and stays well inside the rate caps on BTC/LTC, where they bind first anyway.
+// MAX_CPFP_UPLIFT_SAT overrides it; 0 turns package sizing off.
+const DEFAULT_MAX_CPFP_UPLIFT_SAT = 10000000
+
+function maxCpfpUpliftSat(){
+    const raw = parseFloat(process.env.MAX_CPFP_UPLIFT_SAT)
+    const bound = Number.isFinite(raw) ? raw : DEFAULT_MAX_CPFP_UPLIFT_SAT
+    return (bound > 0) ? Math.floor(bound) : 0
+}
+
+// Extra fee (base units) this transaction must pay for its whole mempool
+// package to reach `targetFeePerBytes`, given the unconfirmed ancestors it
+// inherits. Dogecoin Core 1.14 and every modern Core select for a block by
+// ANCESTOR fee rate, so a child paying the target on its own bytes still sits
+// unmined behind cheap parents: the live case was a batch paying 0.01017
+// DOGE/kB whose 0.00313 DOGE/kB funding ancestors dragged the package to
+// 0.00896, under the 0.01 inclusion floor. Returns 0 whenever the package
+// already clears the target, so this only ever raises a fee.
+function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFees, targetFeePerBytes, satoshiUnit }){
+    if (!(targetFeePerBytes > 0)) return 0
+    if (!Number.isFinite(txSize) || txSize <= 0) return 0
+    const packageSize = Number(ancestorSize)
+    if (!Number.isFinite(packageSize) || packageSize <= 0) return 0
+    const ancestorFeeSat = Math.round(Number(ancestorFees) * satoshiUnit)
+    if (!Number.isFinite(ancestorFeeSat) || ancestorFeeSat < 0) return 0
+    // Rounding up a float product costs a whole base unit whenever the rate
+    // carries binary representation error (0.01/1000 is not exact, so a 3000-byte
+    // package at that rate lands on 3000000.0000000005). Shave a relative
+    // epsilon, twelve orders of magnitude above the double's own error and far
+    // below one base unit, so the ceiling reflects the arithmetic rather than the
+    // representation.
+    const packageFeeExact = (packageSize + txSize) * targetFeePerBytes * satoshiUnit
+    const packageFeeNeeded = Math.ceil(packageFeeExact - Math.abs(packageFeeExact) * 1e-12)
+    const uplift = (packageFeeNeeded - ancestorFeeSat) - currentFee
+    return (uplift > 0) ? uplift : 0
+}
+
 // Ceiling (in blocks) on how far the utxo-tracker's committed view may lag
 // the chain tip before a tracker-fetched UTXO set is refused rather than
 // risked (the "stale-utxo trap"). A lagging tracker can
@@ -780,7 +824,13 @@ class XChainEncoder {
                     console.warn('Suggested-fee ceiling relayfee floor unavailable; using the configured ceiling:', err.message)
                 }
             }
-            if (suggestedCap != null && feePerBytes > suggestedCap){
+            // Compare with a relative epsilon. Both sides are coin-per-byte floats
+            // derived by dividing by 1000 and by SATOSHI_UNIT, so a ceiling that
+            // EQUALS the node rate (the ordinary case on a DOGE test chain, where the
+            // relay-derived floor and the node rate are both ten times relayfee) can
+            // land one ULP above it and clamp the value to itself, logging a ceiling
+            // breach that did not happen. A real breach is never this close.
+            if (suggestedCap != null && feePerBytes > suggestedCap * (1 + 1e-12)){
                 if (!this._suggestedFeeClampWarned){
                     this._suggestedFeeClampWarned = true
                     console.warn(`Suggested fee rate ${Math.round(feePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
@@ -1691,6 +1741,12 @@ class XChainEncoder {
         }
         
         let selectedInputCount = 0
+        // Txids of the SELECTED inputs that are still in the mempool. Their
+        // ancestor package is what CPFP sizing below has to pay for; an entry
+        // with no confirmations field is treated as confirmed, so a UTXO source
+        // that omits it degrades to per-transaction sizing rather than to a
+        // guess about someone else's fee.
+        const unconfirmedInputTxids = []
         if (!p2shHash){//The p2sh input is already created before
             const now = Date.now()
             this._evictExpiredReservations(now)
@@ -1780,6 +1836,10 @@ class XChainEncoder {
                 }
 
                 selectedInputCount = selectedInputCount + 1
+
+                if (nextUtxo.confirmations == 0){
+                    unconfirmedInputTxids.push(nextUtxo.txid)
+                }
 
                 if (fee == null || fee === false) {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
@@ -1884,6 +1944,84 @@ class XChainEncoder {
                 const hardCeiling = Math.max(this.dustAmount, fairFee * 100)
                 if (estimatedFee > hardCeiling){
                     throw new RangeError(`fee ${estimatedFee} exceeds 100x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
+                }
+            }
+        }
+
+        // CPFP-aware package sizing.
+        //
+        // A miner fills a block by ANCESTOR fee rate, so a transaction spending
+        // unconfirmed inputs is only mined when its whole mempool package clears
+        // the target. Paying the target on this transaction's own bytes is not
+        // enough: a PRICE batch paying 0.01017 DOGE/kB sat unmined because its
+        // funding ancestors pay 0.00313 DOGE/kB, putting the package at 0.00896,
+        // under Dogecoin's 0.01 DOGE/kB inclusion floor. Those inputs do not
+        // signal RBF, so the fee cannot be replaced afterwards; it has to be
+        // right at build time. Lift this fee to carry the package instead.
+        //
+        // Placed after the caller-fee checks above so the caller's own fee is
+        // still judged as supplied, and every ceiling those checks enforce is
+        // re-applied here to the uplifted total. Any failure at all (no ancestor
+        // data, an unreachable node, a connector without the method) leaves the
+        // per-transaction fee exactly as it was.
+        const cpfpUpliftBound = maxCpfpUpliftSat()
+        if (unconfirmedInputTxids.length > 0 && feePerBytes > 0 && cpfpUpliftBound > 0 &&
+            this.connector && typeof this.connector.getUnconfirmedAncestorPackage === 'function'){
+            let ancestorPackage = null
+            try {
+                ancestorPackage = await this.connector.getUnconfirmedAncestorPackage(unconfirmedInputTxids)
+            } catch (err) {
+                console.warn('Package fee sizing skipped: ancestor lookup failed:', err.message)
+            }
+            const wanted = ancestorPackage ? packageFeeUpliftSatoshis({
+                currentFee: estimatedFee,
+                txSize: estimatedTxSize,
+                ancestorSize: ancestorPackage.size,
+                ancestorFees: ancestorPackage.fees,
+                targetFeePerBytes: feePerBytes,
+                satoshiUnit: SATOSHI_UNIT
+            }) : 0
+
+            if (wanted > 0){
+                // Its own absolute bound first: the uplift buys ancestor bytes, and
+                // the rate caps below only ever measure a fee against THIS
+                // transaction's size.
+                let allowed = Math.min(wanted, cpfpUpliftBound)
+
+                if (capFeePerBytes != null){
+                    const maxFeeSatoshis = Math.max(this.dustAmount, Math.ceil(estimatedTxSize * capFeePerBytes * SATOSHI_UNIT))
+                    allowed = Math.min(allowed, maxFeeSatoshis - estimatedFee)
+                }
+
+                const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
+                if (referenceFeePerBytes != null){
+                    const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
+                    allowed = Math.min(allowed, Math.max(this.dustAmount, fairFee * 100) - estimatedFee)
+                }
+
+                // Never spend an input that is not there. Without this bound a
+                // package uplift would turn a fundable build into INSUFFICIENT_FUNDS,
+                // which is a worse outcome than a transaction that confirms late.
+                if (!p2shHash){
+                    const headroom = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
+                    if (headroom <= 0n) allowed = 0
+                    else if (allowed > 0 && headroom < BigInt(allowed)) allowed = Number(headroom)
+                }
+
+                if (allowed < 0) allowed = 0
+
+                if (allowed < wanted){
+                    const packageSize = ancestorPackage.size + estimatedTxSize
+                    const packageFee = Math.round(ancestorPackage.fees * SATOSHI_UNIT) + estimatedFee + allowed
+                    console.warn(`Package fee uplift clamped to ${allowed} of ${wanted} base units: this transaction ` +
+                        `spends ${unconfirmedInputTxids.length} unconfirmed input(s) whose ancestors total ` +
+                        `${ancestorPackage.size} bytes. The package will pay ${Math.round(packageFee / packageSize * 1000)} ` +
+                        `base units/kB against a target of ${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}, so it may ` +
+                        `stay unmined. Raise MAX_CPFP_UPLIFT_SAT, MAX_FEE_RATE_KB or the input balance to close the gap.`)
+                }
+
+                if (allowed > 0){
+                    estimatedFee = estimatedFee + allowed
                 }
             }
         }
@@ -2443,5 +2581,8 @@ XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
 XChainEncoder.suggestedFeeCeilingFloorPerByte = suggestedFeeCeilingFloorPerByte
 XChainEncoder.isTestNetworkKey = isTestNetworkKey
 XChainEncoder.DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE = DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE
+XChainEncoder.packageFeeUpliftSatoshis = packageFeeUpliftSatoshis
+XChainEncoder.maxCpfpUpliftSat = maxCpfpUpliftSat
+XChainEncoder.DEFAULT_MAX_CPFP_UPLIFT_SAT = DEFAULT_MAX_CPFP_UPLIFT_SAT
 
 module.exports = XChainEncoder
