@@ -80,11 +80,16 @@ class BlockchainConnector {
     }
 
     async isRegtest(){
-        // A connector's node never changes chain over its lifetime, so memoize the
-        // answer. getFeePerKilobyte now consults this on every fee lookup (to force
-        // the relayfee floor on regtest), and without caching that would add a
-        // getblockchaininfo round-trip to every tx build on all networks.
-        if (this._isRegtestCache !== undefined) return this._isRegtestCache;
+        return (await this.chainName()) === 'regtest';
+    }
+
+    // The node's chain name from getblockchaininfo ('main', 'test', 'regtest',
+    // 'signet'). A connector's node never changes chain over its lifetime, so
+    // memoize the answer: getFeePerKilobyte consults it on every fee lookup, and
+    // without caching that would add a getblockchaininfo round-trip to every tx
+    // build on all networks.
+    async chainName(){
+        if (this._chainNameCache !== undefined) return this._chainNameCache;
         const data = {
             jsonrpc: '2.0',
             method: 'getblockchaininfo',
@@ -103,8 +108,8 @@ class BlockchainConnector {
             const responseData = response.data;
 
             if (responseData.result && responseData.result.chain) {
-                this._isRegtestCache = responseData.result.chain == "regtest";
-                return this._isRegtestCache;
+                this._chainNameCache = String(responseData.result.chain);
+                return this._chainNameCache;
             } else {
                 throw new Error('Error getting blockchain info');
             }
@@ -297,9 +302,24 @@ class BlockchainConnector {
             // than silently returned.
             if (responseData.result && Number(responseData.result.feerate) > 0) {
                 return responseData.result.feerate;
-            } else {
-                throw new Error('Error getting smart fee from node');
             }
+            // No estimate at all (feerate:-1). A public TESTNET routinely has too few
+            // transactions to estimate from: DOGE testnet answers -1 with an empty
+            // mempool and a fully synced node, and every fee-bearing broadcast (the
+            // oracle's PRICE batches among them) then fails at "Internal encoder
+            // error" with nothing wrong at the node. Fall back to the node's
+            // min-relay floor on any non-mainnet chain, the same floor regtest uses.
+            // Mainnet keeps throwing: there a missing estimate means the node is
+            // unhealthy, and underpaying real coin on a guess is the worse failure.
+            if ((await this.chainName()) !== 'main') {
+                const info = await this.getNetworkInfo();
+                const relayfee = Number(info && info.relayfee);
+                if (relayfee > 0) {
+                    console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using the node relayfee floor ' + relayfee + '/kB');
+                    return relayfee;
+                }
+            }
+            throw new Error('Error getting smart fee from node');
         } catch (error) {
             // On a fresh regtest chain estimatesmartfee can error (not enough
             // data) rather than just returning feerate:-1. Try the relayfee
