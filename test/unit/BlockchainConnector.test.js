@@ -546,9 +546,11 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
 
   // A public testnet can be fully synced with an empty mempool and still have no
   // fee history, so estimatesmartfee answers feerate:-1 (DOGE testnet does exactly
-  // this). Non-mainnet chains fall back to the node's relayfee floor; mainnet must
-  // keep failing, because there a missing estimate means the node is unhealthy.
-  it('falls back to the relayfee floor on testnet when estimatesmartfee has no data', async () => {
+  // this). Non-mainnet chains fall back to 10x the node's relayfee floor (the bare
+  // floor is rejected by Dogecoin 1.14's free-tx priority gate as "66: insufficient
+  // priority"); mainnet must keep failing, because there a missing estimate means
+  // the node is unhealthy.
+  it('falls back to 10x the relayfee floor on testnet when estimatesmartfee has no data', async () => {
     axios.post = async (url, data) => {
       if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
       if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1, blocks: 25 } } }
@@ -557,7 +559,7 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
     }
     const c = makeConnector()
     const feerate = await c.getFeePerKilobyte(6)
-    assert.strictEqual(feerate, 0.001)
+    assert.ok(Math.abs(feerate - 0.01) < 1e-12, 'expected 0.01 DOGE/kB, got ' + feerate)
   })
 
   it('still prefers the estimate over the relayfee floor on testnet when one exists', async () => {

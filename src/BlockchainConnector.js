@@ -21,6 +21,9 @@
 const axios = require('axios')
 
 const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
+// Fee-rate multiple of the node's relay floor used on non-mainnet chains when
+// estimatesmartfee has no data. Rationale at getFeePerKilobyte.
+const NO_ESTIMATE_RELAY_MULTIPLIER = 10
 
 // Sanitize an axios error before it is logged or re-thrown. RPC calls pass
 // auth:{username,password} to axios, which attaches the request config to the
@@ -307,16 +310,26 @@ class BlockchainConnector {
             // transactions to estimate from: DOGE testnet answers -1 with an empty
             // mempool and a fully synced node, and every fee-bearing broadcast (the
             // oracle's PRICE batches among them) then fails at "Internal encoder
-            // error" with nothing wrong at the node. Fall back to the node's
-            // min-relay floor on any non-mainnet chain, the same floor regtest uses.
+            // error" with nothing wrong at the node. Fall back to a multiple of the
+            // node's min-relay floor on any non-mainnet chain. NOT the bare floor:
+            // Dogecoin 1.14 still runs Bitcoin Core 0.14's free-transaction
+            // priority gate, under which a tx paying only the relay floor counts as
+            // "free" and is rejected with "66: insufficient priority" unless its
+            // inputs are old and large. Regtest relaxes that gate in the node's
+            // config; a public testnet's peers do not, so the fallback has to pay a
+            // fee the gate never sees. 10x the floor is Dogecoin's own published
+            // recommended rate (0.01 DOGE/kB against a 0.001 floor), and on BTC/LTC
+            // testnets it is 10 sat/vB, cheap in coin that costs nothing.
             // Mainnet keeps throwing: there a missing estimate means the node is
-            // unhealthy, and underpaying real coin on a guess is the worse failure.
+            // unhealthy, and paying real coin on a guess is the worse failure.
             if ((await this.chainName()) !== 'main') {
                 const info = await this.getNetworkInfo();
                 const relayfee = Number(info && info.relayfee);
                 if (relayfee > 0) {
-                    console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using the node relayfee floor ' + relayfee + '/kB');
-                    return relayfee;
+                    const feerate = relayfee * NO_ESTIMATE_RELAY_MULTIPLIER;
+                    console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using ' +
+                        NO_ESTIMATE_RELAY_MULTIPLIER + 'x the node relayfee floor: ' + feerate + '/kB');
+                    return feerate;
                 }
             }
             throw new Error('Error getting smart fee from node');
