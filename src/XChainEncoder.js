@@ -162,6 +162,22 @@ function suggestedFeeCeilingPerByte(networkKey, satoshiUnit){
     return perVbyte / satoshiUnit
 }
 
+// The ceiling above is denominated in base units per vByte, and 20 is a
+// Bitcoin-scale number: on Dogecoin the node's relay floor is already 100
+// koinu/byte (0.001 DOGE/kB) and 1.14 rejects anything at or under the floor
+// through its free-transaction priority gate ("66: insufficient priority"),
+// so a ceiling of 20 turns every clamped build into a guaranteed rejection.
+// Lift the ceiling to a coin-correct minimum derived from the node's own
+// relayfee (BTC-or-coin per kB): ten times the floor, Dogecoin's published
+// recommended rate (0.01 DOGE/kB) and 10 sat/vB on BTC/LTC test chains.
+const SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER = 10
+
+function suggestedFeeCeilingFloorPerByte(relayfeePerKb){
+    const relayfee = Number(relayfeePerKb)
+    if (!(relayfee > 0)) return null
+    return (relayfee / 1000) * SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER
+}
+
 // Ceiling (in blocks) on how far the utxo-tracker's committed view may lag
 // the chain tip before a tracker-fetched UTXO set is refused rather than
 // risked (the "stale-utxo trap"). A lagging tracker can
@@ -751,7 +767,19 @@ class XChainEncoder {
             // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
             // chain. nodeFeePerBytes keeps the raw estimate so the fee-drain caps
             // below still anchor to what the node actually reported.
-            const suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
+            let suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
+            if (suggestedCap != null && feePerBytes > suggestedCap){
+                // Never clamp below what the node will relay (see
+                // suggestedFeeCeilingFloorPerByte); the floor is coin-correct
+                // because it comes from the node, where the ceiling constant is not.
+                try {
+                    const info = await this.connector.getNetworkInfo()
+                    const floor = suggestedFeeCeilingFloorPerByte(info && info.relayfee)
+                    if (floor != null && floor > suggestedCap) suggestedCap = floor
+                } catch (err) {
+                    console.warn('Suggested-fee ceiling relayfee floor unavailable; using the configured ceiling:', err.message)
+                }
+            }
             if (suggestedCap != null && feePerBytes > suggestedCap){
                 if (!this._suggestedFeeClampWarned){
                     this._suggestedFeeClampWarned = true
@@ -2412,6 +2440,7 @@ class XChainEncoder {
 // same rate createTx would charge; a quote the builder then ignores is worse than
 // no quote, because a wallet shows the user a fee that never applies.
 XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
+XChainEncoder.suggestedFeeCeilingFloorPerByte = suggestedFeeCeilingFloorPerByte
 XChainEncoder.isTestNetworkKey = isTestNetworkKey
 XChainEncoder.DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE = DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE
 
