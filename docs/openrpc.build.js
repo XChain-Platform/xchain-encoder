@@ -70,9 +70,10 @@ const METHODS = [
             { name: 'p2shHex', schema: str('funding tx raw hex (required with p2shHash)') },
             { name: 'compressedPubKey', schema: str('compressed public key when pubkey is an address') },
             { name: 'compress', schema: bool('transparent FILE payload compression (deflate-raw, kept only when it is smaller and within the 150:1 guard), which appends the COMPRESSION field to a FILE v0 ACTION string. ON BY DEFAULT: omit this to take the deployment default, pass false to opt out. An EXPLICIT true that cannot be honoured is an error (a non-FILE action has nowhere to record the marker; a token-gated FILE\'s COMPRESSION means inflate-after-decrypt and belongs to the client that compressed before encrypting; an action that already declares a codec is never re-compressed). The default pass simply rides raw in those cases and says why in the result.') },
+            { name: 'attachPrevTx', schema: bool('attach each segwit input\'s FULL previous transaction alongside its witnessUtxo; default off. Only a hardware signer needs it: a Ledger derives the outpoint it signs from the prev tx it is handed, so a witnessUtxo-only input cannot be signed on the device. Off by default because it costs one node round trip per input plus the prev tx bytes in every copy of the PSBT.') },
             { name: 'options', schema: { type: 'object', description: 'per-call capabilities. signerSupportsTapscript (boolean, default false) tells AUTO whether this caller can sign a tapscript script-path spend; without it AUTO never selects TAPROOT, because the reveal must be signable before the commit is broadcast. Unknown keys are refused.' } },
         ],
-        result: { name: 'tx', schema: { type: 'object', properties: { psbt: str('unsigned PSBT, hex (the commit PSBT for TAPROOT)'), encoding: str('encoding actually used (the resolved carrier when AUTO was requested)'), compression: { type: 'object', description: 'present whenever compression ran: {compressed, rawLength, storedLength, reason}. reason names why a payload rode raw (not-a-file-action, gated-file, codec-already-declared, not-smaller, ratio-guard, over-input-cap, deflate-failed).' }, revealPsbt: str('TAPROOT only: pre-built reveal PSBT, hex'), envelope: { type: 'object', description: 'TAPROOT only: recovery record to persist before broadcasting the commit' }, carrierScripts: { type: 'array', description: 'P2SH/P2WSH/TAPROOT: carrier scripts (hex) for verify-before-sign', items: { type: 'string' } } } } },
+        result: { name: 'tx', schema: { type: 'object', properties: { psbt: str('unsigned PSBT, hex (the commit PSBT for TAPROOT)'), encoding: str('encoding actually used (the resolved carrier when AUTO was requested)'), compression: { type: 'object', description: 'present whenever compression ran: {compressed, rawLength, storedLength, reason}. reason names why a payload rode raw (not-a-file-action, gated-file, codec-already-declared, not-smaller, ratio-guard, over-input-cap, deflate-failed).' }, revealPsbt: str('TAPROOT only: pre-built reveal PSBT, hex'), envelope: { type: 'object', description: 'TAPROOT only: recovery record to persist before broadcasting the commit' }, carrierScripts: { type: 'array', description: 'P2SH/P2WSH/TAPROOT: carrier scripts (hex) for verify-before-sign', items: { type: 'string' } }, warnings: { type: 'array', description: 'present only when the built transaction carries a caveat the caller should see before signing; each entry is {code, message}. RAWDATA_ONLY_NOT_DECODED: rawData sent without data compiles to an OP_0-led payload that current decoders read as empty, so the transaction confirms and the fee is paid but the payload is not indexed as an ACTION.', items: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } } } },
     },
     {
         name: 'create_envelope_cancel_tx',
@@ -132,6 +133,13 @@ const spec = {
     })),
 };
 
-const out = path.join(__dirname, 'openrpc.json');
-fs.writeFileSync(out, JSON.stringify(spec, null, 2) + '\n');
-console.log(`wrote ${out}: ${spec.methods.length} methods`);
+// Writing is the SCRIPT's job, not the module's, so a test can require this file
+// for the spec it would emit and compare it against the checked-in artifact
+// without rewriting that artifact mid-run (see test/unit/openrpc-coverage.test.js).
+if (require.main === module) {
+    const out = path.join(__dirname, 'openrpc.json');
+    fs.writeFileSync(out, JSON.stringify(spec, null, 2) + '\n');
+    console.log(`wrote ${out}: ${spec.methods.length} methods`);
+}
+
+module.exports = { spec, METHODS };

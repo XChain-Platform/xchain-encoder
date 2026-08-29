@@ -272,6 +272,14 @@
           }
         },
         {
+          "name": "attachPrevTx",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "description": "attach each segwit input's FULL previous transaction alongside its witnessUtxo; default off. Only a hardware signer needs it: a Ledger derives the outpoint it signs from the prev tx it is handed, so a witnessUtxo-only input cannot be signed on the device. Off by default because it costs one node round trip per input plus the prev tx bytes in every copy of the PSBT."
+          }
+        },
+        {
           "name": "options",
           "required": false,
           "schema": {
