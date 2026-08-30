@@ -35,7 +35,7 @@
   "scripts": {
     "api": "node ./src/api.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
-    "test": "npx mocha --timeout 10000 'test/unit/**/*.test.js' --recursive --exit",
+    "test": "npx mocha --timeout 10000 --require ./test/setup.js 'test/unit/**/*.test.js' --recursive --exit",
     "test:regtest": "mocha --timeout 0 --require ./test/prepareRegtest.test.js",
     "coverage": "c8 --reporter=text --reporter=html --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",
     "coverage:check": "c8 --check-coverage --lines 86.2 --statements 86.2 --branches 85.1 --functions 66 --reporter=text-summary --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",

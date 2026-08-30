@@ -21,6 +21,17 @@
 const dotenv = require('dotenv')
 dotenv.config()
 
+// Before anything else logs. The API_KEY notice and env-validation lines
+// immediately below are exactly the ones an operator needs levelled and
+// timestamped, and installObservability does not run until ~190 lines further
+// down.
+const { patchConsole } = require('./observability');
+patchConsole({
+    service: 'xchain-encoder',
+    version: require('../package.json').version,
+    network: process.env.NETWORK || ''
+});
+
 const bitcoin = require('bitcoinjs-lib');
 const express = require('express');
 const bodyParser = require('body-parser');
