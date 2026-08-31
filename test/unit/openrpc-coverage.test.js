@@ -49,4 +49,49 @@ describe('openrpc.json method coverage', () => {
             assert.ok(m.result && m.result.schema, `${m.name} result`);
         }
     });
+
+    // docs/openrpc.json is GENERATED. Hand-editing it works right up to the next
+    // `node docs/openrpc.build.js`, which silently reverts the edit: commit ff4f9c5
+    // added the create_tx `warnings` result field to the JSON alone, so a routine
+    // regeneration would have deleted a shipped field's only documentation. The
+    // generator is the source of truth; this asserts the artifact still equals it.
+    it('docs/openrpc.json is exactly what docs/openrpc.build.js emits', () => {
+        const built = require('../../docs/openrpc.build.js').spec;
+        assert.ok(Array.isArray(built.methods) && built.methods.length > 0,
+            'generator export broken: no methods');
+        assert.deepStrictEqual(spec, JSON.parse(JSON.stringify(built)),
+            'docs/openrpc.json is out of date or hand-edited; run: node docs/openrpc.build.js');
+    });
+
+    // Param-level drift guard. The method check above never looked at params, which
+    // is how create_tx came to validate and act on `attachPrevTx` while the published
+    // contract never named it: the field was undiscoverable from the spec and every
+    // generated client dropped it. Every params.<x> validateAll reads must be declared.
+    const validatorSrc = fs.readFileSync(path.join(__dirname, '../../src/validator.js'), 'utf8');
+    // Slice validateAll's body only. `params.pubkey` also appears in an unrelated
+    // function earlier in the file, and including it would make this pass for the
+    // wrong reason. The digit class is required: p2shHash, p2shHex, compressedPubKey.
+    const fnStart = validatorSrc.indexOf('function validateAll(');
+    const fnEnd = validatorSrc.indexOf('\n    return {', fnStart);
+    const validateAllBody = validatorSrc.slice(fnStart, fnEnd);
+    const validatedParams = [...new Set(
+        [...validateAllBody.matchAll(/params\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1])
+    )].sort();
+
+    it('extracts a sane validateAll param list', () => {
+        assert.notStrictEqual(fnStart, -1, 'validateAll not found in src/validator.js');
+        assert.ok(fnEnd > fnStart, 'validateAll body slice is empty; the return marker moved');
+        assert.ok(validatedParams.includes('pubkey') && validatedParams.includes('attachPrevTx'),
+            `extraction broken: ${validatedParams.join(', ')}`);
+        assert.ok(validatedParams.length > 10, `extraction too small: ${validatedParams.length}`);
+    });
+
+    it('create_tx spec params === the params validateAll reads', () => {
+        const createTx = spec.methods.find((m) => m.name === 'create_tx');
+        assert.ok(createTx, 'create_tx missing from the spec');
+        const declared = createTx.params.map((p) => p.name).sort();
+        assert.deepStrictEqual(declared, validatedParams,
+            'a params.<x> read in validateAll must be declared in docs/openrpc.build.js, '
+            + 'then regenerate with: node docs/openrpc.build.js');
+    });
 });

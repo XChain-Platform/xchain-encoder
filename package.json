@@ -1,7 +1,7 @@
 {
   "name": "xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -30,12 +30,13 @@
     "babelify": "^10.0.0",
     "browserify": "^17.0.0",
     "c8": "^11.0.0",
+    "chai": "^4.5.0",
     "mocha": "^11.7.5"
   },
   "scripts": {
     "api": "node ./src/api.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
-    "test": "npx mocha --timeout 10000 'test/unit/**/*.test.js' --recursive --exit",
+    "test": "npx mocha --timeout 10000 --require ./test/setup.js 'test/unit/**/*.test.js' --recursive --exit",
     "test:regtest": "mocha --timeout 0 --require ./test/prepareRegtest.test.js",
     "coverage": "c8 --reporter=text --reporter=html --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",
     "coverage:check": "c8 --check-coverage --lines 86.2 --statements 86.2 --branches 85.1 --functions 66 --reporter=text-summary --include 'src/**/*.js' mocha --timeout 10000 'test/unit/**/*.test.js' --exit",

@@ -40,6 +40,37 @@ describe('suggested fee-rate ceiling @regression @tier1', function () {
         }
     });
 
+    // The 20/vByte default is Bitcoin-scale. On Dogecoin the node's relay floor
+    // is 100 koinu/byte and 1.14's priority gate rejects anything at or under it,
+    // so the clamp must never sit below ten times the node's own relayfee.
+    it('raises the ceiling to 10x the node relay floor when the default is below it (DOGE)', function () {
+        const floor = XChainEncoder.suggestedFeeCeilingFloorPerByte(0.001);   // DOGE relayfee, DOGE/kB
+        assert.strictEqual(perVbyte(floor), 1000, '0.001 DOGE/kB x10 is 1000 koinu/byte');
+        assert.ok(floor > ceiling('dogecoin-testnet'), 'the relay-derived floor must exceed the 20/vByte default');
+    });
+
+    it('leaves the default ceiling in charge when the relay floor is below it (BTC/LTC)', function () {
+        const floor = XChainEncoder.suggestedFeeCeilingFloorPerByte(0.00001);  // BTC/LTC relayfee
+        assert.strictEqual(perVbyte(floor), 10);
+        assert.ok(floor < ceiling('bitcoin-testnet'));
+    });
+
+    // A ceiling equal to the node rate is the ordinary DOGE test-chain case: both
+    // sides are ten times relayfee, and float division leaves them one ULP apart.
+    // Clamping there reassigns the same number and logs a breach that did not happen.
+    it('treats a ceiling equal to the node rate as NOT a breach', function () {
+        const nodeRate = 0.01 / 1000;                                   // DOGE/byte
+        const cap      = XChainEncoder.suggestedFeeCeilingFloorPerByte(0.001);
+        assert.ok(Math.abs(nodeRate - cap) < nodeRate * 1e-9, 'the two must be equal to within float noise');
+        assert.ok(!(nodeRate > cap * (1 + 1e-12)), 'an equal rate must not read as exceeding the ceiling');
+    });
+
+    it('returns null for a missing or non-positive relayfee', function () {
+        assert.strictEqual(XChainEncoder.suggestedFeeCeilingFloorPerByte(undefined), null);
+        assert.strictEqual(XChainEncoder.suggestedFeeCeilingFloorPerByte(0), null);
+        assert.strictEqual(XChainEncoder.suggestedFeeCeilingFloorPerByte(-1), null);
+    });
+
     it('leaves mainnet UNCLAMPED, where the estimate is real', function () {
         for (const net of ['bitcoin-mainnet', 'litecoin-mainnet', 'dogecoin-mainnet']) {
             assert.strictEqual(ceiling(net), null, net + ' must not be clamped');

@@ -209,7 +209,7 @@ describe('XChainEncoder.createTransaction()', () => {
   })
 
   describe('replace-by-fee sequence', () => {
-    it('sets sequence to 0x00000001 when rbf=true', async () => {
+    it('sets sequence to 0xfffffffd when rbf=true (RBF armed, BIP68 still disabled)', async () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
@@ -220,7 +220,33 @@ describe('XChainEncoder.createTransaction()', () => {
       )
 
       const inputData = result.psbt.txInputs[0]
-      assert.strictEqual(inputData.sequence, 0x00000001)
+      assert.strictEqual(inputData.sequence, 0xfffffffd)
+    })
+
+    // The literal above pins WHICH value; this pins WHY, and it is the assertion
+    // that would have caught the original bug. nSequence=0x00000001 also signals
+    // RBF, so every value-only test passed while the encoder was quietly enabling
+    // BIP68 relative locktime of 1 block on every RBF transaction. That is
+    // invisible against confirmed inputs and rejects any spend of unconfirmed
+    // change as non-BIP68-final, which made RBF and chained sends mutually
+    // exclusive, measured on BTC testnet4.
+    it('arms RBF without enabling BIP68 relative locktime', async () => {
+      const encoder = makeEncoder()
+      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [utxo], TEST_ADDRESS, null,
+        'test', null, 10000, true, null, TEST_ADDRESS,
+        null, null, null, true, 0.00001
+      )
+
+      const seq = result.psbt.txInputs[0].sequence
+      // Below 0xfffffffe: BIP125 sees this as replaceable.
+      assert.ok(seq < 0xfffffffe, 'sequence ' + seq.toString(16) + ' does not signal RBF')
+      // Bit 31 SET: BIP68 relative locktime is disabled, so the input carries no
+      // "must be N blocks old" assertion and unconfirmed change stays spendable.
+      assert.notStrictEqual(seq & 0x80000000, 0,
+        'sequence ' + seq.toString(16) + ' leaves BIP68 enabled; unconfirmed change becomes unspendable')
     })
 
     it('sets sequence to 0xffffffff when rbf=false', async () => {
@@ -721,6 +747,14 @@ describe('XChainEncoder.createTransaction()', () => {
       // FEE_VALUE so the reveal can pay the fee, plus the reveal's own miner
       // fee for the bytes that output adds to the reveal. Without the second
       // term the reveal lands under the node's min-relay floor.
+      //
+      // It grows by one dust LESS than that, and the difference is the point.
+      // The baseline reveal emits no value output of its own, so its funding
+      // must also carry a dust for the change output that keeps it from burning
+      // every satoshi to miners. A reveal already carrying a
+      // fee output leaves value by definition and needs no change output, so
+      // funding that dust too would buy the caller a third output they never
+      // asked for - which is what REG-14 pins against on this exact shape.
       const withFee = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, feeOutputs(),
         bigData, null, 10000, false, null, TEST_ADDRESS,
@@ -733,8 +767,9 @@ describe('XChainEncoder.createTransaction()', () => {
       const feeOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(TEST_ADDRESS, DOGE_REGTEST)
       const revealByteFee = Math.ceil(feeOutputBytes * feePerBytes * 1e8)
 
-      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee,
-        'funding output must grow by the fee value plus the fee output byte cost')
+      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee - encoder.dustAmount,
+        'funding output must grow by the fee value plus the fee output byte cost, ' +
+        'less the change dust only the outputless baseline needs')
     })
 
     it('phase 2 (reveal) emits the fee-destination output funded by phase 1', async () => {

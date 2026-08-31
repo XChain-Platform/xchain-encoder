@@ -544,6 +544,102 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
     )
   })
 
+  // A public testnet can be fully synced with an empty mempool and still have no
+  // fee history, so estimatesmartfee answers feerate:-1 (DOGE testnet does exactly
+  // this). Non-mainnet chains fall back to 10x the node's relayfee floor (the bare
+  // floor is rejected by Dogecoin 1.14's free-tx priority gate as "66: insufficient
+  // priority"); mainnet must keep failing, because there a missing estimate means
+  // the node is unhealthy.
+  it('falls back to 10x the relayfee floor on testnet when estimatesmartfee has no data', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+      if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1, blocks: 25 } } }
+      if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+      return { data: { result: {} } }
+    }
+    const c = makeConnector()
+    const feerate = await c.getFeePerKilobyte(6)
+    assert.ok(Math.abs(feerate - 0.01) < 1e-12, 'expected 0.01 DOGE/kB, got ' + feerate)
+  })
+
+  // The documented 10x rate is not always minable: on Dogecoin testnet, measured
+  // over 400 blocks, transactions land at 0.03 and around 1.0 DOGE per kB while
+  // 0.0102 sat unmined. Only the operator running a given chain can measure what
+  // it takes there, so the multiple is deployment-tunable.
+  it('honours FEE_NO_ESTIMATE_RELAY_MULTIPLIER for the no-estimate fallback', async () => {
+    process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER = '100'
+    try {
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1 } } }
+        if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(6)
+      assert.ok(Math.abs(feerate - 0.1) < 1e-12, 'expected 0.1 DOGE/kB at 100x, got ' + feerate)
+    } finally {
+      delete process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER
+    }
+  })
+
+  it('ignores a non-positive or unparseable multiplier and keeps the default', async () => {
+    for (const bad of ['0', '-5', 'abc']) {
+      process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER = bad
+      try {
+        axios.post = async (url, data) => {
+          if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+          if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1 } } }
+          if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+          return { data: { result: {} } }
+        }
+        const c = makeConnector()
+        const feerate = await c.getFeePerKilobyte(6)
+        assert.ok(Math.abs(feerate - 0.01) < 1e-12, bad + ' must fall back to 10x, got ' + feerate)
+      } finally {
+        delete process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER
+      }
+    }
+  })
+
+  it('still prefers the estimate over the relayfee floor on testnet when one exists', async () => {
+    let networkInfoCalled = false
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+      if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 0.005 } } }
+      if (data.method === 'getnetworkinfo') { networkInfoCalled = true; return { data: { result: { relayfee: 0.001 } } } }
+      return { data: { result: {} } }
+    }
+    const c = makeConnector()
+    const feerate = await c.getFeePerKilobyte(6)
+    assert.strictEqual(feerate, 0.005)
+    assert.strictEqual(networkInfoCalled, false, 'relayfee must not be consulted when an estimate exists')
+  })
+
+  it('throws on testnet when neither an estimate nor a relayfee is available', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+      if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1 } } }
+      if (data.method === 'getnetworkinfo') return { data: { result: {} } }
+      return { data: { result: {} } }
+    }
+    const c = makeConnector()
+    await assert.rejects(() => c.getFeePerKilobyte(1), /Error getting smart fee from node/)
+  })
+
+  it('does NOT fall back to the relayfee floor on mainnet', async () => {
+    let networkInfoCalled = false
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+      if (data.method === 'estimatesmartfee') return { data: { result: { feerate: -1 } } }
+      if (data.method === 'getnetworkinfo') { networkInfoCalled = true; return { data: { result: { relayfee: 0.00001 } } } }
+      return { data: { result: {} } }
+    }
+    const c = makeConnector()
+    await assert.rejects(() => c.getFeePerKilobyte(1), /Error getting smart fee from node/)
+    assert.strictEqual(networkInfoCalled, false, 'mainnet must never substitute the relay floor for a missing estimate')
+  })
+
   it('rethrows transport errors', async () => {
     stubAxiosPostThrow(new Error('Connection refused'))
     const c = makeConnector()

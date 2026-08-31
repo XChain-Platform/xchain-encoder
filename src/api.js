@@ -21,6 +21,17 @@
 const dotenv = require('dotenv')
 dotenv.config()
 
+// Before anything else logs. The API_KEY notice and env-validation lines
+// immediately below are exactly the ones an operator needs levelled and
+// timestamped, and installObservability does not run until ~190 lines further
+// down.
+const { patchConsole } = require('./observability');
+patchConsole({
+    service: 'xchain-encoder',
+    version: require('../package.json').version,
+    network: process.env.NETWORK || ''
+});
+
 const bitcoin = require('bitcoinjs-lib');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -52,6 +63,7 @@ const { upstreamErrorMessage } = require('./errorSanitize')
 const { parseCorsOrigin } = require('./corsOrigin')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
+const { installCrashHandlers } = require('./crashHandlers')
 
 
 const NETWORK = process.env.NETWORK
@@ -490,6 +502,9 @@ if (require.main === module) {
   // endpoint. Fail at boot if the deploy declares replicas > 1 (ENCODER_REPLICAS)
   // or another encoder process on this host already holds the instance lock.
   // See src/singleInstanceGuard.js.
+  // Before the instance guard, so a throw inside it is still a CRASH record
+  // rather than node's bare stderr dump.
+  installCrashHandlers()
   assertSingleInstance()
   const releaseInstanceLock = acquireInstanceLock()
   process.on('exit', releaseInstanceLock)

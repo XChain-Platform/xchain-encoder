@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-08-30
+
+### Added
+- The encoder gate passes ROLLCALL.
+
+### Fixed
+- Fees are sized for the whole mempool package rather than a single transaction.
+- A suggested fee is never clamped below what the node will relay.
+- A non-mainnet node with no fee estimate falls back to the relay floor.
+- Replace-by-fee is armed without disabling spends of unconfirmed change.
+- A two-phase commit funds the reveal it has to pay for.
+- The OpenRPC document build covers every method, and the confirmations floor comes from the canonical registry.
+
+### Changed
+- A deployment can set the fee it takes to be mined on a quiet chain.
+- Service logging routes through the shared log shim, one line per console call.
+
 ## [0.11.0] - 2026-08-25
 
 ### Changed

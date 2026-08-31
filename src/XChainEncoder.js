@@ -162,6 +162,66 @@ function suggestedFeeCeilingPerByte(networkKey, satoshiUnit){
     return perVbyte / satoshiUnit
 }
 
+// The ceiling above is denominated in base units per vByte, and 20 is a
+// Bitcoin-scale number: on Dogecoin the node's relay floor is already 100
+// koinu/byte (0.001 DOGE/kB) and 1.14 rejects anything at or under the floor
+// through its free-transaction priority gate ("66: insufficient priority"),
+// so a ceiling of 20 turns every clamped build into a guaranteed rejection.
+// Lift the ceiling to a coin-correct minimum derived from the node's own
+// relayfee (BTC-or-coin per kB): ten times the floor, Dogecoin's published
+// recommended rate (0.01 DOGE/kB) and 10 sat/vB on BTC/LTC test chains.
+const SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER = 10
+
+function suggestedFeeCeilingFloorPerByte(relayfeePerKb){
+    const relayfee = Number(relayfeePerKb)
+    if (!(relayfee > 0)) return null
+    return (relayfee / 1000) * SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER
+}
+
+// Hard ceiling (base units) on what CPFP package sizing may ADD to one
+// transaction's fee, on top of every rate cap the build already enforces. The
+// rate caps bound a fee against THIS transaction's size; a package uplift is
+// paid for someone else's bytes, so a mempool ancestor chain that is large,
+// cheap, or misreported could otherwise buy an arbitrarily large fee with the
+// caller's coin. 10,000,000 base units is 0.1 DOGE (ten times the block-
+// inclusion floor for a 10 kB package, so it clears any realistic real chain)
+// and stays well inside the rate caps on BTC/LTC, where they bind first anyway.
+// MAX_CPFP_UPLIFT_SAT overrides it; 0 turns package sizing off.
+const DEFAULT_MAX_CPFP_UPLIFT_SAT = 10000000
+
+function maxCpfpUpliftSat(){
+    const raw = parseFloat(process.env.MAX_CPFP_UPLIFT_SAT)
+    const bound = Number.isFinite(raw) ? raw : DEFAULT_MAX_CPFP_UPLIFT_SAT
+    return (bound > 0) ? Math.floor(bound) : 0
+}
+
+// Extra fee (base units) this transaction must pay for its whole mempool
+// package to reach `targetFeePerBytes`, given the unconfirmed ancestors it
+// inherits. Dogecoin Core 1.14 and every modern Core select for a block by
+// ANCESTOR fee rate, so a child paying the target on its own bytes still sits
+// unmined behind cheap parents: the live case was a batch paying 0.01017
+// DOGE/kB whose 0.00313 DOGE/kB funding ancestors dragged the package to
+// 0.00896, under the 0.01 inclusion floor. Returns 0 whenever the package
+// already clears the target, so this only ever raises a fee.
+function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFees, targetFeePerBytes, satoshiUnit }){
+    if (!(targetFeePerBytes > 0)) return 0
+    if (!Number.isFinite(txSize) || txSize <= 0) return 0
+    const packageSize = Number(ancestorSize)
+    if (!Number.isFinite(packageSize) || packageSize <= 0) return 0
+    const ancestorFeeSat = Math.round(Number(ancestorFees) * satoshiUnit)
+    if (!Number.isFinite(ancestorFeeSat) || ancestorFeeSat < 0) return 0
+    // Rounding up a float product costs a whole base unit whenever the rate
+    // carries binary representation error (0.01/1000 is not exact, so a 3000-byte
+    // package at that rate lands on 3000000.0000000005). Shave a relative
+    // epsilon, twelve orders of magnitude above the double's own error and far
+    // below one base unit, so the ceiling reflects the arithmetic rather than the
+    // representation.
+    const packageFeeExact = (packageSize + txSize) * targetFeePerBytes * satoshiUnit
+    const packageFeeNeeded = Math.ceil(packageFeeExact - Math.abs(packageFeeExact) * 1e-12)
+    const uplift = (packageFeeNeeded - ancestorFeeSat) - currentFee
+    return (uplift > 0) ? uplift : 0
+}
+
 // Ceiling (in blocks) on how far the utxo-tracker's committed view may lag
 // the chain tip before a tracker-fetched UTXO set is refused rather than
 // risked (the "stale-utxo trap"). A lagging tracker can
@@ -751,8 +811,26 @@ class XChainEncoder {
             // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
             // chain. nodeFeePerBytes keeps the raw estimate so the fee-drain caps
             // below still anchor to what the node actually reported.
-            const suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
+            let suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
             if (suggestedCap != null && feePerBytes > suggestedCap){
+                // Never clamp below what the node will relay (see
+                // suggestedFeeCeilingFloorPerByte); the floor is coin-correct
+                // because it comes from the node, where the ceiling constant is not.
+                try {
+                    const info = await this.connector.getNetworkInfo()
+                    const floor = suggestedFeeCeilingFloorPerByte(info && info.relayfee)
+                    if (floor != null && floor > suggestedCap) suggestedCap = floor
+                } catch (err) {
+                    console.warn('Suggested-fee ceiling relayfee floor unavailable; using the configured ceiling:', err.message)
+                }
+            }
+            // Compare with a relative epsilon. Both sides are coin-per-byte floats
+            // derived by dividing by 1000 and by SATOSHI_UNIT, so a ceiling that
+            // EQUALS the node rate (the ordinary case on a DOGE test chain, where the
+            // relay-derived floor and the node rate are both ten times relayfee) can
+            // land one ULP above it and clamp the value to itself, logging a ceiling
+            // breach that did not happen. A real breach is never this close.
+            if (suggestedCap != null && feePerBytes > suggestedCap * (1 + 1e-12)){
                 if (!this._suggestedFeeClampWarned){
                     this._suggestedFeeClampWarned = true
                     console.warn(`Suggested fee rate ${Math.round(feePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
@@ -942,7 +1020,15 @@ class XChainEncoder {
 
         let psbt = null
         
-        let utxoSequence = (replacebyfee? 0x00000001: 0xffffffff)
+        // 0xfffffffd, not 1. Any value below 0xfffffffe signals RBF (BIP125), but
+        // bit 31 (0x80000000) is what DISABLES BIP68 relative locktime. nSequence=1
+        // leaves that bit clear, so it also asserts "this input must be 1 block
+        // old" - invisible when spending confirmed outputs, and fatal when spending
+        // unconfirmed change, where the node rejects the transaction as
+        // `non-BIP68-final`. That made RBF and chained sends mutually exclusive:
+        // measured 2026-08-27 driving three chained MINTs. 0xfffffffd
+        // signals RBF and keeps BIP68 off, which is what Bitcoin Core itself uses.
+        let utxoSequence = (replacebyfee? 0xfffffffd: 0xffffffff)
         // BigInt: a DOGE UTXO set can total past 2^53-1 sats, where Number
         // arithmetic silently rounds the fee/change math.
         let inputSatoshis = 0n
@@ -1227,6 +1313,15 @@ class XChainEncoder {
         let voutPsbtIndex = 0
         let obfuscatedData
 
+        // Reveal-headroom state for the P2SH two-phase flow.
+        // p2shRevealHeadroomFunded marks the one-time first-leg top-up on the
+        // FUNDING tx (the reveal's whole fee plus one dust for the change output
+        // the reveal must leave); phaseLegInputSatoshis accumulates the funding
+        // leg values the REVEAL spends, so the surplus sweep after the emission
+        // loop can price the change output it returns to the caller.
+        let p2shRevealHeadroomFunded = false
+        let phaseLegInputSatoshis = 0n
+
         // Reconstructed phase-1 funding tx on the reveal path, shared by the P2SH
         // and P2WSH branches below (both spend its outputs by index). Hoisted to the
         // loop's enclosing scope so the input-index bounds guard can reuse it, and
@@ -1305,8 +1400,12 @@ class XChainEncoder {
 
                         psbt.addInput(nextInput)
                         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-                        
-                        voutPsbtIndex = voutPsbtIndex + 1                   
+                        // Leg value this reveal input consumes; the surplus sweep
+                        // after the emission loop needs the total to price the
+                        // change output.
+                        phaseLegInputSatoshis = phaseLegInputSatoshis + BigInt(p2shTx.outs[voutPsbtIndex].value)
+
+                        voutPsbtIndex = voutPsbtIndex + 1
                     } else {
                         let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
                         let spendingP2shEstimatedFee = Math.trunc((spendingP2shEstimatedSize * feePerBytes) * SATOSHI_UNIT)
@@ -1323,6 +1422,58 @@ class XChainEncoder {
                             spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + revealCustomOutputsValue + BigInt(revealCustomOutputsFee))
                             revealCustomOutputsValue = 0n
                             revealCustomOutputsFee = 0
+                        }
+
+                        // The reveal's ONLY inputs are these
+                        // funding legs (the reveal path runs no input selection),
+                        // so every satoshi the reveal spends - its miner fee AND
+                        // any output it leaves - must be prefunded here. Sizing
+                        // each leg at max(per-chunk fee share, dust floor) alone
+                        // left the reveal unable to leave a single output on
+                        // Dogecoin, where the dust floor (100000 koinu) is the
+                        // whole leg and the reveal's own required fee consumes
+                        // it: the SDK's FULL_BURN_FEE guard then (correctly)
+                        // refused to sign and the confirmed phase-1 commit was
+                        // stranded. Top the FIRST leg up (consumed once, like
+                        // the customOutputs fold above) so the legs total covers
+                        // the whole reveal's fee AS THE REVEAL ITSELF WILL PRICE
+                        // IT (estimateP2shRevealTx, shared by both phases), plus
+                        // one dust (this.dustAmount, the same constant the
+                        // reveal-side sweep compares against) for the change
+                        // output the reveal returns to the caller. The 43 is the
+                        // same worst-case change-output size constant the
+                        // single-tx path reserves below.
+                        //
+                        // That change output is needed ONLY when the reveal would
+                        // otherwise emit no value output at all. A reveal already
+                        // carrying customOutputs (the native protocol fee) leaves
+                        // value by definition, so the burn guard is satisfied and
+                        // funding a change output too would buy the caller a
+                        // third output they did not ask for - which is what REG-14
+                        // pins against on the legacy-fee-output case. So the fee
+                        // base keeps the 43-byte change slot either way - both
+                        // shapes stay priced identically, which is the other half
+                        // REG-14 pins - and only the dust that would make a change
+                        // output emittable is conditional. With customOutputs the
+                        // surplus then lands at zero, below the sweep's dust
+                        // threshold, and the reveal keeps exactly its two outputs.
+                        if (!p2shRevealHeadroomFunded){
+                            p2shRevealHeadroomFunded = true
+                            let needsChangeOutput = (revealCustomOutputsBytes === 0)
+                            let baseLegsTotal = 0
+                            for (const chunkBuffer of preparedData["dataBufferArray"]){
+                                let chunkLegFee = Math.trunc((this.estimateSpendingP2shTx(chunkBuffer) * feePerBytes) * SATOSHI_UNIT)
+                                baseLegsTotal = baseLegsTotal + Math.max(chunkLegFee, finalDust)
+                            }
+                            let revealFeeNeeded = Math.trunc((this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43) * feePerBytes) * SATOSHI_UNIT)
+                            if (revealFeeNeeded < this.dustAmount){
+                                // Mirrors the reveal path's own dust floor on
+                                // estimatedFee, so both phases price the same fee.
+                                revealFeeNeeded = this.dustAmount
+                            }
+                            let revealShortfall = Math.max(0, revealFeeNeeded - baseLegsTotal)
+                            let changeHeadroom = needsChangeOutput ? BigInt(this.dustAmount) : 0n
+                            spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
                         }
 
                         psbt.addOutput({
@@ -1590,6 +1741,12 @@ class XChainEncoder {
         }
         
         let selectedInputCount = 0
+        // Txids of the SELECTED inputs that are still in the mempool. Their
+        // ancestor package is what CPFP sizing below has to pay for; an entry
+        // with no confirmations field is treated as confirmed, so a UTXO source
+        // that omits it degrades to per-transaction sizing rather than to a
+        // guess about someone else's fee.
+        const unconfirmedInputTxids = []
         if (!p2shHash){//The p2sh input is already created before
             const now = Date.now()
             this._evictExpiredReservations(now)
@@ -1679,6 +1836,10 @@ class XChainEncoder {
                 }
 
                 selectedInputCount = selectedInputCount + 1
+
+                if (nextUtxo.confirmations == 0){
+                    unconfirmedInputTxids.push(nextUtxo.txid)
+                }
 
                 if (fee == null || fee === false) {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
@@ -1787,6 +1948,84 @@ class XChainEncoder {
             }
         }
 
+        // CPFP-aware package sizing.
+        //
+        // A miner fills a block by ANCESTOR fee rate, so a transaction spending
+        // unconfirmed inputs is only mined when its whole mempool package clears
+        // the target. Paying the target on this transaction's own bytes is not
+        // enough: a PRICE batch paying 0.01017 DOGE/kB sat unmined because its
+        // funding ancestors pay 0.00313 DOGE/kB, putting the package at 0.00896,
+        // under Dogecoin's 0.01 DOGE/kB inclusion floor. Those inputs do not
+        // signal RBF, so the fee cannot be replaced afterwards; it has to be
+        // right at build time. Lift this fee to carry the package instead.
+        //
+        // Placed after the caller-fee checks above so the caller's own fee is
+        // still judged as supplied, and every ceiling those checks enforce is
+        // re-applied here to the uplifted total. Any failure at all (no ancestor
+        // data, an unreachable node, a connector without the method) leaves the
+        // per-transaction fee exactly as it was.
+        const cpfpUpliftBound = maxCpfpUpliftSat()
+        if (unconfirmedInputTxids.length > 0 && feePerBytes > 0 && cpfpUpliftBound > 0 &&
+            this.connector && typeof this.connector.getUnconfirmedAncestorPackage === 'function'){
+            let ancestorPackage = null
+            try {
+                ancestorPackage = await this.connector.getUnconfirmedAncestorPackage(unconfirmedInputTxids)
+            } catch (err) {
+                console.warn('Package fee sizing skipped: ancestor lookup failed:', err.message)
+            }
+            const wanted = ancestorPackage ? packageFeeUpliftSatoshis({
+                currentFee: estimatedFee,
+                txSize: estimatedTxSize,
+                ancestorSize: ancestorPackage.size,
+                ancestorFees: ancestorPackage.fees,
+                targetFeePerBytes: feePerBytes,
+                satoshiUnit: SATOSHI_UNIT
+            }) : 0
+
+            if (wanted > 0){
+                // Its own absolute bound first: the uplift buys ancestor bytes, and
+                // the rate caps below only ever measure a fee against THIS
+                // transaction's size.
+                let allowed = Math.min(wanted, cpfpUpliftBound)
+
+                if (capFeePerBytes != null){
+                    const maxFeeSatoshis = Math.max(this.dustAmount, Math.ceil(estimatedTxSize * capFeePerBytes * SATOSHI_UNIT))
+                    allowed = Math.min(allowed, maxFeeSatoshis - estimatedFee)
+                }
+
+                const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
+                if (referenceFeePerBytes != null){
+                    const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
+                    allowed = Math.min(allowed, Math.max(this.dustAmount, fairFee * 100) - estimatedFee)
+                }
+
+                // Never spend an input that is not there. Without this bound a
+                // package uplift would turn a fundable build into INSUFFICIENT_FUNDS,
+                // which is a worse outcome than a transaction that confirms late.
+                if (!p2shHash){
+                    const headroom = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
+                    if (headroom <= 0n) allowed = 0
+                    else if (allowed > 0 && headroom < BigInt(allowed)) allowed = Number(headroom)
+                }
+
+                if (allowed < 0) allowed = 0
+
+                if (allowed < wanted){
+                    const packageSize = ancestorPackage.size + estimatedTxSize
+                    const packageFee = Math.round(ancestorPackage.fees * SATOSHI_UNIT) + estimatedFee + allowed
+                    console.warn(`Package fee uplift clamped to ${allowed} of ${wanted} base units: this transaction ` +
+                        `spends ${unconfirmedInputTxids.length} unconfirmed input(s) whose ancestors total ` +
+                        `${ancestorPackage.size} bytes. The package will pay ${Math.round(packageFee / packageSize * 1000)} ` +
+                        `base units/kB against a target of ${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}, so it may ` +
+                        `stay unmined. Raise MAX_CPFP_UPLIFT_SAT, MAX_FEE_RATE_KB or the input balance to close the gap.`)
+                }
+
+                if (allowed > 0){
+                    estimatedFee = estimatedFee + allowed
+                }
+            }
+        }
+
         if (estimatedFee < this.dustAmount){
             estimatedFee = this.dustAmount
         }
@@ -1861,6 +2100,40 @@ class XChainEncoder {
                 psbt.addOutput({
                     address: padAddress,
                     value: this.dustAmount
+                })
+            }
+        }
+
+        // Sweep the P2SH reveal's leg surplus back to the
+        // caller. The funding tx (P2SH funding branch above) tops the first leg
+        // up by the reveal's own fee plus one dust precisely so this output can
+        // exist: without it the reveal's only output is the zero-value OP_RETURN
+        // marker, every satoshi of the legs goes to miners, and the SDK's
+        // FULL_BURN_FEE guard (correctly) refuses to sign, stranding the
+        // confirmed commit. The fee the reveal keeps is the larger of the
+        // dust-/explicit-fee-floored estimatedFee above and the same
+        // whole-reveal size estimate the funding side used (estimateP2shRevealTx,
+        // at this call's fee rate, including the emitted customOutputs' bytes);
+        // everything above it returns to `change` or the caller's own address.
+        // Legs funded before this fix carry no headroom, leave no surplus at or
+        // above dust, and produce a byte-identical (still outputless) reveal.
+        if (p2shHash && preparedData["encoding"] === Encoding.P2SH && phaseLegInputSatoshis > 0n){
+            let revealEmittedOutputBytes = 43 // change output (worst case), matching the reserve above
+            if (customOutputs && Array.isArray(customOutputs)){
+                for (let i = 0; i < customOutputs.length; i++){
+                    revealEmittedOutputBytes = revealEmittedOutputBytes + TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
+                }
+            }
+            let revealFeeKept = Math.trunc((this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes) * feePerBytes) * SATOSHI_UNIT)
+            if (revealFeeKept < estimatedFee){
+                revealFeeKept = estimatedFee
+            }
+            let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
+            let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
+            if (sweepAddress && revealSurplus >= BigInt(this.dustAmount)){
+                psbt.addOutput({
+                    address: sweepAddress,
+                    value: asSatValue(revealSurplus)
                 })
             }
         }
@@ -2089,6 +2362,34 @@ class XChainEncoder {
         return sizeEstimated
     }
 
+    // Whole-tx size of the P2SH reveal (phase 2): every chunk input carrying its
+    // redeem script, the OP_RETURN marker output, plus extraOutputsBytes for the
+    // value outputs the reveal emits (the change sweep, reveal-side
+    // customOutputs). estimateSpendingP2shTx above is the PER-CHUNK share that
+    // sizes each funding leg; this is the fee base for the ONE transaction
+    // that spends all of them, so the funding side can top the first leg up to
+    // what the reveal will actually need. Both phases MUST
+    // price the reveal with this function: the reveal path's generic
+    // TxSizeEstimator.estimateInputSize() models a P2SH input as 2-of-3
+    // multisig (289 bytes flat) and disagrees with the funding side's
+    // redeem-aware estimate, and that drift is exactly what would leave the
+    // funded change headroom a few satoshis short of emittable. The per-input
+    // +8 is the same DER-signature-length-jitter margin estimateSpendingP2shTx
+    // carries.
+    estimateP2shRevealTx(dataBufferArray, extraOutputsBytes = 0){
+        let inputsBytes = 0
+        for (const redeemData of dataBufferArray){
+            inputsBytes = inputsBytes + TxSizeEstimator.estimateP2shInputWithRedeem(redeemData) + 8
+        }
+        return 10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
+            + inputsBytes
+            + TxSizeEstimator.estimateOpReturnOutput(Buffer.concat([
+                Buffer.from(MAGIC_WORD,'utf8'),
+                Buffer.from("p2sh",'utf8')
+            ]))
+            + extraOutputsBytes
+    }
+
     estimateSpendingP2wshTx(witnessData){
         // Per-chunk embedded value sized to cover the P2WSH reveal tx's worst
         // case at 1 sat/vbyte. A native-segwit input keeps its scriptSig empty
@@ -2254,7 +2555,9 @@ class XChainEncoder {
         psbt.addInput({
             hash: commitTxid,
             index: commitVout,
-            sequence: (rbfArmed ? 0x00000001 : 0xffffffff),
+            // Same BIP68 trap as the funding path above: 0xfffffffd signals RBF
+            // without enabling relative locktime.
+            sequence: (rbfArmed ? 0xfffffffd : 0xffffffff),
             witnessUtxo: {
                 script: p2trPayment.output,
                 value: value
@@ -2275,7 +2578,11 @@ class XChainEncoder {
 // same rate createTx would charge; a quote the builder then ignores is worse than
 // no quote, because a wallet shows the user a fee that never applies.
 XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
+XChainEncoder.suggestedFeeCeilingFloorPerByte = suggestedFeeCeilingFloorPerByte
 XChainEncoder.isTestNetworkKey = isTestNetworkKey
 XChainEncoder.DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE = DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE
+XChainEncoder.packageFeeUpliftSatoshis = packageFeeUpliftSatoshis
+XChainEncoder.maxCpfpUpliftSat = maxCpfpUpliftSat
+XChainEncoder.DEFAULT_MAX_CPFP_UPLIFT_SAT = DEFAULT_MAX_CPFP_UPLIFT_SAT
 
 module.exports = XChainEncoder
