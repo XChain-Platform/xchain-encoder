@@ -84,6 +84,30 @@
             "tracker_mempool_ready": {
               "type": "boolean",
               "description": "tracker has reconverged its mempool, so an already-spent confirmed output can be filtered out"
+            },
+            "maintenance": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "operator-declared scheduled-maintenance window, or null; context only, it never changes the readiness fields above",
+              "properties": {
+                "active": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "since": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "until": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

@@ -94,7 +94,38 @@ npm run api
 | `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `GET /status` and `GET /openrpc.json` are exempt; `0` disables |
 | `ENCODER_MAX_CONCURRENT_PROBES` | No | `16` | Private concurrency reserve for the two exempt probe routes, so healthchecks stay answerable while the cap above sheds without becoming an uncapped bypass; `0` disables |
 | `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
+| `ENCODER_MAINTENANCE_FILE` | No | `/tmp/xchain-encoder-maintenance.json` | Where the encoder looks for an operator-declared scheduled-maintenance window. `health` and `GET /status` report it as `maintenance` beside the readiness fields, so a status board can tell a planned outage from a fault; it never changes a readiness field or the 503. See [Scheduled maintenance](#scheduled-maintenance) |
 | `CORS_ORIGIN` | No | Disabled | Allowed CORS origin(s): `*` for any, one origin, or a comma-separated allowlist matched per-origin (browser wallet shells each send a different origin). A stray `*` inside a list is not a wildcard, so the grant fails closed |
+
+## Scheduled maintenance
+
+Planned work takes an encoder's dependencies down. The monthly UTXO-tracker
+bootstrap publish stops the tracker, so `GET /status` answers 503 with
+`tracker_reachable: false` and a status board has no way to tell that outage
+apart from a broken encoder.
+
+Declaring a window fixes the label, not the probe. Write a small JSON file at
+`ENCODER_MAINTENANCE_FILE`:
+
+```json
+{ "reason": "utxo-tracker bootstrap publish",
+  "since": "2026-09-02T02:00:00.000Z",
+  "until": "2026-09-02T08:00:00.000Z" }
+```
+
+`health` and `GET /status` then carry it as `maintenance` alongside the
+readiness fields. What it does **not** do is as important: the readiness
+booleans and the 503 are unchanged, so every load balancer and uptime monitor
+keyed on them keeps seeing exactly what it saw before.
+
+`until` is required, and a window longer than 24 hours, already expired,
+malformed, or oversized is ignored: a publish that dies without cleaning up
+stops excusing the outage at its own declared end time rather than hiding it
+indefinitely. A `since` in the future holds the window closed until it opens.
+`reason` is optional, bounded, and stripped to printable ASCII.
+
+`xchain-node` writes and removes this file automatically around a bootstrap
+publish (`src/services/EncoderMaintenanceWindow.js`).
 
 ## Metrics and log shipping (optional, off by default)
 
