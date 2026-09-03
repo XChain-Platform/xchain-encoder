@@ -208,6 +208,8 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
         actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
         null, null, null, true, 0.00001
       )
+      // Same input on purpose: release the first build's reservation.
+      encoder.clearReservations()
       const viaPubkey = await encoder.createTransaction(
         [makeSegwitUtxo(TXID_A, 0, 100000000)], PUBKEY_BUF.toString('hex'), null,
         actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,

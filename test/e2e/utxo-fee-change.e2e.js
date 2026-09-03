@@ -362,6 +362,9 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         null, null, null, true, 0.00001
       )
 
+      // Same input on purpose: this compares two builds of one spend, so release
+      // the first build's reservation rather than double-spend it.
+      encoder.clearReservations()
       const resultCustom = await encoder.createTransaction(
         [utxo], address, [{ address, value: '500000' }],
         action.data, null, fee, false, null, address,

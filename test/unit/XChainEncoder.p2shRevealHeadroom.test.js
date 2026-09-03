@@ -72,6 +72,9 @@ function callerAddress (network) {
 
 async function buildFunding (encoder, network, encoding, feePerKb, payloadLen) {
   const addr = callerAddress(network)
+  // Each probe respends the one fixture input on the same encoder; release the
+  // previous build's reservation so this is a comparison, not a double-spend.
+  encoder.clearReservations()
   const res = await encoder.createTransaction(
     [makeSegwitUtxo(TXID_A, 0, 100000000)], addr, null,
     'x'.repeat(payloadLen), null, null, false, encoding, addr,

@@ -369,11 +369,52 @@ class XChainEncoder {
       // parameter, so this normalizes `null` the same way).
       this.maxUtxoTrackerLagBlocks = (maxUtxoTrackerLagBlocks == null) ? DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS : maxUtxoTrackerLagBlocks
       // outpoint ("txid:vout") -> reservation-expiry epoch ms. Guards against
-      // two concurrent create_tx calls for the same address both selecting the
-      // same tracker-fetched UTXOs and emitting conflicting double-spends. Only
-      // engaged for tracker-fetched selections (caller-supplied UTXOs are the
-      // caller's own coin-control). See RESERVATION_TTL_MS.
+      // two create_tx calls for the same address, concurrent or a few hundred
+      // milliseconds apart, both selecting the same UTXO and emitting conflicting
+      // double-spends. Engaged for EVERY selection, caller-supplied sets
+      // included: the SDK fetches the funding set itself and hands it over as
+      // `utxos`, so "caller-supplied" is the mainstream wallet path, not a
+      // coin-control opt-in. Treating it as unreserved is how three chained
+      // MINTs on BTC testnet4 built the same transaction twice.
+      // See RESERVATION_TTL_MS.
       this.outpointReservations = new Map()
+      // unsigned txid -> expiry epoch ms of every transaction this process built
+      // within RESERVATION_TTL_MS. Second line of defense behind the outpoint
+      // map: a byte-identical rebuild hashes to the same txid, and returning it
+      // as a fresh build let a caller journal one broadcast as two successes.
+      this.recentBuilds = new Map()
+    }
+
+    // Sweep the recent-build map the same way _evictExpiredReservations sweeps
+    // the outpoint map, so neither grows unbounded in a long-lived process.
+    _evictExpiredRecentBuilds(now) {
+        for (const [txid, expiry] of this.recentBuilds) {
+            if (expiry <= now) this.recentBuilds.delete(txid)
+        }
+    }
+
+    // Refuse to hand back a transaction identical to one built within the
+    // reservation window, then record this one. Identity is the UNSIGNED txid
+    // (inputs, outputs, version, locktime): a rebuild that changes any of those
+    // (an RBF bump, a different amount, a different input) is a different
+    // transaction and passes. The outpoint reservations normally stop an
+    // identical rebuild one layer earlier (every input is still reserved), so
+    // this only fires when those were bypassed or cleared; it exists so the
+    // "same txid twice" failure can never present as two successes again.
+    _refuseDuplicateBuild(psbt, now) {
+        this._evictExpiredRecentBuilds(now)
+        const unsignedTx = bitcoin.Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer())
+        const txid = unsignedTx.getId()
+        if (this.recentBuilds.has(txid)) {
+            throw new OperationalError(
+                'DUPLICATE_TRANSACTION',
+                'refusing to rebuild a transaction identical to one built in the last ' +
+                    Math.round(RESERVATION_TTL_MS / 60000) + ' minutes (same inputs and outputs, same txid ' +
+                    txid + '); broadcast the one you already have, or change the inputs or outputs',
+                { txid }
+            )
+        }
+        this.recentBuilds.set(txid, now + RESERVATION_TTL_MS)
     }
 
     // A reserved outpoint is one an in-flight selection has claimed and not yet
@@ -426,10 +467,12 @@ class XChainEncoder {
         }
     }
 
-    // Explicit release of all reservations. The encoder holds no durable state,
-    // so this is primarily a test seam; production relies on the TTL.
+    // Explicit release of all reservations and recent-build records. The encoder
+    // holds no durable state, so this is primarily a test seam; production
+    // relies on the TTL.
     clearReservations() {
         this.outpointReservations.clear()
+        this.recentBuilds.clear()
     }
     
     isSegwitUTXO(utxo) {
@@ -1257,7 +1300,7 @@ class XChainEncoder {
         // The OP_RETURN/MULTISIGN obfuscation key MUST bind to the txid of the input actually
         // placed at ins[0]: the decoder derives its deobfuscation key from transaction.ins[0].
         // The selection loop below skips outpoints a concurrent/recent create_tx reserved
-        // (tracker-fetched sets only), so sorted utxos[0] is NOT necessarily the first input.
+        // (caller-supplied sets included), so sorted utxos[0] is NOT necessarily the first input.
         // Synchronously pre-reserve the first AVAILABLE outpoint now - before the async data
         // loop, so no concurrent call can claim it in between - and bind the key to it; the
         // selection loop carves this outpoint out of its skip check so it is taken as ins[0].
@@ -1272,10 +1315,47 @@ class XChainEncoder {
         // the async data loop un-skips that outpoint and it takes ins[0] while the key stays
         // bound here. Move the key-bound outpoint to the head of the selection order so ins[0]
         // is correct by construction, independent of any clock.
+        //
+        // Reservation is NOT gated on fetchedFromTracker. The SDK fetches the funding
+        // set through get_utxos and passes it as `utxos`, so a caller-supplied set is
+        // the wallet's normal path; leaving it unreserved is exactly the hole that let
+        // two chained sends 800ms apart build the same transaction.
+        //
+        // Exact-input mode is the one shape that cannot SKIP a reserved outpoint: it
+        // promises every named outpoint is spent (a CPFP rescue descends from all of
+        // them), so dropping one would hand back a child that descends from nothing,
+        // the same silent shrink the unconfirmed/duplicate filters above were turned
+        // into errors to prevent. It still reserves - a named set is exactly the
+        // chained-send shape this guards against - but it refuses the build outright
+        // when another build holds one of the named outpoints, and it never reorders
+        // (the caller picked which outpoint lands at ins[0] and owns that key).
         let firstReservedOutpoint = null
         let txidFirstInput = null
         if (utxos.length){
-            if (fetchedFromTracker){
+            if (exactInputs){
+                const nowFirst = Date.now()
+                this._evictExpiredReservations(nowFirst)
+                const heldByOthers = utxos
+                    .map((u) => u.txid + ':' + u.vout)
+                    .filter((k) => this._isOutpointReserved(k, nowFirst))
+                if (heldByOthers.length){
+                    throw new OperationalError(
+                        'INPUT_RESERVED',
+                        `options.exactInputs names ${heldByOthers.length} outpoint(s) reserved by a transaction ` +
+                            `built in the last ${Math.round(RESERVATION_TTL_MS / 60000)} minutes ` +
+                            `(${heldByOthers.join(', ')}); exact-input mode cannot drop them, so broadcast that ` +
+                            'transaction and rebuild from the resulting view, or wait for the reservation to lapse',
+                        { reserved: heldByOthers }
+                    )
+                }
+                for (const u of utxos){
+                    this._claimOutpoint(callReservations, u.txid + ':' + u.vout, nowFirst)
+                }
+                // No head-of-order splice: the caller's order IS the input order here,
+                // and firstReservedOutpoint stays null so the selection loop below
+                // reserves nothing twice (every outpoint is already claimed).
+                txidFirstInput = utxos[0]["txid"]
+            } else {
                 const nowFirst = Date.now()
                 this._evictExpiredReservations(nowFirst)
                 for (let i = 0; i < utxos.length; i++){
@@ -1301,9 +1381,6 @@ class XChainEncoder {
                 // free a DIFFERENT outpoint first; the post-selection guard below catches that
                 // and fails closed rather than emitting a silently-undecodable action.
                 if (txidFirstInput === null) txidFirstInput = utxos[0]["txid"]
-            } else {
-                // Caller-supplied UTXOs are the caller's own coin-control; ins[0] is utxos[0].
-                txidFirstInput = utxos[0]["txid"]
             }
             // Lowercase where the key BINDS, not only at validation: this string is the
             // obfuscation key itself, the decoder's half of it always renders lowercase,
@@ -1806,6 +1883,10 @@ class XChainEncoder {
         // that omits it degrades to per-transaction sizing rather than to a
         // guess about someone else's fee.
         const unconfirmedInputTxids = []
+        // Candidates the loop skipped because another build holds them. Reported
+        // when nothing could be selected, so the caller learns the inputs exist
+        // and are spoken for rather than that the address is empty.
+        let reservedCandidates = 0
         if (!p2shHash){//The p2sh input is already created before
             const now = Date.now()
             this._evictExpiredReservations(now)
@@ -1830,19 +1911,28 @@ class XChainEncoder {
                         `commit txid at signing time and strand the pre-built reveal.`)
                 }
 
-                // Best-effort double-spend guard: when this set was fetched from
-                // the tracker for the sender address, skip any outpoint another
-                // in-flight create_tx just claimed, and reserve the ones we take.
-                // Two concurrent calls for one address would otherwise both pick
-                // the largest UTXOs and build conflicting double-spends. Reserve
-                // synchronously here (before the getTransactionHex await below)
-                // so a concurrent call observes the claim. Caller-supplied UTXOs
-                // are the caller's own coin-control and are left unreserved.
-                const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
-                if (fetchedFromTracker){
-                    // Skip outpoints reserved by OTHER in-flight calls, but NOT the one this
+                // Double-spend guard: skip any outpoint another create_tx claimed
+                // within RESERVATION_TTL_MS, and reserve the ones we take. Two
+                // calls for one address would otherwise both pick the largest
+                // UTXOs and build conflicting double-spends (or, with identical
+                // outputs, the identical transaction). Reserve synchronously here
+                // (before the getTransactionHex await below) so a concurrent call
+                // observes the claim. Applies to caller-supplied sets too: the SDK
+                // and wallet hand over a tracker-fetched set as `utxos`, and the
+                // tracker keeps publishing a spent input until it sees the spend,
+                // so a chained send re-supplies the input the previous build took.
+                // A caller that truly wants to respend a reserved input (an RBF
+                // bump) waits out the TTL or restarts the encoder; that is the
+                // price of never building the same spend twice.
+                // Exact-input mode settled reservations up front: it claimed every
+                // named outpoint, or refused the build. Re-checking here would see
+                // this call's OWN claims and skip the whole set.
+                if (!exactInputs){
+                    const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
+                    // Skip outpoints reserved by OTHER calls, but NOT the one this
                     // call pre-reserved for ins[0] above (the obfuscation key binds to it).
                     if (outpointKey !== firstReservedOutpoint && this._isOutpointReserved(outpointKey, now)){
+                        reservedCandidates = reservedCandidates + 1
                         nextUtxoIndex = nextUtxoIndex + 1
                         continue
                     }
@@ -1933,10 +2023,19 @@ class XChainEncoder {
             // fee against a zero-input transaction's tiny size and mask the real
             // cause. (The reveal path has p2shHash set and never reaches here.)
             if (selectedInputCount === 0){
+                // Name the real cause when the inputs exist but are spoken for: a
+                // chained send that re-supplied an input the previous build took
+                // is not an empty address, and the caller's fix is to wait for
+                // that spend to reach the tracker, not to fund the address.
+                const allReserved = reservedCandidates > 0
                 throw new OperationalError(
                     'INSUFFICIENT_FUNDS',
-                    'insufficient funds: no spendable inputs available (all candidates reserved or empty)',
-                    { required: jsonSafeSat(outputSatoshis + BigInt(estimatedFee)), available: 0, outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
+                    allReserved
+                        ? `insufficient funds: all ${reservedCandidates} candidate input(s) are reserved by a transaction ` +
+                          `built in the last ${Math.round(RESERVATION_TTL_MS / 60000)} minutes; broadcast that transaction ` +
+                          'and wait for its change to appear, or wait for the reservation to lapse'
+                        : 'insufficient funds: no spendable inputs available (all candidates reserved or empty)',
+                    { required: jsonSafeSat(outputSatoshis + BigInt(estimatedFee)), available: 0, outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee, reservedCandidates }
                 )
             }
 
@@ -2306,6 +2405,14 @@ class XChainEncoder {
         // output and require a match in the PSBT, and require the leading data
         // pushes to concatenate to the action it intended. Passing a forged
         // script means failing one or the other.
+
+        // Last gate before the transaction leaves: an identical unsigned tx built
+        // inside the reservation window is refused, not returned as a new success.
+        // Every path that produces a psbt here passes through it, the P2SH/P2WSH
+        // reveal included (an identical reveal is a duplicate too), and the TAPROOT
+        // reveal is derived from this commit, so guarding the commit guards the pair.
+        this._refuseDuplicateBuild(psbt, Date.now())
+
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
 
         // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive

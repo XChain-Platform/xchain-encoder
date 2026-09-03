@@ -75,7 +75,9 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
         null, null, null, true, 0.00001
       )
 
-      // With custom output of 500000 sats
+      // With custom output of 500000 sats. Same input on purpose: release the
+      // first build's reservation so this is a comparison, not a double-spend.
+      encoder.clearReservations()
       const customOutputs = [{ address: address, value: '500000' }]
       const resultWithCustom = await encoder.createTransaction(
         [utxo], address, customOutputs,
@@ -149,6 +151,8 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     async function buildFunding (encoder, address, customOutputs) {
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
+      // Each probe respends the one fixture input on the same encoder.
+      encoder.clearReservations()
       return await encoder.createTransaction(
         [utxo], address, customOutputs && customOutputs.map(o => ({ ...o })),
         action.data, null, 10000, false, null, address,

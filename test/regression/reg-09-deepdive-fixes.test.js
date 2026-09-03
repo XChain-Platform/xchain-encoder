@@ -100,7 +100,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       assert.ok(atDust.psbt.txOutputs.find(o => o.value === 546),
         'change equal to the dust threshold must be emitted')
 
-      // change == dust - 1 (545): folded.
+      // change == dust - 1 (545): folded. Same outpoint as above, so release the
+      // first build's reservation before rebuilding.
+      encoder.clearReservations()
       const belowDust = await encoder.createTransaction(
         [makeSegwitUtxo(TXID_A, 0, 10545)], address, null,
         'test', null, 10000, false, null, address,
@@ -222,18 +224,22 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       assert.deepStrictEqual(r.psbt.txInputs.map(i => i.index), [0])
     })
 
-    it('caller-supplied UTXOs are never reserved (caller owns coin-control)', async () => {
+    it('caller-supplied UTXOs are reserved too, and the SDK supplies a tracker-fetched set', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-      // Two back-to-back calls with the SAME explicit UTXO both succeed and both
-      // select it: explicit coin-control is the caller's responsibility.
+      // Two back-to-back calls with the SAME explicit UTXO: the first selects it
+      // and reserves it, the second is refused with the reservation named as
+      // the cause. Without the reservation both succeed and build the same transaction.
       const r1 = await encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
-      const r2 = await encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
       assert.deepStrictEqual(r1.psbt.txInputs.map(i => i.index), [0])
-      assert.deepStrictEqual(r2.psbt.txInputs.map(i => i.index), [0])
-      assert.strictEqual(encoder.outpointReservations.size, 0, 'explicit UTXOs must not be reserved')
+      assert.strictEqual(encoder.outpointReservations.size, 1, 'explicit UTXOs are reserved on selection')
+      await assert.rejects(
+        () => encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001),
+        (err) => err.operational === true && err.xchainCode === 'INSUFFICIENT_FUNDS' &&
+          err.details.reservedCandidates === 1 && /reserved by a transaction built/.test(err.message)
+      )
     })
   })
 

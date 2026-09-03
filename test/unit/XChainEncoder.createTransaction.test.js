@@ -755,6 +755,9 @@ describe('XChainEncoder.createTransaction()', () => {
       // fee output leaves value by definition and needs no change output, so
       // funding that dust too would buy the caller a third output they never
       // asked for - which is what REG-14 pins against on this exact shape.
+      //
+      // Same input as the baseline on purpose: release its reservation first.
+      encoder.clearReservations()
       const withFee = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, feeOutputs(),
         bigData, null, 10000, false, null, TEST_ADDRESS,

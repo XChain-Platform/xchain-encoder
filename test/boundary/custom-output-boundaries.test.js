@@ -129,6 +129,8 @@ describe('Custom Output Boundaries', () => {
         null, null, null, true, 100000 // sat/kB: 100 sat/byte, moderate fee rate
       )
 
+      // Same input on purpose: release the first build's reservation.
+      encoder.clearReservations()
       const resultWithout = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, null, false, null, address,
@@ -208,6 +210,8 @@ describe('Custom Output Boundaries', () => {
         null, null, null, true, 0.00001
       )
 
+      // Same input on purpose: release the first build's reservation.
+      encoder.clearReservations()
       const resultNull = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, 10000, false, null, address,

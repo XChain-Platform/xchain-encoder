@@ -155,6 +155,57 @@ describe('XChainEncoder create_tx options.exactInputs', () => {
     }
   })
 
+  describe('reservations, and how exact-input mode interacts with them', () => {
+    // Every selected outpoint is reserved, so caller-supplied sets
+    // included. Exact-input mode cannot take the ordinary escape hatch of
+    // SKIPPING a reserved outpoint: it promised the caller every named outpoint
+    // is spent, and a CPFP child that quietly drops one descends from less than
+    // the stuck chain and still does not mine. So it claims the whole set or
+    // refuses the build, and it never reorders to dodge a hold.
+
+    it('reserves every named outpoint, so a concurrent build cannot take one', async () => {
+      const encoder = makeEncoder()
+      const { psbt } = await createTx(encoder, stuckChainUtxos(),
+        { options: { exactInputs: true } })
+      assert.strictEqual(psbt.txInputs.length, 3)
+      for (const k of [`${TXID_BIG}:0`, `${TXID_MID}:1`, `${TXID_TINY}:2`]) {
+        assert.ok(encoder.outpointReservations.has(k), `${k} must be reserved`)
+      }
+    })
+
+    it('refuses the whole build when another build holds a named outpoint', async () => {
+      const encoder = makeEncoder()
+      encoder.outpointReservations.set(`${TXID_MID}:1`, Date.now() + 5 * 60 * 1000)
+      await assert.rejects(
+        () => createTx(encoder, stuckChainUtxos(), { options: { exactInputs: true } }),
+        (err) => {
+          assert.strictEqual(err.operational, true)
+          assert.strictEqual(err.xchainCode, 'INPUT_RESERVED')
+          assert.deepStrictEqual(err.details.reserved, [`${TXID_MID}:1`])
+          assert.match(err.message, /exact-input mode cannot drop them/)
+          return true
+        },
+        'a held named outpoint must fail the build, never be silently dropped')
+    })
+
+    it('hands back its own claims when the build fails, so a retry is not blocked', async () => {
+      const encoder = makeEncoder()
+      encoder.outpointReservations.set(`${TXID_TINY}:2`, Date.now() + 5 * 60 * 1000)
+      await assert.rejects(() => createTx(encoder, stuckChainUtxos(),
+        { options: { exactInputs: true } }))
+      assert.strictEqual(encoder.outpointReservations.size, 1,
+        'only the foreign hold should remain; this call must release nothing of its own into the map')
+    })
+
+    it('a second identical rescue is refused rather than rebuilt, as on every other path', async () => {
+      const encoder = makeEncoder()
+      await createTx(encoder, stuckChainUtxos(), { options: { exactInputs: true } })
+      await assert.rejects(
+        () => createTx(encoder, stuckChainUtxos(), { options: { exactInputs: true } }),
+        (err) => err.operational === true && err.xchainCode === 'INPUT_RESERVED')
+    })
+  })
+
   it('refuses an empty or absent utxos array instead of falling back to the tracker', async () => {
     const encoder = makeEncoder()
     await assert.rejects(
@@ -196,6 +247,10 @@ describe('XChainEncoder create_tx options.exactInputs', () => {
   it('leaves greedy selection alone when the flag is absent or explicitly false', async () => {
     const encoder = makeEncoder()
     for (const options of [null, {}, { exactInputs: false }]) {
+      // Each probe deliberately respends the same fixture set on one encoder to
+      // compare selection, so release the previous build's reservation
+      // or the second probe skips the input the first one took.
+      encoder.clearReservations()
       const { psbt } = await createTx(encoder, stuckChainUtxos(), { options })
       assert.strictEqual(psbt.txInputs.length, 1,
         `options ${JSON.stringify(options)} must not change selection`)

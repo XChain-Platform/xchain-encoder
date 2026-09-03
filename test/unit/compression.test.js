@@ -259,6 +259,9 @@ describe('encoder FILE payload compression (spec Part B)', function () {
                 null, false, 'TAPROOT', callerAddress(network), null, null, PUBKEY.toString('hex'),
                 true, null, null, null, false, false)
 
+            // Same input on purpose: release the first build's reservation so the
+            // second is a rebuild for comparison, not a refused double-spend.
+            encoder.clearReservations()
             const compressed = await encoder.createTransaction(
                 [segwitUtxo(network)], callerAddress(network), null,
                 'FILE|0|big.txt|text/plain|Big|', raw.toString('binary'),

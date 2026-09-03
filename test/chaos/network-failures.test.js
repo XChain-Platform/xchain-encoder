@@ -263,7 +263,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
       assert.ok(result1.psbt)
 
-      // Call 2 (even) → failure
+      // Call 2 (even) → failure. Every call here respends the one fixture
+      // input, so release call 1's reservation or the RPC never gets asked.
+      encoder.clearReservations()
       await assert.rejects(
         () => encoder.createTransaction(
           [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,

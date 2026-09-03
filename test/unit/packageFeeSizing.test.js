@@ -270,6 +270,9 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
   }
 
   async function create (encoder, utxos) {
+    // Every probe here respends the same fixture input on one encoder to
+    // compare fees, so release the previous build's reservation first.
+    encoder.clearReservations()
     return encoder.createTransaction(
       utxos, TEST_ADDRESS, null, 'test', null, null, false, null, TEST_ADDRESS,
       null, null, null, true, null
