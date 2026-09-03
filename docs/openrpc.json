@@ -284,7 +284,7 @@
           "required": false,
           "schema": {
             "type": "object",
-            "description": "per-call capabilities. signerSupportsTapscript (boolean, default false) tells AUTO whether this caller can sign a tapscript script-path spend; without it AUTO never selects TAPROOT, because the reveal must be signable before the commit is broadcast. Unknown keys are refused."
+            "description": "per-call capabilities. signerSupportsTapscript (boolean, default false) tells AUTO whether this caller can sign a tapscript script-path spend; without it AUTO never selects TAPROOT, because the reveal must be signable before the commit is broadcast. exactInputs (boolean, default false) turns UTXO selection off: the supplied utxos array becomes the exact input set, in the given order, all of it, with no value sort and no stop at sufficiency. Requires a non-empty caller-supplied utxos array, is refused with p2shHash, and errors rather than silently dropping a named outpoint (a duplicate, or an unconfirmed one under unconfirmed=false). Use it to build a CPFP child that must descend from every unconfirmed output of a stuck chain, or to chain a transaction onto a specific change output. Unknown keys are refused."
           }
         }
       ],

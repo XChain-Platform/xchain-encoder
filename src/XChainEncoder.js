@@ -1044,6 +1044,34 @@ class XChainEncoder {
         const isReveal = !!p2shHash
         let fetchedFromTracker = false
 
+        // Exact-input mode. Normal selection sorts the candidate set
+        // value-descending and stops the moment the running total covers outputs
+        // plus fee, so a caller who names N outpoints usually gets one input. That
+        // makes an operator rescue of a stuck batch impossible to build here: a CPFP
+        // child has to descend from EVERY unconfirmed output of the stuck chain
+        // (including the tiny ones greedy selection will never reach), and a
+        // deliberate chain has to spend a named change output rather than whichever
+        // output happens to be largest. Exact-input mode turns selection off: the
+        // caller's list IS the input set, in the caller's order, all of it.
+        //
+        // It is coin-control, so it is only meaningful over a caller-supplied set.
+        // Refuse it rather than silently degrade when there is nothing to be exact
+        // about, and on the reveal path, whose inputs come from p2shHex and never
+        // pass through selection at all.
+        const exactInputs = !!(options && options.exactInputs)
+        if (exactInputs){
+            if (isReveal){
+                throw new TypeError(
+                    'options.exactInputs cannot be combined with p2shHash: the reveal spends the ' +
+                    'funding transaction\'s own outputs, which are derived from p2shHex, not selected')
+            }
+            if ((utxos == null) || (utxos.length == 0)){
+                throw new TypeError(
+                    'options.exactInputs requires a non-empty utxos array: it names the exact input ' +
+                    'set to spend, so there is nothing to be exact about when the set is fetched')
+            }
+        }
+
         if ((utxos == null) || (utxos.length == 0)){
             if (isReveal && p2shHex){
                 utxos = []
@@ -1154,6 +1182,31 @@ class XChainEncoder {
             }
         }
 
+        // Exact-input mode promises the caller's list is the input set, so the two
+        // filters below (which silently SHRINK that list) have to be errors instead.
+        // Dropping a named mempool outpoint is the CPFP-fatal one: the whole point of
+        // the rescue is descending from unconfirmed outputs, and a silent drop would
+        // hand back a child that descends from nothing and still does not mine.
+        if (exactInputs){
+            if (!unconfirmed){
+                const mempoolInput = utxos.find((u) => u.confirmations == 0)
+                if (mempoolInput){
+                    throw new TypeError(
+                        `options.exactInputs names unconfirmed utxo ${mempoolInput.txid}:${mempoolInput.vout}, ` +
+                        'but unconfirmed=false would drop it; pass unconfirmed: true to spend it')
+                }
+            }
+            const seenOutpoints = new Set()
+            for (const u of utxos){
+                const k = u.txid + ':' + u.vout
+                if (seenOutpoints.has(k)){
+                    throw new TypeError(
+                        `options.exactInputs names outpoint ${k} more than once; a transaction cannot spend the same output twice`)
+                }
+                seenOutpoints.add(k)
+            }
+        }
+
         //Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes, this should be fixed)
         //Also if unconfirmed is false, then all mempool txs will be eliminated
         let utxoIndex = 0
@@ -1191,7 +1244,13 @@ class XChainEncoder {
 
         // Comparator, not subtraction: a >2^53-1 value is a BigInt here, and
         // BigInt - Number throws. Relational operators mix the two types fine.
-        utxos.sort((a,b)=> a.value < b.value ? 1 : a.value > b.value ? -1 : 0)
+        // Exact-input mode keeps the caller's order untouched: every named outpoint
+        // is spent either way, so the only thing sorting would change is WHICH one
+        // lands at ins[0] - and on the OP_RETURN/MULTISIGN path that outpoint is the
+        // obfuscation key, which coin-control callers pick deliberately.
+        if (!exactInputs){
+            utxos.sort((a,b)=> a.value < b.value ? 1 : a.value > b.value ? -1 : 0)
+        }
         //On the reveal path utxos is empty; txidFirstInput is (re)assigned from
         //p2shHex inside the data loop below before it is ever read.
         //
@@ -1845,7 +1904,13 @@ class XChainEncoder {
                     estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
                 }
 
-                if (inputSatoshis > outputSatoshis + BigInt(estimatedFee)){
+                // Exact-input mode never stops early: the caller named this set
+                // because the transaction has to descend from all of it (a CPFP
+                // rescue) or spend a specific output (a deliberate chain). Stopping
+                // at sufficiency is exactly the behaviour that made a stuck batch
+                // unrescuable through this API. Any surplus goes to change, which
+                // the shortfall/change math below already handles.
+                if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(estimatedFee)){
                     break
                 }
 

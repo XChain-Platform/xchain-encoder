@@ -478,7 +478,7 @@ function validateEncoding(encoding) {
 // misspelled capability that silently means "no" would send an envelope-capable
 // signer down the P2WSH lane at 2x the cost with no signal, and a misspelled one
 // that silently meant "yes" would be worse.
-const VALID_CREATE_TX_OPTIONS = new Set(['signerSupportsTapscript'])
+const VALID_CREATE_TX_OPTIONS = new Set(['signerSupportsTapscript', 'exactInputs'])
 function validateCreateTxOptions(options) {
     if (options == null) return null
     if (typeof options !== 'object' || Array.isArray(options)) {
@@ -491,6 +491,12 @@ function validateCreateTxOptions(options) {
     }
     if (options.signerSupportsTapscript !== undefined) {
         validateOptionalBoolean(options.signerSupportsTapscript, 'options.signerSupportsTapscript')
+    }
+    // Strict boolean for the same reason rbf is: exactInputs turns UTXO selection
+    // off, and the string "false" is truthy, so a loose check would spend every
+    // outpoint in the caller's set when they asked for the opposite.
+    if (options.exactInputs !== undefined) {
+        validateOptionalBoolean(options.exactInputs, 'options.exactInputs')
     }
     return options
 }
