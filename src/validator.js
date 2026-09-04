@@ -769,7 +769,11 @@ function validateChange(change) {
 }
 
 function validateAll(params) {
-    if (typeof params !== 'object' || params === null) {
+    // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
+    // params cleared this gate and died 50 lines later on 'pubkey is required',
+    // reporting a missing field for what is a shape error. Same guard the
+    // object-shaped validators below carry (lines 484/566/644/686).
+    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
         throw new TypeError('Request params must be an object')
     }
 

@@ -48,6 +48,28 @@ describe('Chaos Category F: API Layer Failures', () => {
       )
     })
 
+    it('positional array params → TypeError naming the SHAPE, not a missing field', () => {
+      // typeof [] is 'object', so before the Array.isArray clause this reached
+      // 'pubkey is required' 50 lines later and blamed the wrong thing.
+      assert.throws(
+        () => validator.validateAll([]),
+        { name: 'TypeError', message: 'Request params must be an object' }
+      )
+    })
+
+    it('create_envelope_cancel_tx rejects positional array params at the gate', async () => {
+      // Required lazily: src/api.js is the process entrypoint module, and the
+      // rest of this suite has no reason to load it.
+      const { jsonRpcController } = require('../../src/api')
+      let err = null
+      try { await jsonRpcController.create_envelope_cancel_tx([]) } catch (e) { err = e }
+      assert.ok(err, 'expected the array to be refused')
+      assert.strictEqual(err.code, -32602)
+      // Pre-fix this destructured to undefined and surfaced
+      // 'commitTxid must be a 64-character hex string'.
+      assert.strictEqual(err.message, 'Request params must be an object')
+    })
+
     it('data exceeding 65536 bytes → RangeError', () => {
       assert.throws(
         () => validator.validateAll({ data: 'X'.repeat(65537), pubkey: 'test' }),

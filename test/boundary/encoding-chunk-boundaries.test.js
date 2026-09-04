@@ -118,9 +118,8 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     // chunk must therefore be rejected at construction, not split into outputs
     // that always fail to relay.
     it('76-char data (compiled=78) → rejected (would exceed single output)', async () => {
-      // Every shipped coin (BTC, LTC, DOGE) sets singleOpReturnPolicy=true (see
-      // src/coins/*.js), so an oversized forced OP_RETURN is rejected on any of
-      // them; this uses bitcoin-regtest.
+      // Rejects an oversized forced OP_RETURN on every coin: prepareData enforces the
+      // ceiling unconditionally, so bitcoin-regtest here is a fixture, not a condition.
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)

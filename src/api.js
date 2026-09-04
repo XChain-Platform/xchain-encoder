@@ -377,7 +377,9 @@ const jsonRpcController = {
     // record alone. Validation lives in the encoder method (typed
     // TypeError/RangeError -> -32602, OperationalError -> -32010).
     async create_envelope_cancel_tx(rawParams) {
-        if (typeof rawParams !== 'object' || rawParams === null) {
+        // Array.isArray for the same reason validator.validateAll carries it:
+        // positional params otherwise clear the gate and destructure to undefined.
+        if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
             const e = new Error('Request params must be an object')
             e.code = -32602
             throw e

@@ -353,6 +353,20 @@ class XChainEncoder {
       // bitcoinjs params, which carry no chain identity, and the envelope
       // recognition gate needs to know WHICH chain+network it is building for.
       this.networkKey = network
+      // Net portion ('mainnet'|'testnet'|'regtest') of the "<fullname>-<network>"
+      // key. getBitcoinJsNetwork above already rejected an unknown key, so the
+      // suffix here is a valid network name.
+      this.consensusNetwork = String(network).slice(String(network).lastIndexOf('-') + 1)
+      // Verify the bundled canonical coin files against CONSENSUS_CONFIG_PIN before
+      // any consensus-relevant field is read, matching decoder, indexer, hub and
+      // utxo-tracker. A null pin (pre-arm) skips; a mismatch on an armed network
+      // throws, so a drifted or partially re-vendored bundle halts instead of
+      // authoring transactions under divergent params (dustThreshold below, and the
+      // supportsSegwit / address-prefix rules every output script is built from).
+      // Deliberately not wrapped in try/catch, and deliberately in the constructor:
+      // api.js builds the singleton encoder at module load, so a later check would
+      // let the HTTP surface bind and serve builds first.
+      require('./coins').verifyConsensusPin(this.consensusNetwork)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
       this.dustAmount = this.network["dustThreshold"]

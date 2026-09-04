@@ -88,8 +88,8 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       // rejects multi-OP_RETURN transactions as non-standard at broadcast.
       // A payload larger than one 76-byte chunk must be rejected at
       // construction instead of producing a PSBT that never relays.
-      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
-      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      // The rejection fires on every coin, not just bitcoin: singleOpReturnPolicy is
+      // declared in the coin registry but read nowhere (uuid:0ca8479c).
       const bigData = 'X'.repeat(200)
       await assert.rejects(
         encode(bigData, { encoding: 'OP_RETURN', network: 'bitcoin-regtest' }),
