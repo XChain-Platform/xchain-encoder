@@ -138,3 +138,65 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
         } finally { restore(); }
     });
 });
+
+/* The ceiling above is the one thing a reader of /status could not see, and the
+ * public status board guessed at it: it mirrored the tracker's own
+ * SYNCED_THRESHOLD (3) instead of maxUtxoTrackerLagBlocks (2), so a lag of
+ * exactly 3 fell past its lag branch and the row blamed mempool reconvergence
+ * for an encoder that stays 503 until the lag drops to 2. Publishing the number
+ * ends the mirroring, and matters twice because UTXO_TRACKER_MAX_LAG_BLOCKS
+ * moves it per deployment, so no constant could have been right everywhere.
+ *
+ * /status only. The JSON-RPC health() shape is documented in docs/openrpc.json
+ * and stays as it is. */
+describe('GET /status publishes the lag ceiling its readiness was gated on @regression', function () {
+    const http = require('http');
+    const { app, encoder } = require('../../src/api');
+
+    async function statusBody() {
+        const server = await new Promise((resolve) => {
+            const s = app.listen(0, '127.0.0.1', () => resolve(s));
+        });
+        try {
+            const res = await fetch(`http://127.0.0.1:${server.address().port}/status`);
+            return await res.json();
+        } finally {
+            await new Promise((resolve) => server.close(resolve));
+        }
+    }
+
+    it('reports tracker_max_lag_blocks equal to the gate create_tx enforces', async function () {
+        const restore = stubSync({ synced: true, lag: 0 });
+        try {
+            const body = await statusBody();
+            assert.strictEqual(body.tracker_max_lag_blocks, encoder.maxUtxoTrackerLagBlocks);
+            assert.strictEqual(typeof body.tracker_max_lag_blocks, 'number',
+                'a board range-checks this field, so it must arrive as a number');
+        } finally { restore(); }
+    });
+
+    // The whole point of publishing it: an operator who widens the ceiling gets
+    // the widened number, not the default a board would otherwise hardcode.
+    it('follows a non-default ceiling rather than reporting the default', async function () {
+        const orig = encoder.maxUtxoTrackerLagBlocks;
+        const restore = stubSync({ synced: true, lag: 0 });
+        try {
+            encoder.maxUtxoTrackerLagBlocks = orig + 4;
+            const body = await statusBody();
+            assert.strictEqual(body.tracker_max_lag_blocks, orig + 4);
+            assert.notStrictEqual(body.tracker_max_lag_blocks, orig);
+        } finally {
+            encoder.maxUtxoTrackerLagBlocks = orig;
+            restore();
+        }
+    });
+
+    it('leaves the documented JSON-RPC health() shape alone', async function () {
+        const restore = stubSync({ synced: true, lag: 0 });
+        try {
+            const h = await jsonRpcController.health();
+            assert.ok(!('tracker_max_lag_blocks' in h),
+                'health() is pinned by docs/openrpc.json; the ceiling rides on /status only');
+        } finally { restore(); }
+    });
+});

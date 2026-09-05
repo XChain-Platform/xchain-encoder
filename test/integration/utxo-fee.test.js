@@ -28,6 +28,7 @@ const {
   makeSegwitUtxo,
   makeLegacyUtxo,
   makeMempoolUtxo,
+  makeTrackerEnvelope,
   makeEncoder,
   getTestAddress,
   buildRawTxHex
@@ -243,9 +244,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         isRegtest: async () => true
       }
       capped.utxoTrackerConnector = {
-        getUtxosFromAddress: async () => ({
-          utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)]
-        })
+        getUtxosFromAddress: async () => makeTrackerEnvelope([makeSegwitUtxo(TXID_A, 0, 100000000)])
       }
 
       const address = getTestAddress(NETWORK)

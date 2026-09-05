@@ -81,7 +81,7 @@ npm run api
 | `NODE_RPC_TIMEOUT` | No | `30000` | Coin-node RPC call timeout in milliseconds |
 | `UTXO_TRACKER_URL` | No | (none) | xchain-utxo-tracker service host |
 | `UTXO_TRACKER_API_PORT` | No | (none) | xchain-utxo-tracker service port |
-| `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it |
+| `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it. `GET /status` publishes the effective value as `tracker_max_lag_blocks`, so a status board can rank lag against the other unready causes without mirroring a constant it cannot see (the tracker's own `SYNCED_THRESHOLD` is looser and is not this gate) |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing) |

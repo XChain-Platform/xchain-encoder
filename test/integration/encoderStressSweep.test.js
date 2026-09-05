@@ -14,7 +14,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const { makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A, TXID_B } = require('./helpers/utxoFactory')
+const { makeEncoder, makeSegwitUtxo, makeTrackerEnvelope, getTestAddress, TXID_A, TXID_B } = require('./helpers/utxoFactory')
 const { deobfuscate } = require('./helpers/deobfuscate')
 const actions = require('./helpers/actionFactory')
 
@@ -31,9 +31,9 @@ describe('encoder stress-sweep @regression', function () {
             // The tracker returns two equal-value UTXOs; sort keeps TXID_A first. A prior/
             // concurrent create_tx already reserved TXID_A, so the real first input is TXID_B.
             encoder.utxoTrackerConnector = {
-                getUtxosFromAddress: async () => ({
-                    utxos: [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)]
-                })
+                getUtxosFromAddress: async () => makeTrackerEnvelope(
+                    [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)]
+                )
             }
             encoder._reserveOutpoint(TXID_A + ':0', Date.now())
 
