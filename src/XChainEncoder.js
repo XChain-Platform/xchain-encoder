@@ -397,6 +397,11 @@ class XChainEncoder {
       // map: a byte-identical rebuild hashes to the same txid, and returning it
       // as a fresh build let a caller journal one broadcast as two successes.
       this.recentBuilds = new Map()
+      // outpoint -> the reservation expiry the envelope-cancel path itself wrote,
+      // its ownership stamp in outpointReservations. A cancel is deterministic
+      // from the recovery record, so it must be able to re-take its OWN live
+      // claim; a claim it did not write belongs to another build and blocks it.
+      this.envelopeCancelClaims = new Map()
     }
 
     // Sweep the recent-build map the same way _evictExpiredReservations sweeps
@@ -473,6 +478,26 @@ class XChainEncoder {
         }
     }
 
+    // Release an envelope-cancel claim and its ownership stamp together, so a
+    // failed cancel build hands the commit outpoint back instead of squatting it
+    // for the whole TTL. Ownership-checked exactly like _releaseCallReservations.
+    _releaseEnvelopeCancelClaims(callReservations) {
+        for (const claim of callReservations) {
+            if (this.envelopeCancelClaims.get(claim.key) === claim.expiry){
+                this.envelopeCancelClaims.delete(claim.key)
+            }
+        }
+        this._releaseCallReservations(callReservations)
+    }
+
+    // Sweep the cancel ownership stamps alongside the reservation map, so neither
+    // grows unbounded in a long-lived process.
+    _evictExpiredEnvelopeCancelClaims(now) {
+        for (const [key, expiry] of this.envelopeCancelClaims) {
+            if (expiry <= now) this.envelopeCancelClaims.delete(key)
+        }
+    }
+
     // Sweep expired reservations so the map cannot grow unbounded across a
     // long-lived process. Called opportunistically at the start of selection.
     _evictExpiredReservations(now) {
@@ -487,6 +512,7 @@ class XChainEncoder {
     clearReservations() {
         this.outpointReservations.clear()
         this.recentBuilds.clear()
+        this.envelopeCancelClaims.clear()
     }
     
     isSegwitUTXO(utxo) {
@@ -2477,9 +2503,12 @@ class XChainEncoder {
 
         // Last gate before the transaction leaves: an identical unsigned tx built
         // inside the reservation window is refused, not returned as a new success.
-        // Every path that produces a psbt here passes through it, the P2SH/P2WSH
-        // reveal included (an identical reveal is a duplicate too), and the TAPROOT
-        // reveal is derived from this commit, so guarding the commit guards the pair.
+        // Every path through _buildTransaction reaches it, the P2SH/P2WSH reveal
+        // included (an identical reveal is a duplicate too), and the TAPROOT reveal
+        // is derived from this commit, so guarding the commit guards the pair.
+        // createEnvelopeCancelTransaction is the one build path outside
+        // _buildTransaction; it takes its own outpoint reservation instead, and
+        // states there why duplicate refusal must not apply to it.
         this._refuseDuplicateBuild(psbt, Date.now())
 
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
@@ -2694,7 +2723,21 @@ class XChainEncoder {
     // PSBT carries tapInternalKey + tapMerkleRoot so the signer can compute
     // the BIP341 tweak; it conflicts with the reveal by construction (same
     // outpoint) and the wallet treats it as a replacement of the reveal.
-    async createEnvelopeCancelTransaction({ commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
+    //
+    // Public entry point. Like createTransaction it owns the per-call reservation
+    // ledger: a build that throws for any reason hands the commit outpoint back at
+    // once instead of squatting it until RESERVATION_TTL_MS.
+    async createEnvelopeCancelTransaction(params = {}){
+        const callReservations = []
+        try {
+            return await this._buildEnvelopeCancelTransaction(callReservations, params)
+        } catch (err) {
+            this._releaseEnvelopeCancelClaims(callReservations)
+            throw err
+        }
+    }
+
+    async _buildEnvelopeCancelTransaction(callReservations, { commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
         if (typeof commitTxid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(commitTxid)) {
             throw new TypeError('commitTxid must be a 64-character hex string')
         }
@@ -2732,6 +2775,37 @@ class XChainEncoder {
         const rbfArmed     = validateOptionalBoolean(replacebyfee, 'replacebyfee') === true
         ensureEccLib()
         const tapleafHashBuf = Buffer.from(tapleafHash, 'hex')
+
+        // Cross-path double-spend guard. This is the one build path outside
+        // _buildTransaction, so without a claim here a concurrent create_tx whose
+        // fetched set still carries the commit output selects and reserves it while
+        // an unsigned cancel of that same output is outstanding. Lowercased because
+        // commitTxid is accepted in either case above while create_tx keys are
+        // canonicalized in validator.validateUtxoEntry, and an uppercase key can
+        // never collide with the reservation it is meant to see. Claimed
+        // synchronously, before the first await below, so a concurrent call
+        // observes it.
+        const outpointKey = commitTxid.toLowerCase() + ':' + commitVout
+        const nowClaim = Date.now()
+        this._evictExpiredReservations(nowClaim)
+        this._evictExpiredEnvelopeCancelClaims(nowClaim)
+        if (this._isOutpointReserved(outpointKey, nowClaim) &&
+            this.envelopeCancelClaims.get(outpointKey) !== this.outpointReservations.get(outpointKey)){
+            throw new OperationalError(
+                'ENVELOPE_CANCEL_OUTPOINT_RESERVED',
+                `commit outpoint ${outpointKey} is reserved by a transaction built in the last ` +
+                    `${Math.round(RESERVATION_TTL_MS / 60000)} minutes; broadcast that transaction and rebuild ` +
+                    'from the resulting view, or wait for the reservation to lapse',
+                { outpoint: outpointKey }
+            )
+        }
+        // Re-taking this path's OWN live claim is allowed, and _refuseDuplicateBuild
+        // is deliberately not wired in here, for the same reason: the header
+        // contract above is that a cancel rebuilds from the persisted recovery
+        // record alone, so a lost-response retry must not be refused for five
+        // minutes for producing the byte-identical transaction it is supposed to.
+        this._claimOutpoint(callReservations, outpointKey, nowClaim)
+        this.envelopeCancelClaims.set(outpointKey, callReservations[callReservations.length - 1].expiry)
 
         // Fee-rate resolution with the same drain guards as createTransaction,
         // in miniature: the caller rate is clamped to the tighter of the
