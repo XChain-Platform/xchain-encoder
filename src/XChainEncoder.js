@@ -28,7 +28,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateDataParam, validateActionPushDecodability } = require('./validator')
 const { compressPayloadForAction } = require('./compression')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
@@ -826,6 +826,28 @@ class XChainEncoder {
       unconfirmed=true, feePerKb=null, dust=null, feeQuote=null, attachPrevTx=false, compress=null,
       options=null){
 
+        // Re-check what the wire encodings can actually carry, for direct library
+        // callers. api.js runs validateAll before createTransaction, but
+        // createTransaction is a supported library entry point of its own and
+        // reaches this builder with no validator in front of it, so the
+        // round-trip guard existed on one surface only: a `rawData` code unit
+        // above U+00FF was truncated to its low byte by the Latin-1 conversion
+        // below, and the compiled-size ceiling cannot see it because the length
+        // is unchanged. Same idiom as the per-entry UTXO, txid, fee and address
+        // re-validation further down.
+        //
+        // Runs BEFORE compression on purpose: the compression pass itself does
+        // Buffer.from(rawData,'binary'), so a check placed after it would measure
+        // bytes the truncation already produced.
+        //
+        // STRING inputs only, deliberately. The corruption is a property of the
+        // string-to-wire conversion; a caller handing the builder a Buffer is
+        // copied byte-for-byte and loses nothing, so refusing it here would
+        // impose RPC-surface argument-shape policy on library callers rather
+        // than close a data-loss path.
+        if (typeof data === 'string') validateDataParam(data, 'data')
+        if (typeof rawData === 'string') validateDataParam(rawData, 'rawData')
+
         // If feeQuote is provided, inject it as a custom output
         if(feeQuote && feeQuote.address && feeQuote.amount > 0){
             if(!customOutputs) customOutputs = [];
@@ -974,6 +996,30 @@ class XChainEncoder {
                 rawData = compressionResult.rawData.toString('binary')
             }
         }
+
+        // Refuse the single-byte shapes bitcoin.script.compile canonicalizes into
+        // a bare opcode, for direct library callers. The same reason as the
+        // round-trip guard at the head of this method: validateAll runs this
+        // check on the JSON-RPC path only, so a library call with rawData '\x05'
+        // compiled to OP_5 and the decoder dropped the byte off a fee-paid
+        // transaction (its element test is Buffer.isBuffer).
+        //
+        // Runs AFTER compression on purpose, unlike the guard above: this one
+        // measures the bytes that are about to be compiled, so a lone minimal-op
+        // byte that compression rewrote into a multi-byte payload is correctly
+        // allowed through and a payload compression rewrote is covered too.
+        //
+        // The empty-data shapes stay buildable: isMinimalOpSingleByte excludes
+        // the empty buffer, so the payment-only and rawData-only contracts are
+        // untouched and the flag-day decision they belong to is not pre-empted
+        // here (see the rawDataOnlyPayload advisory below).
+        //
+        // Runs on Buffer inputs too, unlike the latin-1 guard above. That guard
+        // is string-only because a Buffer is copied byte for byte and loses
+        // nothing in the conversion; canonicalization is a property of the
+        // COMPILED push, so a byte-for-byte-copied one-byte Buffer loses
+        // everything. validateActionPushDecodability normalizes either shape.
+        validateActionPushDecodability(data, rawData)
 
         // `data` is optional (openrpc.json create_tx data.required=false) and
         // validateAll passes null through when omitted, but Buffer.from(null,'utf8')
