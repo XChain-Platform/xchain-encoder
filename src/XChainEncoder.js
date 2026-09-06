@@ -1971,6 +1971,15 @@ class XChainEncoder {
                         `commit txid at signing time and strand the pre-built reveal.`)
                 }
 
+                // Refuse a witness-program input on a chain whose consensus rules have
+                // no segwit: there the output is anyone-can-spend and a witnessUtxo
+                // input signs nothing the network enforces. Fail closed, never skip.
+                if (this.network.supportsSegwit === false && this.isSegwitUTXO(nextUtxo)){
+                    throw new TypeError(
+                        `Input ${nextUtxo.txid}:${nextUtxo.vout} carries a witness-program scriptPubKey, ` +
+                        `which this network does not support (no segwit). Spend legacy inputs on this chain.`)
+                }
+
                 // Double-spend guard: skip any outpoint another create_tx claimed
                 // within RESERVATION_TTL_MS, and reserve the ones we take. Two
                 // calls for one address would otherwise both pick the largest

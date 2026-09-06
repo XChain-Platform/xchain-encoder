@@ -24,7 +24,7 @@
 const assert = require('assert')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeTrackerEnvelope,
   makeEncoder,
   getTestAddress
@@ -43,7 +43,7 @@ describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
     const action = actions.makeSend()
 
     encoder.utxoTrackerConnector = {
-      getUtxosFromAddress: async () => makeTrackerEnvelope([makeSegwitUtxo(TXID_A, 0, BIG_SATS)])
+      getUtxosFromAddress: async () => makeTrackerEnvelope([makeUtxo(NETWORK, TXID_A, 0, BIG_SATS)])
     }
 
     const result = await encoder.createTransaction(
@@ -77,7 +77,7 @@ describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
 
     encoder.utxoTrackerConnector = {
       getUtxosFromAddress: async () => makeTrackerEnvelope(
-        [makeSegwitUtxo(TXID_A, 0, BIG_SATS)], { synced: false }
+        [makeUtxo(NETWORK, TXID_A, 0, BIG_SATS)], { synced: false }
       )
     }
 
@@ -95,7 +95,7 @@ describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
     // Guard on the factory itself: if a record ever loses the exact-decimal
     // string or its amount/height/coinbase siblings, the test above would keep
     // passing on a record the tracker never emits.
-    const record = makeSegwitUtxo(TXID_A, 0, BIG_SATS)
+    const record = makeUtxo(NETWORK, TXID_A, 0, BIG_SATS)
     assert.strictEqual(typeof record.value, 'string')
     assert.strictEqual(record.value, BIG_SATS)
     assert.strictEqual(record.amount, '90071992.54740993')

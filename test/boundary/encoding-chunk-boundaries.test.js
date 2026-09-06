@@ -35,7 +35,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -48,7 +48,7 @@ const {
 const NETWORK = 'dogecoin-regtest'
 
 function standardUtxo (txid = TXID_A) {
-  return makeSegwitUtxo(txid, 0, 100000000)
+  return makeUtxo(NETWORK, txid, 0, 100000000)
 }
 
 describe('Encoding Chunk Boundaries: Full Pipeline', () => {

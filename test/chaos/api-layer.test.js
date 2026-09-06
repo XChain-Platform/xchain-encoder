@@ -22,7 +22,7 @@ const bitcoin = require('bitcoinjs-lib')
 const validator = require('../../src/validator')
 const {
   TXID_A, TXID_MULTISIGN, PUBKEY_BUF,
-  makeSegwitUtxo, makeEncoder, getTestAddress
+  makeUtxo, makeEncoder, getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -116,7 +116,7 @@ describe('Chaos Category F: API Layer Failures', () => {
   describe('F-3: psbt.toHex() callability (api.js line 124 exposure)', () => {
     it('OP_RETURN result: psbt.toHex() succeeds', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -129,7 +129,7 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('P2SH result: psbt.toHex() succeeds', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -141,7 +141,7 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('MULTISIGN result: psbt.toHex() succeeds', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_MULTISIGN, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -169,7 +169,7 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('toHex failure after successful createTransaction → unhandled in api.js', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       // createTransaction itself succeeds (toHex is not called inside it)
       const result = await encoder.createTransaction(

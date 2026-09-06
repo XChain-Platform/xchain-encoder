@@ -30,14 +30,14 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
-function stdUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+function stdUtxo (network) {
+  return makeUtxo(network, TXID_A, 0, 100000000)
 }
 
 describe('E2E-9: Round-Trip Verification', () => {
@@ -47,7 +47,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       const action = actions.makeSend('JDOG', '42', actions.ADDR_BTC, 'test memo')
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('dogecoin-regtest')
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -88,7 +88,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       })
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('dogecoin-regtest')
 
       // tx1
       const tx1 = await encoder.createTransaction(
@@ -131,7 +131,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       const MS_DATA = 'A'.repeat(59)
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_MULTISIGN, 0, 100000000)
       const compressedPubKey = PUBKEY_BUF.toString('hex')
 
       const result = await encoder.createTransaction(
@@ -155,7 +155,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       const action = actions.makeFileLarge()
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('bitcoin-regtest')
 
       // tx1
       const tx1 = await encoder.createTransaction(
@@ -197,7 +197,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       const bigData = 'X'.repeat(200)
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('bitcoin-regtest')
 
       await assert.rejects(
         encoder.createTransaction(
@@ -219,7 +219,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       ])
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('dogecoin-regtest')
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -257,7 +257,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       for (const chain of chains) {
         const encoder = makeEncoder(chain)
         const address = getTestAddress(chain)
-        const utxo = stdUtxo()
+        const utxo = stdUtxo(chain)
 
         const result = await encoder.createTransaction(
           [utxo], address, null,

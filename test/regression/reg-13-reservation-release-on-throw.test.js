@@ -21,7 +21,7 @@
 
 const assert = require('assert')
 const {
-  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A, TXID_B
+  makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -38,7 +38,7 @@ function twoUtxoEncoder (value = 100000000) {
   const encoder = makeEncoder(NETWORK)
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => ({
-      utxos: [makeSegwitUtxo(TXID_A, 0, value), makeSegwitUtxo(TXID_B, 0, value)]
+      utxos: [makeUtxo(NETWORK, TXID_A, 0, value), makeUtxo(NETWORK, TXID_B, 0, value)]
     })
   }
   return encoder

@@ -37,8 +37,8 @@ function buildRawTxHex (value) {
 
 const RAW_TX_HEX = buildRawTxHex(100000000) // 1 BTC in sats
 
-// Build segwit UTXO fixtures (use DOGE_REGTEST-compatible scripts won't work for
-// p2wpkh since dogecoin doesn't have bech32, so we craft a raw P2WPKH scriptPubKey)
+// Build P2WPKH UTXO fixtures. The scriptPubKey is the witness program itself,
+// so it is network-independent and valid on any segwit-capable regtest chain.
 function makeSegwitUtxo (txid, vout, value) {
   const p2wpkh = bitcoin.payments.p2wpkh({
     pubkey: pubkeyBuf,
@@ -53,12 +53,27 @@ function makeSegwitUtxo (txid, vout, value) {
   }
 }
 
-function makeEncoder () {
-  // Use dogecoin-regtest because its CryptoNetworks config includes dustThreshold.
-  // bitcoin-regtest uses the built-in bitcoinjs-lib object which lacks dustThreshold,
-  // making this.dustAmount undefined unless set via env/constructor.
+// P2PKH fixture for the chains without segwit, whose UTXOs can only be legacy.
+function makeLegacyUtxo (txid, vout, value) {
+  const p2pkh = bitcoin.payments.p2pkh({
+    pubkey: pubkeyBuf,
+    network: bitcoin.networks.regtest
+  })
+  return {
+    txid,
+    vout,
+    value,
+    confirmations: 6,
+    scriptPubKey: p2pkh.output.toString('hex')
+  }
+}
+
+// Segwit-capable network, because every fixture below spends a P2WPKH input and
+// the builder refuses a witness-program input on a chain without segwit. It also
+// carries a dustThreshold, which the change math reads.
+function makeEncoder (networkName = 'litecoin-regtest') {
   const encoder = new XChainEncoder(
-    'dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
+    networkName, '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
@@ -78,10 +93,10 @@ function makeEncoder () {
   return encoder
 }
 
-const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
-  network: DOGE_REGTEST
+  network: LTC_REGTEST
 }).address
 
 describe('XChainEncoder.createTransaction()', () => {
@@ -128,7 +143,7 @@ describe('XChainEncoder.createTransaction()', () => {
       const legacyUtxo = {
         txid: TXID_B, vout: 1, value: 100000000, confirmations: 6,
         scriptPubKey: bitcoin.payments.p2pkh({
-          pubkey: pubkeyBuf, network: DOGE_REGTEST
+          pubkey: pubkeyBuf, network: LTC_REGTEST
         }).output.toString('hex')
       }
       const result = await encoder.createTransaction(
@@ -271,9 +286,9 @@ describe('XChainEncoder.createTransaction()', () => {
       // and the absolute burn backstop has its own test below; disable/isolate
       // both here so only the passthrough behaviour is under test.
       encoder.maxFeeRateMultiplier = null
-      // Isolate the custom-fee passthrough from dogecoin-regtest's 100000-koinu
-      // dust floor (exercised by the dust-floor tests below); a fee at or above
-      // dust would otherwise be floored up and mask the value being tested.
+      // Isolate the custom-fee passthrough from the network dust floor (exercised
+      // by the dust-floor tests below); a fee at or above dust would otherwise be
+      // floored up and mask the value being tested.
       encoder.dustAmount = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       // Kept under the 100x-fair-fee burn backstop (fair fee ~131 sats for this
@@ -405,9 +420,8 @@ describe('XChainEncoder.createTransaction()', () => {
   describe('change output', () => {
     it('adds change output when there is leftover and change address given', async () => {
       const encoder = makeEncoder()
-      // Isolate the change math from dogecoin-regtest's 100000-koinu dust floor
-      // so the 10000 custom fee flows into change verbatim (dust floor has its
-      // own suite).
+      // Isolate the change math from the network dust floor so the 10000 custom fee
+      // flows into change verbatim (the dust floor has its own suite).
       encoder.dustAmount = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
@@ -495,7 +509,7 @@ describe('XChainEncoder.createTransaction()', () => {
     // address.toOutputScript rejected it as neither valid base58 nor bech32
     // ("<hex> has no matching Script"), breaking every UTXO-tracker-backed
     // compose (any call that does not pre-supply `utxos`) for a live wallet.
-    it('resolves a raw pubkey (not an address) to this network\'s default address before querying the tracker', async () => {
+    it('resolves a raw pubkey (not an address) to P2WPKH before querying the tracker on a segwit network', async () => {
       const encoder = makeEncoder()
       let queriedAddress = null
       encoder.utxoTrackerConnector.getUtxosFromAddress = async (address) => {
@@ -510,10 +524,31 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, true, 0.00001
       )
 
-      // dogecoin-regtest (this suite's network) has supportsSegwit: false,
-      // so the default address type is P2PKH - matching how TEST_ADDRESS
-      // itself is derived above.
-      assert.strictEqual(queriedAddress, TEST_ADDRESS)
+      // A segwit-capable network's default address type is P2WPKH.
+      const expected = bitcoin.payments.p2wpkh({ pubkey: pubkeyBuf, network: LTC_REGTEST }).address
+      assert.strictEqual(queriedAddress, expected)
+    })
+
+    // The other branch of the same resolution: a chain without segwit defaults to
+    // P2PKH, and its tracker query must carry a base58 address.
+    it('resolves a raw pubkey to P2PKH before querying the tracker on a network without segwit', async () => {
+      const encoder = makeEncoder('dogecoin-regtest')
+      let queriedAddress = null
+      encoder.utxoTrackerConnector.getUtxosFromAddress = async (address) => {
+        queriedAddress = address
+        return { utxos: [makeLegacyUtxo(TXID_A, 0, 100000000)] }
+      }
+
+      const dogeNetwork = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+      const dogeAddress = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: dogeNetwork }).address
+      const rawPubkeyHex = pubkeyBuf.toString('hex')
+      await encoder.createTransaction(
+        null, rawPubkeyHex, null,
+        'test', null, 10000, false, null, dogeAddress,
+        null, null, null, true, 0.00001
+      )
+
+      assert.strictEqual(queriedAddress, dogeAddress)
     })
   })
 
@@ -767,7 +802,7 @@ describe('XChainEncoder.createTransaction()', () => {
 
       // Same conversion the encoder applies: feePerKb -> internal coin/byte.
       const feePerBytes = 0.00001 / 1000 / 1e8
-      const feeOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(TEST_ADDRESS, DOGE_REGTEST)
+      const feeOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(TEST_ADDRESS, LTC_REGTEST)
       const revealByteFee = Math.ceil(feeOutputBytes * feePerBytes * 1e8)
 
       assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee - encoder.dustAmount,

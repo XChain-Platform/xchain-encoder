@@ -24,7 +24,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress,
   buildRawTxHex
@@ -39,7 +39,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     it('propagates error when fee estimation RPC fails', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       encoder.connector.getFeePerKilobyte = async () => {
@@ -59,7 +59,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     it('does NOT fail when feePerKb is provided (bypasses RPC)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       encoder.connector.getFeePerKilobyte = async () => {
@@ -143,7 +143,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     it('throws when compressedPubKey is null', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -159,7 +159,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
   describe('H-6: P2SH without valid pubkey address', () => {
     it('throws when pubkey is not a valid base58 address', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       await assert.rejects(
@@ -176,7 +176,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     it('returns { psbt, encoding } where psbt is a Psbt instance', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -195,7 +195,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     it('overrides dust for MULTISIGN output value but not fee floor', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
       const compressedPubKey = PUBKEY_BUF.toString('hex')
       const customDust = 1234
       const MS_DATA = 'A'.repeat(59)
@@ -214,7 +214,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
     it('fee floor still uses network dustAmount, not custom dust', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // Custom dust = 100, much less than network dust (546)

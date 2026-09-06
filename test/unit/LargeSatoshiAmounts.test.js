@@ -33,16 +33,18 @@ const pubkeyBuf = Buffer.from(
 )
 const TXID_A = 'a'.repeat(64)
 
-const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
-const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: DOGE_REGTEST }).address
+const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
+const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: LTC_REGTEST }).address
 
 function makeSegwitUtxo (txid, vout, value) {
   const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest })
   return { txid, vout, value, confirmations: 6, scriptPubKey: p2wpkh.output.toString('hex') }
 }
 
+// Segwit-capable network carrying a dustThreshold: the fixtures here spend a
+// P2WPKH input, which a chain without segwit refuses.
 function makeEncoder () {
-  const encoder = new XChainEncoder('dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
+  const encoder = new XChainEncoder('litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
     getTransactionHex: async () => { throw new Error('not used in this suite') }
@@ -104,7 +106,7 @@ describe('large satoshi amounts (>2^53-1)', () => {
       const encoder = makeEncoder()
       const inputValue = '12000000000000000000' // 1.2e19 sats in one UTXO
       const payValue = '11000000000000000001' // 1.1e19 + 1 sats out
-      const fee = 100000
+      const fee = 10000
       const utxo = makeSegwitUtxo(TXID_A, 0, inputValue)
       validateUtxoEntry(utxo, 0)
 
@@ -130,12 +132,12 @@ describe('large satoshi amounts (>2^53-1)', () => {
 
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, [{ address: TEST_ADDRESS, value: 100000000 }],
-        'test', null, 100000, false, null, TEST_ADDRESS,
+        'test', null, 10000, false, null, TEST_ADDRESS,
         null, null, null, true, 0.00001
       )
       const reparsed = bitcoin.Psbt.fromHex(result.psbt.toHex())
       const values = reparsed.txOutputs.map(o => BigInt(o.value))
-      const expectedChange = 12000000000000000000n - 100000000n - 100000n
+      const expectedChange = 12000000000000000000n - 100000000n - 10000n
       assert.ok(values.includes(expectedChange), `change ${expectedChange} missing exactly; got ${values}`)
     })
 
@@ -145,14 +147,14 @@ describe('large satoshi amounts (>2^53-1)', () => {
       await assert.rejects(
         encoder.createTransaction(
           [utxo], TEST_ADDRESS, [{ address: TEST_ADDRESS, value: HUGE_STR }],
-          'test', null, 100000, false, null, TEST_ADDRESS,
+          'test', null, 10000, false, null, TEST_ADDRESS,
           null, null, null, true, 0.00001
         ),
         (err) => {
           assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
           // metadata must survive JSON serialization (JSON-RPC error data)
           assert.doesNotThrow(() => JSON.stringify(err.details))
-          assert.strictEqual(err.details.required, '12000000000000100000')
+          assert.strictEqual(err.details.required, '12000000000000010000')
           return true
         }
       )

@@ -24,7 +24,7 @@ process.env.NODE_PASSWORD = process.env.NODE_PASSWORD || 'test'
 const assert = require('assert')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -38,7 +38,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     it('builds the reveal from p2shHex alone, even when the tracker would fail', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
 
       // Phase 1 (funding) builds normally from the provided UTXO.
       const tx1 = await encoder.createTransaction(
@@ -75,7 +75,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       const encoder = makeEncoder('bitcoin-regtest') // dust = 546
       const address = getTestAddress('bitcoin-regtest')
       // change = 10000 - 9999 = 1 sat, below the 546 dust threshold
-      const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 10000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -93,7 +93,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
       // change == dust (546): emitted.
       const atDust = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 10546)], address, null,
+        [makeUtxo('bitcoin-regtest', TXID_A, 0, 10546)], address, null,
         'test', null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
@@ -104,7 +104,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       // first build's reservation before rebuilding.
       encoder.clearReservations()
       const belowDust = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 10545)], address, null,
+        [makeUtxo('bitcoin-regtest', TXID_A, 0, 10545)], address, null,
         'test', null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
@@ -119,8 +119,8 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       const address = getTestAddress('bitcoin-regtest')
 
       // 600 fetched UTXOs; the largest (vout 0) alone covers the fee.
-      const many = [makeSegwitUtxo(TXID_A, 0, 100000000)]
-      for (let i = 1; i < 600; i++) many.push(makeSegwitUtxo(TXID_A, i, 50))
+      const many = [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)]
+      for (let i = 1; i < 600; i++) many.push(makeUtxo('bitcoin-regtest', TXID_A, i, 50))
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({ utxos: many })
 
       const result = await encoder.createTransaction(
@@ -140,7 +140,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
       // 600 equal 50-sat UTXOs, fee 25000: covering it needs 501 inputs (>500).
       const small = []
-      for (let i = 0; i < 600; i++) small.push(makeSegwitUtxo(TXID_A, i, 50))
+      for (let i = 0; i < 600; i++) small.push(makeUtxo('bitcoin-regtest', TXID_A, i, 50))
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({ utxos: small })
 
       await assert.rejects(
@@ -158,7 +158,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     it('throws INSUFFICIENT_FUNDS with a required/available payload', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 1000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -180,8 +180,8 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     function twoUtxoTracker (encoder) {
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
         utxos: [
-          makeSegwitUtxo(TXID_A, 0, 100000000),
-          makeSegwitUtxo(TXID_A, 1, 100000000)
+          makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000),
+          makeUtxo('bitcoin-regtest', TXID_A, 1, 100000000)
         ]
       })
     }
@@ -227,7 +227,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     it('caller-supplied UTXOs are reserved too, and the SDK supplies a tracker-fetched set', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
 
       // Two back-to-back calls with the SAME explicit UTXO: the first selects it
       // and reserves it, the second is refused with the reservation named as

@@ -24,7 +24,7 @@ const TxSizeEstimator = require('../../src/TxSizeEstimator')
 const {
   TXID_A,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -144,7 +144,7 @@ describe('TxSizeEstimator Boundaries', () => {
     it('missing UTXO data uses 350-byte fallback → fee includes input estimate', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,

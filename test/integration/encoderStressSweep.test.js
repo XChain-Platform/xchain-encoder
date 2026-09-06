@@ -14,7 +14,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const { makeEncoder, makeSegwitUtxo, makeTrackerEnvelope, getTestAddress, TXID_A, TXID_B } = require('./helpers/utxoFactory')
+const { makeEncoder, makeUtxo, makeTrackerEnvelope, getTestAddress, TXID_A, TXID_B } = require('./helpers/utxoFactory')
 const { deobfuscate } = require('./helpers/deobfuscate')
 const actions = require('./helpers/actionFactory')
 
@@ -32,7 +32,7 @@ describe('encoder stress-sweep @regression', function () {
             // concurrent create_tx already reserved TXID_A, so the real first input is TXID_B.
             encoder.utxoTrackerConnector = {
                 getUtxosFromAddress: async () => makeTrackerEnvelope(
-                    [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)]
+                    [makeUtxo(NETWORK, TXID_A, 0, 100000000), makeUtxo(NETWORK, TXID_B, 0, 100000000)]
                 )
             }
             encoder._reserveOutpoint(TXID_A + ':0', Date.now())
@@ -64,7 +64,7 @@ describe('encoder stress-sweep @regression', function () {
             const address = getTestAddress(NETWORK)
             const action = actions.makeSend()
             const result = await encoder.createTransaction(
-                [makeSegwitUtxo(TXID_A, 0, 100000000)], address, null, action.data, null, 10000, false, null, address,
+                [makeUtxo(NETWORK, TXID_A, 0, 100000000)], address, null, action.data, null, 10000, false, null, address,
                 null, null, null, true, 0.00001
             )
             const ins0Txid = Buffer.from(result.psbt.txInputs[0].hash).reverse().toString('hex')

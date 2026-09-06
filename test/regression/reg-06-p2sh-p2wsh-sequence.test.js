@@ -28,7 +28,7 @@ const {
 } = require('../integration/helpers/deobfuscate')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -37,8 +37,8 @@ const actions = require('../integration/helpers/actionFactory')
 const NETWORK_P2SH = 'dogecoin-regtest'
 const NETWORK_P2WSH = 'bitcoin-regtest' // P2WSH requires segwit support
 
-function stdUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+function stdUtxo (network) {
+  return makeUtxo(network, TXID_A, 0, 100000000)
 }
 
 /**
@@ -50,7 +50,7 @@ async function createTxPair (action, opts = {}) {
   const encoding = opts.encoding || null
   const encoder = makeEncoder(network)
   const address = getTestAddress(network)
-  const utxo = stdUtxo()
+  const utxo = stdUtxo(network)
 
   const tx1 = await encoder.createTransaction(
     [utxo], address, null,
@@ -290,7 +290,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
 
       const encoder = makeEncoder(network)
       const address = getTestAddress(network)
-      const utxo = stdUtxo()
+      const utxo = stdUtxo(network)
 
       const tx1 = await encoder.createTransaction(
         [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,

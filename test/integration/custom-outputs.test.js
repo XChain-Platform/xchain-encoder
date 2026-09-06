@@ -21,7 +21,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('./helpers/utxoFactory')
@@ -35,7 +35,7 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     it('includes both custom outputs in PSBT', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const customOutputs = [
@@ -64,7 +64,7 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     it('custom output value is deducted from change', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
       const fee = 10000
 
@@ -99,7 +99,7 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     it('object instead of array is silently skipped', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -115,7 +115,7 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     it('null customOutputs is silently skipped', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -149,7 +149,7 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     }
 
     async function buildFunding (encoder, address, customOutputs) {
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
       // Each probe respends the one fixture input on the same encoder.
       encoder.clearReservations()
@@ -217,7 +217,7 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
     it('empty array produces no extra outputs', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(

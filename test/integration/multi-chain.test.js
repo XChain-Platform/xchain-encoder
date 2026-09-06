@@ -24,7 +24,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress,
 } = require('./helpers/utxoFactory')
@@ -43,7 +43,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
       it('creates valid OP_RETURN transaction', async () => {
         const encoder = makeEncoder(chain.name)
         const address = getTestAddress(chain.name)
-        const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+        const utxo = makeUtxo(chain.name, TXID_A, 0, 100000000)
         const action = actions.makeSend()
 
         const result = await encoder.createTransaction(
@@ -66,7 +66,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
       it('creates valid P2SH transaction', async () => {
         const encoder = makeEncoder(chain.name)
         const address = getTestAddress(chain.name)
-        const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+        const utxo = makeUtxo(chain.name, TXID_A, 0, 100000000)
         const action = actions.makeIssueFull('BIGTOKEN')
 
         const result = await encoder.createTransaction(
@@ -104,7 +104,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
     async function buildMultisign (networkName) {
       const encoder = makeEncoder(networkName)
       const address = getTestAddress(networkName)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(networkName, TXID_MULTISIGN, 0, 100000000)
       const result = await encoder.createTransaction(
         [utxo], address, null,
         MS_DATA, null, 10000, false, 'MULTISIGN', address,
@@ -148,7 +148,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
     it('P2SH output address uses Dogecoin network params', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('DOGETOKEN')
 
       const result = await encoder.createTransaction(
@@ -198,7 +198,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
     it('Litecoin fee floor is 5460, not 546', async () => {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('litecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(

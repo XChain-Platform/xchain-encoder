@@ -38,6 +38,28 @@ function buildRawP2pkhTxHex (value) {
   return tx.toHex()
 }
 
+function makeLegacyUtxo (txid, vout, value) {
+  const p2pkh = bitcoin.payments.p2pkh({
+    pubkey: pubkeyBuf,
+    network: bitcoin.networks.regtest
+  })
+  return {
+    txid,
+    vout,
+    value,
+    confirmations: 6,
+    scriptPubKey: p2pkh.output.toString('hex')
+  }
+}
+
+// Pick the fixture the chain can hold: a witness-program UTXO only exists where
+// consensus knows segwit, and the builder refuses one where it does not.
+function utxoFor (encoder, txid, vout, value) {
+  return encoder.network.supportsSegwit === false
+    ? makeLegacyUtxo(txid, vout, value)
+    : makeSegwitUtxo(txid, vout, value)
+}
+
 function makeSegwitUtxo (txid, vout, value) {
   const p2wpkh = bitcoin.payments.p2wpkh({
     pubkey: pubkeyBuf,
@@ -75,7 +97,9 @@ function makeEncoder (network) {
   }
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => ({
-      utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)]
+      utxos: [encoder.network.supportsSegwit === false
+        ? makeLegacyUtxo(TXID_A, 0, 100000000)
+        : makeSegwitUtxo(TXID_A, 0, 100000000)]
     })
   }
   return encoder
@@ -83,7 +107,7 @@ function makeEncoder (network) {
 
 // Build the phase-1 funding tx and hand back {hex, id} for the reveal call.
 async function buildFunding (encoder, encoding, address) {
-  const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+  const utxo = utxoFor(encoder, TXID_A, 0, 100000000)
   const funding = await encoder.createTransaction(
     [utxo], address, null,
     'x'.repeat(80), null, 10000, false, encoding, address,

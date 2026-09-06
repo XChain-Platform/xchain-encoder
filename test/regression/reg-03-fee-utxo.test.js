@@ -24,7 +24,7 @@ const {
   TXID_A,
   TXID_B,
   TXID_C,
-  makeSegwitUtxo,
+  makeUtxo,
   makeLegacyUtxo,
   makeMempoolUtxo,
   makeEncoder,
@@ -47,8 +47,8 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const utxoSmall = makeSegwitUtxo(TXID_A, 0, 10000)
-      const utxoLarge = makeSegwitUtxo(TXID_B, 0, 100000000)
+      const utxoSmall = makeUtxo(NETWORK, TXID_A, 0, 10000)
+      const utxoLarge = makeUtxo(NETWORK, TXID_B, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxoSmall, utxoLarge], address, null,
@@ -66,8 +66,8 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const utxoLarge = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const utxoSmall = makeSegwitUtxo(TXID_B, 0, 1000)
+      const utxoLarge = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+      const utxoSmall = makeUtxo(NETWORK, TXID_B, 0, 1000)
 
       const result = await encoder.createTransaction(
         [utxoLarge, utxoSmall], address, null,
@@ -88,9 +88,9 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const action = actions.makeSend()
 
       // Three UTXOs, none individually sufficient for fee=150000
-      const utxo1 = makeSegwitUtxo(TXID_A, 0, 100000)
-      const utxo2 = makeSegwitUtxo(TXID_B, 0, 100000)
-      const utxo3 = makeSegwitUtxo(TXID_C, 0, 100000)
+      const utxo1 = makeUtxo(NETWORK, TXID_A, 0, 100000)
+      const utxo2 = makeUtxo(NETWORK, TXID_B, 0, 100000)
+      const utxo3 = makeUtxo(NETWORK, TXID_C, 0, 100000)
 
       // The burn backstop is 100x the NODE's fair fee, independent of both
       // maxFeeRateMultiplier and any caller feePerKb (a caller-inflated rate
@@ -115,8 +115,8 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const utxo1 = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const utxo2 = makeSegwitUtxo(TXID_A, 0, 100000000) // duplicate
+      const utxo1 = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+      const utxo2 = makeUtxo(NETWORK, TXID_A, 0, 100000000) // duplicate
 
       const result = await encoder.createTransaction(
         [utxo1, utxo2], address, null,
@@ -134,7 +134,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const confirmedUtxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const confirmedUtxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const mempoolUtxo = makeMempoolUtxo(TXID_B, 0, 200000000)
 
       const result = await encoder.createTransaction(
@@ -154,7 +154,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const smallConfirmed = makeSegwitUtxo(TXID_A, 0, 1000)
+      const smallConfirmed = makeUtxo(NETWORK, TXID_A, 0, 1000)
       const largeMem = makeMempoolUtxo(TXID_B, 0, 100000000)
 
       const result = await encoder.createTransaction(
@@ -176,7 +176,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       // its own suite (XChainEncoder.feeRateCap.test.js), disable it here.
       encoder.maxFeeRateMultiplier = null
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // The burn backstop is 100x the NODE's fair fee, independent of both
@@ -205,7 +205,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
         throw new Error('getFeePerKilobyte should not be called')
       }
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // Should NOT throw because feePerKb is provided
@@ -221,7 +221,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
     it('fee is floored to network dustAmount', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // Very low feePerKb that would produce fee below dust
@@ -241,7 +241,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
     it('maxFeeRateKb cap produces lower fee than uncapped encoder', async function () {
       const XChainEncoder = require('../../src/XChainEncoder')
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // Uncapped encoder with high feePerKb
@@ -280,7 +280,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
     it('change output value = input - outputs - fee', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
       const explicitFee = 10000
 
@@ -298,7 +298,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
     it('no change address throws when changeSatoshis > dust', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       await assert.rejects(
@@ -321,7 +321,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
 
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
-        return { utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)] }
+        return { utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)] }
       }
 
       await encoder.createTransaction(
@@ -385,7 +385,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
         throw new Error('getTransactionHex should not be called for segwit')
       }
 
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       // Should NOT throw
       const result = await encoder.createTransaction(

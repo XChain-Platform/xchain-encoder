@@ -29,7 +29,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -67,7 +67,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     it('produces valid PSBT with correct encoding', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -91,7 +91,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     it('produces valid PSBT with correct encoding', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -111,7 +111,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     it('P2WSH encoding throws TypeError', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       await assert.rejects(
@@ -129,7 +129,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     it('produces valid PSBT with correct encoding', async function () {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('litecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -149,7 +149,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
     it('fee is floored to 5460 not 546', async function () {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('litecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -174,7 +174,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       it(`${network} P2SH output value >= ${expectedDust}`, async function () {
         const encoder = makeEncoder(network)
         const address = getTestAddress(network)
-        const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+        const utxo = makeUtxo(network, TXID_A, 0, 100000000)
         const action = actions.makeIssueFull('TOKEN')
 
         const result = await encoder.createTransaction(
@@ -207,7 +207,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       it(`${network} MULTISIGN output value = ${expectedDust}`, async function () {
         const encoder = makeEncoder(network)
         const address = getTestAddress(network)
-        const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+        const utxo = makeUtxo(network, TXID_MULTISIGN, 0, 100000000)
         const action = actions.makeSend()
 
         const result = await encoder.createTransaction(

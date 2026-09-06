@@ -20,7 +20,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
-  TXID_A, makeSegwitUtxo, makeLegacyUtxo,
+  TXID_A, makeUtxo, makeLegacyUtxo,
   makeEncoder, getTestAddress, buildRawTxHex
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
@@ -35,7 +35,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
   describe('E-1: Large P2WSH encoding (memory stress)', () => {
     it('8189-byte payload (compiled 8192, at limit) with P2WSH completes in <5s', async () => {
       const encoder = makeEncoder(BTC)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
+      const utxo = makeUtxo(BTC, TXID_A, 0, 1000000000)
 
       // This test measures encoding time, not fee policy. It used to pass a
       // flat 100000-sat fee and switch off the relative fee-rate cap
@@ -60,7 +60,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
 
     it('8193-byte payload exceeds limit → RangeError', async () => {
       const encoder = makeEncoder(BTC)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
+      const utxo = makeUtxo(BTC, TXID_A, 0, 1000000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -88,7 +88,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
       for (let i = 0; i < 500; i++) {
         // Unique txid:vout pairs to avoid dedup
         const txid = TXID_A.slice(0, 60) + String(i).padStart(4, '0')
-        utxos.push(makeSegwitUtxo(txid, 0, 1000))
+        utxos.push(makeUtxo(DOGE, txid, 0, 1000))
       }
 
       const start = Date.now()

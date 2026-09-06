@@ -29,7 +29,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
-  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A, TXID_B
+  makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B
 } = require('../integration/helpers/utxoFactory')
 const { deobfuscate } = require('../integration/helpers/deobfuscate')
 const actions = require('../integration/helpers/actionFactory')
@@ -50,7 +50,7 @@ function twoUtxoEncoder () {
   const encoder = makeEncoder(NETWORK)
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => ({
-      utxos: [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)]
+      utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000), makeUtxo(NETWORK, TXID_B, 0, 100000000)]
     })
   }
   return encoder
@@ -205,7 +205,7 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
     // TXID_B AND bind the obfuscation key there, or the action decodes to nothing.
     encoder.outpointReservations.set(TXID_A + ':0', Date.now() + FIVE_MINUTES)
     const result = await encoder.createTransaction(
-      [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)], address, null,
+      [makeUtxo(NETWORK, TXID_A, 0, 100000000), makeUtxo(NETWORK, TXID_B, 0, 100000000)], address, null,
       action.data, null, 10000, false, null, address,
       null, null, null, true, 0.00001
     )

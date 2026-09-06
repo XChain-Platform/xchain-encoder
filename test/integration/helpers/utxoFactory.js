@@ -137,6 +137,18 @@ function makeLegacyUtxo (txid, vout, value) {
 }
 
 /**
+ * Create the UTXO fixture the named chain can actually hold. A witness-program
+ * output only exists where consensus knows segwit, and input selection refuses
+ * one where it does not, so a suite that names its chain gets a matching input.
+ */
+function makeUtxo (networkName, txid, vout, value) {
+  const network = CryptoNetworks.getBitcoinJsNetwork(networkName)
+  return network.supportsSegwit === false
+    ? makeLegacyUtxo(txid, vout, value)
+    : makeSegwitUtxo(txid, vout, value)
+}
+
+/**
  * Create a mempool (unconfirmed) SegWit UTXO fixture.
  */
 function makeMempoolUtxo (txid, vout, value) {
@@ -172,7 +184,7 @@ function makeEncoder (networkName = 'dogecoin-regtest') {
     isRegtest: async () => true
   }
   encoder.utxoTrackerConnector = {
-    getUtxosFromAddress: async () => makeTrackerEnvelope([makeSegwitUtxo(TXID_A, 0, 100000000)])
+    getUtxosFromAddress: async () => makeTrackerEnvelope([makeUtxo(networkName, TXID_A, 0, 100000000)])
   }
   return encoder
 }
@@ -186,6 +198,7 @@ module.exports = {
   buildRawTxHex,
   makeSegwitUtxo,
   makeLegacyUtxo,
+  makeUtxo,
   makeMempoolUtxo,
   makeTrackerEnvelope,
   getTestAddress,

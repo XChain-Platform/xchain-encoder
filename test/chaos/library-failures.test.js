@@ -21,7 +21,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const crypto = require('crypto')
 const {
-  TXID_A, PUBKEY_BUF, makeSegwitUtxo, makeEncoder, getTestAddress
+  TXID_A, PUBKEY_BUF, makeUtxo, makeEncoder, getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -46,7 +46,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
 
     it('addInput failure propagates from createTransaction', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -75,7 +75,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
 
     it('first addOutput (OP_RETURN data) failure propagates', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -108,7 +108,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
 
     it('second addOutput (change output) failure propagates', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -137,7 +137,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
 
     it('cipher failure in obfuscate() propagates', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -159,7 +159,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       // Create encoder BEFORE patching, since makeEncoder uses
       // script.compile internally via buildRawTxHex → p2pkh
       encoder = makeEncoder(DOGE)
-      utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
       _origCompile = bitcoin.script.compile
       bitcoin.script.compile = function () {
         throw new TypeError('chaos: script compile failed')
@@ -196,7 +196,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
   describe('C-5: Non-base58 caller identity for P2SH encoding', () => {
     it('bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const bech32Addr = bitcoin.payments.p2wpkh({
         pubkey: PUBKEY_BUF,
@@ -211,7 +211,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       // Same input on purpose: release the first build's reservation.
       encoder.clearReservations()
       const viaPubkey = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 100000000)], PUBKEY_BUF.toString('hex'), null,
+        [makeUtxo(DOGE, TXID_A, 0, 100000000)], PUBKEY_BUF.toString('hex'), null,
         actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
         null, null, null, true, 0.00001
       )
@@ -226,7 +226,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
 
     it('an identity that is no address and no pubkey is refused by name', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(

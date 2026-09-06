@@ -29,7 +29,7 @@ const {
 const {
   TXID_A,
   TXID_B,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -109,8 +109,8 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       const action = actions.makeSend()
 
       // Provide two UTXOs: TXID_B is larger → should be sorted first → used as key
-      const utxoSmall = makeSegwitUtxo(TXID_A, 0, 10000)
-      const utxoLarge = makeSegwitUtxo(TXID_B, 0, 100000000)
+      const utxoSmall = makeUtxo(NETWORK, TXID_A, 0, 10000)
+      const utxoLarge = makeUtxo(NETWORK, TXID_B, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxoSmall, utxoLarge], address, null,
@@ -128,8 +128,8 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const utxoSmall = makeSegwitUtxo(TXID_A, 0, 10000)
-      const utxoLarge = makeSegwitUtxo(TXID_B, 0, 100000000)
+      const utxoSmall = makeUtxo(NETWORK, TXID_A, 0, 10000)
+      const utxoLarge = makeUtxo(NETWORK, TXID_B, 0, 100000000)
 
       // Reverse input order
       const result = await encoder.createTransaction(
@@ -148,7 +148,7 @@ describe('REG-02: Obfuscation Round-Trip', function () {
     it('P2SH tx2 OP_RETURN marker deobfuscates to XCHNp2sh', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('MARKER')
 
       // tx1
@@ -178,7 +178,7 @@ describe('REG-02: Obfuscation Round-Trip', function () {
     it('P2WSH tx2 OP_RETURN marker deobfuscates to XCHNp2wsh', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       const tx1 = await encoder.createTransaction(

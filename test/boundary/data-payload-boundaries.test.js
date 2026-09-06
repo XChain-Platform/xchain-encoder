@@ -22,7 +22,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -37,7 +37,7 @@ const {
 const NETWORK = 'bitcoin-regtest'
 
 function standardUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+  return makeUtxo(NETWORK, TXID_A, 0, 100000000)
 }
 
 describe('Data/Payload Boundaries', () => {

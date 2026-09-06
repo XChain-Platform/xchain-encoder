@@ -27,7 +27,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -35,15 +35,15 @@ const actions = require('../integration/helpers/actionFactory')
 
 const NETWORK = 'dogecoin-regtest'
 
-function stdUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+function stdUtxo (network) {
+  return makeUtxo(network, TXID_A, 0, 100000000)
 }
 
 async function encode (data, opts = {}) {
   const network = opts.network || NETWORK
   const encoder = makeEncoder(network)
   const address = getTestAddress(network)
-  const utxo = opts.utxo || stdUtxo()
+  const utxo = opts.utxo || stdUtxo(network)
 
   return encoder.createTransaction(
     [utxo], address, null,
@@ -146,7 +146,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       const result = await encode(MS_DATA, {
         encoding: 'MULTISIGN',
         compressedPubKey: PUBKEY_BUF.toString('hex'),
-        utxo: makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+        utxo: makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
       })
       assert.strictEqual(result.encoding, 'MULTISIGN')
 

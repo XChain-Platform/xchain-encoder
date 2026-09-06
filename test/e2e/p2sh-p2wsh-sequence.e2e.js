@@ -28,7 +28,7 @@ const {
 } = require('../integration/helpers/deobfuscate')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -37,7 +37,7 @@ const actions = require('../integration/helpers/actionFactory')
 const NETWORK = 'dogecoin-regtest'
 
 function stdUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+  return makeUtxo(NETWORK, TXID_A, 0, 100000000)
 }
 
 /**

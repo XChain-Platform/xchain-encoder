@@ -29,7 +29,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('./helpers/utxoFactory')
@@ -43,7 +43,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('output has value=0 and script starts with OP_RETURN (0x6a)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -65,7 +65,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('contains obfuscated XCHN-prefixed data', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -83,7 +83,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('creates P2SH output with value >= dustAmount', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const result = await encoder.createTransaction(
@@ -114,7 +114,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('has a change output returning remaining funds', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const result = await encoder.createTransaction(
@@ -134,7 +134,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('creates tx2 with P2SH input and OP_RETURN marker', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const tx1Result = await encoder.createTransaction(
@@ -164,7 +164,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('tx2 P2SH input has redeemScript containing ACTION data', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const tx1Result = await encoder.createTransaction(
@@ -199,7 +199,7 @@ describe('Category B: Encoding Type Integration', () => {
       const p2wshNetwork = 'bitcoin-regtest'
       const encoder = makeEncoder(p2wshNetwork)
       const address = getTestAddress(p2wshNetwork)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(p2wshNetwork, TXID_A, 0, 100000000)
       // Use large data that benefits from P2WSH
       const action = actions.makeFileLarge()
 
@@ -229,7 +229,7 @@ describe('Category B: Encoding Type Integration', () => {
       const p2wshNetwork = 'bitcoin-regtest'
       const encoder = makeEncoder(p2wshNetwork)
       const address = getTestAddress(p2wshNetwork)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(p2wshNetwork, TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       const tx1Result = await encoder.createTransaction(
@@ -269,7 +269,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('creates 1-of-3 multisig output with correct structure', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
       const compressedPubKey = PUBKEY_BUF.toString('hex')
 
       const result = await encoder.createTransaction(
@@ -301,7 +301,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('third pubkey is the real compressed public key', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
       const compressedPubKey = PUBKEY_BUF.toString('hex')
 
       const result = await encoder.createTransaction(
@@ -322,7 +322,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('uses P2SH when explicitly requested despite data fitting OP_RETURN', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -339,7 +339,7 @@ describe('Category B: Encoding Type Integration', () => {
     it('rejects forced OP_RETURN when data exceeds a single output', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       // A transaction may carry at most one OP_RETURN output; Bitcoin Core
       // rejects multi-OP_RETURN transactions as non-standard at broadcast.

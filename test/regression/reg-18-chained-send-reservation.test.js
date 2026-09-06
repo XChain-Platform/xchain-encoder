@@ -29,7 +29,7 @@
 
 const assert = require('assert')
 const {
-  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A, TXID_B, TXID_C
+  makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B, TXID_C
 } = require('../integration/helpers/utxoFactory')
 
 const NETWORK = 'bitcoin-regtest'
@@ -55,7 +55,7 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     const encoder = makeEncoder(NETWORK)
     // The tracker view a wallet hands over on a chained send: the previous
     // build's input is still listed because the spend has not reached it yet.
-    const staleView = () => [makeSegwitUtxo(TXID_A, 0, 100000000)]
+    const staleView = () => [makeUtxo(NETWORK, TXID_A, 0, 100000000)]
 
     const first = await build(encoder, staleView())
     const firstTxid = txidOf(first)
@@ -81,9 +81,9 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     // The same guarantee at unit scale: chained sends whose views
     // reflect each prior spend select different inputs and hash differently.
     const encoder = makeEncoder(NETWORK)
-    const r1 = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
-    const r2 = await build(encoder, [makeSegwitUtxo(TXID_B, 0, 100000000)])
-    const r3 = await build(encoder, [makeSegwitUtxo(TXID_C, 0, 100000000)])
+    const r1 = await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
+    const r2 = await build(encoder, [makeUtxo(NETWORK, TXID_B, 0, 100000000)])
+    const r3 = await build(encoder, [makeUtxo(NETWORK, TXID_C, 0, 100000000)])
     const txids = new Set([txidOf(r1), txidOf(r2), txidOf(r3)])
     assert.strictEqual(txids.size, 3, 'three chained sends must be three distinct transactions')
     assert.strictEqual(encoder.outpointReservations.size, 3, 'each selected input stays reserved')
@@ -91,11 +91,11 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
 
   it('a stale view that still lists the spent input alongside the change selects the change', async () => {
     const encoder = makeEncoder(NETWORK)
-    await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
+    await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     // Tracker now lists the old input AND the new change; the old one is reserved.
     const r2 = await build(encoder, [
-      makeSegwitUtxo(TXID_A, 0, 100000000),
-      makeSegwitUtxo(TXID_B, 1, 99000000)
+      makeUtxo(NETWORK, TXID_A, 0, 100000000),
+      makeUtxo(NETWORK, TXID_B, 1, 99000000)
     ])
     const ins = r2.psbt.txInputs.map(i => Buffer.from(i.hash).reverse().toString('hex'))
     assert.deepStrictEqual(ins, [TXID_B], 'the reserved input is skipped and the change is spent')
@@ -103,8 +103,8 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
 
   it('a different transaction over an unreserved input is not mistaken for a duplicate', async () => {
     const encoder = makeEncoder(NETWORK)
-    await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)], MINT)
-    const r2 = await build(encoder, [makeSegwitUtxo(TXID_B, 0, 100000000)], 'MINT|0|XCHAIN|5000')
+    await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)], MINT)
+    const r2 = await build(encoder, [makeUtxo(NETWORK, TXID_B, 0, 100000000)], 'MINT|0|XCHAIN|5000')
     assert.ok(r2.psbt, 'a genuinely different transaction builds')
   })
 
@@ -112,11 +112,11 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     // Defense in depth: clear only the outpoint map (as a lapsed reservation
     // would) and rebuild byte-for-byte. The recent-build record still refuses it.
     const encoder = makeEncoder(NETWORK)
-    const first = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
+    const first = await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     encoder.outpointReservations.clear()
 
     await assert.rejects(
-      () => build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)]),
+      () => build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)]),
       (err) => {
         assert.strictEqual(err.operational, true)
         assert.strictEqual(err.xchainCode, 'DUPLICATE_TRANSACTION')
@@ -132,7 +132,7 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
   it('an RBF bump of the same input is a different transaction and passes the duplicate gate', async () => {
     const encoder = makeEncoder(NETWORK)
     const address = getTestAddress(NETWORK)
-    const utxo = () => makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = () => makeUtxo(NETWORK, TXID_A, 0, 100000000)
     const first = await encoder.createTransaction([utxo()], address, null, MINT, null, 10000, true, null, address, null, null, null, true, 0.00001)
     // The bump deliberately respends the same input: only the outpoint map is
     // released (the operator's "wait out the TTL"), the recent-build record stays.
@@ -143,20 +143,20 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
 
   it('clearReservations releases both the outpoint map and the recent-build record', async () => {
     const encoder = makeEncoder(NETWORK)
-    await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
+    await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     encoder.clearReservations()
     assert.strictEqual(encoder.outpointReservations.size, 0)
     assert.strictEqual(encoder.recentBuilds.size, 0)
-    const again = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
+    const again = await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     assert.ok(again.psbt)
   })
 
   it('recent-build records expire with the reservation TTL', async () => {
     const encoder = makeEncoder(NETWORK)
-    const first = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
+    const first = await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     encoder.outpointReservations.clear()
     encoder.recentBuilds.set(txidOf(first), Date.now() - 1)
-    const again = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
+    const again = await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     assert.strictEqual(txidOf(again), txidOf(first))
     assert.strictEqual(encoder.recentBuilds.size, 1, 'the expired record is evicted and the new one written')
   })

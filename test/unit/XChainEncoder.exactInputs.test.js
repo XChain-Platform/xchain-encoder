@@ -45,11 +45,11 @@ function makeSegwitUtxo (txid, vout, value, confirmations = 6) {
   }
 }
 
+// Segwit-capable network carrying a dustThreshold: every fixture here spends a
+// P2WPKH input, and the builder refuses one on a chain without segwit.
 function makeEncoder () {
-  // dogecoin-regtest carries a dustThreshold in CryptoNetworks, which the change
-  // math needs; bitcoin-regtest uses the bitcoinjs-lib built-in and has none.
   const encoder = new XChainEncoder(
-    'dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
+    'litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
@@ -61,10 +61,10 @@ function makeEncoder () {
   return encoder
 }
 
-const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
-  network: DOGE_REGTEST
+  network: LTC_REGTEST
 }).address
 const PUBKEY_HEX = pubkeyBuf.toString('hex')
 
@@ -78,10 +78,14 @@ function stuckChainUtxos (confirmations = 0) {
   ]
 }
 
+// Absolute fee for every probe here, held under the fee-rate cap for the smallest
+// transaction these tests build so the cap never masks the selection under test.
+const RESCUE_FEE = 10000
+
 // createTransaction is positional; name the tail so the tests read as intent.
 function createTx (encoder, utxos, overrides = {}) {
   const o = Object.assign({
-    customOutputs: null, data: null, rawData: null, fee: 100000, rbf: false,
+    customOutputs: null, data: null, rawData: null, fee: RESCUE_FEE, rbf: false,
     encoding: null, change: TEST_ADDRESS, p2shHash: null, p2shHex: null,
     compressedPubKey: null, unconfirmed: true, options: null
   }, overrides)
@@ -140,7 +144,7 @@ describe('XChainEncoder create_tx options.exactInputs', () => {
     const outputs = psbt.txOutputs
     assert.strictEqual(outputs.length, 1, 'payment-only rescue emits change alone')
     assert.strictEqual(outputs[0].address, TEST_ADDRESS)
-    assert.strictEqual(outputs[0].value, total - 100000)
+    assert.strictEqual(outputs[0].value, total - RESCUE_FEE)
   })
 
   it('signals RBF on every input when rbf is set, not just the first', async () => {

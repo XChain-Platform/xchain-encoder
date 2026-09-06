@@ -21,7 +21,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A, TXID_B, TXID_C,
-  makeSegwitUtxo, makeEncoder, getTestAddress
+  makeUtxo, makeEncoder, getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -51,7 +51,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
   describe('D-1: Negative change is refused, not signed', () => {
     it('1-sat UTXO + 10000-sat fee → INSUFFICIENT_FUNDS, no PSBT', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 1)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -73,9 +73,9 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       await assert.rejects(
         () => encoder.createTransaction(
           [
-            makeSegwitUtxo(TXID_A, 0, 100),
-            makeSegwitUtxo(TXID_B, 0, 100),
-            makeSegwitUtxo(TXID_C, 0, 100)
+            makeUtxo(NETWORK, TXID_A, 0, 100),
+            makeUtxo(NETWORK, TXID_B, 0, 100),
+            makeUtxo(NETWORK, TXID_C, 0, 100)
           ],
           ADDRESS, null,
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
@@ -100,9 +100,9 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       await assert.rejects(
         () => encoder.createTransaction(
           [
-            makeSegwitUtxo(TXID_A, 0, 100),
-            makeSegwitUtxo(TXID_B, 0, 100),
-            makeSegwitUtxo(TXID_A, 1, 100)
+            makeUtxo(NETWORK, TXID_A, 0, 100),
+            makeUtxo(NETWORK, TXID_B, 0, 100),
+            makeUtxo(NETWORK, TXID_A, 1, 100)
           ],
           ADDRESS, null,
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
@@ -114,7 +114,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
 
     it('a single dust UTXO is refused rather than serialized', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -131,7 +131,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       // not simply refuse every transaction these cases feed it.
       const encoder = makeEncoder(NETWORK)
       const result = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,
+        [makeUtxo(NETWORK, TXID_A, 0, 100000000)], ADDRESS, null,
         actions.makeSend().data, null, 10000, false, null, ADDRESS,
         null, null, null, true, 0.00001
       )
@@ -145,13 +145,13 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
 
       const [r1, r2] = await Promise.all([
         encoder.createTransaction(
-          [makeSegwitUtxo(TXID_A, 0, 100000000)],
+          [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
           ADDRESS, null,
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
           null, null, null, true, 0.00001
         ),
         encoder.createTransaction(
-          [makeSegwitUtxo(TXID_B, 0, 100000000)],
+          [makeUtxo(NETWORK, TXID_B, 0, 100000000)],
           ADDRESS, null,
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
           null, null, null, true, 0.00001
@@ -165,8 +165,8 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     it('two concurrent calls sharing same array both complete', async () => {
       const encoder = makeEncoder(NETWORK)
       const sharedUtxos = [
-        makeSegwitUtxo(TXID_A, 0, 100000000),
-        makeSegwitUtxo(TXID_B, 0, 50000000)
+        makeUtxo(NETWORK, TXID_A, 0, 100000000),
+        makeUtxo(NETWORK, TXID_B, 0, 50000000)
       ]
 
       // Both calls share the same array reference. JavaScript is
@@ -193,9 +193,9 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     it('createTransaction mutates the caller\'s utxos array in-place', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxos = [
-        makeSegwitUtxo(TXID_C, 0, 10000000),   // small
-        makeSegwitUtxo(TXID_A, 0, 100000000),  // large
-        makeSegwitUtxo(TXID_B, 0, 50000000)    // medium
+        makeUtxo(NETWORK, TXID_C, 0, 10000000),   // small
+        makeUtxo(NETWORK, TXID_A, 0, 100000000),  // large
+        makeUtxo(NETWORK, TXID_B, 0, 50000000)    // medium
       ]
       const orderBefore = utxos.map(u => u.txid)
 
@@ -214,8 +214,8 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     it('second call with same pre-sorted array still succeeds', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxos = [
-        makeSegwitUtxo(TXID_A, 0, 100000000),
-        makeSegwitUtxo(TXID_B, 0, 50000000)
+        makeUtxo(NETWORK, TXID_A, 0, 100000000),
+        makeUtxo(NETWORK, TXID_B, 0, 50000000)
       ]
 
       await encoder.createTransaction(

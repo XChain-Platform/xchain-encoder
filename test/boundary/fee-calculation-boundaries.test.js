@@ -24,7 +24,7 @@ const XChainEncoder = require('../../src/XChainEncoder')
 const {
   TXID_A,
   TXID_B,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress,
   buildRawTxHex
@@ -47,7 +47,7 @@ describe('Fee Calculation Boundaries', () => {
     it('BTC: fee floors to 546 sats', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -64,7 +64,7 @@ describe('Fee Calculation Boundaries', () => {
     it('LTC: fee floors to 5460 sats', async () => {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('litecoin-regtest', TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -81,7 +81,7 @@ describe('Fee Calculation Boundaries', () => {
     it('DOGE: fee floors to 100000 sats (Dogecoin high dust threshold)', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -100,7 +100,7 @@ describe('Fee Calculation Boundaries', () => {
     it('negative feePerKb does not produce negative fee', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -131,7 +131,7 @@ describe('Fee Calculation Boundaries', () => {
       const uncapped = makeEncoder(NETWORK)
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const highFee = 100000000 // sat/kB: 100000 sat/byte = extremely high
 
       const cappedResult = await capped.createTransaction(
@@ -164,7 +164,7 @@ describe('Fee Calculation Boundaries', () => {
 
       const uncapped = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const lowFee = 1000 // sat/kB: 1 sat/byte, below the cap
 
       const cappedResult = await capped.createTransaction(
@@ -190,7 +190,7 @@ describe('Fee Calculation Boundaries', () => {
     it('fractional fee is truncated toward zero, not rounded', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       // Use a fee rate that produces a fractional satoshi amount
       // feePerBytes * txSize * SATOSHI_UNIT needs to be fractional
@@ -216,7 +216,7 @@ describe('Fee Calculation Boundaries', () => {
     it('1-sat UTXO with dust-floored fee throws INSUFFICIENT_FUNDS', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 1)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -241,9 +241,9 @@ describe('Fee Calculation Boundaries', () => {
       await assert.rejects(
         () => encoder.createTransaction(
           [
-            makeSegwitUtxo(TXID_A, 0, 100),
-            makeSegwitUtxo(TXID_B, 0, 100),
-            makeSegwitUtxo(TXID_A, 1, 100)
+            makeUtxo(NETWORK, TXID_A, 0, 100),
+            makeUtxo(NETWORK, TXID_B, 0, 100),
+            makeUtxo(NETWORK, TXID_A, 1, 100)
           ],
           address, null,
           'SEND|0|X|1|a', null, 10000, false, null, address,
@@ -260,7 +260,7 @@ describe('Fee Calculation Boundaries', () => {
     it('fee=10000 sets estimatedFee=10000 regardless of tx size', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -275,7 +275,7 @@ describe('Fee Calculation Boundaries', () => {
     it('explicit fee=0 still gets floored to dustAmount', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -292,7 +292,7 @@ describe('Fee Calculation Boundaries', () => {
     it('explicit fee=1 still gets floored to dustAmount', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,

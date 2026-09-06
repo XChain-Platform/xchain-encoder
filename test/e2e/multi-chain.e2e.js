@@ -24,7 +24,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -35,8 +35,8 @@ const {
   MAGIC_WORD
 } = require('../integration/helpers/deobfuscate')
 
-function stdUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+function stdUtxo (network) {
+  return makeUtxo(network, TXID_A, 0, 100000000)
 }
 
 const CHAINS = [
@@ -52,7 +52,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
       it('creates valid OP_RETURN PSBT with correct dust threshold', async () => {
         const encoder = makeEncoder(chain.name)
         const address = getTestAddress(chain.name)
-        const utxo = stdUtxo()
+        const utxo = stdUtxo(chain.name)
         const action = actions.makeSend()
 
         const result = await encoder.createTransaction(
@@ -79,7 +79,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
       it('creates P2SH with output value >= chain dust threshold', async () => {
         const encoder = makeEncoder(chain.name)
         const address = getTestAddress(chain.name)
-        const utxo = stdUtxo()
+        const utxo = stdUtxo(chain.name)
         const action = actions.makeIssueFull('CHAIN')
 
         const result = await encoder.createTransaction(
@@ -106,7 +106,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
     it('creates P2WSH witness output on bitcoin-regtest', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('bitcoin-regtest')
       const action = actions.makeFileLarge()
 
       const result = await encoder.createTransaction(
@@ -131,7 +131,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
     it('multisig output at 546 sats', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_MULTISIGN, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -155,7 +155,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
     it('multisig output at 5460 sats', async () => {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo('litecoin-regtest', TXID_MULTISIGN, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -190,7 +190,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
     it('Litecoin fee floor is 5460, not 546', async () => {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
-      const utxo = stdUtxo()
+      const utxo = stdUtxo('litecoin-regtest')
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(

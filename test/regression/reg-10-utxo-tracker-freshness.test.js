@@ -27,7 +27,7 @@ process.env.NODE_PASSWORD = process.env.NODE_PASSWORD || 'test'
 const assert = require('assert')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -40,7 +40,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
         sync: { tracker_height: 90, node_height: 100, lag: 10, synced: false }
       })
 
@@ -64,7 +64,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       // tracker's own synced verdict: our default threshold (2) is tighter
       // than a hypothetical tracker-side verdict that considers lag=5 fine.
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
         sync: { tracker_height: 95, node_height: 100, lag: 5, synced: true }
       })
 
@@ -88,7 +88,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       encoder.connector = { getFeePerKilobyte: async () => 0.00001, getTransactionHex: async () => null, isRegtest: async () => true }
       encoder.utxoTrackerConnector = {
         getUtxosFromAddress: async () => ({
-          utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+          utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
           sync: { tracker_height: 97, node_height: 100, lag: 3, synced: true }
         })
       }
@@ -109,7 +109,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
   describe('unusable-source gates fire', () => {
     function stubSync(encoder, sync) {
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
         sync
       })
     }
@@ -215,7 +215,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
         sync: { tracker_height: 99, node_height: 100, lag: 1, synced: true }
       })
 
@@ -230,7 +230,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
         sync: { tracker_height: 98, node_height: 100, lag: 2, synced: true }
       })
 
@@ -247,7 +247,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)]
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)]
         // no `sync` key at all
       })
 
@@ -262,7 +262,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
         sync: { tracker_height: -1, node_height: -1, lag: null, synced: true }
       })
 
@@ -278,7 +278,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
     it('never consults or gates on the tracker when UTXOs are explicitly provided', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
       let trackerCalled = false
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
