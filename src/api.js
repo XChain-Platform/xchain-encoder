@@ -136,6 +136,21 @@ app.set('trust proxy', trustProxy);
 
 app.use(helmet());
 
+// CORS configuration (default: disabled; `*` allows all; a comma-separated list
+// is an ALLOWLIST matched per-origin). parseCorsOrigin is what makes the list
+// case work: handing `cors` the raw string would echo it verbatim to everyone
+// and be accepted by no browser. See src/corsOrigin.js.
+//
+// Mounted above the API-key gate and the shedding layers, and the position is
+// load-bearing: a preflight is an OPTIONS carrying no x-api-key (that header is
+// not CORS-safelisted, which is what forces the preflight), so a gate mounted
+// first answers it 401 bare and the browser never sends the real request. The
+// same order is what lets a browser read the gate 401 and the limiter/gate 429s
+// rather than an opaque network error. Trade: a preflight skips the limiter and
+// both gates for a 204 that does no upstream work, as in every sibling service.
+// Ordering pinned by test/unit/corsPreflight.test.js.
+app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
+
 // 3mb (was 1mb): the TAPROOT envelope raises the largest legitimate request
 // well past 1mb. A create_tx may carry ~400 KB of rawData
 // that arrives base64/hex-encoded (~0.5-0.8 MB) or, worst case, as
@@ -205,12 +220,6 @@ const requestGate = concurrencyGate.createConcurrencyGate({
     body:       BUSY_BODY
 })
 app.use(requestGate)
-
-// CORS configuration (default: disabled; `*` allows all; a comma-separated list
-// is an ALLOWLIST matched per-origin). parseCorsOrigin is what makes the list
-// case work: handing `cors` the raw string would echo it verbatim to everyone
-// and be accepted by no browser. See src/corsOrigin.js.
-app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
 
 // Prometheus /metrics plus a structured log shim, both DEFAULT OFF.
 // Nothing is registered and no timer starts unless METRICS_ENABLED (and, for log
@@ -523,11 +532,11 @@ app.use(jsonRouter({methods: jsonRpcController}))
 // Start the server only when run directly (node src/api.js). When required by a
 // test the controller and app are exported without binding a port.
 if (require.main === module) {
-  // HARD deploy constraint: the outpoint-reservation double-spend guard and the
-  // rate limiter are in-process, so exactly ONE encoder instance may serve an
-  // endpoint. Fail at boot if the deploy declares replicas > 1 (ENCODER_REPLICAS)
-  // or another encoder process on this host already holds the instance lock.
-  // See src/singleInstanceGuard.js.
+  // HARD deploy constraint: the outpoint-reservation double-spend guard, the
+  // recent-build duplicate refusal and the rate limiter are in-process, so
+  // exactly ONE encoder instance may serve an endpoint. Fail at boot if the
+  // deploy declares replicas > 1 (ENCODER_REPLICAS) or another encoder process
+  // on this host already holds the instance lock. See src/singleInstanceGuard.js.
   // Before the instance guard, so a throw inside it is still a CRASH record
   // rather than node's bare stderr dump.
   installCrashHandlers()
