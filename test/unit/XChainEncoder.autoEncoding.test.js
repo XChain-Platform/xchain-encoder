@@ -172,6 +172,8 @@ describe('size-aware encoding selection (§6)', function () {
             assert.strictEqual(small.encoding, 'OP_RETURN')
             assert.strictEqual(small.revealPsbt, undefined)
 
+            // Same fixture input again: release the first build's reservation.
+            e.clearReservations()
             const large = await e.createTransaction(
                 [segwitUtxo(network)], callerAddress(network), null, FILE_ACTION,
                 compressibleText(6000), null, false, null, callerAddress(network),

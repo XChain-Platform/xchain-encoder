@@ -26,7 +26,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -46,7 +46,7 @@ describe('Change Address Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // fee = utxoValue → changeSatoshis = 0
-      const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 10000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -62,7 +62,7 @@ describe('Change Address Boundaries', () => {
     it('does not throw even without change address when changeSatoshis = 0', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 10000)
 
       // change = null, but changeSatoshis = 0 → 0 > dustAmount is false → no throw
       const result = await encoder.createTransaction(
@@ -84,7 +84,7 @@ describe('Change Address Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // fee = 9999, utxo = 10000 → changeSatoshis = 1 (< 546 dust)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 10000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -100,7 +100,7 @@ describe('Change Address Boundaries', () => {
     it('does not throw with null change when changeSatoshis = 1 (1 <= dustAmount)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 10000)
 
       // change=null, changeSatoshis=1 → 1 > 546 is false → no throw, but also no output
       const result = await encoder.createTransaction(
@@ -122,7 +122,7 @@ describe('Change Address Boundaries', () => {
       const address = getTestAddress(NETWORK)
       // changeSatoshis = 546 → 546 > 546 is false → no throw
       const fee = 10000
-      const utxo = makeSegwitUtxo(TXID_A, 0, fee + BTC_DUST)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, fee + BTC_DUST)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -138,7 +138,7 @@ describe('Change Address Boundaries', () => {
       const address = getTestAddress(NETWORK)
       // changeSatoshis = 547 → 547 > 546 is true → throws
       const fee = 10000
-      const utxo = makeSegwitUtxo(TXID_A, 0, fee + BTC_DUST + 1)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, fee + BTC_DUST + 1)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -154,7 +154,7 @@ describe('Change Address Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const fee = 10000
-      const utxo = makeSegwitUtxo(TXID_A, 0, fee + BTC_DUST + 1)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, fee + BTC_DUST + 1)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -173,7 +173,7 @@ describe('Change Address Boundaries', () => {
       const ltcEncoder = makeEncoder('litecoin-regtest')
       const ltcAddress = getTestAddress('litecoin-regtest')
       const fee = 10000
-      const utxo = makeSegwitUtxo(TXID_A, 0, fee + LTC_DUST)
+      const utxo = makeUtxo('litecoin-regtest', TXID_A, 0, fee + LTC_DUST)
 
       const result = await ltcEncoder.createTransaction(
         [utxo], ltcAddress, null,
@@ -188,7 +188,7 @@ describe('Change Address Boundaries', () => {
       const ltcEncoder = makeEncoder('litecoin-regtest')
       const ltcAddress = getTestAddress('litecoin-regtest')
       const fee = 10000
-      const utxo = makeSegwitUtxo(TXID_A, 0, fee + LTC_DUST + 1)
+      const utxo = makeUtxo('litecoin-regtest', TXID_A, 0, fee + LTC_DUST + 1)
 
       await assert.rejects(
         () => ltcEncoder.createTransaction(
@@ -210,7 +210,7 @@ describe('Change Address Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // utxo = 1000, fee = 5000 → changeSatoshis = -4000
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 1000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -228,7 +228,7 @@ describe('Change Address Boundaries', () => {
     it('throws INSUFFICIENT_FUNDS with a null change address too', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 1000)
 
       await assert.rejects(
         () => encoder.createTransaction(

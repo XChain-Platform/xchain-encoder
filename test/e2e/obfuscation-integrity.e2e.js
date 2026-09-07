@@ -31,7 +31,7 @@ const {
   TXID_B,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -40,7 +40,7 @@ const actions = require('../integration/helpers/actionFactory')
 const NETWORK = 'dogecoin-regtest'
 
 function stdUtxo (txid) {
-  return makeSegwitUtxo(txid || TXID_A, 0, 100000000)
+  return makeUtxo(NETWORK, txid || TXID_A, 0, 100000000)
 }
 
 describe('E2E-4: Obfuscation Integrity', () => {
@@ -81,7 +81,7 @@ describe('E2E-4: Obfuscation Integrity', () => {
       const MS_DATA = 'A'.repeat(59)
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -180,8 +180,8 @@ describe('E2E-4: Obfuscation Integrity', () => {
       const action = actions.makeSend()
 
       // Provide UTXOs smallest-first; TXID_A is the largest
-      const small = makeSegwitUtxo(TXID_B, 0, 10000000)
-      const large = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const small = makeUtxo(NETWORK, TXID_B, 0, 10000000)
+      const large = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [small, large], address, null,

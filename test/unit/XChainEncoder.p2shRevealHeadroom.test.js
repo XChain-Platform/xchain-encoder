@@ -52,6 +52,36 @@ function makeSegwitUtxo (txid, vout, value) {
   }
 }
 
+function makeLegacyUtxo (txid, vout, value) {
+  const p2pkh = bitcoin.payments.p2pkh({
+    pubkey: pubkeyBuf,
+    network: bitcoin.networks.regtest
+  })
+  return {
+    txid,
+    vout,
+    value,
+    confirmations: 6,
+    scriptPubKey: p2pkh.output.toString('hex')
+  }
+}
+
+// Pick the fixture the chain can hold: a witness-program UTXO only exists where
+// consensus knows segwit, and the builder refuses one where it does not.
+function fundingUtxo (encoder, txid, vout, value) {
+  return encoder.network.supportsSegwit === false
+    ? makeLegacyUtxo(txid, vout, value)
+    : makeSegwitUtxo(txid, vout, value)
+}
+
+// The whole previous transaction, which a legacy input carries as nonWitnessUtxo.
+function prevTxHex () {
+  const tx = new bitcoin.Transaction()
+  tx.addInput(Buffer.alloc(32, 0x11), 0)
+  tx.addOutput(bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest }).output, 100000000)
+  return tx.toHex()
+}
+
 function makeEncoder (network) {
   const encoder = new XChainEncoder(
     network, '127.0.0.1', '8333', 'rpc', 'rpc', '', ''
@@ -60,7 +90,7 @@ function makeEncoder (network) {
   // relative fee cap (x100) far above every caller rate used here.
   encoder.connector = {
     getFeePerKilobyte: async () => 0.01,
-    getTransactionHex: async () => { throw new Error('not needed by these tests') }
+    getTransactionHex: async () => prevTxHex()
   }
   return encoder
 }
@@ -72,8 +102,11 @@ function callerAddress (network) {
 
 async function buildFunding (encoder, network, encoding, feePerKb, payloadLen) {
   const addr = callerAddress(network)
+  // Each probe respends the one fixture input on the same encoder; release the
+  // previous build's reservation so this is a comparison, not a double-spend.
+  encoder.clearReservations()
   const res = await encoder.createTransaction(
-    [makeSegwitUtxo(TXID_A, 0, 100000000)], addr, null,
+    [fundingUtxo(encoder, TXID_A, 0, 100000000)], addr, null,
     'x'.repeat(payloadLen), null, null, false, encoding, addr,
     null, null, null, true, feePerKb
   )
@@ -199,6 +232,7 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     assert.ok(reveal.outs[0].script.toString('hex').startsWith('6a'))
   })
 
+  // The DOGE pin spends a P2PKH input, the only output type that chain holds.
   // Byte-identity pins for the paths that already work today. The expected
   // hexes were generated with THIS harness against the pre-fix (git HEAD)
   // XChainEncoder, so any drift on these lanes fails loudly.
@@ -207,7 +241,7 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     ltcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02405b00000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fe9849f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
     btcP2wshReveal: '02000000019d2de3ed9219bd7f9df123398722dac29eef5f38d5c5b038a96dc6678a7066fd0000000000ffffffff0200000000000000000b6a098163302df9a1af23ee22020000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
     ltcP2wshReveal: '0200000001e681017eda2e84c8f80a5d543af89041236fc9e7549630025e3d1588ef60e5c60000000000ffffffff0200000000000000000b6a09e56b6a299a4ddadb6654150000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
-    dogeOpReturn: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff0200000000000000002f6a2d09cb8e09635af4c5aa3a916a26c6652b18482f3a1ec3636bebdfa9f4d1599a8385426040f9baaff90aa6b137f0a854f305000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000'
+    dogeOpReturn: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff0200000000000000002f6a2d09cb8e09635af4c5aa3a916a26c6652b18482f3a1ec3636bebdfa9f4d1599a8385426040f9baaff90aa6b137f0289ff105000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000'
   }
 
   it('keeps the BTC default two-phase lane (P2WSH) byte-identical, funding and reveal', async () => {

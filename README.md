@@ -4,8 +4,8 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.12.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-1%2C561%2B%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-1%2C604%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
 </p>
@@ -31,7 +31,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Browser bundle**: Browserify build for client-side PSBT generation without a server
-- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard and rate limiter are in-process only until a shared store exists
+- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard, the recent-build duplicate refusal and the rate limiter are in-process only until a shared store exists
 - **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
 
 ## Documentation
@@ -81,20 +81,51 @@ npm run api
 | `NODE_RPC_TIMEOUT` | No | `30000` | Coin-node RPC call timeout in milliseconds |
 | `UTXO_TRACKER_URL` | No | (none) | xchain-utxo-tracker service host |
 | `UTXO_TRACKER_API_PORT` | No | (none) | xchain-utxo-tracker service port |
-| `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it |
+| `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it. `GET /status` publishes the effective value as `tracker_max_lag_blocks`, so a status board can rank lag against the other unready causes without mirroring a constant it cannot see (the tracker's own `SYNCED_THRESHOLD` is looser and is not this gate) |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing) |
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
 | `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |
-| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until a shared UTXO-reservation store exists |
+| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until the in-process reservation, recent-build and rate-limit stores are shared |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
 | `ENCODER_MAX_RPC_BATCH` | No | `20` | Maximum JSON-RPC batch array length per request |
 | `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `GET /status` and `GET /openrpc.json` are exempt; `0` disables |
 | `ENCODER_MAX_CONCURRENT_PROBES` | No | `16` | Private concurrency reserve for the two exempt probe routes, so healthchecks stay answerable while the cap above sheds without becoming an uncapped bypass; `0` disables |
 | `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
+| `ENCODER_MAINTENANCE_FILE` | No | `/tmp/xchain-encoder-maintenance.json` | Where the encoder looks for an operator-declared scheduled-maintenance window. `health` and `GET /status` report it as `maintenance` beside the readiness fields, so a status board can tell a planned outage from a fault; it never changes a readiness field or the 503. See [Scheduled maintenance](#scheduled-maintenance) |
 | `CORS_ORIGIN` | No | Disabled | Allowed CORS origin(s): `*` for any, one origin, or a comma-separated allowlist matched per-origin (browser wallet shells each send a different origin). A stray `*` inside a list is not a wildcard, so the grant fails closed |
+
+## Scheduled maintenance
+
+Planned work takes an encoder's dependencies down. The monthly UTXO-tracker
+bootstrap publish stops the tracker, so `GET /status` answers 503 with
+`tracker_reachable: false` and a status board has no way to tell that outage
+apart from a broken encoder.
+
+Declaring a window fixes the label, not the probe. Write a small JSON file at
+`ENCODER_MAINTENANCE_FILE`:
+
+```json
+{ "reason": "utxo-tracker bootstrap publish",
+  "since": "2026-09-02T02:00:00.000Z",
+  "until": "2026-09-02T08:00:00.000Z" }
+```
+
+`health` and `GET /status` then carry it as `maintenance` alongside the
+readiness fields. What it does **not** do is as important: the readiness
+booleans and the 503 are unchanged, so every load balancer and uptime monitor
+keyed on them keeps seeing exactly what it saw before.
+
+`until` is required, and a window longer than 24 hours, already expired,
+malformed, or oversized is ignored: a publish that dies without cleaning up
+stops excusing the outage at its own declared end time rather than hiding it
+indefinitely. A `since` in the future holds the window closed until it opens.
+`reason` is optional, bounded, and stripped to printable ASCII.
+
+`xchain-node` writes and removes this file automatically around a bootstrap
+publish (`src/services/EncoderMaintenanceWindow.js`).
 
 ## Metrics and log shipping (optional, off by default)
 
@@ -134,20 +165,20 @@ defaults hold on an unconfigured box:
 | `npm run build` | Production browser bundle (minified) -> `dist/xchain_encoder.min.js` |
 | `npm run build:dev` | Development browser bundle (unminified) |
 | `npm run smoke-test` | Smoke tests (~52 tests, <1s) |
-| `npm run test:unit` | Unit tests (724 tests) |
+| `npm run test:unit` | Unit tests (759 tests) |
 | `npm run test:integration` | Integration tests (112 tests) |
 | `npm run test:boundary` | Boundary condition tests (~101 tests) |
 | `npm run test:security` | Security tests (57 tests) |
 | `npm run test:fuzz` | Property-based fuzz tests (6 suites, 6 tests) |
 | `npm run test:chaos` | Chaos engineering tests (63 tests) |
 | `npm run test:e2e` | End-to-end tests (~158 tests) |
-| `npm run test:regression` | Regression tests (282 tests) |
+| `npm run test:regression` | Regression tests (290 tests) |
 | `npm run mutate` | Full mutation testing via StrykerJS |
 | `npm run mutate:quick` | Quick mutation check (XChainEncoder.js only) |
 | `npm run bench` | Performance benchmarks |
 | `npm run bench:full` | Extended benchmarks with JSON output |
 | `npm run bench:soak` | Soak test (sustained load) |
-| `npm test` | Unit tests (hermetic, no external services, 724 tests) |
+| `npm test` | Unit tests (hermetic, no external services, 759 tests) |
 | `npm run test:regtest` | Regtest integration tests (requires local bitcoind) |
 
 ## Test Suite

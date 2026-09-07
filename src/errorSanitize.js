@@ -49,4 +49,4 @@ function upstreamErrorMessage(err, fallback) {
     return (err && err.message) || fallback
 }
 
-module.exports = { TRANSPORT_ERROR_CODES, isTransportError, upstreamErrorMessage }
+module.exports = { isTransportError, upstreamErrorMessage }

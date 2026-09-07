@@ -23,7 +23,7 @@ const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A,
   TXID_B,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -44,7 +44,7 @@ describe('Custom Output Boundaries', () => {
     it('"1.5" value is rejected, not truncated to 1', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       await assert.rejects(() => encoder.createTransaction(
         [utxo], address, [
@@ -58,7 +58,7 @@ describe('Custom Output Boundaries', () => {
     it('"999999.9" is rejected, not truncated to 999999', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       await assert.rejects(() => encoder.createTransaction(
         [utxo], address, [
@@ -72,7 +72,7 @@ describe('Custom Output Boundaries', () => {
     it('a clean integer custom output value still builds correctly', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, [
@@ -94,7 +94,7 @@ describe('Custom Output Boundaries', () => {
     it('10 custom outputs each worth 100000 → correct total in outputSatoshis', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const customOutputs = Array.from({ length: 10 }, () => ({
         address,
@@ -118,7 +118,7 @@ describe('Custom Output Boundaries', () => {
     it('each custom output adds 43 bytes to estimated tx size', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       // With 10 custom outputs (each adding 43 bytes), the total estimated
       // size is 430 bytes larger. With auto fee, the fee should be measurably higher.
@@ -129,6 +129,8 @@ describe('Custom Output Boundaries', () => {
         null, null, null, true, 100000 // sat/kB: 100 sat/byte, moderate fee rate
       )
 
+      // Same input on purpose: release the first build's reservation.
+      encoder.clearReservations()
       const resultWithout = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, null, false, null, address,
@@ -155,7 +157,7 @@ describe('Custom Output Boundaries', () => {
     it('value=0 output is rejected as a non-positive custom output', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -178,7 +180,7 @@ describe('Custom Output Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // UTXO = 10000, custom output = 50000
-      const utxo = makeSegwitUtxo(TXID_A, 0, 10000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 10000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -200,7 +202,7 @@ describe('Custom Output Boundaries', () => {
     it('empty array has no effect on outputs or fees', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const resultEmpty = await encoder.createTransaction(
         [utxo], address, [],
@@ -208,6 +210,8 @@ describe('Custom Output Boundaries', () => {
         null, null, null, true, 0.00001
       )
 
+      // Same input on purpose: release the first build's reservation.
+      encoder.clearReservations()
       const resultNull = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|X|1|a', null, 10000, false, null, address,

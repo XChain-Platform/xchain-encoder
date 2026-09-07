@@ -22,7 +22,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A, TXID_B, PUBKEY_BUF,
-  makeSegwitUtxo, makeMempoolUtxo, makeEncoder, getTestAddress, buildRawTxHex
+  makeUtxo, makeMempoolUtxo, makeEncoder, getTestAddress, buildRawTxHex
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -71,7 +71,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       const encoder = makeEncoder(DOGE)
 
       const result = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        [makeUtxo(DOGE, TXID_A, 0, 100000000)],
         DOGE_ADDR, null,
         actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
         null, null, null, false, 0.00001
@@ -86,7 +86,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
     // selection instead, so both now assert the typed refusal.
     it('value=0 → INSUFFICIENT_FUNDS, available reported as 0', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 0)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 0)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -104,7 +104,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
     it('value=1 → INSUFFICIENT_FUNDS rather than negative change', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 1)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -122,7 +122,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
     it('hex string value "0xff" is rejected (parseInt would read it as 0)', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = { ...makeSegwitUtxo(TXID_A, 0, 1), value: '0xff' }
+      const utxo = { ...makeUtxo(DOGE, TXID_A, 0, 1), value: '0xff' }
 
       // parseInt('0xff', 10) === 0 silently zeroed the UTXO; reject instead.
       await assert.rejects(() => encoder.createTransaction(
@@ -134,7 +134,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
     it('float string "100.7" is rejected (parseInt would truncate to 100)', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = { ...makeSegwitUtxo(TXID_A, 0, 1), value: '100.7' }
+      const utxo = { ...makeUtxo(DOGE, TXID_A, 0, 1), value: '100.7' }
 
       await assert.rejects(() => encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -147,7 +147,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-3: Obfuscation key edge cases (degenerate AES keys)', () => {
     it('all-zero txid (000...0) works as AES key', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo('0'.repeat(64), 0, 100000000)
+      const utxo = makeUtxo(DOGE, '0'.repeat(64), 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -162,7 +162,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       const utxo = {
         txid: 'a'.repeat(32),
         vout: 0, value: 100000000, confirmations: 6,
-        scriptPubKey: makeSegwitUtxo(TXID_A, 0, 1).scriptPubKey
+        scriptPubKey: makeUtxo(DOGE, TXID_A, 0, 1).scriptPubKey
       }
 
       // Short txid causes failure either at bitcoinjs-lib buffer
@@ -178,7 +178,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
     it('all-F txid (fff...f) works as AES key', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo('f'.repeat(64), 0, 100000000)
+      const utxo = makeUtxo(DOGE, 'f'.repeat(64), 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -198,7 +198,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-4: Maximum payload stress (8192 byte compiled boundary)', () => {
     it('8189-byte data → compiled=8192 → at limit, P2WSH succeeds', async () => {
       const encoder = makeEncoder(BTC)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
+      const utxo = makeUtxo(BTC, TXID_A, 0, 1000000000)
 
       const result = await encoder.createTransaction(
         [utxo], BTC_ADDR, null,
@@ -211,7 +211,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
     it('8190-byte data → compiled=8193 → RangeError: Payload too large', async () => {
       const encoder = makeEncoder(BTC)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1000000000)
+      const utxo = makeUtxo(BTC, TXID_A, 0, 1000000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -269,7 +269,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-6: Binary/NUL content in ACTION data', () => {
     it('NUL bytes in data produce valid PSBT', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -281,7 +281,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
 
     it('emoji/high-Unicode in data produce valid PSBT', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,

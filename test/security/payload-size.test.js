@@ -23,7 +23,7 @@
 const assert = require('assert')
 const {
     TXID_A,
-    makeSegwitUtxo,
+    makeUtxo,
     makeEncoder,
     getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -37,7 +37,7 @@ describe('Security: compiled payload-size ceiling', () => {
     before(() => {
         encoder = makeEncoder(NETWORK)
         address = getTestAddress(NETWORK)
-        utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+        utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
     })
 
     it('rejects a payload whose compiled push exceeds the on-chain ceiling', async () => {

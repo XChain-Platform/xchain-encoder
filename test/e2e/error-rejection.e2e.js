@@ -23,7 +23,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeLegacyUtxo,
   makeEncoder,
   getTestAddress,
@@ -75,7 +75,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('propagates RPC error when fee estimation fails', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       encoder.connector.getFeePerKilobyte = async () => {
@@ -95,7 +95,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('succeeds when feePerKb provided despite RPC failure', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       encoder.connector.getFeePerKilobyte = async () => {
@@ -170,7 +170,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('throws when compressedPubKey is null', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -186,7 +186,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.7: Invalid address for P2SH', () => {
     it('throws on invalid base58 address', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       await assert.rejects(
@@ -203,7 +203,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('throws descriptive "burn satoshis" error', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       await assert.rejects(
@@ -221,7 +221,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('handles empty string without crashing', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       // An empty ACTION string has no specified behavior; either a minimal
       // valid PSBT or a meaningful error is acceptable.
@@ -242,7 +242,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('handles null data gracefully', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       try {
         const result = await encoder.createTransaction(
@@ -261,7 +261,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('does not produce negative-value outputs', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       try {
@@ -287,7 +287,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       const action = actions.makeSend()
 
       // 1 sat UTXO -- far too small to cover any fee
-      const tinyUtxo = makeSegwitUtxo(TXID_A, 0, 1)
+      const tinyUtxo = makeUtxo(NETWORK, TXID_A, 0, 1)
 
       try {
         const result = await encoder.createTransaction(
@@ -307,7 +307,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
     it('returns { psbt: Psbt, encoding: string } with valid enum', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(

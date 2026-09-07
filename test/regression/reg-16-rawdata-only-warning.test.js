@@ -24,7 +24,7 @@
 
 const assert = require('assert')
 const {
-  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A
+  makeEncoder, makeUtxo, getTestAddress, TXID_A
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 const openrpc = require('../../docs/openrpc.json')
@@ -32,7 +32,7 @@ const openrpc = require('../../docs/openrpc.json')
 const NETWORK = 'dogecoin-regtest'
 
 function callerUtxos () {
-  return [makeSegwitUtxo(TXID_A, 0, 100000000)]
+  return [makeUtxo(NETWORK, TXID_A, 0, 100000000)]
 }
 
 describe('rawData-only create_tx warning @regression', function () {

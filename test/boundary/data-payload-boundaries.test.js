@@ -22,7 +22,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -32,12 +32,12 @@ const {
   MAGIC_WORD
 } = require('../integration/helpers/deobfuscate')
 
-// BTC semantics: the forced-OP_RETURN over-capacity test expects a rejection,
-// which only applies on chains with singleOpReturnPolicy=true (bitcoin).
+// Fixes the fixtures on BTC. The forced-OP_RETURN over-capacity rejection itself
+// is unconditional: singleOpReturnPolicy is declared but read nowhere (uuid:0ca8479c).
 const NETWORK = 'bitcoin-regtest'
 
 function standardUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+  return makeUtxo(NETWORK, TXID_A, 0, 100000000)
 }
 
 describe('Data/Payload Boundaries', () => {

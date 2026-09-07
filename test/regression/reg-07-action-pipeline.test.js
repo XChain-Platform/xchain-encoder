@@ -28,7 +28,7 @@ const {
 } = require('../integration/helpers/deobfuscate')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -43,7 +43,7 @@ async function encodeAndExtract (actionObj, opts = {}) {
   const network = opts.network || NETWORK
   const encoder = makeEncoder(network)
   const address = getTestAddress(network)
-  const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+  const utxo = makeUtxo(network, TXID_A, 0, 100000000)
 
   const result = await encoder.createTransaction(
     [utxo], address, null,
@@ -82,7 +82,7 @@ describe('REG-07: Action Pipeline Regression', function () {
     it('full ISSUE (25+ fields) auto-selects P2SH', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const result = await encoder.createTransaction(
@@ -126,12 +126,12 @@ describe('REG-07: Action Pipeline Regression', function () {
 
   describe('REG-07.5: BROADCAST oversized OP_RETURN rejected', function () {
     it('long broadcast forced to OP_RETURN is rejected', async function () {
-      // The single-OP_RETURN rejection only fires where singleOpReturnPolicy=true
-      // (bitcoin); dogecoin/litecoin permit multiple OP_RETURNs, so force bitcoin.
+      // The rejection fires on every coin, not just bitcoin: singleOpReturnPolicy is
+      // declared in the coin registry but read nowhere (uuid:0ca8479c).
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(orNet, TXID_A, 0, 100000000)
       const action = actions.makeBroadcastLong()
 
       // A transaction may carry at most one OP_RETURN output; Bitcoin Core
@@ -151,7 +151,7 @@ describe('REG-07: Action Pipeline Regression', function () {
     it('long broadcast auto-selects P2SH (the valid carrier for oversized data)', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeBroadcastLong()
 
       const result = await encoder.createTransaction(
@@ -168,7 +168,7 @@ describe('REG-07: Action Pipeline Regression', function () {
     it('large FILE uses P2WSH on segwit-capable network', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       const result = await encoder.createTransaction(
@@ -199,7 +199,7 @@ describe('REG-07: Action Pipeline Regression', function () {
     it('both data and rawData present in decompiled output', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,

@@ -29,7 +29,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -38,7 +38,7 @@ const actions = require('../integration/helpers/actionFactory')
 const NETWORK = 'dogecoin-regtest'
 
 function stdUtxo () {
-  return makeSegwitUtxo(TXID_A, 0, 100000000)
+  return makeUtxo(NETWORK, TXID_A, 0, 100000000)
 }
 
 async function encodeAndExtract (data, opts = {}) {
@@ -257,7 +257,7 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
     it('MULTISIGN output uses custom dust value', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
       const customDust = 1234
 
       const result = await encoder.createTransaction(

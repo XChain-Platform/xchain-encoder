@@ -23,7 +23,7 @@ const bitcoin = require('bitcoinjs-lib')
 const { validateAll } = require('../../src/validator')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -73,7 +73,7 @@ describe('REG-08: API Contract Regression', function () {
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         fee: '10000',
         change: address,
         feePerKb: 0.00001
@@ -92,8 +92,8 @@ describe('REG-08: API Contract Regression', function () {
         data: action.data,
         pubkey: address,
         utxos: [
-          makeSegwitUtxo(TXID_A, 0, 50000000),
-          makeSegwitUtxo(TXID_A, 1, 50000000)
+          makeUtxo(NETWORK, TXID_A, 0, 50000000),
+          makeUtxo(NETWORK, TXID_A, 1, 50000000)
         ],
         fee: '10000',
         change: address,
@@ -111,7 +111,7 @@ describe('REG-08: API Contract Regression', function () {
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         fee: null,
         change: address,
         feePerKb: 0.00001
@@ -131,7 +131,7 @@ describe('REG-08: API Contract Regression', function () {
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         change: address,
         feePerKb: 0.00001
       }, encoder)
@@ -208,7 +208,7 @@ describe('REG-08: API Contract Regression', function () {
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         fee: '10000',
         change: address,
         feePerKb: 0.00001
@@ -226,7 +226,7 @@ describe('REG-08: API Contract Regression', function () {
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         fee: '10000',
         change: address,
         feePerKb: 0.00001
@@ -247,7 +247,7 @@ describe('REG-08: API Contract Regression', function () {
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)],
+        utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         fee: '10000',
         change: address,
         feePerKb: 0.00001

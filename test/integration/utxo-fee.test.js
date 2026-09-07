@@ -25,9 +25,10 @@ const {
   TXID_B,
   TXID_C,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeLegacyUtxo,
   makeMempoolUtxo,
+  makeTrackerEnvelope,
   makeEncoder,
   getTestAddress,
   buildRawTxHex
@@ -48,7 +49,7 @@ describe('Category D: UTXO & Fee Integration', () => {
     it('produces 1 input, 2 outputs (OP_RETURN + change)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -77,9 +78,9 @@ describe('Category D: UTXO & Fee Integration', () => {
       // Three small UTXOs: 1000 + 1000 + 1000 = 3000 sats
       // With fee of 2000, first UTXO (sorted largest=1000) won't cover it,
       // so encoder must add more
-      const utxo1 = makeSegwitUtxo(TXID_A, 0, 1000)
-      const utxo2 = makeSegwitUtxo(TXID_B, 0, 1000)
-      const utxo3 = makeSegwitUtxo(TXID_C, 0, 1000)
+      const utxo1 = makeUtxo(NETWORK, TXID_A, 0, 1000)
+      const utxo2 = makeUtxo(NETWORK, TXID_B, 0, 1000)
+      const utxo3 = makeUtxo(NETWORK, TXID_C, 0, 1000)
 
       const result = await encoder.createTransaction(
         [utxo1, utxo2, utxo3], address, null,
@@ -98,10 +99,10 @@ describe('Category D: UTXO & Fee Integration', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const dup1 = makeSegwitUtxo(TXID_A, 0, 50000000)
-      const dup2 = makeSegwitUtxo(TXID_A, 0, 50000000)
-      const dup3 = makeSegwitUtxo(TXID_A, 0, 50000000)
-      const unique = makeSegwitUtxo(TXID_B, 1, 30000000)
+      const dup1 = makeUtxo(NETWORK, TXID_A, 0, 50000000)
+      const dup2 = makeUtxo(NETWORK, TXID_A, 0, 50000000)
+      const dup3 = makeUtxo(NETWORK, TXID_A, 0, 50000000)
+      const unique = makeUtxo(NETWORK, TXID_B, 1, 30000000)
 
       const result = await encoder.createTransaction(
         [dup1, dup2, dup3, unique], address, null,
@@ -120,7 +121,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const confirmed = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const confirmed = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       confirmed.confirmations = 6
       const mempool = makeMempoolUtxo(TXID_B, 0, 50000000)
 
@@ -159,7 +160,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       let trackerCalled = false
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
-        return { utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)] }
+        return { utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)] }
       }
 
       await encoder.createTransaction(
@@ -179,7 +180,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       let trackerCalled = false
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
-        return { utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)] }
+        return { utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)] }
       }
 
       await encoder.createTransaction(
@@ -243,13 +244,11 @@ describe('Category D: UTXO & Fee Integration', () => {
         isRegtest: async () => true
       }
       capped.utxoTrackerConnector = {
-        getUtxosFromAddress: async () => ({
-          utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)]
-        })
+        getUtxosFromAddress: async () => makeTrackerEnvelope([makeUtxo(NETWORK, TXID_A, 0, 100000000)])
       }
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // Use a very high feePerKb that exceeds the cap
@@ -277,7 +276,7 @@ describe('Category D: UTXO & Fee Integration', () => {
     it('floors fee to dustAmount when computed fee is lower', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -297,7 +296,7 @@ describe('Category D: UTXO & Fee Integration', () => {
     it('throws error about burning satoshis', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       await assert.rejects(
@@ -349,7 +348,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         return { hex: buildRawTxHex(100000000, NETWORK) }
       }
 
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       await encoder.createTransaction(
         [utxo], address, null,
@@ -368,8 +367,8 @@ describe('Category D: UTXO & Fee Integration', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const small = makeSegwitUtxo(TXID_A, 0, 10000000)   // 0.1 BTC
-      const large = makeSegwitUtxo(TXID_B, 0, 100000000)  // 1 BTC
+      const small = makeUtxo(NETWORK, TXID_A, 0, 10000000)   // 0.1 BTC
+      const large = makeUtxo(NETWORK, TXID_B, 0, 100000000)  // 1 BTC
 
       const result = await encoder.createTransaction(
         [small, large], address, null,
@@ -385,7 +384,7 @@ describe('Category D: UTXO & Fee Integration', () => {
     it('sets sequence to 0xfffffffd when rbf=true (RBF armed, BIP68 disabled)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -400,7 +399,7 @@ describe('Category D: UTXO & Fee Integration', () => {
     it('sets sequence to 0xffffffff when rbf=false', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -421,7 +420,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       }
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // Should not throw because feePerKb is provided
@@ -442,7 +441,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       }
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       await encoder.createTransaction(

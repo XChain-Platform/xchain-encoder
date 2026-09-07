@@ -238,21 +238,33 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
 
   afterEach(() => { delete process.env.MAX_CPFP_UPLIFT_SAT })
 
+  // P2PKH, the only output type a chain without segwit holds, so these fixtures
+  // describe a UTXO the chain under test could actually produce.
+  const P2PKH_SCRIPT = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest }).output
+
   function makeUtxo (txid, confirmations) {
-    const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest })
     return {
       txid,
       vout: 0,
       value: INPUT_VALUE,
       confirmations,
-      scriptPubKey: p2wpkh.output.toString('hex')
+      scriptPubKey: P2PKH_SCRIPT.toString('hex')
     }
+  }
+
+  // The whole previous transaction, which a legacy input carries as nonWitnessUtxo.
+  function prevTxHex () {
+    const tx = new bitcoin.Transaction()
+    tx.addInput(Buffer.alloc(32, 0x11), 0)
+    tx.addOutput(P2PKH_SCRIPT, INPUT_VALUE)
+    return tx.toHex()
   }
 
   function makeEncoder (ancestorPackage) {
     const encoder = new XChainEncoder('dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
     encoder.connector = {
       getFeePerKilobyte: async () => NODE_RATE_PER_KB,
+      getTransactionHex: async () => prevTxHex(),
       // The suggested-rate ceiling on a test chain reads the node's relay floor;
       // without it the build would clamp to the 20-per-vByte Bitcoin-scale default
       // and never price a DOGE package at all.
@@ -262,14 +274,16 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
         return typeof ancestorPackage === 'function' ? ancestorPackage(txids) : ancestorPackage
       }
     }
-    // dogecoin-regtest's 100000-koinu dust floor sits above the fees these
-    // probes produce; the floor has its own suite, so lower it here to keep the
-    // sizing behaviour under test observable.
+    // The chain dust floor sits above the fees these probes produce; the floor has
+    // its own suite, so lower it here to keep the sizing behaviour observable.
     encoder.dustAmount = 546
     return encoder
   }
 
   async function create (encoder, utxos) {
+    // Every probe here respends the same fixture input on one encoder to
+    // compare fees, so release the previous build's reservation first.
+    encoder.clearReservations()
     return encoder.createTransaction(
       utxos, TEST_ADDRESS, null, 'test', null, null, false, null, TEST_ADDRESS,
       null, null, null, true, null
@@ -405,6 +419,7 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
       // without it the build would clamp to the 20-per-vByte Bitcoin-scale default
       // and never price a DOGE package at all.
       getNetworkInfo: async () => ({ relayfee: 0.001 }),
+      getTransactionHex: async () => prevTxHex(),
       getUnconfirmedAncestorPackage: async () => ({ size: 2000, fees: 0 })
     }
     encoder.dustAmount = 546

@@ -23,7 +23,7 @@ const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
 const {
   TXID_A,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -125,7 +125,7 @@ describe('Obfuscation Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const utxo = makeSegwitUtxo(zeroTxid, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, zeroTxid, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -148,7 +148,7 @@ describe('Obfuscation Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const utxo = makeSegwitUtxo(shortTxid, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, shortTxid, 0, 100000000)
 
       await assert.rejects(
         () => encoder.createTransaction(

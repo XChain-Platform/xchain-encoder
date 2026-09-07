@@ -20,7 +20,7 @@
 
 const assert = require('assert')
 const {
-  TXID_A, makeSegwitUtxo, makeLegacyUtxo, makeEncoder, getTestAddress
+  TXID_A, makeUtxo, makeLegacyUtxo, makeEncoder, getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 const { delay } = require('../helpers/timing')
@@ -33,7 +33,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-1: Coin daemon unreachable (ECONNREFUSED)', () => {
     it('getFeePerKilobyte failure propagates when feePerKb not provided', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
         const err = new Error('connect ECONNREFUSED 127.0.0.1:8332')
@@ -73,7 +73,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
 
     it('feePerKb parameter bypasses broken getFeePerKilobyte', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
         throw new Error('ECONNREFUSED')
@@ -91,7 +91,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-2: Coin daemon returns invalid JSON (502 HTML)', () => {
     it('SyntaxError from JSON parse propagates', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
         throw new SyntaxError('Unexpected token < in JSON at position 0')
@@ -111,7 +111,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-3: Coin daemon RPC error (node still loading)', () => {
     it('RPC error from getFeePerKilobyte propagates', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
         throw new Error('RPC error -28: Verifying blocks...')
@@ -246,7 +246,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-6: Intermittent RPC failures', () => {
     it('first call succeeds, second call fails (alternating pattern)', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       let callCount = 0
 
       encoder.connector.getFeePerKilobyte = async () => {
@@ -257,16 +257,18 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
 
       // Call 1 (odd) → success
       const result1 = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,
+        [makeUtxo(NETWORK, TXID_A, 0, 100000000)], ADDRESS, null,
         actions.makeSend().data, null, null, false, null, ADDRESS,
         null, null, null, true, null
       )
       assert.ok(result1.psbt)
 
-      // Call 2 (even) → failure
+      // Call 2 (even) → failure. Every call here respends the one fixture
+      // input, so release call 1's reservation or the RPC never gets asked.
+      encoder.clearReservations()
       await assert.rejects(
         () => encoder.createTransaction(
-          [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,
+          [makeUtxo(NETWORK, TXID_A, 0, 100000000)], ADDRESS, null,
           actions.makeSend().data, null, null, false, null, ADDRESS,
           null, null, null, true, null
         ),
@@ -275,7 +277,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
 
       // Call 3 (odd) → success again
       const result3 = await encoder.createTransaction(
-        [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,
+        [makeUtxo(NETWORK, TXID_A, 0, 100000000)], ADDRESS, null,
         actions.makeSend().data, null, null, false, null, ADDRESS,
         null, null, null, true, null
       )
@@ -286,7 +288,7 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-7: Slow RPC responses', () => {
     it('150ms delay on getFeePerKilobyte still completes', async () => {
       const encoder = makeEncoder(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       encoder.connector.getFeePerKilobyte = async () => {
         await delay(150)

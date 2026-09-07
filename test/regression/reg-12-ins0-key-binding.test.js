@@ -29,7 +29,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
-  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A, TXID_B
+  makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B
 } = require('../integration/helpers/utxoFactory')
 const { deobfuscate } = require('../integration/helpers/deobfuscate')
 const actions = require('../integration/helpers/actionFactory')
@@ -50,7 +50,7 @@ function twoUtxoEncoder () {
   const encoder = makeEncoder(NETWORK)
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => ({
-      utxos: [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)]
+      utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000), makeUtxo(NETWORK, TXID_B, 0, 100000000)]
     })
   }
   return encoder
@@ -195,22 +195,26 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
       `reservation map should not leak entries, saw ${encoder.outpointReservations.size}`)
   })
 
-  it('caller-supplied UTXOs are untouched: no reservations, ins[0] is utxos[0]', async function () {
+  it('caller-supplied UTXOs: the key binds to the first UNRESERVED input, which lands at ins[0]', async function () {
     const encoder = twoUtxoEncoder()
     const address = getTestAddress(NETWORK)
     const action = actions.makeSend()
 
+    // Caller-supplied sets go through the same reservation path as
+    // tracker-fetched ones. A foreign hold on TXID_A must push selection to
+    // TXID_B AND bind the obfuscation key there, or the action decodes to nothing.
+    encoder.outpointReservations.set(TXID_A + ':0', Date.now() + FIVE_MINUTES)
     const result = await encoder.createTransaction(
-      [makeSegwitUtxo(TXID_A, 0, 100000000)], address, null,
+      [makeUtxo(NETWORK, TXID_A, 0, 100000000), makeUtxo(NETWORK, TXID_B, 0, 100000000)], address, null,
       action.data, null, 10000, false, null, address,
       null, null, null, true, 0.00001
     )
 
-    assert.strictEqual(ins0Txid(result), TXID_A)
-    assert.strictEqual(encoder.outpointReservations.size, 0,
-      'caller coin-control must not engage the reservation map')
+    assert.strictEqual(ins0Txid(result), TXID_B)
+    assert.ok(encoder.outpointReservations.has(TXID_B + ':0'),
+      'the selected caller-supplied input must be reserved')
     const opReturn = result.psbt.txOutputs.find(o => o.value === 0)
     const obf = bitcoin.script.decompile(opReturn.script)[1]
-    assert.strictEqual(deobfuscate(obf, TXID_A).subarray(0, 4).toString('utf8'), MAGIC)
+    assert.strictEqual(deobfuscate(obf, TXID_B).subarray(0, 4).toString('utf8'), MAGIC)
   })
 })

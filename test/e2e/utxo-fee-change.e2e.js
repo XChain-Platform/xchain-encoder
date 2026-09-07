@@ -24,7 +24,7 @@ const {
   TXID_A,
   TXID_B,
   TXID_C,
-  makeSegwitUtxo,
+  makeUtxo,
   makeLegacyUtxo,
   makeMempoolUtxo,
   makeEncoder,
@@ -44,7 +44,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     it('1 input, OP_RETURN + change; change = input - fee', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -70,9 +70,9 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const utxo1 = makeSegwitUtxo(TXID_A, 0, 1000)
-      const utxo2 = makeSegwitUtxo(TXID_B, 0, 1000)
-      const utxo3 = makeSegwitUtxo(TXID_C, 0, 1000)
+      const utxo1 = makeUtxo(NETWORK, TXID_A, 0, 1000)
+      const utxo2 = makeUtxo(NETWORK, TXID_B, 0, 1000)
+      const utxo3 = makeUtxo(NETWORK, TXID_C, 0, 1000)
 
       const result = await encoder.createTransaction(
         [utxo1, utxo2, utxo3], address, null,
@@ -90,9 +90,9 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const dup1 = makeSegwitUtxo(TXID_A, 0, 50000000)
-      const dup2 = makeSegwitUtxo(TXID_A, 0, 50000000)
-      const unique = makeSegwitUtxo(TXID_B, 1, 30000000)
+      const dup1 = makeUtxo(NETWORK, TXID_A, 0, 50000000)
+      const dup2 = makeUtxo(NETWORK, TXID_A, 0, 50000000)
+      const unique = makeUtxo(NETWORK, TXID_B, 1, 30000000)
 
       const result = await encoder.createTransaction(
         [dup1, dup2, unique], address, null,
@@ -110,7 +110,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
-      const confirmed = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const confirmed = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       confirmed.confirmations = 6
       const mempool = makeMempoolUtxo(TXID_B, 0, 50000000)
 
@@ -151,7 +151,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       let trackerCalled = false
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
-        return { utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)] }
+        return { utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)] }
       }
 
       await encoder.createTransaction(
@@ -171,7 +171,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       let trackerCalled = false
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
-        return { utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)] }
+        return { utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)] }
       }
 
       await encoder.createTransaction(
@@ -188,7 +188,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     it('floors fee to dustAmount when computed fee is lower', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -219,7 +219,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       }
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       // feePerKb is in base units (sat/litoshi/koinu) per kB. 1_000_000
@@ -252,7 +252,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     it('throws when change address missing and surplus > dust', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       await assert.rejects(
@@ -304,7 +304,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         return buildRawTxHex(100000000, NETWORK)
       }
 
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       await encoder.createTransaction(
         [utxo], address, null,
@@ -320,7 +320,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     it('rbf=true sets sequence 0xfffffffd (RBF armed, BIP68 disabled)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -335,7 +335,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     it('rbf=false sets sequence 0xffffffff', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -352,7 +352,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
     it('custom output value deducted from change', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
       const fee = 10000
 
@@ -362,6 +362,9 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         null, null, null, true, 0.00001
       )
 
+      // Same input on purpose: this compares two builds of one spend, so release
+      // the first build's reservation rather than double-spend it.
+      encoder.clearReservations()
       const resultCustom = await encoder.createTransaction(
         [utxo], address, [{ address, value: '500000' }],
         action.data, null, fee, false, null, address,
@@ -382,7 +385,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       }
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -404,7 +407,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       }
 
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       await encoder.createTransaction(

@@ -14,16 +14,19 @@
  *
  * XChain Encoder - Single-instance deploy guard
  *
- * The encoder's UTXO outpoint-reservation store (XChainEncoder.js
- * `outpointReservations`) and the express-rate-limit MemoryStore are both
- * in-process. Running more than one encoder replica behind one endpoint
- * silently defeats both: two replicas can each build a PSBT spending the
- * same tracker-fetched UTXO (one tx is rejected at broadcast and the
- * signer's fee work is wasted), and per-IP rate limits multiply by the
- * replica count. Until a shared (e.g. Redis-backed) reservation store
- * exists, single-instance is a HARD deploy constraint; this module makes
- * the constraint fail loudly at boot instead of failing silently at
- * broadcast time.
+ * Three of the encoder's guards hold their whole state in-process: the UTXO
+ * outpoint-reservation store (XChainEncoder.js `outpointReservations`), the
+ * recent-build duplicate refusal behind it (`recentBuilds`, enforced in
+ * `_refuseDuplicateBuild`), and the express-rate-limit MemoryStore. Running
+ * more than one encoder replica behind one endpoint silently defeats all
+ * three: two replicas can each build a PSBT spending the same tracker-fetched
+ * UTXO (one tx is rejected at broadcast and the signer's fee work is wasted),
+ * each replica keeps its own recent-build map so one byte-identical
+ * transaction is built once per replica and journaled as two broadcast
+ * successes, and per-IP rate limits multiply by the replica count. Until a
+ * shared (e.g. Redis-backed) store exists for all three, single-instance is a
+ * HARD deploy constraint; this module makes the constraint fail loudly at boot
+ * instead of failing silently at broadcast time.
  *
  ********************************************************************/
 
@@ -33,9 +36,9 @@ const path = require('path')
 
 // Refuses boot when the operator declares a horizontally scaled deploy.
 // ENCODER_REPLICAS is a deploy-manifest declaration (set it next to the
-// orchestrator's replica count); any value above 1 is rejected because no
-// shared reservation store exists yet. Unset/empty means the default
-// single-replica deploy and passes.
+// orchestrator's replica count); any value above 1 is rejected because the
+// reservation, recent-build and rate-limit stores are all still per-process.
+// Unset/empty means the default single-replica deploy and passes.
 function assertSingleInstance(env = process.env) {
     const raw = env.ENCODER_REPLICAS
     if (raw === undefined || raw === '') return true
@@ -46,10 +49,11 @@ function assertSingleInstance(env = process.env) {
     if (replicas > 1) {
         throw new Error(
             'ENCODER_REPLICAS=' + replicas + ' is unsupported: the UTXO outpoint-reservation ' +
-            'double-spend guard and the rate limiter are in-process (single-instance only). ' +
-            'Horizontally scaling the encoder lets two replicas build PSBTs spending the same ' +
-            'UTXO. Run exactly one replica per endpoint until a shared reservation store ' +
-            '(e.g. Redis-backed) is implemented.'
+            'double-spend guard, the recent-build duplicate refusal and the rate limiter are ' +
+            'all in-process (single-instance only). Horizontally scaling the encoder lets two ' +
+            'replicas build PSBTs spending the same UTXO, and lets one byte-identical ' +
+            'transaction be built once per replica and journaled as two successes. Run exactly ' +
+            'one replica per endpoint until a shared store (e.g. Redis-backed) is implemented.'
         )
     }
     return true
@@ -101,24 +105,25 @@ function selfDescription() {
 
 // Same-host duplicate-process guard: takes an exclusive PID lockfile so two
 // encoder processes accidentally started on one host (each with its own
-// reservation Map) fail fast instead of racing UTXO selections. Stale locks
+// reservation and recent-build Maps) fail fast instead of racing UTXO
+// selections and rebuilding one transaction twice. Stale locks
 // (dead PID, unreadable contents, or a REUSED pid, see below) are broken and
 // re-taken. This cannot see replicas on OTHER hosts or in sibling containers;
 // ENCODER_REPLICAS above is the cross-host declaration. Returns a release
 // function.
 //
-// The lock used to hold a bare pid, and a bare pid is not an identity.
-// The file lives in the container's writable layer, so it SURVIVES a restart,
-// and the next boot's process tree hands that same pid number to a different
-// live process: measured on the regtest encoder, the lock held node's pid while
-// that number had become npm's `sh` wrapper. The guard then reported "another
-// instance holds the lock" against npm's own shell and the container crash
-// -looped indefinitely, with `docker exec` refused the whole time because the
-// container never finished starting. So the holder's identity is recorded and
-// re-checked: a live pid whose command line no longer matches what wrote the
-// lock is a reused number, not an encoder, and the lock is stale. When identity
-// cannot be established (non-Linux, or /proc unreadable) the old conservative
-// rule stands, since refusing to boot is the safe side of a genuine conflict.
+// A bare pid is not an identity, so the lock records the holder's command line
+// and re-checks it. The file lives in the container's writable layer and
+// survives a restart, and the next boot hands that pid number to a different
+// live process: measured on the regtest encoder, the lock held node's number
+// after it had become npm's `sh` wrapper, so the guard reported a conflict
+// against npm's own shell and the container crash-looped, with `docker exec`
+// refused throughout because the container never finished starting.
+//
+// A live pid whose command line no longer matches what wrote the lock is a
+// reused number rather than an encoder, so the lock is stale. Where identity
+// cannot be established (non-Linux, or /proc unreadable) the conservative rule
+// stands, because refusing to boot is the safe side of a genuine conflict.
 // `deps` is injectable so the tests can drive both branches without spawning
 // real processes.
 function acquireInstanceLock(lockPath, env = process.env, deps = {}) {
@@ -176,10 +181,11 @@ function acquireInstanceLock(lockPath, env = process.env, deps = {}) {
             if (!reused) {
                 throw new Error(
                     'Another xchain-encoder instance (pid ' + holderPid + ') holds the instance lock ' +
-                    file + '. The outpoint-reservation store is in-process; running two encoder ' +
-                    'instances against one UTXO set risks conflicting double-spend PSBTs. Stop the ' +
-                    'other instance, or set ENCODER_INSTANCE_LOCK_FILE to isolate intentionally ' +
-                    'separate deployments.'
+                    file + '. The outpoint-reservation and recent-build stores are in-process; ' +
+                    'running two encoder instances against one UTXO set risks conflicting ' +
+                    'double-spend PSBTs, and lets one transaction be built twice and journaled ' +
+                    'as two successes. Stop the other instance, or set ENCODER_INSTANCE_LOCK_FILE ' +
+                    'to isolate intentionally separate deployments.'
                 )
             }
             console.warn('singleInstanceGuard: breaking a stale lock on ' + file + ': pid ' +

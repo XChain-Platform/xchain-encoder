@@ -30,7 +30,7 @@ const {
   TXID_A,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('../integration/helpers/utxoFactory')
@@ -44,7 +44,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('small SEND auto-selects OP_RETURN encoding', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -59,7 +59,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('OP_RETURN output has value=0 and script starts with 0x6a', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -76,7 +76,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('deobfuscated payload starts with XCHN magic', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -92,7 +92,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('auto-selects OP_RETURN when compiled data + magic <= 80 bytes', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       // 75-byte data string → compiled = 76 bytes (1 push opcode + 75) + 4 magic = 80 → fits OP_RETURN
       const action = actions.makeActionOfSize(75)
 
@@ -110,7 +110,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('large ISSUE payload auto-selects P2SH', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const result = await encoder.createTransaction(
@@ -125,7 +125,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('P2SH output has OP_HASH160 <20-byte-hash> OP_EQUAL structure', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const result = await encoder.createTransaction(
@@ -148,7 +148,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('P2SH output value >= dustAmount', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const result = await encoder.createTransaction(
@@ -172,7 +172,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('forced P2SH encoding respected even for small data', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend() // small enough for OP_RETURN
 
       const result = await encoder.createTransaction(
@@ -189,7 +189,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('P2WSH encoding accepted on bitcoin-regtest', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       const result = await encoder.createTransaction(
@@ -204,7 +204,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('P2WSH output has OP_0 <32-byte-hash> structure', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       const result = await encoder.createTransaction(
@@ -225,7 +225,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('P2WSH rejected on dogecoin-regtest (no segwit)', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
       await assert.rejects(
@@ -243,7 +243,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('MULTISIGN produces 1-of-3 multisig output', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_MULTISIGN, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -267,7 +267,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('third pubkey is the compressedPubKey argument', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_MULTISIGN, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -284,7 +284,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('deobfuscated MULTISIGN payload has XCHN prefix', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_MULTISIGN, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -302,7 +302,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('result is { psbt, encoding } with Psbt instance', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -319,7 +319,7 @@ describe('REG-01: Core Encoding Types', function () {
     it('psbt.toHex() produces a valid hex string', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo('dogecoin-regtest', TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(

@@ -24,7 +24,7 @@ const {
   TXID_A,
   TXID_B,
   TXID_C,
-  makeSegwitUtxo,
+  makeUtxo,
   makeMempoolUtxo,
   makeEncoder,
   getTestAddress
@@ -44,7 +44,7 @@ describe('UTXO Value Boundaries', () => {
     it('1-sat UTXO: throws INSUFFICIENT_FUNDS (cannot cover fee)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 1)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 1)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -62,8 +62,8 @@ describe('UTXO Value Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       // Two UTXOs: one with 0, one with enough to cover
-      const zeroUtxo = makeSegwitUtxo(TXID_A, 0, 0)
-      const realUtxo = makeSegwitUtxo(TXID_B, 0, 100000000)
+      const zeroUtxo = makeUtxo(NETWORK, TXID_A, 0, 0)
+      const realUtxo = makeUtxo(NETWORK, TXID_B, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [zeroUtxo, realUtxo], address, null,
@@ -81,7 +81,7 @@ describe('UTXO Value Boundaries', () => {
     it('"1000000" string value → treated as 1000000 sats correctly', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, '1000000')
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, '1000000')
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -97,7 +97,7 @@ describe('UTXO Value Boundaries', () => {
     it('"1.9" string value is rejected, not truncated to 1', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, '1.9')
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, '1.9')
 
       // parseInt would have truncated "1.9" to 1 sat and built a nonsensical
       // (negative-change) tx; the exact-integer parse rejects it up front.
@@ -114,9 +114,9 @@ describe('UTXO Value Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const dup1 = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const dup2 = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const dup3 = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const dup1 = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+      const dup2 = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+      const dup3 = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [dup1, dup2, dup3], address, null,
@@ -135,9 +135,9 @@ describe('UTXO Value Boundaries', () => {
       const address = getTestAddress(NETWORK)
 
       // 3 copies of 100 sats → dedup → 1 UTXO of 100 sats. Fee = 10000. Insufficient.
-      const dup1 = makeSegwitUtxo(TXID_A, 0, 100)
-      const dup2 = makeSegwitUtxo(TXID_A, 0, 100)
-      const dup3 = makeSegwitUtxo(TXID_A, 0, 100)
+      const dup1 = makeUtxo(NETWORK, TXID_A, 0, 100)
+      const dup2 = makeUtxo(NETWORK, TXID_A, 0, 100)
+      const dup3 = makeUtxo(NETWORK, TXID_A, 0, 100)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -157,7 +157,7 @@ describe('UTXO Value Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const maxBtcSats = 2100000000000000 // 21M BTC in satoshis
-      const utxo = makeSegwitUtxo(TXID_A, 0, maxBtcSats)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, maxBtcSats)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -176,7 +176,7 @@ describe('UTXO Value Boundaries', () => {
       // is still Number-exact.
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, Number.MAX_SAFE_INTEGER)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, Number.MAX_SAFE_INTEGER)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -195,7 +195,7 @@ describe('UTXO Value Boundaries', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const bigSats = '10000000100000000' // 100,000,001 DOGE in sats, > MAX_SAFE_INTEGER
-      const utxo = makeSegwitUtxo(TXID_A, 0, bigSats)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, bigSats)
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -222,7 +222,7 @@ describe('UTXO Value Boundaries', () => {
       let trackerCalled = false
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
         trackerCalled = true
-        return { utxos: [makeSegwitUtxo(TXID_C, 0, 100000000)] }
+        return { utxos: [makeUtxo(NETWORK, TXID_C, 0, 100000000)] }
       }
 
       const result = await encoder.createTransaction(
@@ -245,9 +245,9 @@ describe('UTXO Value Boundaries', () => {
       const address = getTestAddress(NETWORK)
 
       // Three UTXOs in random order; 50M is the largest
-      const small = makeSegwitUtxo(TXID_A, 0, 1000)
-      const large = makeSegwitUtxo(TXID_B, 0, 50000000)
-      const medium = makeSegwitUtxo(TXID_C, 0, 500000)
+      const small = makeUtxo(NETWORK, TXID_A, 0, 1000)
+      const large = makeUtxo(NETWORK, TXID_B, 0, 50000000)
+      const medium = makeUtxo(NETWORK, TXID_C, 0, 500000)
 
       const result = await encoder.createTransaction(
         [small, medium, large], address, null,

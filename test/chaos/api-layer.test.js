@@ -22,7 +22,7 @@ const bitcoin = require('bitcoinjs-lib')
 const validator = require('../../src/validator')
 const {
   TXID_A, TXID_MULTISIGN, PUBKEY_BUF,
-  makeSegwitUtxo, makeEncoder, getTestAddress
+  makeUtxo, makeEncoder, getTestAddress
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -46,6 +46,28 @@ describe('Chaos Category F: API Layer Failures', () => {
         () => validator.validateAll('not-an-object'),
         { name: 'TypeError' }
       )
+    })
+
+    it('positional array params → TypeError naming the SHAPE, not a missing field', () => {
+      // typeof [] is 'object', so before the Array.isArray clause this reached
+      // 'pubkey is required' 50 lines later and blamed the wrong thing.
+      assert.throws(
+        () => validator.validateAll([]),
+        { name: 'TypeError', message: 'Request params must be an object' }
+      )
+    })
+
+    it('create_envelope_cancel_tx rejects positional array params at the gate', async () => {
+      // Required lazily: src/api.js is the process entrypoint module, and the
+      // rest of this suite has no reason to load it.
+      const { jsonRpcController } = require('../../src/api')
+      let err = null
+      try { await jsonRpcController.create_envelope_cancel_tx([]) } catch (e) { err = e }
+      assert.ok(err, 'expected the array to be refused')
+      assert.strictEqual(err.code, -32602)
+      // Pre-fix this destructured to undefined and surfaced
+      // 'commitTxid must be a 64-character hex string'.
+      assert.strictEqual(err.message, 'Request params must be an object')
     })
 
     it('data exceeding 65536 bytes → RangeError', () => {
@@ -94,7 +116,7 @@ describe('Chaos Category F: API Layer Failures', () => {
   describe('F-3: psbt.toHex() callability (api.js line 124 exposure)', () => {
     it('OP_RETURN result: psbt.toHex() succeeds', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -107,7 +129,7 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('P2SH result: psbt.toHex() succeeds', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -119,7 +141,7 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('MULTISIGN result: psbt.toHex() succeeds', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_MULTISIGN, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], DOGE_ADDR, null,
@@ -147,7 +169,7 @@ describe('Chaos Category F: API Layer Failures', () => {
 
     it('toHex failure after successful createTransaction → unhandled in api.js', async () => {
       const encoder = makeEncoder(DOGE)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 100000000)
 
       // createTransaction itself succeeds (toHex is not called inside it)
       const result = await encoder.createTransaction(

@@ -29,7 +29,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
-  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A
+  makeEncoder, makeUtxo, getTestAddress, TXID_A
 } = require('../integration/helpers/utxoFactory')
 const { deobfuscate } = require('../integration/helpers/deobfuscate')
 const actions = require('../integration/helpers/actionFactory')
@@ -46,7 +46,7 @@ function ins0Txid (result) {
 // Caller-supplied coin control, uppercased. This path does NOT run validateAll,
 // so it exercises the encoder-side normalization on its own.
 function upperCaseUtxos () {
-  return [makeSegwitUtxo(TXID_A.toUpperCase(), 0, 100000000)]
+  return [makeUtxo(NETWORK, TXID_A.toUpperCase(), 0, 100000000)]
 }
 
 describe('uppercase-hex txid / obfuscation-key binding @regression', function () {

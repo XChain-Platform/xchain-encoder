@@ -546,6 +546,19 @@ describe('REG-04: Validator Functions', function () {
       assert.throws(() => validateAll('not-an-object'), { name: 'TypeError' })
     })
 
+    it('throws a SHAPE error for positional array params, not a missing-field one', function () {
+      // typeof [] is 'object', so before the Array.isArray clause a JSON-RPC call
+      // with positional params cleared this gate and died on 'pubkey is required'.
+      assert.throws(() => validateAll([]), {
+        name: 'TypeError',
+        message: 'Request params must be an object'
+      })
+      assert.throws(() => validateAll(['SEND|0|JDOG|1|addr']), {
+        name: 'TypeError',
+        message: 'Request params must be an object'
+      })
+    })
+
     it('throws RangeError for combined data > 65536 bytes', function () {
       assert.throws(
         () => validateAll({ data: 'x'.repeat(MAX_DATA_BYTES + 1) }),

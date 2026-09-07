@@ -64,6 +64,7 @@ const { parseCorsOrigin } = require('./corsOrigin')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
 const { installCrashHandlers } = require('./crashHandlers')
+const { readMaintenanceWindow } = require('./maintenanceWindow')   // operator-declared scheduled outage, reported beside readiness
 
 
 const NETWORK = process.env.NETWORK
@@ -135,6 +136,21 @@ app.set('trust proxy', trustProxy);
 
 app.use(helmet());
 
+// CORS configuration (default: disabled; `*` allows all; a comma-separated list
+// is an ALLOWLIST matched per-origin). parseCorsOrigin is what makes the list
+// case work: handing `cors` the raw string would echo it verbatim to everyone
+// and be accepted by no browser. See src/corsOrigin.js.
+//
+// Mounted above the API-key gate and the shedding layers, and the position is
+// load-bearing: a preflight is an OPTIONS carrying no x-api-key (that header is
+// not CORS-safelisted, which is what forces the preflight), so a gate mounted
+// first answers it 401 bare and the browser never sends the real request. The
+// same order is what lets a browser read the gate 401 and the limiter/gate 429s
+// rather than an opaque network error. Trade: a preflight skips the limiter and
+// both gates for a 204 that does no upstream work, as in every sibling service.
+// Ordering pinned by test/unit/corsPreflight.test.js.
+app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
+
 // 3mb (was 1mb): the TAPROOT envelope raises the largest legitimate request
 // well past 1mb. A create_tx may carry ~400 KB of rawData
 // that arrives base64/hex-encoded (~0.5-0.8 MB) or, worst case, as
@@ -205,12 +221,6 @@ const requestGate = concurrencyGate.createConcurrencyGate({
 })
 app.use(requestGate)
 
-// CORS configuration (default: disabled; `*` allows all; a comma-separated list
-// is an ALLOWLIST matched per-origin). parseCorsOrigin is what makes the list
-// case work: handing `cors` the raw string would echo it verbatim to everyone
-// and be accepted by no browser. See src/corsOrigin.js.
-app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
-
 // Prometheus /metrics plus a structured log shim, both DEFAULT OFF.
 // Nothing is registered and no timer starts unless METRICS_ENABLED (and, for log
 // shipping, LOG_SHIP_ENABLED + LOG_SHIP_URL) are set, so the encoder gains no new
@@ -229,7 +239,14 @@ installObservability(app, {
 // /status, so the two endpoints can never drift apart: probes the
 // UTXO tracker and returns its reachability / sync state. Fields:
 // tracker_reachable (bool), tracker_synced (bool), tracker_lag (number|null),
-// tracker_halted (bool), tracker_mempool_ready (bool).
+// tracker_halted (bool), tracker_mempool_ready (bool), maintenance (object|null).
+//
+// maintenance is the operator's DECLARED scheduled-outage window (see
+// src/maintenanceWindow.js), carried alongside the readiness fields and never
+// folded into them: it cannot make an unready encoder read ready, and it does
+// not move the 503. A planned tracker stop and a broken tracker are the same
+// readiness verdict - the difference is only that somebody meant one of them,
+// which is exactly the distinction the public board had no way to draw.
 //
 // tracker_synced is SERVE-readiness, not the tracker's raw verdict: it
 // applies the same maxUtxoTrackerLagBlocks ceiling create_tx enforces
@@ -247,6 +264,10 @@ installObservability(app, {
 // refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe recreated
 // the same board-versus-encoder divergence the probe exists to prevent.
 async function getServeReadiness() {
+    // Read first and independently of the tracker probe: the window is what
+    // explains a tracker that is deliberately down, so it must survive the
+    // catch below rather than depend on the probe it annotates.
+    const maintenance = await readMaintenanceWindow()
     let tracker_reachable = false
     let tracker_synced = false
     let tracker_lag = null
@@ -267,7 +288,7 @@ async function getServeReadiness() {
     } catch (_err) {
         // tracker unreachable; fields stay at defaults
     }
-    return { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready }
+    return { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, maintenance }
 }
 
 const jsonRpcController = {
@@ -365,7 +386,9 @@ const jsonRpcController = {
     // record alone. Validation lives in the encoder method (typed
     // TypeError/RangeError -> -32602, OperationalError -> -32010).
     async create_envelope_cancel_tx(rawParams) {
-        if (typeof rawParams !== 'object' || rawParams === null) {
+        // Array.isArray for the same reason validator.validateAll carries it:
+        // positional params otherwise clear the gate and destructure to undefined.
+        if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
             const e = new Error('Request params must be an object')
             e.code = -32602
             throw e
@@ -457,13 +480,25 @@ const jsonRpcController = {
 app.get('/status', async (req, res) => {
     // tracker_halted and tracker_mempool_ready travel alongside so the board names WHY
     // an unhealthy encoder is unhealthy; both already fold into tracker_synced above.
-    const { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready } = await getServeReadiness()
+    const { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, maintenance } = await getServeReadiness()
     const healthy = tracker_reachable && tracker_synced
+    // A declared window does NOT move the code. The encoder still cannot serve,
+    // and every load balancer and uptime monitor keyed on this 503 must keep
+    // seeing it; the window is context for whoever reads the body, not a way to
+    // paint an un-serveable endpoint green.
     const code = healthy ? 200 : 503
+    // Publishes the lag ceiling tracker_synced was actually gated on, so a
+    // status board can rank lag against mempool without mirroring a constant
+    // it cannot see. Mirroring guessed wrong in both directions: the tracker's
+    // own SYNCED_THRESHOLD is 3 while this gate defaults to 2, and
+    // UTXO_TRACKER_MAX_LAG_BLOCKS moves it per deployment. Read-only config,
+    // /status only: the JSON-RPC health() shape stays as docs/openrpc.json
+    // documents it.
+    const tracker_max_lag_blocks = encoder.maxUtxoTrackerLagBlocks
     // request_gate exposes the global concurrency cap and how many requests it
     // has shed; a climbing shed count is the only outward sign that a
     // distinct-IP stampede is being refused.
-    res.status(code).json({ status: healthy ? 'healthy' : 'unhealthy', tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, request_gate: requestGate.getStats(), probe_gate: probeGate.getStats() })
+    res.status(code).json({ status: healthy ? 'healthy' : 'unhealthy', tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, tracker_max_lag_blocks, maintenance, request_gate: requestGate.getStats(), probe_gate: probeGate.getStats() })
 })
 
 // Machine-readable API spec (OpenRPC 1.3.2). Regenerated by docs/openrpc.build.js;
@@ -497,11 +532,11 @@ app.use(jsonRouter({methods: jsonRpcController}))
 // Start the server only when run directly (node src/api.js). When required by a
 // test the controller and app are exported without binding a port.
 if (require.main === module) {
-  // HARD deploy constraint: the outpoint-reservation double-spend guard and the
-  // rate limiter are in-process, so exactly ONE encoder instance may serve an
-  // endpoint. Fail at boot if the deploy declares replicas > 1 (ENCODER_REPLICAS)
-  // or another encoder process on this host already holds the instance lock.
-  // See src/singleInstanceGuard.js.
+  // HARD deploy constraint: the outpoint-reservation double-spend guard, the
+  // recent-build duplicate refusal and the rate limiter are in-process, so
+  // exactly ONE encoder instance may serve an endpoint. Fail at boot if the
+  // deploy declares replicas > 1 (ENCODER_REPLICAS) or another encoder process
+  // on this host already holds the instance lock. See src/singleInstanceGuard.js.
   // Before the instance guard, so a throw inside it is still a CRASH record
   // rather than node's bare stderr dump.
   installCrashHandlers()

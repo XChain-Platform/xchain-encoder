@@ -31,10 +31,10 @@ const pubkeyBuf = Buffer.from(
 )
 const TXID_A = 'a'.repeat(64)
 
-const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
-  network: DOGE_REGTEST
+  network: LTC_REGTEST
 }).address
 
 const INPUT_VALUE = 100000000 // 1 coin in base units
@@ -57,15 +57,14 @@ function makeSegwitUtxo (txid, vout, value) {
 // multiplier caps the effective rate at 100 sat/byte.
 function makeEncoder (maxFeeRateKb = null, maxFeeRateMultiplier = undefined) {
   const encoder = maxFeeRateMultiplier === undefined
-    ? new XChainEncoder('dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', maxFeeRateKb)
-    : new XChainEncoder('dogecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', maxFeeRateKb, maxFeeRateMultiplier)
+    ? new XChainEncoder('litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', maxFeeRateKb)
+    : new XChainEncoder('litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', maxFeeRateKb, maxFeeRateMultiplier)
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001
   }
-  // dogecoin-regtest's dust floor is 100000 koinu, orders of magnitude above
-  // the sub-dust fees these rate-cap probes produce (a ~131-byte tx capped at
-  // ~100 sat/byte pays ~13100). The dust floor is exercised by its own suite;
-  // override it here so the rate-cap behaviour under test is observable.
+  // The network dust floor sits above the sub-dust fees these rate-cap probes
+  // produce (a ~131-byte tx capped at ~100 sat/byte pays ~13100). The floor has
+  // its own suite; override it here so the rate-cap behaviour is observable.
   encoder.dustAmount = 546
   return encoder
 }

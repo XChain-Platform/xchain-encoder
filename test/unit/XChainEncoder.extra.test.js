@@ -78,9 +78,13 @@ function makeEncoder (network) {
     getFeePerKilobyte: async () => 0.00001,
     getTransactionHex: async () => RAW_TX_HEX
   }
+  // Serve the fixture type the chain can actually hold: a witness-program UTXO
+  // only exists where consensus knows segwit, and the builder refuses one where
+  // it does not.
+  const trackerUtxo = encoder.network.supportsSegwit === false ? makeP2pkhUtxo : makeSegwitUtxo
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => ({
-      utxos: [makeSegwitUtxo(TXID_A, 0, 100000000)]
+      utxos: [trackerUtxo(TXID_A, 0, 100000000)]
     })
   }
   return encoder
@@ -151,7 +155,7 @@ describe('XChainEncoder.createTransaction(): P2WSH tx1 (funding)', () => {
   it('throws TypeError when P2WSH is used on a no-segwit network', async () => {
     // dogecoin-regtest has supportsSegwit=false
     const encoder = makeEncoder('dogecoin-regtest')
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -278,7 +282,7 @@ describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
     // P2SH counterpart to the P2WSH guard above: the reveal branch must bounds-
     // check voutPsbtIndex against the funding tx's outputs before addInput.
     const encoder = makeEncoder() // dogecoin-regtest (P2SH, no segwit)
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     // Funding tx with a SINGLE output, but a payload that splits into >=2 chunks.
     const smallTx = new bitcoin.Transaction()
@@ -307,7 +311,7 @@ describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
 describe('XChainEncoder.createTransaction(): payload size guard', () => {
   it('throws RangeError when compiled payload exceeds MAX_COMPILED_ACTION_DATA_LENGTH (8192)', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
     // A very large data string that will compile to > 8192 bytes
     const hugeData = 'X'.repeat(8200)
 
@@ -325,7 +329,7 @@ describe('XChainEncoder.createTransaction(): payload size guard', () => {
 describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
   it('adds feeQuote as an extra output when address and amount > 0', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
     const feeQuote = { address: TEST_ADDRESS, amount: 99000 }
 
     const result = await encoder.createTransaction(
@@ -343,7 +347,7 @@ describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
 
   it('does not add feeQuote when amount is 0', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
     const feeQuote = { address: TEST_ADDRESS, amount: 0 }
 
     const result = await encoder.createTransaction(
@@ -360,7 +364,7 @@ describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
 
   it('does not add feeQuote when feeQuote has no address', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
     const feeQuote = { amount: 50000 } // no address
 
     const result = await encoder.createTransaction(
@@ -391,7 +395,7 @@ describe('XChainEncoder.createTransaction() - maxFeeRateKb cap', () => {
       getUtxosFromAddress: async () => ({ utxos: [] })
     }
 
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null,
@@ -419,7 +423,7 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
     // burn backstop's effective ceiling here (100x the ~131-sat fair fee is
     // smaller than the dust floor, so the floor wins the max()). Keep the
     // UTXO and fee at that ceiling so the fee is not rejected or floored up.
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000)
     const fee = 100000
 
     const result = await encoder.createTransaction(
@@ -441,7 +445,7 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
     // Fee at the dust-floor/burn-backstop ceiling (see comment above), with a
     // slightly larger UTXO so change lands under dogecoin-regtest's
     // 100000-koinu dust floor.
-    const utxo = makeSegwitUtxo(TXID_A, 0, 150000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 150000)
     const fee = 100000 // leaves 50000 sats change, below the 100000 dust floor
 
     // Should not throw; change below dust with no change address is fine (burned as fee)
@@ -458,7 +462,7 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
 describe('XChainEncoder.createTransaction() - invalid fee', () => {
   it('throws RangeError for a NaN fee string', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -472,7 +476,7 @@ describe('XChainEncoder.createTransaction() - invalid fee', () => {
 
   it('throws RangeError for a negative fee', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -596,7 +600,7 @@ describe('XChainEncoder.estimateSpendingP2wshTx()', () => {
 describe('XChainEncoder.createTransaction() - remaining branch coverage', () => {
   it('throws RangeError when customOutputs[i].value is not a valid satoshi amount', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -610,7 +614,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
 
   it('throws RangeError when customOutputs[i].value is negative', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -625,7 +629,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
   it('throws RangeError when a UTXO value is not a valid satoshi amount', async () => {
     const encoder = makeEncoder()
     // A UTXO with a NaN value string (parsed inside the UTXO loop)
-    const badUtxo = makeSegwitUtxo(TXID_A, 0, 'notanumber')
+    const badUtxo = makeP2pkhUtxo(TXID_A, 0, 'notanumber')
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -640,7 +644,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
   it('throws when unconfirmed=false strips all UTXOs (line 325 path)', async () => {
     const encoder = makeEncoder()
     // All UTXOs have confirmations=0 (mempool), unconfirmed=false strips them all
-    const mempoolUtxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const mempoolUtxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
     mempoolUtxo.confirmations = 0
 
     await assert.rejects(
@@ -659,7 +663,7 @@ describe('XChainEncoder.createTransaction() - remaining branch coverage', () => 
 describe('XChainEncoder.createTransaction() - rawData parameter', () => {
   it('accepts rawData and includes it in the compiled payload', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
     // rawData is a binary string appended after the text data
     const rawData = '\x01\x02\x03binary content'
 
@@ -676,7 +680,7 @@ describe('XChainEncoder.createTransaction() - rawData parameter', () => {
 
   it('rawData does not affect result when null (false branch of rawData != null)', async () => {
     const encoder = makeEncoder()
-    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null,

@@ -31,7 +31,7 @@ const {
   TXID_B,
   TXID_MULTISIGN,
   PUBKEY_BUF,
-  makeSegwitUtxo,
+  makeUtxo,
   makeEncoder,
   getTestAddress
 } = require('./helpers/utxoFactory')
@@ -45,7 +45,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
     it('deobfuscated OP_RETURN data has XCHN prefix and original ACTION', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend('JDOG', '42', actions.ADDR_BTC)
 
       const result = await encoder.createTransaction(
@@ -64,7 +64,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
     it('raw obfuscated bytes differ from plaintext', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(
@@ -91,7 +91,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
     it('deobfuscated multisig data has XCHN prefix and original data', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_MULTISIGN, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
       const compressedPubKey = PUBKEY_BUF.toString('hex')
 
       const result = await encoder.createTransaction(
@@ -112,7 +112,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
     it('tx2 OP_RETURN marker deobfuscates to XCHNp2sh', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
       const tx1Result = await encoder.createTransaction(
@@ -150,7 +150,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
       const action = actions.makeSend()
 
       const encoderA = makeEncoder(NETWORK)
-      const utxoA = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxoA = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const resultA = await encoderA.createTransaction(
         [utxoA], address, null,
         action.data, null, 10000, false, null, address,
@@ -158,7 +158,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
       )
 
       const encoderB = makeEncoder(NETWORK)
-      const utxoB = makeSegwitUtxo(TXID_B, 0, 100000000)
+      const utxoB = makeUtxo(NETWORK, TXID_B, 0, 100000000)
       const resultB = await encoderB.createTransaction(
         [utxoB], address, null,
         action.data, null, 10000, false, null, address,
@@ -192,8 +192,8 @@ describe('Category C: Obfuscation Round-Trip', () => {
       const action = actions.makeSend()
 
       // Provide UTXOs in smallest-first order
-      const smallUtxo = makeSegwitUtxo(TXID_B, 0, 10000000)  // 0.1 BTC
-      const largeUtxo = makeSegwitUtxo(TXID_A, 0, 100000000) // 1 BTC
+      const smallUtxo = makeUtxo(NETWORK, TXID_B, 0, 10000000)  // 0.1 BTC
+      const largeUtxo = makeUtxo(NETWORK, TXID_A, 0, 100000000) // 1 BTC
 
       const result = await encoder.createTransaction(
         [smallUtxo, largeUtxo], address, null,
@@ -212,7 +212,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
     it('deobfuscation with wrong TXID produces garbage', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
       const result = await encoder.createTransaction(

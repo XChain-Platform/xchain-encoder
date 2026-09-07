@@ -1,9 +1,11 @@
 /*
  * Unit tests for the single-instance deploy guard.
  *
- * The outpoint-reservation store is an in-process Map; these tests pin the
- * boot-time guards that keep horizontally scaled or duplicate-process deploys
- * from silently racing UTXO selections.
+ * The outpoint-reservation store, the recent-build duplicate refusal behind it
+ * and the rate-limiter store are all in-process; these tests pin the boot-time
+ * guards that keep horizontally scaled or duplicate-process deploys from
+ * silently racing UTXO selections, and pin that both refusal messages name
+ * every in-process store a shared-store migration has to move.
  */
 
 const assert = require('assert')
@@ -33,6 +35,17 @@ describe('singleInstanceGuard', function () {
                 () => assertSingleInstance({ ENCODER_REPLICAS: '2' }),
                 /single-instance only/
             )
+        })
+
+        // The refusal is the deploy-time list of what a shared-store migration
+        // has to move, so it names every in-process store, the recent-build
+        // duplicate refusal (XChainEncoder `recentBuilds`) included.
+        it('names every in-process store in the replica refusal', function () {
+            let message = ''
+            try { assertSingleInstance({ ENCODER_REPLICAS: '2' }) } catch (err) { message = err.message }
+            for (const store of [/outpoint-reservation/, /recent-build/, /rate limiter/]) {
+                assert.match(message, store, 'replica refusal must name ' + store)
+            }
         })
 
         it('throws on non-integer values', function () {
@@ -98,6 +111,20 @@ describe('singleInstanceGuard', function () {
             )
             // Lock left intact for the real holder.
             assert.strictEqual(fs.readFileSync(file, 'utf8'), '1')
+        })
+
+        // Same list, second refusal: a same-host conflict is the other way an
+        // operator meets the constraint, so it names the per-process stores too.
+        it('names the in-process stores in the lock-conflict refusal', function () {
+            const file = path.join(dir, 'b-stores.lock')
+            fs.writeFileSync(file, '1')
+            let message = ''
+            try {
+                acquireInstanceLock(file, {}, { describePid: () => 'node /XChainEncoder/src/api.js' })
+            } catch (err) { message = err.message }
+            for (const store of [/outpoint-reservation/, /recent-build/]) {
+                assert.match(message, store, 'lock-conflict refusal must name ' + store)
+            }
         })
 
         // The platform difference above is worth asserting rather than merely
