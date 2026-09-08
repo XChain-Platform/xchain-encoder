@@ -2335,10 +2335,22 @@ class XChainEncoder {
         // and a negative "change" is expected and harmless.
         if (!p2shHash && changeSatoshis < 0) {
             const required = outputSatoshis + BigInt(estimatedFee)
+            // Name the reserved candidates when there were any: the shortfall then
+            // comes from inputs another build of the last RESERVATION_TTL_MS still
+            // holds, not from an under-funded address, and the caller's fix is to
+            // broadcast that build or wait, not to fund the address. Found live on
+            // TDOGE: two spendable outputs plus dust, two un-broadcast
+            // builds, and the third build reported the dust output as the whole
+            // balance, which the wallet rendered as "not enough funds". Same
+            // wording as the zero-selected branch above so one reader handles both.
+            const held = reservedCandidates > 0
+                ? `; ${reservedCandidates} candidate input(s) are reserved by a transaction built in the last ` +
+                  `${Math.round(RESERVATION_TTL_MS / 60000)} minutes; broadcast that transaction or wait for the reservation to lapse`
+                : ''
             throw new OperationalError(
                 'INSUFFICIENT_FUNDS',
-                `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})`,
-                { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
+                `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})${held}`,
+                { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee, reservedCandidates }
             )
         }
 
