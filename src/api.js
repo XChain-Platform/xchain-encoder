@@ -89,6 +89,10 @@ const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFee
 // pattern as MAX_FEE_RATE_MULTIPLIER above.
 const _utxoTrackerMaxLagBlocks = parseInt(process.env.UTXO_TRACKER_MAX_LAG_BLOCKS, 10)
 const UTXO_TRACKER_MAX_LAG_BLOCKS = Number.isFinite(_utxoTrackerMaxLagBlocks) ? _utxoTrackerMaxLagBlocks : undefined
+// Operator floor on every value output the encoder authors; it only raises the floor
+// above the coin dust threshold and relay-policy soft-dust floor (see XChainEncoder).
+const _dustAmount = parseInt(process.env.DUST_AMOUNT, 10)
+const DUST_AMOUNT = (Number.isFinite(_dustAmount) && _dustAmount > 0) ? _dustAmount : undefined
 const API_KEY = process.env.API_KEY
 const CORS_ORIGIN = process.env.CORS_ORIGIN
 
@@ -108,7 +112,7 @@ if (!API_KEY) {
     console.warn('NOTICE: API_KEY not set. Encoder API authentication is DISABLED (open access).')
 }
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER, UTXO_TRACKER_MAX_LAG_BLOCKS);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER, UTXO_TRACKER_MAX_LAG_BLOCKS, DUST_AMOUNT);
 
 const app = express();
 

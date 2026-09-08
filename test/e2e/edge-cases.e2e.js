@@ -258,7 +258,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_MULTISIGN, 0, 100000000)
-      const customDust = 1234
+      // Above the DOGE output floor (0.01 DOGE), so the caller value is honoured;
+      // a caller dust below the floor is clamped up to it.
+      const customDust = 1500000
 
       const result = await encoder.createTransaction(
         [utxo], address, null,

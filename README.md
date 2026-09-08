@@ -4,7 +4,7 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.15.4-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-1%2C604%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
@@ -86,6 +86,7 @@ npm run api
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
 | `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing) |
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
+| `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors (funding legs, data outputs, change). Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
 | `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |
 | `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until the in-process reservation, recent-build and rate-limit stores are shared |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |

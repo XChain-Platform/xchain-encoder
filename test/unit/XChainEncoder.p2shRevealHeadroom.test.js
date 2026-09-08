@@ -133,6 +133,8 @@ function legOutputs (tx) {
 
 const DOGE = 'dogecoin-regtest'
 const DOGE_DUST = 100000
+// Dogecoin's soft dust limit (0.01 DOGE): the floor on every output the encoder authors on DOGE.
+const DOGE_SOFT_DUST = 1000000
 const VENUE_RATE_KB = 1000000 // 1000 koinu/byte, the venue recipe rate
 
 describe('XChainEncoder P2SH reveal headroom', () => {
@@ -184,20 +186,20 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     assert.ok(sweep.value >= DOGE_DUST, `sweep ${sweep && sweep.value} must be at least dust ${DOGE_DUST}`)
   })
 
-  it('funds dust-dominant legs with exactly one extra dust of headroom (tiny fee rate)', async () => {
+  it('funds floor-dominant legs with exactly one extra output floor of headroom (tiny fee rate)', async () => {
     const encoder = makeEncoder(DOGE)
-    // 1 koinu/byte: every size-based estimate is far below the 100000 dust
-    // floor, so pre-fix the leg was exactly one dust. Now it is dust (leg
-    // floor) + dust (reveal change headroom); the reveal keeps one dust as
-    // its (dust-floored) fee and sweeps the other back.
+    // 1 koinu/byte: every size-based estimate is far below the output floor, so the
+    // leg is floor (leg value) + floor (reveal change headroom), the 0.01 DOGE soft
+    // limit on Dogecoin; the reveal fee still floors at the pinned hard dust.
     const funding = await buildFunding(encoder, DOGE, 'P2SH', 1000, 120)
     const legs = legOutputs(funding)
     assert.strictEqual(legs.length, 1)
-    assert.strictEqual(legs[0].value, 2 * DOGE_DUST)
+    assert.strictEqual(encoder.outputFloor, DOGE_SOFT_DUST)
+    assert.strictEqual(legs[0].value, 2 * DOGE_SOFT_DUST)
 
     const reveal = await buildReveal(encoder, DOGE, 'P2SH', 1000, 120, funding)
     const totalOut = reveal.outs.reduce((s, o) => s + o.value, 0)
-    assert.strictEqual(totalOut, DOGE_DUST, 'exactly one dust sweeps back; one dust stays as the reveal fee')
+    assert.strictEqual(totalOut, 2 * DOGE_SOFT_DUST - DOGE_DUST, 'one hard dust stays as the reveal fee; the rest sweeps back')
   })
 
   it('scales the leg with the fee rate and with the payload size', async () => {
@@ -206,9 +208,12 @@ describe('XChainEncoder P2SH reveal headroom', () => {
       const funding = await buildFunding(encoder, DOGE, 'P2SH', rateKb, payloadLen)
       return legOutputs(funding).reduce((s, o) => s + o.value, 0)
     }
-    const base = await legAt(VENUE_RATE_KB, 120)
-    const doubleRate = await legAt(2 * VENUE_RATE_KB, 120)
-    const biggerPayload = await legAt(VENUE_RATE_KB, 400)
+    // Probe above the output floor: at the venue rate a 120-byte chunk prices
+    // under the 0.01 DOGE soft-dust floor and the leg is floor-bound, so the
+    // scaling only shows once the per-chunk fee share exceeds the floor.
+    const base = await legAt(10 * VENUE_RATE_KB, 120)
+    const doubleRate = await legAt(20 * VENUE_RATE_KB, 120)
+    const biggerPayload = await legAt(10 * VENUE_RATE_KB, 400)
     assert.ok(doubleRate > base, `leg must grow with the fee rate (${doubleRate} vs ${base})`)
     assert.ok(biggerPayload > base, `leg must grow with the payload (${biggerPayload} vs ${base})`)
   })

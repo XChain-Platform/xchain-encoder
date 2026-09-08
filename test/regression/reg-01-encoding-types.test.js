@@ -254,8 +254,10 @@ describe('REG-01: Core Encoding Types', function () {
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
-      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.dustAmount)
-      assert.ok(msOutput, 'should have a multisig output at dust value')
+      // The data output is an authored output: it sits at the relay floor (outputFloor,
+      // the 0.01 DOGE soft-dust limit on Dogecoin), not at the pinned hard-dust fee floor.
+      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.outputFloor)
+      assert.ok(msOutput, 'should have a multisig output at the output floor')
 
       const d = bitcoin.script.decompile(msOutput.script)
       // OP_1 <pk1> <pk2> <pk3> OP_3 OP_CHECKMULTISIG
@@ -276,7 +278,7 @@ describe('REG-01: Core Encoding Types', function () {
         null, null, COMPRESSED_PUBKEY, true, 0.00001
       )
 
-      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.dustAmount)
+      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.outputFloor)
       const d = bitcoin.script.decompile(msOutput.script)
       assert.strictEqual(d[3].toString('hex'), COMPRESSED_PUBKEY)
     })
@@ -293,7 +295,7 @@ describe('REG-01: Core Encoding Types', function () {
         null, null, COMPRESSED_PUBKEY, true, 0.00001
       )
 
-      const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.dustAmount)
+      const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.outputFloor)
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })

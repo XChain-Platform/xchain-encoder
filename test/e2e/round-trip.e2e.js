@@ -142,7 +142,7 @@ describe('E2E-9: Round-Trip Verification', () => {
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
-      const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.dustAmount)
+      const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.outputFloor)
       assert.strictEqual(payload.magic, MAGIC_WORD)
 
       const decompiled = decompilePayload(payload.dataBuffer)
