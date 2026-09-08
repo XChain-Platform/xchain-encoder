@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- The rate limiter logs one counter line per window when it refuses requests, naming the count and the knob to raise, so an operator can see a 429 happening.
+
 ## [0.15.4] - 2026-09-08
 
 ### Fixed

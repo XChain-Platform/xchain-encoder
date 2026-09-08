@@ -39,6 +39,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const { limitedHandler } = require('./rateLimitLog.js')
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 const concurrencyGate = require('./concurrencyGate.js')
@@ -180,12 +181,23 @@ if (API_KEY) {
     })
 }
 
+const ENCODER_RATE_LIMIT_WINDOW_MS = 60 * 1000
+const ENCODER_RATE_LIMIT_RPM = parseInt(process.env.ENCODER_RATE_LIMIT_RPM, 10) || 60
 const limiter = rateLimit({
-    windowMs: 60 * 1000,
-    limit: parseInt(process.env.ENCODER_RATE_LIMIT_RPM, 10) || 60,
+    windowMs: ENCODER_RATE_LIMIT_WINDOW_MS,
+    limit: ENCODER_RATE_LIMIT_RPM,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Too many requests' } }
+    // Counts refusals instead of logging one line per request; see
+    // src/rateLimitLog.js.
+    handler: limitedHandler({
+        service: 'Encoder',
+        name: 'app-wide',
+        envVar: 'ENCODER_RATE_LIMIT_RPM',
+        limit: ENCODER_RATE_LIMIT_RPM,
+        windowMs: ENCODER_RATE_LIMIT_WINDOW_MS,
+        message: { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Too many requests' } }
+    })
 })
 app.use(limiter)
 
