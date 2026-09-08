@@ -151,7 +151,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
       const encoder = makeEncoder(NETWORK)
-      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.dustAmount)
+      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.outputFloor)
       assert.ok(msOutput, 'should have multisig output at dust value')
 
       const decompiled = bitcoin.script.decompile(msOutput.script)

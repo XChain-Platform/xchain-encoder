@@ -62,6 +62,20 @@ const SATOSHI_UNIT = 100000000
 
 const MAX_SAFE_SATOSHI_BIG = BigInt(Number.MAX_SAFE_INTEGER)
 
+// Relay-policy floor per coin for every value output this encoder authors, distinct
+// from the consensus-pinned network.dustThreshold the decoder reads. Dogecoin relays an
+// output under its 0.01 DOGE soft dust limit only if the whole limit is added to the fee.
+const SOFT_DUST_FLOOR_BY_COIN = {
+    DOGE: 1000000
+}
+
+// Keyed on the coin, not the network: the soft limit is node policy on every Dogecoin chain.
+function softDustFloorFor(networkKey){
+    const fullName = String(networkKey || '').slice(0, Math.max(0, String(networkKey || '').lastIndexOf('-')))
+    const tick = require('./coins').FULL_NAME_TO_TICK[fullName]
+    return (tick && SOFT_DUST_FLOOR_BY_COIN[tick]) || 0
+}
+
 // Byte width of the compactSize varint that prefixes a length on the wire.
 // Distinct from compiledPushSize: that models bitcoin.script.compile's PUSH
 // OPCODE framing (direct push / OP_PUSHDATA1 / OP_PUSHDATA2) and is correct
@@ -347,7 +361,7 @@ function assertRevealFundingTxMatches(p2shHash, fundingTxid){
 
 
 class XChainEncoder {
-    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) {
+    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS, dustAmount=null) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       // The raw "<coin>-<net>" key. getBitcoinJsNetwork returns only the
       // bitcoinjs params, which carry no chain identity, and the envelope
@@ -369,7 +383,16 @@ class XChainEncoder {
       require('./coins').verifyConsensusPin(this.consensusNetwork)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
+      // Two floors: dustAmount is the pinned consensus threshold (fee floor, fee-drain
+      // caps, burn guard); outputFloor bounds every output this encoder authors and is
+      // the same threshold raised to the coin relay floor and again to an operator DUST_AMOUNT.
       this.dustAmount = this.network["dustThreshold"]
+      const operatorDust = Number(dustAmount)
+      this.outputFloor = Math.max(
+          this.dustAmount,
+          softDustFloorFor(network),
+          (Number.isFinite(operatorDust) && operatorDust > 0) ? Math.floor(operatorDust) : 0
+      )
       // Maximum fee rate in BTC/byte (null = no cap). Prevents runaway estimates
       // (e.g. regtest feedback loop) from producing fees that the node will reject.
       // MAX_FEE_RATE_KB is in sat/kB, convert to BTC/byte to match feePerBytes units.
@@ -985,9 +1008,11 @@ class XChainEncoder {
             feePerBytes = capFeePerBytes
         }
         
-        let finalDust = this.dustAmount
+        // A caller dust may raise the floor for this build, never lower it: a leg under the
+        // relay floor strands the caller's own reveal behind an unrelayable funding tx.
+        let finalDust = this.outputFloor
         if (dust){
-            finalDust = dust
+            finalDust = Math.max(Number(dust), this.outputFloor)
         }
         
         // Transparent FILE payload compression, ON by default. Runs HERE, before
@@ -1694,7 +1719,8 @@ class XChainEncoder {
                                 revealFeeNeeded = this.dustAmount
                             }
                             let revealShortfall = Math.max(0, revealFeeNeeded - baseLegsTotal)
-                            let changeHeadroom = needsChangeOutput ? BigInt(this.dustAmount) : 0n
+                            // The reveal's change is an authored output, so its headroom is the relay floor.
+                            let changeHeadroom = needsChangeOutput ? BigInt(this.outputFloor) : 0n
                             spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
                         }
 
@@ -2321,12 +2347,10 @@ class XChainEncoder {
         }
 
         if ((changeSatoshis > 0) && (change)) {
-            // Only emit change at or above the per-coin dust threshold
-            // (this.dustAmount, the same constant the burn guard above keys on).
-            // Change of 1..dust-1 sats is an unspendable, non-standard output
-            // that makes the whole transaction unbroadcastable, so fold it into
-            // the miner fee (leave it unclaimed) rather than emit it.
-            if (changeSatoshis >= this.dustAmount) {
+            // Emit change only at or above the relay floor for authored outputs; below it the
+            // output is non-standard or soft dust that makes the transaction unrelayable, so it
+            // folds into the miner fee instead.
+            if (changeSatoshis >= this.outputFloor) {
                 psbt.addOutput({
                     address: change,
                     value: asSatValue(changeSatoshis)
@@ -2389,7 +2413,8 @@ class XChainEncoder {
             }
             let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
             let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
-            if (sweepAddress && revealSurplus >= BigInt(this.dustAmount)){
+            // The sweep is an authored output: below the relay floor the surplus stays as fee.
+            if (sweepAddress && revealSurplus >= BigInt(this.outputFloor)){
                 psbt.addOutput({
                     address: sweepAddress,
                     value: asSatValue(revealSurplus)

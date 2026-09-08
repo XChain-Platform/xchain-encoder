@@ -89,7 +89,7 @@ describe('E2E-4: Obfuscation Integrity', () => {
         null, null, PUBKEY_BUF.toString('hex'), true, 0.00001
       )
 
-      const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.dustAmount)
+      const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.outputFloor)
       assert.strictEqual(payload.magic, MAGIC_WORD)
 
       const decompiled = decompilePayload(payload.dataBuffer)

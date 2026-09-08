@@ -378,11 +378,13 @@ describe('XChainEncoder.createTransaction()', () => {
   })
 
   describe('custom dust parameter', () => {
-    it('overrides finalDust for MULTISIGN output value', async () => {
+    it('overrides finalDust for MULTISIGN output value when it raises the floor', async () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_MS, 0, 100000000)
       const compressedPubKey = pubkeyBuf.toString('hex')
-      const customDust = 1234
+      // Above the LTC output floor (5460), so the caller's value is honoured.
+      const customDust = 6000
+      assert.ok(customDust > encoder.outputFloor)
 
       const MS_DATA = 'A'.repeat(59)
 
@@ -394,7 +396,28 @@ describe('XChainEncoder.createTransaction()', () => {
       )
 
       const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
-      assert.ok(msOutput, 'MULTISIGN output should use custom dust value of 1234')
+      assert.ok(msOutput, 'MULTISIGN output should use custom dust value of 6000')
+    })
+
+    it('clamps a caller dust below the output floor up to the floor', async () => {
+      // 1234 litoshi is under LTC's 5460 dust threshold: an output that size is
+      // non-standard and the whole transaction unrelayable, so a caller may
+      // raise the floor but never lower it.
+      const encoder = makeEncoder()
+      const utxo = makeSegwitUtxo(TXID_MS, 0, 100000000)
+      const compressedPubKey = pubkeyBuf.toString('hex')
+      const customDust = 1234
+      assert.ok(customDust < encoder.outputFloor)
+
+      const result = await encoder.createTransaction(
+        [utxo], TEST_ADDRESS, null,
+        'A'.repeat(59), null, 10000, false, 'MULTISIGN', TEST_ADDRESS,
+        null, null, compressedPubKey,
+        true, 0.00001, customDust
+      )
+
+      assert.ok(!result.psbt.txOutputs.find(o => o.value === customDust), 'no output at the sub-floor value')
+      assert.ok(result.psbt.txOutputs.find(o => o.value === encoder.outputFloor), 'the data output sits at the floor')
     })
 
     it('does NOT override the fee floor (fee floor uses this.dustAmount)', async () => {
@@ -766,7 +789,10 @@ describe('XChainEncoder.createTransaction()', () => {
 
     it('phase 1 (funding) over-funds the P2SH output by the fee value plus its byte cost', async () => {
       const encoder = makeEncoder()
+      // Pin both floors: the reveal's change headroom keys on outputFloor, the fee
+      // floor on dustAmount, and the delta below assumes one value for each.
       encoder.dustAmount = 546
+      encoder.outputFloor = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
       const TxSizeEstimator = require('../../src/TxSizeEstimator')
 
@@ -805,9 +831,9 @@ describe('XChainEncoder.createTransaction()', () => {
       const feeOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(TEST_ADDRESS, LTC_REGTEST)
       const revealByteFee = Math.ceil(feeOutputBytes * feePerBytes * 1e8)
 
-      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee - encoder.dustAmount,
+      assert.strictEqual(feeFunding - baseFunding, FEE_VALUE + revealByteFee - encoder.outputFloor,
         'funding output must grow by the fee value plus the fee output byte cost, ' +
-        'less the change dust only the outputless baseline needs')
+        'less the change headroom (one output floor) only the outputless baseline needs')
     })
 
     it('phase 2 (reveal) emits the fee-destination output funded by phase 1', async () => {
