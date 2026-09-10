@@ -763,6 +763,18 @@ function validateAddress(address, label = 'address') {
     return address
 }
 
+// Reservation-ticket id for release_inputs: exactly the 16 random bytes
+// _mintReservationTicket emits, lowercase hex. Shape-checked here so a
+// non-string, an oversized blob or a wrong-length id is a precise -32602 rather
+// than reaching the encoder, and so the id can never be used as an unbounded
+// key into the ticket map.
+function validateReservationId(reservationId) {
+    if (typeof reservationId !== 'string' || !/^[0-9a-f]{32}$/.test(reservationId)) {
+        throw new TypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
+    }
+    return reservationId
+}
+
 function validateChange(change) {
     if (change == null) return null
     return validateAddress(change)
@@ -902,6 +914,7 @@ module.exports = {
     validateCompressedPubKey,
     validateChange,
     validateAddress,
+    validateReservationId,
     validateAll,
     parseSatoshiAmount,
     MAX_SATOSHI_U64,

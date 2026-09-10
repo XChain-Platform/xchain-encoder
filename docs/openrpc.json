@@ -358,6 +358,26 @@
                   }
                 }
               }
+            },
+            "reservation": {
+              "type": "object",
+              "description": "receipt for the input reservations this build kept: {id, outpoints, expiresAt}. Present whenever the build claimed at least one outpoint. Pass id to release_inputs the moment you know you will not broadcast, so an abandoned compose does not hold the address's inputs for the rest of the reservation window.",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "reservation ticket id (32-char lowercase hex)"
+                },
+                "outpoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "expiresAt": {
+                  "type": "integer",
+                  "description": "epoch ms the last of these reservations lapses at"
+                }
+              }
             }
           }
         }
@@ -454,6 +474,72 @@
             "fee": {
               "type": "integer",
               "description": "miner fee funded, base units"
+            },
+            "reservation": {
+              "type": "object",
+              "description": "receipt for the commit-outpoint reservation this cancel kept: {id, outpoints, expiresAt}; pass id to release_inputs if the cancel is abandoned",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "reservation ticket id (32-char lowercase hex)"
+                },
+                "outpoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "expiresAt": {
+                  "type": "integer",
+                  "description": "epoch ms the reservation lapses at"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "release_inputs",
+      "summary": "Hand back the input reservations one earlier build took, named by its reservation ticket id.",
+      "description": "A successful create_tx / create_envelope_cancel_tx keeps its inputs reserved for five minutes, because the caller is expected to sign and broadcast them. A wallet that composes when its send modal opens abandons most of those builds, and each abandoned one holds the address's inputs for the rest of the window, so the next compose on a few-UTXO address reports insufficient funds against its own money. Call this as soon as you know you will not broadcast. Ownership is enforced by the ticket: the id is unguessable and every outpoint is freed only while it still carries the stamp that build wrote, so a claim another call has since taken over is reported in `retained` and left in place. Idempotent and never an error: an unknown, expired or already-released ticket returns found:false with empty lists.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "reservationId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "reservation ticket id from result.reservation.id (32-char lowercase hex)"
+          }
+        }
+      ],
+      "result": {
+        "name": "release",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reservationId": {
+              "type": "string",
+              "description": "the ticket id that was presented"
+            },
+            "found": {
+              "type": "boolean",
+              "description": "the ticket was live and has now been consumed; false for an unknown, expired or already-released ticket"
+            },
+            "released": {
+              "type": "array",
+              "description": "outpoints (\"txid:vout\") this call freed",
+              "items": {
+                "type": "string"
+              }
+            },
+            "retained": {
+              "type": "array",
+              "description": "outpoints on the ticket whose reservation had already lapsed and been re-taken by another build, so they were left alone",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }
