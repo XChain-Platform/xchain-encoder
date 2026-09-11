@@ -430,6 +430,43 @@ const jsonRpcController = {
         result.psbt = result.psbt.toHex()
         return result
     },
+    // Hand back the input reservations ONE earlier build took, named by the
+    // ticket id that build's result carried. The wallet composes when its send
+    // modal opens and abandons most of those builds, and each abandoned one held
+    // the address's inputs for the full reservation window, so the next compose
+    // on a few-UTXO address reported insufficient funds against its own money.
+    // Ownership lives in the ticket (unguessable id plus a per-claim stamp
+    // re-checked at release time), so this method can never free another
+    // caller's inputs; see XChainEncoder.releaseReservation.
+    //
+    // Deliberately never an error for an unknown, expired or already-released
+    // ticket: a modal-close handler cannot act on a failure, and reporting one
+    // would push clients to retry a call that has nothing left to do. found
+    // tells them which it was.
+    async release_inputs(rawParams) {
+        let reservationId
+        try {
+            if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
+                throw new TypeError('Request params must be an object')
+            }
+            reservationId = validator.validateReservationId(rawParams.reservationId)
+        } catch (err) {
+            const e = new Error(err.message)
+            e.code = -32602
+            throw e
+        }
+        try {
+            return encoder.releaseReservation(reservationId)
+        } catch (err) {
+            const isKnown = err instanceof TypeError || err instanceof RangeError
+            if (!isKnown) {
+                console.error('Encoder error:', err)
+            }
+            const e = new Error(isKnown ? err.message : 'Internal encoder error')
+            e.code = isKnown ? -32602 : -32603
+            throw e
+        }
+    },
     async broadcast_tx(rawParams) {
         let tx_hex = rawParams && rawParams.tx_hex
         if (!tx_hex) {

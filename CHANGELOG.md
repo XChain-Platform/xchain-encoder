@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.17.0] - 2026-09-10
+
+### Added
+- `release_inputs` releases held UTXOs, and a shortfall error names the reserved candidates, so held inputs are no longer read as insufficient funds.
+
+### Fixed
+- The written compression bytes are reported as `compression.data` and `compression.rawData`, so a consumer can confirm what the PSBT carries.
+- Both CI call sites pass the siblings ref, so a release PR checks its siblings at the train branch rather than at develop.
+
 ## [0.16.0] - 2026-09-08
 
 ### Added

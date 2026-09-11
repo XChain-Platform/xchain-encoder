@@ -425,6 +425,14 @@ class XChainEncoder {
       // from the recovery record, so it must be able to re-take its OWN live
       // claim; a claim it did not write belongs to another build and blocks it.
       this.envelopeCancelClaims = new Map()
+      // reservation ticket id -> the claims ONE successful build kept, with the
+      // expiry stamp each of them wrote plus the recent-build record that build
+      // registered. This is what makes an explicit release possible without
+      // handing callers a way to free somebody else's inputs: the ticket id is
+      // unguessable and the per-claim stamp is re-checked at release time, so a
+      // caller can only ever drop entries its own build still owns.
+      // See releaseReservation.
+      this.reservationTickets = new Map()
     }
 
     // Sweep the recent-build map the same way _evictExpiredReservations sweeps
@@ -457,6 +465,12 @@ class XChainEncoder {
             )
         }
         this.recentBuilds.set(txid, now + RESERVATION_TTL_MS)
+        // Returned so the caller can put the txid (and therefore this record) on
+        // the build's reservation ticket: an explicit release has to retire the
+        // duplicate refusal alongside the outpoints, or a wallet that composes,
+        // releases and recomposes the SAME transaction is refused for the rest of
+        // the window by the guard instead of the reservation map.
+        return txid
     }
 
     // A reserved outpoint is one an in-flight selection has claimed and not yet
@@ -529,6 +543,101 @@ class XChainEncoder {
         }
     }
 
+    // Sweep expired tickets so the ticket map cannot outgrow the reservation map
+    // it describes. A ticket expires with the LAST of its claims.
+    _evictExpiredReservationTickets(now) {
+        for (const [id, ticket] of this.reservationTickets) {
+            if (ticket.expiry <= now) this.reservationTickets.delete(id)
+        }
+    }
+
+    // Mint the receipt for the claims a SUCCESSFUL build kept, so the caller can
+    // hand them back the moment it knows it will not broadcast (the wallet closes
+    // its compose modal) instead of stranding a funded address for the rest of
+    // RESERVATION_TTL_MS. Returns null when the build claimed nothing still live,
+    // and the result then simply carries no reservation block: a release RPC that
+    // has nothing to release must not mint a ticket that pretends otherwise.
+    //
+    // Only claims whose stamp is still the map's value go on the ticket. Anything
+    // else already lapsed and was re-taken by another call, and putting it on this
+    // ticket would hand this caller a lever over a foreign claim.
+    _mintReservationTicket(callReservations, now) {
+        this._evictExpiredReservationTickets(now)
+        const live = []
+        for (const claim of callReservations) {
+            if (this.outpointReservations.get(claim.key) === claim.expiry) live.push({ key: claim.key, expiry: claim.expiry })
+        }
+        if (live.length === 0) return null
+        const id = crypto.randomBytes(16).toString('hex')
+        let expiry = 0
+        for (const claim of live) if (claim.expiry > expiry) expiry = claim.expiry
+        const txid = callReservations.buildTxid || null
+        this.reservationTickets.set(id, {
+            claims: live,
+            expiry,
+            txid,
+            // The recent-build record's own ownership stamp, read back rather than
+            // recomputed so a rebuild that re-registered the txid under a later
+            // clock is left alone by this ticket's release.
+            txidExpiry: txid ? (this.recentBuilds.get(txid) || null) : null
+        })
+        return { id, outpoints: live.map(c => c.key), expiresAt: expiry }
+    }
+
+    // Explicit, ownership-stamped release of ONE build's reservations, the
+    // counterpart of the receipt _mintReservationTicket put on that build's
+    // result. The wallet composes when its send modal opens and most of those
+    // builds are never broadcast, so without this every abandoned compose held a
+    // few-UTXO address's whole balance for five minutes and the next compose read
+    // as insufficient funds. Idempotent and never an error: an unknown, already
+    // released or lapsed ticket returns found:false rather than throwing, because
+    // a wallet firing this from a modal-close handler cannot usefully react to a
+    // failure and must not be taught to retry one.
+    //
+    // Ownership is enforced twice: the ticket id is 16 unguessable bytes handed
+    // only to the build that took the claims, and each claim is dropped only while
+    // the map still holds the exact expiry that build wrote. A claim whose stamp
+    // moved lapsed and was re-taken by somebody else, so it is REPORTED (retained)
+    // and left in place; dropping it would reopen the same-address double-spend
+    // window the reservation map exists to close.
+    releaseReservation(reservationId) {
+        if (typeof reservationId !== 'string' || !/^[0-9a-f]{32}$/.test(reservationId)) {
+            throw new TypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
+        }
+        const now = Date.now()
+        this._evictExpiredReservations(now)
+        this._evictExpiredEnvelopeCancelClaims(now)
+        this._evictExpiredRecentBuilds(now)
+        this._evictExpiredReservationTickets(now)
+        const ticket = this.reservationTickets.get(reservationId)
+        if (!ticket) return { reservationId, found: false, released: [], retained: [] }
+        // A ticket is single-use: the claims it names are either freed now or were
+        // already taken over by another call, and either way it has no further use.
+        this.reservationTickets.delete(reservationId)
+        const released = []
+        const retained = []
+        for (const claim of ticket.claims) {
+            if (this.outpointReservations.get(claim.key) === claim.expiry) {
+                this.outpointReservations.delete(claim.key)
+                // The cancel path's stamp mirrors the reservation it wrote, so it
+                // has to go with it or the outpoint reads free to selection while
+                // the cancel path still believes it owns the claim.
+                if (this.envelopeCancelClaims.get(claim.key) === claim.expiry) this.envelopeCancelClaims.delete(claim.key)
+                released.push(claim.key)
+            } else {
+                retained.push(claim.key)
+            }
+        }
+        // Retire the duplicate-build refusal for this build too, under the same
+        // stamp check. Releasing the inputs without it just moves the five-minute
+        // wall: the recompose that follows a release is byte-identical by
+        // construction and would be refused DUPLICATE_TRANSACTION instead.
+        if (ticket.txid && ticket.txidExpiry != null && this.recentBuilds.get(ticket.txid) === ticket.txidExpiry) {
+            this.recentBuilds.delete(ticket.txid)
+        }
+        return { reservationId, found: true, released, retained }
+    }
+
     // Explicit release of all reservations and recent-build records. The encoder
     // holds no durable state, so this is primarily a test seam; production
     // relies on the TTL.
@@ -536,6 +645,7 @@ class XChainEncoder {
         this.outpointReservations.clear()
         this.recentBuilds.clear()
         this.envelopeCancelClaims.clear()
+        this.reservationTickets.clear()
     }
     
     isSegwitUTXO(utxo) {
@@ -860,14 +970,21 @@ class XChainEncoder {
     // so a concurrent call's entries are never dropped; see
     // _releaseCallReservations. The success path keeps its reservations on purpose:
     // the caller is about to sign and broadcast those inputs.
+    // A successful build's kept claims come back as a `reservation` receipt on the
+    // result, which the caller hands to releaseReservation the moment it knows it
+    // will not broadcast; see _mintReservationTicket.
     async createTransaction(...args){
         const callReservations = []
+        let result
         try {
-            return await this._buildTransaction(callReservations, ...args)
+            result = await this._buildTransaction(callReservations, ...args)
         } catch (err) {
             this._releaseCallReservations(callReservations)
             throw err
         }
+        const reservation = this._mintReservationTicket(callReservations, Date.now())
+        if (reservation && result && typeof result === 'object') result.reservation = reservation
+        return result
     }
 
     async _buildTransaction(callReservations, utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
@@ -2335,10 +2452,22 @@ class XChainEncoder {
         // and a negative "change" is expected and harmless.
         if (!p2shHash && changeSatoshis < 0) {
             const required = outputSatoshis + BigInt(estimatedFee)
+            // Name the reserved candidates when there were any: the shortfall then
+            // comes from inputs another build of the last RESERVATION_TTL_MS still
+            // holds, not from an under-funded address, and the caller's fix is to
+            // broadcast that build or wait, not to fund the address. Found live on
+            // TDOGE: two spendable outputs plus dust, two un-broadcast
+            // builds, and the third build reported the dust output as the whole
+            // balance, which the wallet rendered as "not enough funds". Same
+            // wording as the zero-selected branch above so one reader handles both.
+            const held = reservedCandidates > 0
+                ? `; ${reservedCandidates} candidate input(s) are reserved by a transaction built in the last ` +
+                  `${Math.round(RESERVATION_TTL_MS / 60000)} minutes; broadcast that transaction or wait for the reservation to lapse`
+                : ''
             throw new OperationalError(
                 'INSUFFICIENT_FUNDS',
-                `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})`,
-                { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
+                `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})${held}`,
+                { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee, reservedCandidates }
             )
         }
 
@@ -2534,7 +2663,9 @@ class XChainEncoder {
         // createEnvelopeCancelTransaction is the one build path outside
         // _buildTransaction; it takes its own outpoint reservation instead, and
         // states there why duplicate refusal must not apply to it.
-        this._refuseDuplicateBuild(psbt, Date.now())
+        // The txid rides back on the per-call reservation ledger so the ticket
+        // minted for this build can retire this record too (see releaseReservation).
+        callReservations.buildTxid = this._refuseDuplicateBuild(psbt, Date.now())
 
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
 
@@ -2560,6 +2691,27 @@ class XChainEncoder {
                 rawLength:    compressionResult.rawLength,
                 storedLength: compressionResult.storedLength,
                 reason:       compressionResult.reason
+            }
+            // THE BYTES, not just the verdict. A boolean plus two lengths is not
+            // enough to rebuild this transaction: the compression pass rewrote the
+            // COMPRESSION field and replaced the payload in place, so a caller
+            // holding only its own pre-compression request can neither state what
+            // these bytes say (its confirm check reads a string the PSBT does not
+            // carry, and refuses its own transaction as tampered) nor rebuild the
+            // phase-2 reveal from them (re-deriving the marker without the deflated
+            // payload compiles a DIFFERENT carrier, and a reveal that does not
+            // reproduce the commit's chunks can never spend the commit - the funds
+            // are stranded, after the money is spent).
+            //
+            // So both halves ride back exactly as they went in: `data` is the action
+            // string written into the carrier, and `rawData` the stored payload in
+            // the same Latin-1 one-char-per-byte form every rawData parameter takes,
+            // so it can be handed straight back to create_tx/spendP2sh. Present only
+            // when compression actually fired; an untouched payload is already the
+            // caller's own.
+            if (compressionResult.compressed){
+                result.compression.data    = compressionResult.data
+                result.compression.rawData = compressionResult.rawData.toString('binary')
             }
         }
         if (preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH){
@@ -2752,14 +2904,21 @@ class XChainEncoder {
     // Public entry point. Like createTransaction it owns the per-call reservation
     // ledger: a build that throws for any reason hands the commit outpoint back at
     // once instead of squatting it until RESERVATION_TTL_MS.
+    // A successful cancel keeps its commit-outpoint claim and gets the same
+    // `reservation` receipt create_tx does, so an abandoned cancel can hand the
+    // commit outpoint back instead of blocking every rebuild for the whole TTL.
     async createEnvelopeCancelTransaction(params = {}){
         const callReservations = []
+        let result
         try {
-            return await this._buildEnvelopeCancelTransaction(callReservations, params)
+            result = await this._buildEnvelopeCancelTransaction(callReservations, params)
         } catch (err) {
             this._releaseEnvelopeCancelClaims(callReservations)
             throw err
         }
+        const reservation = this._mintReservationTicket(callReservations, Date.now())
+        if (reservation && result && typeof result === 'object') result.reservation = reservation
+        return result
     }
 
     async _buildEnvelopeCancelTransaction(callReservations, { commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
