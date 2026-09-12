@@ -144,7 +144,11 @@ const VALID_ACTION_NAMES = new Set([
     'DIVIDEND', 'EXECUTE', 'FILE', 'ISSUE', 'LINK', 'LIST', 'MESSAGE', 'MINT',
     'NODEPROOF', 'ORDER', 'PRICE', 'ROLLCALL', 'SEND', 'SLASH', 'SLEEP', 'STAKE',
     'SWAP',
-    'SWEEP', 'UNSTAKE', 'VOTE', 'WITHDRAW'
+    'SWEEP', 'UNSTAKE', 'VOTE', 'WITHDRAW',
+    // Bridge lock/burn. Mirrors the decoder set: the user-broadcast versions (0, 1, 3, 4)
+    // must clear this gate to reach a decoder at all, and the mirror-injected settle legs
+    // (2, 5) are never encoded here because no user may author one.
+    'XBRIDGE'
 ])
 
 // Short-form ACTION-name aliases, expanded to canonical form before the
