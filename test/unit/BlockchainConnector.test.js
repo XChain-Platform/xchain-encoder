@@ -177,7 +177,9 @@ describe('BlockchainConnector.getTransactionHex()', () => {
   const TXID = 'a'.repeat(64)
   const HEX = '0100000001' + '0'.repeat(100)
 
-  it('sends getrawtransaction with correct txid and hexFormat=true', async () => {
+  // verbose=true is not optional: result.hex only exists on the verbose object,
+  // so a non-verbose request would make a SUCCESSFUL rpc throw below.
+  it('always sends getrawtransaction with verbose=true', async () => {
     let capturedPayload
     axios.post = async (url, data) => {
       capturedPayload = data
@@ -187,17 +189,6 @@ describe('BlockchainConnector.getTransactionHex()', () => {
     await c.getTransactionHex(TXID)
     assert.strictEqual(capturedPayload.method, 'getrawtransaction')
     assert.deepStrictEqual(capturedPayload.params, [TXID, true])
-  })
-
-  it('passes hexFormat=false when requested', async () => {
-    let capturedPayload
-    axios.post = async (url, data) => {
-      capturedPayload = data
-      return { data: { result: { hex: HEX } } }
-    }
-    const c = makeConnector()
-    await c.getTransactionHex(TXID, false)
-    assert.deepStrictEqual(capturedPayload.params, [TXID, false])
   })
 
   it('returns the hex string on success', async () => {
@@ -794,5 +785,41 @@ describe('BlockchainConnector RPC-credential log sanitization', () => {
       'the RPC password must never appear in connector error logs (got: ' + combined + ')')
     assert.strictEqual(thrown.config && thrown.config.auth, undefined,
       'the re-thrown error must have its config.auth scrubbed')
+  })
+
+  // The scrub replaces error.response with just its status, which used to discard
+  // the node's own JSON-RPC error body along with it. Nodes answer most RPC errors
+  // as HTTP 500 carrying {code, message}, so that body is the only statement of the
+  // real cause; capture it before scrubbing, as the decoder connector does.
+  it('keeps the node RPC code and message when scrubbing the response', async () => {
+    const err = new Error('Request failed with status code 500')
+    err.config = { auth: { username: 'rpcuser', password: 'rpcpass' }, headers: {} }
+    err.response = {
+      status: 500,
+      data: { error: { code: -28, message: 'Loading block index...' } }
+    }
+
+    const c = makeConnector()
+    stubAxiosPostThrow(err)
+
+    const originalError = console.error
+    const logs = []
+    console.error = (...args) => { logs.push(args.join(' ')) }
+
+    let thrown
+    try {
+      await c.getTransactionHex('a'.repeat(64))
+    } catch (e) {
+      thrown = e
+    } finally {
+      console.error = originalError
+    }
+
+    assert.ok(thrown, 'the failing RPC should propagate an error')
+    assert.strictEqual(thrown.rpcCode, -28, 'node RPC code is attached to the rethrown error')
+    assert.strictEqual(thrown.rpcMessage, 'Loading block index...')
+    assert.match(logs.join('\n'), /RPC error -28: Loading block index/)
+    assert.deepStrictEqual(thrown.response, { status: 500 },
+      'the response is still scrubbed down to its status')
   })
 })

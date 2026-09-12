@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `getTransactionHex` always requests `getrawtransaction` in verbose form, so the only field it reads cannot go missing on a successful call.
+- A node's own JSON-RPC error code and message are kept on the re-thrown error and in the log line, instead of being dropped with the scrubbed response.
+
 ## [0.17.0] - 2026-09-10
 
 ### Added

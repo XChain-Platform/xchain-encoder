@@ -75,6 +75,8 @@ function feeEstimateSanityCeiling(){
 // return a compact, credential-free string (error.message never carries auth).
 // Kept in sync with xchain-decoder/src/BlockchainConnector.js sanitizeRpcError.
 function sanitizeRpcError(error){
+    let rpcCode
+    let rpcMessage
     try {
         if (error && error.config) {
             error.config.auth = undefined
@@ -83,10 +85,31 @@ function sanitizeRpcError(error){
         if (error && error.request) error.request = undefined
         if (error && error.response) {
             const status = error.response.status
+            // Bitcoin/Litecoin/Dogecoin Core deliver most RPC errors as HTTP 500 with the
+            // JSON-RPC error body (response.data.error = {code, message}), which makes
+            // axios throw before the success branch of the caller ever runs. Capture the
+            // node's own code and message here, BEFORE the scrub replaces error.response
+            // with just its status, so callers and logs keep the real cause (-8 out of
+            // range, -28 loading block index, -429 queue full) instead of a bare status
+            // line.
+            const rpcErr = error.response.data && error.response.data.error
+            if (rpcErr && typeof rpcErr === 'object') {
+                rpcCode = rpcErr.code
+                rpcMessage = (typeof rpcErr.message === 'string') ? rpcErr.message : undefined
+            }
             error.response = (status !== undefined) ? { status: status } : undefined
         }
+        if (error && (rpcCode !== undefined || rpcMessage !== undefined)) {
+            // Non-enumerable so this does not alter JSON serialization of the error.
+            Object.defineProperty(error, 'rpcCode', { value: rpcCode, enumerable: false, configurable: true })
+            Object.defineProperty(error, 'rpcMessage', { value: rpcMessage, enumerable: false, configurable: true })
+        }
     } catch (_) { /* sanitization must never mask the original failure */ }
-    return (error && error.message) ? error.message : String(error)
+    const base = (error && error.message) ? error.message : String(error)
+    if (rpcCode !== undefined || rpcMessage !== undefined) {
+        return `${base} (RPC error ${rpcCode !== undefined ? rpcCode : 'unknown'}: ${rpcMessage !== undefined ? rpcMessage : ''})`
+    }
+    return base
 }
 
 // Size and fee off one getmempoolentry-shaped record, across both field layouts
@@ -200,12 +223,20 @@ class BlockchainConnector {
         }
     }
 
-    async getTransactionHex(txid, hexFormat = true) {
+    // Always requests getrawtransaction in VERBOSE form, because the only field
+    // read below is result.hex, which exists on the verbose object alone. The
+    // method used to take a hexFormat flag and forward it as that verbose
+    // parameter, which inverted it against its own name: the default true worked
+    // by accident, while hexFormat=false made the node answer with a bare hex
+    // STRING whose .hex is undefined, so a SUCCESSFUL rpc threw. No caller ever
+    // passed the flag, so the parameter is gone rather than repaired. Matches
+    // xchain-e2e-test/src/BlockchainConnector.js getTransactionHex.
+    async getTransactionHex(txid) {
         try {
             const data = {
                 jsonrpc: '2.0',
                 method: 'getrawtransaction',
-                params: [txid, hexFormat],
+                params: [txid, true],
                 id: 1,
             };
 
