@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-11
+
+### Fixed
+- A raw `estimatesmartfee` result is clamped to a per-chain sanity ceiling, `FEE_ESTIMATE_SANITY_CEILING`.
+- A two-phase reveal is prefunded at a package-aware fee rate.
+- UTXO dedup is linearised and tracker freshness is unified into one classifier.
+- The bufferutils patch converges with the SDK copy and is pinned by a twin guard.
+- The Docker image no longer tries to bake a `.env` file, so the build succeeds on the legacy builder and configuration reaches the container as environment only.
+
 ## [0.17.0] - 2026-09-10
 
 ### Added
