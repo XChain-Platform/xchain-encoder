@@ -660,6 +660,95 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
       /Error getting smart fee from node/
     )
   })
+
+  // estimatesmartfee was taken verbatim on testnet/mainnet with no
+  // upper bound. A misbehaving/compromised/misconfigured node feeding a
+  // spiked estimate on this money-affecting path fed straight into what the
+  // caller was charged, and into the caller-facing caps' own anchor.
+  describe('sanity ceiling on the raw non-regtest estimate', () => {
+    let originalNetwork, originalCeiling, warnSpy, errorSpy
+
+    beforeEach(() => {
+      originalNetwork = process.env.NETWORK
+      originalCeiling = process.env.FEE_ESTIMATE_SANITY_CEILING
+      delete process.env.NETWORK
+      delete process.env.FEE_ESTIMATE_SANITY_CEILING
+      errorSpy = []
+      const originalError = console.error
+      console.error = (...args) => { errorSpy.push(args.join(' ')); }
+      warnSpy = originalError
+    })
+
+    afterEach(() => {
+      if (originalNetwork === undefined) delete process.env.NETWORK; else process.env.NETWORK = originalNetwork
+      if (originalCeiling === undefined) delete process.env.FEE_ESTIMATE_SANITY_CEILING; else process.env.FEE_ESTIMATE_SANITY_CEILING = originalCeiling
+      console.error = warnSpy
+    })
+
+    it('clamps a spiked mainnet estimate to the coin-default ceiling and logs loudly', async () => {
+      process.env.NETWORK = 'bitcoin-mainnet'
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 5 } } } // 5 BTC/kB: absurd
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(1)
+      assert.strictEqual(feerate, 0.01, 'expected clamp to the bitcoin default ceiling 0.01 BTC/kB')
+      assert.ok(errorSpy.some(m => /sanity ceiling/.test(m)), 'expected a loud diagnostic')
+    })
+
+    it('clamps a spiked testnet estimate using the dogecoin-scale default when NETWORK says dogecoin', async () => {
+      process.env.NETWORK = 'dogecoin-testnet'
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 5000 } } } // 5000 DOGE/kB: absurd
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(6)
+      assert.strictEqual(feerate, 10, 'expected clamp to the dogecoin default ceiling 10 DOGE/kB')
+    })
+
+    it('passes through an estimate under the ceiling unchanged', async () => {
+      process.env.NETWORK = 'bitcoin-mainnet'
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 0.0005 } } }
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(1)
+      assert.strictEqual(feerate, 0.0005)
+      assert.strictEqual(errorSpy.length, 0, 'must not log when under the ceiling')
+    })
+
+    it('honours FEE_ESTIMATE_SANITY_CEILING as an override', async () => {
+      process.env.NETWORK = 'bitcoin-mainnet'
+      process.env.FEE_ESTIMATE_SANITY_CEILING = '0.0001'
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 0.0005 } } }
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(1)
+      assert.strictEqual(feerate, 0.0001, 'expected clamp to the overridden ceiling')
+    })
+
+    it('ignores a non-positive or unparseable override and keeps the coin default', async () => {
+      process.env.NETWORK = 'litecoin-mainnet'
+      process.env.FEE_ESTIMATE_SANITY_CEILING = '-1'
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+        if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 5 } } }
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(1)
+      assert.strictEqual(feerate, 0.01, 'expected fallback to the litecoin default ceiling')
+    })
+  })
 })
 
 // Behavioral lock: every RPC call passes auth:{username,password} to axios, and

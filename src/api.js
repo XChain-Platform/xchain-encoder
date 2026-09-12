@@ -292,15 +292,18 @@ async function getServeReadiness() {
     try {
         const status = await encoder.utxoTrackerConnector.getSyncStatus()
         tracker_reachable = true
-        const lag = status.lag !== undefined ? status.lag : null
-        const overLag = (lag !== null) && (lag > encoder.maxUtxoTrackerLagBlocks)
-        const behindNode = (lag !== null) && (lag < 0)
-        tracker_halted = status.halted === true
-        // Strict === false, matching create_tx's gate: a pre-mempool_ready tracker omits
-        // the field and stays on the existing fail-open path rather than reading unready.
-        tracker_mempool_ready = status.mempool_ready !== false
-        tracker_synced = !!status.synced && !overLag && !behindNode && !tracker_halted && tracker_mempool_ready
-        tracker_lag = lag
+        // This probe applies the SAME freshness classifier create_tx refuses a
+        // tracker with, against this endpoint's payload, so the board and the
+        // encoder cannot drift apart: both read getSyncStatus() through
+        // classifyTrackerFreshness instead of each re-deriving over-lag,
+        // behind-node, halted and mempool-ready. The remaining asymmetry is
+        // intentional: readiness needs the tracker's POSITIVE synced assertion
+        // (syncedClaimed), while the create_tx gate refuses only on negatives.
+        const freshness = XChainEncoder.classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
+        tracker_halted = freshness.halted
+        tracker_mempool_ready = freshness.mempoolReady
+        tracker_synced = freshness.syncedClaimed && freshness.code === null
+        tracker_lag = freshness.lag
     } catch (_err) {
         // tracker unreachable; fields stay at defaults
     }

@@ -3,6 +3,9 @@ version: '3'
 services:
   xchain_encoder:
     build: .
+    # The image bakes no .env (Dockerfile); the README's .env is handed to the
+    # container here instead.
+    env_file: .env
     # HARD CONSTRAINT: exactly one encoder replica per endpoint. The UTXO
     # outpoint-reservation double-spend guard, the recent-build duplicate
     # refusal and the rate limiter are all in-process

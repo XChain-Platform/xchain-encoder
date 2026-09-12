@@ -13,10 +13,9 @@ RUN npm ci --omit=dev
 
 COPY ./src /XChainEncoder/src
 COPY ./docs /XChainEncoder/docs
-# Glob pattern matches zero or one .env file so the build succeeds when
-# the source has no .env (typical in CI / fresh clones). Mirrors the
-# pattern used by xchain-indexer/Dockerfile.
-COPY ./.en[v] /XChainEncoder/.env
+# No .env is baked in: configuration reaches the container as environment
+# (xchain-node at `docker run`, docker-compose.yml via env_file). An optional
+# `COPY ./.en[v]` glob here builds only under BuildKit.
 
 # Run node directly rather than through `npm run api` (which is this exact
 # command). npm builds a three-process tree, npm -> sh -c -> node, and neither

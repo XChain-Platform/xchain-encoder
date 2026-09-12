@@ -219,6 +219,20 @@ describe('packageFeeUpliftSatoshis() @regression @tier1', () => {
     }), 0, 'a rich ancestor must never LOWER this fee')
   })
 
+  it('takes the ancestor fee in base units when one is given, ahead of the coin-unit figure', () => {
+    // The two-phase prefund knows the commit's fee exactly, as an integer. A
+    // coin-unit round trip would reintroduce the float error the ceiling shaves.
+    const owed = uplift({
+      currentFee: 0,
+      txSize: 1000,
+      ancestorSize: 2000,
+      ancestorFees: 1,                  // a wildly different coin-unit figure
+      ancestorFeeSatoshis: 626000,
+      targetFeePerBytes: 0.01 / 1000
+    })
+    assert.strictEqual(owed, 2374000, 'the base-unit figure wins')
+  })
+
   it('returns 0 for an empty package or a missing target', () => {
     const base = { currentFee: 0, txSize: 250, ancestorSize: 0, ancestorFees: 0, targetFeePerBytes: 0.00001 }
     assert.strictEqual(uplift(base), 0)
@@ -445,5 +459,329 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
     )
     const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
     assert.ok(outputs <= 400000, 'the transaction may never pay out more than it takes in')
+  })
+})
+
+// A reveal spends nothing but the commit's own outputs, so the pair is
+// always one mempool package and a miner weighs them together. The reveal's fee
+// is money the commit set aside and the reveal has no second input to raise it
+// from, so a commit that lands under the target rate drags the package under it
+// and nothing downstream can fix that: the pair sits unmined behind a confirmed
+// commit. These pin that the commit prefunds the reveal at the PACKAGE rate, and
+// that the P2SH reveal keeps that money as fee instead of sweeping it home.
+describe('two-phase reveal package prefund @regression @tier1', () => {
+  const ecc = require('tiny-secp256k1')
+  const { ECPairFactory } = require('ecpair')
+  bitcoin.initEccLib(ecc)
+  const KEY = ECPairFactory(ecc).fromPrivateKey(Buffer.alloc(32, 7))
+  const PUBKEY_HEX = Buffer.from(KEY.publicKey).toString('hex')
+
+  const BTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('bitcoin-regtest')
+  const BTC_RATE_KB = 0.0001                                  // 10 sat/byte
+  const BTC_TARGET_PER_BYTE = BTC_RATE_KB * SATOSHI_UNIT / 1000
+  const COMMIT_INPUT_VALUE = 100000000
+  // Far under the target rate for a commit of any size: the congestion-clamped
+  // commit the ledger entry describes, reproduced as an explicit caller fee.
+  const UNDER_TARGET_COMMIT_FEE = 700
+  const ENVELOPE_PAYLOAD = 'x'.repeat(20000)
+
+  afterEach(() => { delete process.env.MAX_CPFP_UPLIFT_SAT })
+
+  function envelopeEncoder (ancestorPackage) {
+    const encoder = new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
+    encoder.connector = {
+      getFeePerKilobyte: async () => BTC_RATE_KB,
+      // Without a relayfee the suggested-rate ceiling clamps to its default and
+      // the probe rate below would never be priced at all.
+      getNetworkInfo: async () => ({ relayfee: 0.00001 }),
+      getTransactionHex: async () => { throw new Error('unit test: no node') }
+    }
+    if (ancestorPackage !== undefined) {
+      encoder.connector.getUnconfirmedAncestorPackage = async () =>
+        (typeof ancestorPackage === 'function' ? ancestorPackage() : ancestorPackage)
+    }
+    return encoder
+  }
+
+  function callerAddress () {
+    return bitcoin.payments.p2wpkh({ pubkey: Buffer.from(KEY.publicKey), network: BTC_REGTEST }).address
+  }
+
+  function segwitUtxo (value, confirmations) {
+    const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: Buffer.from(KEY.publicKey), network: BTC_REGTEST })
+    return { txid: TXID_PARENT_A, vout: 0, value, confirmations, scriptPubKey: p2wpkh.output.toString('hex') }
+  }
+
+  async function buildEnvelope (encoder, { commitFee = null, inputValue = COMMIT_INPUT_VALUE, confirmations = 6 } = {}) {
+    encoder.clearReservations()
+    const addr = callerAddress()
+    return encoder.createTransaction(
+      [segwitUtxo(inputValue, confirmations)], addr, null, 'FILE|0|package-prefund',
+      ENVELOPE_PAYLOAD, commitFee, false, 'TAPROOT', addr, null, null, PUBKEY_HEX)
+  }
+
+  function unsignedTx (psbt) {
+    return bitcoin.Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer())
+  }
+
+  // Sign both halves so the package is measured on the bytes a miner actually
+  // sees, not on the builder's own estimate of them.
+  function signedPair (result) {
+    const signer = {
+      publicKey: Buffer.from(KEY.publicKey),
+      sign: (h) => Buffer.from(KEY.sign(h)),
+      signSchnorr: (h) => Buffer.from(ecc.signSchnorr(h, KEY.privateKey))
+    }
+    const commitPsbt = bitcoin.Psbt.fromHex(result.psbt.toHex())
+    commitPsbt.signAllInputs(signer)
+    commitPsbt.finalizeAllInputs()
+    const commitTx = commitPsbt.extractTransaction()
+
+    const revealPsbt = result.revealPsbt
+    revealPsbt.signInput(0, signer)
+    revealPsbt.finalizeAllInputs()
+    const revealTx = revealPsbt.extractTransaction()
+    return { commitTx, revealTx }
+  }
+
+  it('lifts the prefund so a commit paying under the target rate still clears it as a package', async () => {
+    const result = await buildEnvelope(envelopeEncoder(), { commitFee: UNDER_TARGET_COMMIT_FEE })
+    const { commitTx, revealTx } = signedPair(result)
+
+    const commitFee = COMMIT_INPUT_VALUE - commitTx.outs.reduce((s, o) => s + o.value, 0)
+    assert.strictEqual(commitFee, UNDER_TARGET_COMMIT_FEE, 'the commit still pays exactly what the caller asked')
+    assert.ok(commitFee / commitTx.virtualSize() < BTC_TARGET_PER_BYTE,
+      'this probe is only meaningful while the commit itself is under target')
+
+    const revealFee = commitTx.outs[result.envelope.commitVout].value -
+      revealTx.outs.reduce((s, o) => s + o.value, 0)
+    const packageRate = (commitFee + revealFee) / (commitTx.virtualSize() + revealTx.virtualSize())
+    assert.ok(packageRate >= BTC_TARGET_PER_BYTE,
+      `commit+reveal package pays ${packageRate} sat/byte, under the ${BTC_TARGET_PER_BYTE} target`)
+  })
+
+  it('leaves the reveal its change output rather than paying the uplift out of it', async () => {
+    const encoder = envelopeEncoder()
+    const result = await buildEnvelope(encoder, { commitFee: UNDER_TARGET_COMMIT_FEE })
+    // commitValue = revealFee + dust by construction; both move together or the
+    // uplift silently returns to the caller as change instead of reaching miners.
+    assert.strictEqual(result.envelope.commitValue, result.envelope.revealFee + encoder.dustAmount)
+    assert.strictEqual(Number(result.revealPsbt.txOutputs[0].value), encoder.dustAmount,
+      'the reveal still leaves exactly one dust output back to the caller')
+    const commitTx = unsignedTx(result.psbt)
+    assert.strictEqual(commitTx.outs[result.envelope.commitVout].value, result.envelope.commitValue,
+      'the commit output on the wire carries the raised value')
+  })
+
+  it('adds nothing when the commit already pays the target rate on its own bytes', async () => {
+    // Same build, node-derived fee: the commit pays the target, so the package
+    // already clears it and the prefund must not grow by a single satoshi.
+    const withPackaging = await buildEnvelope(envelopeEncoder())
+    process.env.MAX_CPFP_UPLIFT_SAT = '0'
+    const withoutPackaging = await buildEnvelope(envelopeEncoder())
+    assert.strictEqual(withPackaging.envelope.revealFee, withoutPackaging.envelope.revealFee,
+      'a commit at target must not buy the reveal a bigger prefund')
+  })
+
+  it('carries ancestors the commit\'s own capped uplift could not pay for', async () => {
+    // A commit whose CPFP uplift is capped at the node rate cannot pay for the
+    // free ancestors it spends: the rate cap measures a fee against the commit's
+    // OWN bytes, so there is no room in it for anyone else's. The reveal is the
+    // only half of the package left that can still be raised, and its prefund is
+    // bought with change rather than with commit fee, so the cap does not bind it.
+    const capped = (ancestorPackage) => {
+      const encoder = new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '',
+        BTC_RATE_KB * SATOSHI_UNIT)
+      encoder.connector = {
+        getFeePerKilobyte: async () => BTC_RATE_KB,
+        getNetworkInfo: async () => ({ relayfee: 0.00001 }),
+        getTransactionHex: async () => { throw new Error('unit test: no node') },
+        getUnconfirmedAncestorPackage: async () => ancestorPackage
+      }
+      return encoder
+    }
+    const originalWarn = console.warn
+    console.warn = () => {}
+    let withAncestors, withoutAncestors
+    try {
+      withAncestors = await buildEnvelope(capped({ size: 2000, fees: 0 }), { confirmations: 0 })
+      withoutAncestors = await buildEnvelope(capped({ size: 0, fees: 0 }), { confirmations: 0 })
+    } finally {
+      console.warn = originalWarn
+    }
+    assert.ok(withAncestors.envelope.revealFee > withoutAncestors.envelope.revealFee,
+      `unpaid ancestors must raise the prefund (${withAncestors.envelope.revealFee} vs ${withoutAncestors.envelope.revealFee})`)
+    // 2000 free ancestor bytes at the 10 sat/byte target is what is owed, give or
+    // take the single base unit the rate's float representation costs.
+    const owed = withAncestors.envelope.revealFee - withoutAncestors.envelope.revealFee
+    assert.ok(Math.abs(owed - 2000 * BTC_TARGET_PER_BYTE) <= 1,
+      `owed ${owed} against ${2000 * BTC_TARGET_PER_BYTE} for the unpaid ancestor bytes`)
+  })
+
+  it('MAX_CPFP_UPLIFT_SAT=0 turns the prefund off entirely', async () => {
+    const baseline = await buildEnvelope(envelopeEncoder(), { commitFee: UNDER_TARGET_COMMIT_FEE })
+    process.env.MAX_CPFP_UPLIFT_SAT = '0'
+    const disabled = await buildEnvelope(envelopeEncoder(), { commitFee: UNDER_TARGET_COMMIT_FEE })
+    assert.ok(baseline.envelope.revealFee > disabled.envelope.revealFee,
+      'the probe must actually be lifting something when sizing is on')
+  })
+
+  it('clamps at MAX_CPFP_UPLIFT_SAT and warns that the package stays under target', async () => {
+    process.env.MAX_CPFP_UPLIFT_SAT = '0'
+    const disabled = await buildEnvelope(envelopeEncoder(), { commitFee: UNDER_TARGET_COMMIT_FEE })
+
+    process.env.MAX_CPFP_UPLIFT_SAT = '11'
+    const warnings = []
+    const originalWarn = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    let clamped
+    try {
+      clamped = await buildEnvelope(envelopeEncoder(), { commitFee: UNDER_TARGET_COMMIT_FEE })
+    } finally {
+      console.warn = originalWarn
+    }
+    assert.strictEqual(clamped.envelope.revealFee, disabled.envelope.revealFee + 11,
+      'the prefund stops at exactly the configured bound')
+    assert.ok(warnings.some(w => /Reveal package prefund clamped/.test(w) && /MAX_CPFP_UPLIFT_SAT/.test(w)),
+      'the operator must be told the package will stay under target: ' + warnings.join(' | '))
+  })
+
+  it('never prefunds more than the commit inputs hold', async () => {
+    // The input barely covers the commit's own outputs and fee. The build must
+    // still produce a signable pair rather than fail with INSUFFICIENT_FUNDS.
+    const encoder = envelopeEncoder({ size: 500000, fees: 0 })
+    const result = await buildEnvelope(encoder, { commitFee: UNDER_TARGET_COMMIT_FEE, inputValue: 53000, confirmations: 0 })
+    const commitTx = unsignedTx(result.psbt)
+    const outputs = commitTx.outs.reduce((s, o) => s + o.value, 0)
+    assert.ok(outputs + UNDER_TARGET_COMMIT_FEE <= 53000,
+      `commit pays out ${outputs} + ${UNDER_TARGET_COMMIT_FEE} fee against a ${53000} input`)
+    assert.strictEqual(result.envelope.commitValue, commitTx.outs[result.envelope.commitVout].value)
+  })
+})
+
+// The P2SH lane splits the two phases across two calls, so the commit funds the
+// package rate into its first leg and the reveal has to KEEP that money as fee
+// instead of sweeping it back to the caller.
+describe('P2SH two-phase package prefund @regression @tier1', () => {
+  const DOGE = 'dogecoin-regtest'
+  const DOGE_REGTEST_NET = require('../../src/CryptoNetworks').getBitcoinJsNetwork(DOGE)
+  const RATE_KB = 1000000                       // 1000 koinu/byte, the venue rate
+  const TARGET_PER_BYTE = RATE_KB / 1000
+  const pubkeyBuf = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex')
+  const CALLER = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: DOGE_REGTEST_NET }).address
+  // Four inputs this size: selection takes two, which is enough to leave a
+  // change output at or above the 0.01 DOGE relay floor. That matters - a change
+  // that folds into the fee instead of being emitted quietly lifts the commit
+  // back over the target rate and the probe stops probing anything.
+  const FUNDING_INPUT = 2000000
+  const PAYLOAD = 'x'.repeat(400)
+  // The dust floor, and far under the target rate for a two-input funding tx:
+  // the congestion-clamped commit the ledger entry describes.
+  const UNDER_TARGET_COMMIT_FEE = 100000
+
+  function prevTxHex () {
+    const tx = new bitcoin.Transaction()
+    tx.addInput(Buffer.alloc(32, 0x11), 0)
+    for (let i = 0; i < 4; i++) {
+      tx.addOutput(bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest }).output, FUNDING_INPUT)
+    }
+    return tx.toHex()
+  }
+
+  function makeEncoder (commitPackage) {
+    const encoder = new XChainEncoder(DOGE, '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
+    encoder.connector = {
+      getFeePerKilobyte: async () => 0.01,
+      getTransactionHex: async () => prevTxHex()
+    }
+    if (commitPackage !== undefined) {
+      encoder.connector.getUnconfirmedAncestorPackage = async () =>
+        (typeof commitPackage === 'function' ? commitPackage() : commitPackage)
+    }
+    return encoder
+  }
+
+  function legacyUtxos () {
+    const p2pkh = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: bitcoin.networks.regtest })
+    return [0, 1, 2, 3].map(vout => ({
+      txid: TXID_PARENT_A, vout, value: FUNDING_INPUT, confirmations: 6, scriptPubKey: p2pkh.output.toString('hex')
+    }))
+  }
+
+  async function buildFunding (encoder, commitFee) {
+    encoder.clearReservations()
+    const res = await encoder.createTransaction(
+      legacyUtxos(), CALLER, null, PAYLOAD, null, commitFee, false, 'P2SH', CALLER,
+      null, null, null, true, RATE_KB)
+    return res.psbt.__CACHE.__TX
+  }
+
+  async function buildReveal (encoder, fundingTx) {
+    const res = await encoder.createTransaction(
+      [], CALLER, null, PAYLOAD, null, null, false, 'P2SH', CALLER,
+      fundingTx.getId(), fundingTx.toHex(), null, true, RATE_KB)
+    return res.psbt.__CACHE.__TX
+  }
+
+  const legTotal = (tx) => tx.outs
+    .filter(o => o.script.toString('hex').startsWith('a914'))
+    .reduce((s, o) => s + o.value, 0)
+
+  it('funds the package rate into the leg when the commit pays under target', async () => {
+    const atTarget = await buildFunding(makeEncoder(), null)
+    const underTarget = await buildFunding(makeEncoder(), UNDER_TARGET_COMMIT_FEE)
+    assert.ok(legTotal(underTarget) > legTotal(atTarget),
+      `an under-target commit must over-fund its leg (${legTotal(underTarget)} vs ${legTotal(atTarget)})`)
+  })
+
+  it('the reveal keeps the package money as fee instead of sweeping it back', async () => {
+    const funding = await buildFunding(makeEncoder(), UNDER_TARGET_COMMIT_FEE)
+    const commitSize = funding.virtualSize()
+    // What the commit ACTUALLY pays: a sub-floor change would have folded into
+    // the fee and quietly lifted it back over target.
+    const commitFee = funding.ins.length * FUNDING_INPUT - funding.outs.reduce((s, o) => s + o.value, 0)
+    assert.ok(commitFee / commitSize < TARGET_PER_BYTE,
+      `this probe is only meaningful while the commit is under target (${commitFee / commitSize})`)
+
+    // The node reports the commit exactly as it was broadcast: its real size and
+    // the under-target fee the caller chose.
+    const packaged = await buildReveal(
+      makeEncoder({ size: commitSize, fees: commitFee / SATOSHI_UNIT }), funding)
+    // Control: the same reveal built against a node that cannot price the commit.
+    const unpackaged = await buildReveal(makeEncoder(), funding)
+
+    const legs = legTotal(funding)
+    const packagedFee = legs - packaged.outs.reduce((s, o) => s + o.value, 0)
+    const unpackagedFee = legs - unpackaged.outs.reduce((s, o) => s + o.value, 0)
+    assert.ok(packagedFee > unpackagedFee,
+      `the reveal must keep the package money (${packagedFee} vs ${unpackagedFee})`)
+
+    // The reveal's own priced size, recovered from the control: at exactly
+    // 1000 koinu/byte an unpackaged fee IS the size in bytes.
+    const revealSize = unpackagedFee / TARGET_PER_BYTE
+    const packageRate = (commitFee + packagedFee) / (commitSize + revealSize)
+    assert.ok(packageRate >= TARGET_PER_BYTE,
+      `commit+reveal package pays ${packageRate} koinu/byte, under the ${TARGET_PER_BYTE} target`)
+
+    // And it is still not a full burn: the SDK refuses to sign an outputless reveal.
+    const swept = packaged.outs.reduce((s, o) => s + o.value, 0)
+    assert.ok(swept > 0, 'the reveal must still leave the caller an output')
+  })
+
+  it('a confirmed commit asks the reveal for nothing', async () => {
+    const funding = await buildFunding(makeEncoder(), UNDER_TARGET_COMMIT_FEE)
+    // An empty package is what the connector reports once the commit confirms; a
+    // confirmed parent is nobody's ancestor for fee purposes any more.
+    const confirmed = await buildReveal(makeEncoder({ size: 0, fees: 0 }), funding)
+    const unpackaged = await buildReveal(makeEncoder(), funding)
+    assert.strictEqual(confirmed.toHex(), unpackaged.toHex(),
+      'a confirmed commit must leave the reveal byte-identical')
+  })
+
+  it('degrades to the per-transaction fee when the commit lookup throws', async () => {
+    const funding = await buildFunding(makeEncoder(), UNDER_TARGET_COMMIT_FEE)
+    const thrown = await buildReveal(makeEncoder(() => { throw new Error('node RPC exploded') }), funding)
+    const unpackaged = await buildReveal(makeEncoder(), funding)
+    assert.strictEqual(thrown.toHex(), unpackaged.toHex())
   })
 })

@@ -217,12 +217,19 @@ function maxCpfpUpliftSat(){
 // DOGE/kB whose 0.00313 DOGE/kB funding ancestors dragged the package to
 // 0.00896, under the 0.01 inclusion floor. Returns 0 whenever the package
 // already clears the target, so this only ever raises a fee.
-function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFees, targetFeePerBytes, satoshiUnit }){
+// `ancestorFees` is the package's fee in COIN units (what a node's mempool RPC
+// reports). `ancestorFeeSatoshis` is the same quantity already in base units and
+// takes precedence when supplied: the two-phase prefund below knows the commit's
+// fee exactly, as an integer, and routing it through a coin-unit float would
+// re-introduce the representation error the epsilon shave exists to absorb.
+function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFees, ancestorFeeSatoshis, targetFeePerBytes, satoshiUnit }){
     if (!(targetFeePerBytes > 0)) return 0
     if (!Number.isFinite(txSize) || txSize <= 0) return 0
     const packageSize = Number(ancestorSize)
     if (!Number.isFinite(packageSize) || packageSize <= 0) return 0
-    const ancestorFeeSat = Math.round(Number(ancestorFees) * satoshiUnit)
+    const ancestorFeeSat = (ancestorFeeSatoshis != null)
+        ? Math.round(Number(ancestorFeeSatoshis))
+        : Math.round(Number(ancestorFees) * satoshiUnit)
     if (!Number.isFinite(ancestorFeeSat) || ancestorFeeSat < 0) return 0
     // Rounding up a float product costs a whole base unit whenever the rate
     // carries binary representation error (0.01/1000 is not exact, so a 3000-byte
@@ -248,6 +255,96 @@ function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFe
 // trail the tip by a block or two under normal polling cadence, so 2 absorbs
 // that without false-positiving on routine operation.
 const DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS = 2
+
+// THE tracker-freshness classifier. Pure: it reads a `sync` object and a lag
+// ceiling and returns a verdict; it never throws, logs, or touches a connector.
+//
+// It exists because the same verdict was written twice against two different
+// endpoints and drifted: _buildTransaction read the `sync` sibling that get_utxos
+// carries, api.js getServeReadiness() read getSyncStatus(), and each re-derived
+// halted / over-lag / behind-node / mempool-ready with its own strict-equality
+// chain. Both surfaces now call this, so a create_tx refusal and an unhealthy
+// /status can no longer disagree about the same tracker.
+//
+// Fail-open is deliberate and narrow, NOT an oversight: a field that is absent
+// (an older tracker predating the ce16bdd freshness surface, or one predating
+// the halt/mempool markers) must not refuse every build in the fleet, so only an
+// EXPLICIT negative refuses. `halted` refuses on === true; `synced` refuses on
+// === false; `mempool_ready` refuses on === false; a non-numeric lag is unknown
+// and bounds nothing. An entirely missing `sync` yields present:false and no code.
+//
+// Returns:
+//   present       - a usable sync object was supplied
+//   lag           - numeric lag, or null when the tracker did not report one
+//   overLag       - lag is above maxLagBlocks
+//   behindNode    - lag is negative, i.e. the tracker's committed tip sits ABOVE
+//                   the node's, so its outputs live in orphaned blocks
+//   halted        - tracker stopped polling on an unrecoverable reorg
+//   mempoolReady  - mempool index has reconverged (true unless explicitly false)
+//   syncedClaimed - the tracker's own positive `synced` assertion, truthy-tested.
+//                   Readiness probes need this POSITIVE form (an omitted field is
+//                   not an assertion of health), while the create_tx gate refuses
+//                   only on the explicit negative; that asymmetry is the one real
+//                   difference between the two surfaces and is now named instead
+//                   of being buried in two `===` chains.
+//   code          - null when nothing refuses, else the OperationalError code
+//   message       - operator-facing refusal text, null when code is null
+//   details       - error details payload, null when code is null
+//
+// Order matters: halted first (most specific physical cause), then staleness,
+// then mempool readiness. An orphaned or lagging view also de-asserts
+// mempool_ready (the tracker floors that field on the same negative lag), so
+// checking readiness first would name mempool reconvergence for what is really a
+// node reset.
+function classifyTrackerFreshness(sync, maxLagBlocks){
+    if (!sync || typeof sync !== 'object'){
+        return {
+            present: false, lag: null, overLag: false, behindNode: false,
+            halted: false, mempoolReady: true, syncedClaimed: false,
+            code: null, message: null, details: null
+        }
+    }
+    // NaN is excluded explicitly: it is `typeof number`, so it passed the old check
+    // and was then reported verbatim as the lag while answering every comparison
+    // below with a silent false. Unknown is the honest verdict for it. Infinity is
+    // NOT excluded: it compares, and it compares as unboundedly stale, which is
+    // exactly the refusal a garbage lag should get.
+    const lag = (typeof sync.lag === 'number' && !Number.isNaN(sync.lag)) ? sync.lag : null
+    const overLag = (lag !== null) && (lag > maxLagBlocks)
+    const behindNode = (lag !== null) && (lag < 0)
+    const halted = sync.halted === true
+    const mempoolReady = sync.mempool_ready !== false
+    const syncedClaimed = !!sync.synced
+    const heights = { lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
+    const verdict = {
+        present: true, lag, overLag, behindNode, halted, mempoolReady, syncedClaimed,
+        code: null, message: null, details: null
+    }
+    if (halted){
+        verdict.code = 'UTXO_TRACKER_HALTED'
+        verdict.message = `utxo-tracker is halted (${sync.halt_reason || 'unrecoverable reorg'}); ` +
+            'refusing to select utxos from it'
+        verdict.details = Object.assign({}, heights, { halt_reason: sync.halt_reason || null })
+        return verdict
+    }
+    if (sync.synced === false || overLag || behindNode){
+        verdict.code = 'UTXO_TRACKER_STALE'
+        verdict.message = `utxo-tracker view is stale (lag ${lag === null ? 'unknown' : lag} blocks` +
+            `${overLag ? `, exceeds ${maxLagBlocks}-block threshold` : ''}` +
+            `${behindNode ? `, tracker is ahead of the node so its view is orphaned` : ''}); ` +
+            'refusing to select utxos from it'
+        verdict.details = heights
+        return verdict
+    }
+    if (!mempoolReady){
+        verdict.code = 'UTXO_TRACKER_NOT_READY'
+        verdict.message = 'utxo-tracker has not reconverged its mempool yet, so an already-spent ' +
+            'confirmed output cannot be filtered; refusing to select utxos from it'
+        verdict.details = heights
+        return verdict
+    }
+    return verdict
+}
 
 // How long a selected outpoint stays reserved against concurrent selection.
 // Long enough for a caller to sign and broadcast, short enough that an
@@ -1369,51 +1466,12 @@ class XChainEncoder {
                 // `sync` is absent on an older tracker: fail OPEN (old behavior) rather
                 // than block every create_tx, since this ships ahead of every tracker
                 // in the fleet being upgraded.
-                const sync = fetched && fetched.sync
-                if (sync && typeof sync === 'object'){
-                    const lag = (typeof sync.lag === 'number') ? sync.lag : null
-                    const overLag = (lag !== null) && (lag > this.maxUtxoTrackerLagBlocks)
-                    // Negative lag: the tracker's committed tip sits ABOVE the node's,
-                    // so its outputs live in blocks the node reset or reorged away. Only
-                    // the upper bound was checked, so an orphaned view reached selection.
-                    const behindNode = (lag !== null) && (lag < 0)
-                    // Halted: the tracker stopped polling on an unrecoverable reorg and
-                    // froze, possibly mid-rollback. It publishes this independently of
-                    // `synced`, so a frozen height with an acceptable lag passed this
-                    // gate. Strict === true keeps an older tracker, whose
-                    // sync sibling carries no halt marker, on the existing fail-open path.
-                    if (sync.halted === true){
-                        throw new OperationalError(
-                            'UTXO_TRACKER_HALTED',
-                            `utxo-tracker is halted (${sync.halt_reason || 'unrecoverable reorg'}); refusing to select utxos from it`,
-                            { lag, tracker_height: sync.tracker_height, node_height: sync.node_height, halt_reason: sync.halt_reason || null }
-                        )
-                    }
-                    // Position before readiness, most specific cause first. An orphaned or
-                    // lagging view de-asserts mempool_ready too (the tracker floors that
-                    // field on the same negative lag), so checking readiness first would
-                    // name mempool reconvergence for a fault that is really a node reset.
-                    if (sync.synced === false || overLag || behindNode){
-                        throw new OperationalError(
-                            'UTXO_TRACKER_STALE',
-                            `utxo-tracker view is stale (lag ${lag === null ? 'unknown' : lag} blocks` +
-                            `${overLag ? `, exceeds ${this.maxUtxoTrackerLagBlocks}-block threshold` : ''}` +
-                            `${behindNode ? `, tracker is ahead of the node so its view is orphaned` : ''}); refusing to select utxos from it`,
-                            { lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
-                        )
-                    }
-                    // Mempool readiness: block sync flips true before the first mempool
-                    // rebuild finishes, and until it does an empty mempool index cannot
-                    // filter a confirmed output that is already spent in the node's
-                    // mempool, so selection can pick an unspendable input.
-                    // Strict === false again fails open for a pre-mempool_ready tracker.
-                    if (sync.mempool_ready === false){
-                        throw new OperationalError(
-                            'UTXO_TRACKER_NOT_READY',
-                            'utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to select utxos from it',
-                            { lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
-                        )
-                    }
+                // One classifier, shared with api.js getServeReadiness(); the ordering,
+                // the strict-equality fail-open rules and the operator text all live in
+                // classifyTrackerFreshness above.
+                const freshness = classifyTrackerFreshness(fetched && fetched.sync, this.maxUtxoTrackerLagBlocks)
+                if (freshness.code){
+                    throw new OperationalError(freshness.code, freshness.message, freshness.details)
                 }
 
                 utxos = fetched["utxos"]
@@ -1478,31 +1536,38 @@ class XChainEncoder {
             }
         }
 
-        //Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes, this should be fixed)
-        //Also if unconfirmed is false, then all mempool txs will be eliminated
-        let utxoIndex = 0
-        while (utxoIndex < utxos.length){
-            let nextUtxo = utxos[utxoIndex]
-            
-            //if the tx is in the mempool, remove it if unconfirmed is false
-            if (!unconfirmed && (nextUtxo.confirmations == 0)){
-                utxos.splice(utxoIndex, 1)
-            } else {
-            
-                let utxoDupIndex = utxoIndex + 1
-                while (utxoDupIndex < utxos.length){
-                    let nextUtxoDup = utxos[utxoDupIndex]
-                    
-                    if ((nextUtxoDup.txid == nextUtxo.txid) && (nextUtxoDup.vout == nextUtxo.vout)){
-                        utxos.splice(utxoDupIndex, 1)
-                    } else {
-                        utxoDupIndex = utxoDupIndex + 1
-                    }
-                }
-                
-                utxoIndex = utxoIndex+1
-            }
+        // Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes)
+        // and, when unconfirmed is false, every mempool entry along with them.
+        //
+        // Single linear pass with an outpoint Set, compacting in place. It replaces a
+        // nested while whose inner loop re-scanned the tail for every surviving entry
+        // and called Array.splice on each hit: O(n^2) comparisons plus an O(n) element
+        // shift per removal, so a duplicate-heavy set was cubic-ish in the worst case.
+        // The caller-supplied path is capped at MAX_UTXO_COUNT (500), but the
+        // tracker-fetched path deliberately is NOT (see the per-entry validation note
+        // above), so a hot address with tens of thousands of outputs spent the build
+        // inside this loop.
+        //
+        // Semantics preserved exactly: first occurrence of an outpoint wins, relative
+        // order of survivors is unchanged, the mempool filter is applied BEFORE dedup
+        // (so an unconfirmed duplicate cannot claim the slot of a confirmed one when
+        // unconfirmed=false), and the array is mutated IN PLACE because downstream code
+        // and the caller both hold this same reference.
+        const seenUtxoOutpoints = new Set()
+        let utxoWriteIndex = 0
+        for (let utxoReadIndex = 0; utxoReadIndex < utxos.length; utxoReadIndex++){
+            const nextUtxo = utxos[utxoReadIndex]
+            // if the tx is in the mempool, drop it if unconfirmed is false
+            if (!unconfirmed && (nextUtxo.confirmations == 0)) continue
+            // Loose-equality txid/vout matching became string-key matching: both sides
+            // are concatenated through the same String() coercion, so a numeric 0 and a
+            // string '0' vout still collide exactly as `==` made them collide.
+            const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
+            if (seenUtxoOutpoints.has(outpointKey)) continue
+            seenUtxoOutpoints.add(outpointKey)
+            utxos[utxoWriteIndex++] = nextUtxo
         }
+        utxos.length = utxoWriteIndex
 
         //If unconfirmed=false stripped every mempool UTXO and nothing
         //confirmed remains, surface the same error as a never-funded
@@ -1698,6 +1763,15 @@ class XChainEncoder {
         // the unsigned commit's txid (stable: commit inputs are segwit-only).
         let envelopeContext = null
 
+        // Two-phase reveal prefund bookkeeping, set by whichever commit branch
+        // sized a whole-reveal fee into a commit output (P2SH first leg, TAPROOT
+        // commit output). Consumed by the package-prefund pass after the commit's
+        // own fee is final. See that pass for why it cannot be done in the branch.
+        //   outputIndex - the commit output carrying the reveal's fee money
+        //   revealSize  - whole-reveal size estimate, the package's child bytes
+        //   revealFee   - the fee that output currently prefunds
+        let revealPrefund = null
+
         let estimatedTxSize = 0
 
         for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
@@ -1839,6 +1913,13 @@ class XChainEncoder {
                             // The reveal's change is an authored output, so its headroom is the relay floor.
                             let changeHeadroom = needsChangeOutput ? BigInt(this.outputFloor) : 0n
                             spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
+                            // This leg is where the reveal's fee money lives, so it is
+                            // the one the package-prefund pass tops up.
+                            revealPrefund = {
+                                outputIndex: psbt.txOutputs.length,
+                                revealSize: this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43),
+                                revealFee: revealFeeNeeded
+                            }
                         }
 
                         psbt.addOutput({
@@ -2039,6 +2120,12 @@ class XChainEncoder {
                         revealFee = finalDust
                     }
                     const commitValue = revealFee + this.dustAmount + (revealPadNeeded ? this.dustAmount : 0)
+
+                    revealPrefund = {
+                        outputIndex: psbt.txOutputs.length,
+                        revealSize: revealVsize,
+                        revealFee
+                    }
 
                     psbt.addOutput({
                         script: commitPayment.output,
@@ -2367,6 +2454,12 @@ class XChainEncoder {
         // data, an unreachable node, a connector without the method) leaves the
         // per-transaction fee exactly as it was.
         const cpfpUpliftBound = maxCpfpUpliftSat()
+        // Whatever unconfirmed ancestors this transaction inherits, carried out of
+        // the block below so the two-phase prefund pass can price the reveal
+        // against the WHOLE chain (ancestors + commit + reveal), not just against
+        // the commit. They stay 0 when nothing was measured.
+        let commitAncestorSize = 0
+        let commitAncestorFeeSat = 0
         if (unconfirmedInputTxids.length > 0 && feePerBytes > 0 && cpfpUpliftBound > 0 &&
             this.connector && typeof this.connector.getUnconfirmedAncestorPackage === 'function'){
             let ancestorPackage = null
@@ -2374,6 +2467,14 @@ class XChainEncoder {
                 ancestorPackage = await this.connector.getUnconfirmedAncestorPackage(unconfirmedInputTxids)
             } catch (err) {
                 console.warn('Package fee sizing skipped: ancestor lookup failed:', err.message)
+            }
+            if (ancestorPackage && Number.isFinite(Number(ancestorPackage.size)) && Number(ancestorPackage.size) > 0){
+                commitAncestorSize = Number(ancestorPackage.size)
+                commitAncestorFeeSat = Math.round(Number(ancestorPackage.fees) * SATOSHI_UNIT)
+                if (!Number.isFinite(commitAncestorFeeSat) || commitAncestorFeeSat < 0){
+                    commitAncestorSize = 0
+                    commitAncestorFeeSat = 0
+                }
             }
             const wanted = ancestorPackage ? packageFeeUpliftSatoshis({
                 currentFee: estimatedFee,
@@ -2430,6 +2531,79 @@ class XChainEncoder {
 
         if (estimatedFee < this.dustAmount){
             estimatedFee = this.dustAmount
+        }
+
+        // Two-phase package prefund.
+        //
+        // A reveal spends nothing but the commit's own outputs, so the two are
+        // ALWAYS one mempool package and the miner judges them on the package's
+        // ancestor fee rate. The reveal's fee is money the commit set aside, and
+        // the reveal has no other input to raise it from, so a commit that ends
+        // up under the target rate drags the whole package under it and the
+        // reveal cannot rescue itself: the pair sits unmined with a confirmed
+        // commit stranded behind it. This is the shape a PRICE batch publish
+        // takes, and the commit lands under target whenever the caller supplies
+        // an explicit fee below the node's rate, or its own CPFP uplift was
+        // clamped (see the warning above), or its size estimate ran short.
+        //
+        // So prefund the reveal at the PACKAGE rate rather than at its own: the
+        // reveal carries the commit's shortfall, plus the shortfall of whatever
+        // unconfirmed ancestors the commit inherits. The money comes out of
+        // change, not out of thin air, and the commit's own fee is untouched -
+        // the pair's total is what a miner weighs, and only the reveal can still
+        // be raised at this point.
+        //
+        // This cannot live in the emission branch that sized the commit output:
+        // input selection, the caller-fee ceilings and the CPFP uplift all run
+        // after it, and the commit's fee and size are only final here.
+        if (revealPrefund && !p2shHash && feePerBytes > 0 && cpfpUpliftBound > 0){
+            const wanted = packageFeeUpliftSatoshis({
+                currentFee: revealPrefund.revealFee,
+                txSize: revealPrefund.revealSize,
+                ancestorSize: estimatedTxSize + commitAncestorSize,
+                ancestorFeeSatoshis: estimatedFee + commitAncestorFeeSat,
+                targetFeePerBytes: feePerBytes,
+                satoshiUnit: SATOSHI_UNIT
+            })
+
+            if (wanted > 0){
+                // The same absolute bound the single-tx uplift answers to: this
+                // buys someone else's bytes, so no rate cap measured against one
+                // transaction's size can bound it.
+                let allowed = Math.min(wanted, cpfpUpliftBound)
+
+                // Never spend an input that is not there. The prefund is paid out
+                // of change, so it is bounded by what change actually holds;
+                // turning a fundable build into INSUFFICIENT_FUNDS would be a
+                // worse outcome than a package that confirms late.
+                const headroom = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
+                if (headroom <= 0n) allowed = 0
+                else if (headroom < BigInt(allowed)) allowed = Number(headroom)
+                if (allowed < 0) allowed = 0
+
+                if (allowed < wanted){
+                    const packageSize = commitAncestorSize + estimatedTxSize + revealPrefund.revealSize
+                    const packageFee = commitAncestorFeeSat + estimatedFee + revealPrefund.revealFee + allowed
+                    console.warn(`Reveal package prefund clamped to ${allowed} of ${wanted} base units: this commit ` +
+                        `pays ${estimatedFee} base units over ~${estimatedTxSize} bytes, so the commit/reveal package ` +
+                        `will pay ${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
+                        `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}. The reveal cannot raise its own fee later, ` +
+                        `so the pair may stay unmined. Raise MAX_CPFP_UPLIFT_SAT, the commit's fee, or the input balance.`)
+                }
+
+                if (allowed > 0){
+                    this._raiseOutputValue(psbt, revealPrefund.outputIndex, allowed)
+                    outputSatoshis = outputSatoshis + BigInt(allowed)
+                    revealPrefund.revealFee = revealPrefund.revealFee + allowed
+                    // The envelope reveal is built in THIS call against these two
+                    // numbers, so both have to move with the output or its change
+                    // output would silently hand the uplift back to the caller.
+                    if (envelopeContext){
+                        envelopeContext.commitValue = envelopeContext.commitValue + allowed
+                        envelopeContext.revealFee = envelopeContext.revealFee + allowed
+                    }
+                }
+            }
         }
 
         // Validate the fee BEFORE the BigInt conversion below: a NaN/Infinity
@@ -2536,10 +2710,77 @@ class XChainEncoder {
                     revealEmittedOutputBytes = revealEmittedOutputBytes + TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
                 }
             }
-            let revealFeeKept = Math.trunc((this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes) * feePerBytes) * SATOSHI_UNIT)
+            const revealSizeForFee = this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
+            let revealFeeKept = Math.trunc((revealSizeForFee * feePerBytes) * SATOSHI_UNIT)
             if (revealFeeKept < estimatedFee){
                 revealFeeKept = estimatedFee
             }
+
+            // Keep the package prefund as FEE instead of sweeping it home.
+            //
+            // The reveal spends only the commit's legs, so commit and reveal are
+            // one mempool package and the miner weighs them together. The funding
+            // side sized these legs at the package rate precisely so this
+            // transaction can pay the commit's shortfall; without this the extra
+            // lands in the surplus and goes straight back to the caller's change,
+            // leaving the package exactly as under-target as it was.
+            //
+            // The commit's fee is read from the node's mempool rather than
+            // re-derived: the commit is a broadcast transaction by now, its ACTUAL
+            // size and fee are what the miner sees, and this also picks up any
+            // unconfirmed ancestors it inherited. An already-confirmed commit
+            // reports an empty package and asks for nothing, which is correct - a
+            // confirmed parent is no longer part of anyone's package. Any failure
+            // (no method, unreachable node, RPC error) leaves the fee exactly as
+            // it was; the reveal is then priced per-transaction, as before.
+            const revealUpliftBound = maxCpfpUpliftSat()
+            if (revealUpliftBound > 0 && feePerBytes > 0 &&
+                this.connector && typeof this.connector.getUnconfirmedAncestorPackage === 'function'){
+                let commitPackage = null
+                try {
+                    commitPackage = await this.connector.getUnconfirmedAncestorPackage([p2shHash])
+                } catch (err) {
+                    console.warn('Reveal package fee sizing skipped: commit lookup failed:', err.message)
+                }
+                const wanted = commitPackage ? packageFeeUpliftSatoshis({
+                    currentFee: revealFeeKept,
+                    txSize: revealSizeForFee,
+                    ancestorSize: commitPackage.size,
+                    ancestorFees: commitPackage.fees,
+                    targetFeePerBytes: feePerBytes,
+                    satoshiUnit: SATOSHI_UNIT
+                }) : 0
+                if (wanted > 0){
+                    // The legs are the only money this transaction has, and every
+                    // satoshi above the fee is already spoken for by the outputs
+                    // it must emit. Spend the surplus and not one unit more.
+                    //
+                    // A reveal with no customOutputs leaves exactly one value
+                    // output, the swept change, and that output is what keeps it
+                    // off the SDK's FULL_BURN_FEE refusal. Reserve its floor here:
+                    // eating it would strand the confirmed commit outright, which
+                    // is a far worse outcome than a package that confirms late.
+                    const emitsValueOutput = !!(customOutputs && Array.isArray(customOutputs) && customOutputs.length > 0)
+                    const sweepReserve = emitsValueOutput ? 0n : BigInt(this.outputFloor)
+                    const spendable = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept) - sweepReserve
+                    let allowed = Math.min(wanted, revealUpliftBound)
+                    if (spendable <= 0n) allowed = 0
+                    else if (spendable < BigInt(allowed)) allowed = Number(spendable)
+                    if (allowed < wanted){
+                        const packageSize = commitPackage.size + revealSizeForFee
+                        const packageFee = Math.round(commitPackage.fees * SATOSHI_UNIT) + revealFeeKept + allowed
+                        console.warn(`Reveal package fee uplift clamped to ${allowed} of ${wanted} base units: the commit ` +
+                            `package totals ${commitPackage.size} bytes, so the commit/reveal package will pay ` +
+                            `${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
+                            `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)} and may stay unmined. The reveal has no ` +
+                            `other input to raise, so rebuild the commit with a package-aware fee.`)
+                    }
+                    if (allowed > 0){
+                        revealFeeKept = revealFeeKept + allowed
+                    }
+                }
+            }
+
             let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
             let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
             // The sweep is an authored output: below the relay floor the surplus stays as fee.
@@ -2788,6 +3029,34 @@ class XChainEncoder {
             size = size + 8 + varIntSize(out.script.length) + out.script.length
         }
         return size
+    }
+
+    // Raise an already-emitted output's value in place.
+    //
+    // bitcoinjs exposes no setter for an output's value (updateOutput only
+    // touches PSBT-level fields), and re-emitting the output is not an option:
+    // the commit output's index is load-bearing (the envelope reveal spends it by
+    // vout, the decoder reads the chunk legs in order), so it has to stay put.
+    // The PSBT is unsigned at this point and every serialization path reads the
+    // same unsigned transaction object, so the write is seen by psbt.txOutputs,
+    // psbt.toHex() and the reveal builder alike. Asserted rather than assumed:
+    // a bitcoinjs release that reshapes this would otherwise underfund a reveal
+    // silently, which is the exact failure this whole pass exists to prevent.
+    _raiseOutputValue(psbt, outputIndex, delta){
+        if (!Number.isInteger(delta) || delta <= 0){
+            throw new RangeError('output uplift must be a positive integer')
+        }
+        const outs = psbt.data.globalMap.unsignedTx
+            && psbt.data.globalMap.unsignedTx.tx
+            && psbt.data.globalMap.unsignedTx.tx.outs
+        if (!Array.isArray(outs) || !outs[outputIndex]){
+            throw new RangeError(`no output at index ${outputIndex} to raise`)
+        }
+        const raised = outs[outputIndex].value + delta
+        outs[outputIndex].value = raised
+        if (psbt.txOutputs[outputIndex].value !== raised){
+            throw new RangeError('output value uplift did not reach the transaction bitcoinjs will serialize')
+        }
     }
 
     estimateSpendingP2shTx(redeemData){
@@ -3077,6 +3346,9 @@ class XChainEncoder {
 // same rate createTx would charge; a quote the builder then ignores is worse than
 // no quote, because a wallet shows the user a fee that never applies.
 XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
+// Exported so api.js's readiness probe classifies a tracker with the exact same
+// rules create_tx refuses one with; see classifyTrackerFreshness.
+XChainEncoder.classifyTrackerFreshness = classifyTrackerFreshness
 XChainEncoder.suggestedFeeCeilingFloorPerByte = suggestedFeeCeilingFloorPerByte
 XChainEncoder.isTestNetworkKey = isTestNetworkKey
 XChainEncoder.DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE = DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE
