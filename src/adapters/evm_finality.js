@@ -14,9 +14,9 @@
  *
  * XChain Encoder - EVM finality-gate constants (PRE-WORK STUB)
  *
- * Account-chain (EVM) support pre-work. The ONE EVM-specific safety decision
- * before any adapter build is defining the
- * confirmation/finality GATE the federation must clear before it relays or
+ * Account-chain (EVM) support pre-work. Per the account-chains support
+ * design, the ONE EVM-specific safety decision before any adapter build is
+ * defining the confirmation/finality GATE the federation must clear before it relays or
  * settles a cross-chain leg that ORIGINATED on an EVM chain. The rollback and
  * cross-chain retraction machinery already exists and is finality-model
  * agnostic; what is new for EVM is the gate, and the gate is values, not logic.

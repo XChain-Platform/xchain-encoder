@@ -3087,6 +3087,7 @@ class XChainEncoder {
      * @param {number} compiledLength  the compiled ACTION stream, AFTER compression
      * @param {string|null} compressedPubKey  required for the envelope's internal key
      * @param {object|null} options   { signerSupportsTapscript }
+     * @returns {string} a concrete Encoding
      */
     selectEncoding(compiledLength, compressedPubKey, options){
         const magicBytes = Buffer.from(MAGIC_WORD, 'utf8').length

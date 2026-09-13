@@ -18,6 +18,7 @@
  * 
  ********************************************************************/
 
+// Load required libraries
 const bitcoin = require('bitcoinjs-lib');
 const { compiledPushSize } = require('./validator');
 const util = require('node:util');
@@ -171,6 +172,7 @@ class TxSizeEstimator {
             return 350
         }
 
+        // Convert to hex string to detect patterns
         const scriptHex = scriptPubKey.toString('hex')
 
         if (isSegwit) {
@@ -203,7 +205,7 @@ class TxSizeEstimator {
             // and this path cannot be taken, so if it gets here and it's a P2SH, most probably is it's Legacy.
             return 289 
         }
-        
+
         return 350
     }
 }
