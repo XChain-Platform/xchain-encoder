@@ -34,6 +34,7 @@ const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./error_sanitize')
 const util = require('node:util');
 const { getLogger } = require('./observability');
+const config = require('./config');
 const logger = getLogger();
 
 const OP_RETURN_SIZE = 80
@@ -172,7 +173,7 @@ function isTestNetworkKey(networkKey){
 // chain is unclamped. SUGGESTED_FEE_MAX_PER_VBYTE overrides the default; 0
 // disables the clamp entirely.
 function suggestedFeeCeilingPerByte(networkKey, satoshiUnit){
-    const raw = parseFloat(process.env.SUGGESTED_FEE_MAX_PER_VBYTE)
+    const raw = parseFloat(config.SUGGESTED_FEE_MAX_PER_VBYTE)
     const perVbyte = Number.isFinite(raw) ? raw
         : (isTestNetworkKey(networkKey) ? DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE : 0)
     if (!(perVbyte > 0)) return null
@@ -207,7 +208,7 @@ function suggestedFeeCeilingFloorPerByte(relayfeePerKb){
 const DEFAULT_MAX_CPFP_UPLIFT_SAT = 10000000
 
 function maxCpfpUpliftSat(){
-    const raw = parseFloat(process.env.MAX_CPFP_UPLIFT_SAT)
+    const raw = parseFloat(config.MAX_CPFP_UPLIFT_SAT)
     const bound = Number.isFinite(raw) ? raw : DEFAULT_MAX_CPFP_UPLIFT_SAT
     return (bound > 0) ? Math.floor(bound) : 0
 }
@@ -435,7 +436,7 @@ const Encoding = {
 // the operator turns it off for a staged rollout; read per call rather than
 // cached so a restart is not required to change it.
 function defaultCompressionEnabled(){
-    const raw = process.env.XCHAIN_COMPRESSION_DEFAULT
+    const raw = config.XCHAIN_COMPRESSION_DEFAULT
     if (raw === undefined || raw === null || raw === '') return true
     return !(raw === '0' || raw.toLowerCase() === 'false' || raw.toLowerCase() === 'off')
 }

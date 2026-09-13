@@ -40,6 +40,7 @@
  ********************************************************************/
 
 const fs = require('fs')
+const config = require('./config');
 
 // Inside the encoder container, so xchain-node can write it with a plain
 // `docker exec tee` against an already-running encoder: no bind mount, and
@@ -63,7 +64,7 @@ const MAX_REASON_CHARS = 120
 const MAX_WINDOW_MS = 24 * 60 * 60 * 1000
 
 function sentinelPath() {
-    return process.env.ENCODER_MAINTENANCE_FILE || DEFAULT_SENTINEL
+    return config.ENCODER_MAINTENANCE_FILE || DEFAULT_SENTINEL
 }
 
 // The largest absolute time value a JS Date can hold. A finite number past it

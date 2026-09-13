@@ -35,6 +35,7 @@ const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
 const { getLogger } = require('./observability');
+const config = require('./config');
 const logger = getLogger();
 
 // Filesystems that cannot hard-link. The atomic publication below falls back to
@@ -70,7 +71,7 @@ function sleepSync(ms) {
 // orchestrator's replica count); any value above 1 is rejected because the
 // reservation, recent-build and rate-limit stores are all still per-process.
 // Unset/empty means the default single-replica deploy and passes.
-function assertSingleInstance(env = process.env) {
+function assertSingleInstance(env = config) {
     const raw = env.ENCODER_REPLICAS
     if (raw === undefined || raw === '') return true
     const replicas = Number(raw)
@@ -157,7 +158,7 @@ function selfDescription() {
 // stands, because refusing to boot is the safe side of a genuine conflict.
 // `deps` is injectable so the tests can drive both branches without spawning
 // real processes.
-function acquireInstanceLock(lockPath, env = process.env, deps = {}) {
+function acquireInstanceLock(lockPath, env = config, deps = {}) {
     const alive    = deps.isPidAlive  || isPidAlive
     const describe = deps.describePid || describePid
     const self     = deps.selfDescription || selfDescription

@@ -21,9 +21,10 @@
 const axios = require('axios')
 const util = require('node:util');
 const { getLogger } = require('./observability');
+const config = require('./config');
 const logger = getLogger();
 
-const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
+const RPC_TIMEOUT = parseInt(config.NODE_RPC_TIMEOUT ?? '30000', 10)
 // Fee-rate multiple of the node's relay floor used on non-mainnet chains when
 // estimatesmartfee has no data. Rationale at getFeePerKilobyte.
 //
@@ -36,7 +37,7 @@ const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
 // documented rate needs a higher one, and only the operator running that chain
 // can measure what it actually takes.
 function noEstimateRelayMultiplier(){
-    const raw = parseFloat(process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER)
+    const raw = parseFloat(config.FEE_NO_ESTIMATE_RELAY_MULTIPLIER)
     return (Number.isFinite(raw) && raw > 0) ? raw : 10
 }
 
@@ -64,9 +65,9 @@ const DEFAULT_FEE_ESTIMATE_SANITY_CEILING = {
 }
 
 function feeEstimateSanityCeiling(){
-    const override = parseFloat(process.env.FEE_ESTIMATE_SANITY_CEILING)
+    const override = parseFloat(config.FEE_ESTIMATE_SANITY_CEILING)
     if (Number.isFinite(override) && override > 0) return override
-    const coin = String(process.env.NETWORK || '').split('-')[0].toLowerCase()
+    const coin = String(config.NETWORK).split('-')[0].toLowerCase()
     return DEFAULT_FEE_ESTIMATE_SANITY_CEILING[coin] || DEFAULT_FEE_ESTIMATE_SANITY_CEILING.bitcoin
 }
 
