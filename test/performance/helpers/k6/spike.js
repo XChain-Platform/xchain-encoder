@@ -11,10 +11,12 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * k6 sustained load test for xchain-encoder JSON-RPC API.
+ * k6 spike load test for xchain-encoder JSON-RPC API.
+ *
+ * Simulates idle -> burst -> sustained spike -> recovery.
  *
  * Requires a running API server:  npm run api
- * Run:  k6 run test/performance/k6/sustained.js
+ * Run:  k6 run test/performance/helpers/k6/spike.js
  * Env:  ENCODER_URL (default http://localhost:3000)
  *       API_KEY     (default empty)
  */
@@ -27,22 +29,27 @@ const API_KEY = __ENV.API_KEY || ''
 
 export const options = {
   scenarios: {
-    sustained: {
-      executor: 'constant-arrival-rate',
-      rate: 100,
+    spike: {
+      executor: 'ramping-arrival-rate',
+      startRate: 10,
       timeUnit: '1s',
-      duration: '60s',
-      preAllocatedVUs: 20,
-      maxVUs: 50
+      preAllocatedVUs: 50,
+      maxVUs: 200,
+      stages: [
+        { duration: '10s', target: 10 },   // idle baseline
+        { duration: '5s', target: 500 },    // spike ramp
+        { duration: '20s', target: 500 },   // sustained spike
+        { duration: '5s', target: 10 },     // recovery ramp
+        { duration: '20s', target: 10 }     // post-recovery baseline
+      ]
     }
   },
   thresholds: {
-    http_req_duration: ['p(95)<500', 'p(99)<1000'],
-    http_req_failed: ['rate<0.01']
+    http_req_duration: ['p(95)<2000'],
+    http_req_failed: ['rate<0.05']
   }
 }
 
-// Pre-built JSON-RPC payload: OP_RETURN SEND on dogecoin-regtest
 const PAYLOAD = JSON.stringify({
   jsonrpc: '2.0',
   id: 1,
@@ -72,9 +79,7 @@ const PAYLOAD = JSON.stringify({
   }
 })
 
-const HEADERS = {
-  'Content-Type': 'application/json'
-}
+const HEADERS = { 'Content-Type': 'application/json' }
 if (API_KEY) HEADERS['x-api-key'] = API_KEY
 
 export default function () {

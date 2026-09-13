@@ -11,13 +11,10 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * k6 concurrency stress test for xchain-encoder JSON-RPC API.
- *
- * Ramps virtual users from 1 to 100 in a tight loop (no sleep)
- * to stress the Node.js event loop under heavy concurrent load.
+ * k6 sustained load test for xchain-encoder JSON-RPC API.
  *
  * Requires a running API server:  npm run api
- * Run:  k6 run test/performance/k6/concurrent.js
+ * Run:  k6 run test/performance/helpers/k6/sustained.js
  * Env:  ENCODER_URL (default http://localhost:3000)
  *       API_KEY     (default empty)
  */
@@ -30,24 +27,22 @@ const API_KEY = __ENV.API_KEY || ''
 
 export const options = {
   scenarios: {
-    concurrent: {
-      executor: 'ramping-vus',
-      startVUs: 1,
-      stages: [
-        { duration: '30s', target: 50 },
-        { duration: '60s', target: 50 },
-        { duration: '30s', target: 100 },
-        { duration: '60s', target: 100 },
-        { duration: '30s', target: 0 }
-      ]
+    sustained: {
+      executor: 'constant-arrival-rate',
+      rate: 100,
+      timeUnit: '1s',
+      duration: '60s',
+      preAllocatedVUs: 20,
+      maxVUs: 50
     }
   },
   thresholds: {
-    http_req_duration: ['p(95)<1000'],
+    http_req_duration: ['p(95)<500', 'p(99)<1000'],
     http_req_failed: ['rate<0.01']
   }
 }
 
+// Pre-built JSON-RPC payload: OP_RETURN SEND on dogecoin-regtest
 const PAYLOAD = JSON.stringify({
   jsonrpc: '2.0',
   id: 1,
@@ -77,7 +72,9 @@ const PAYLOAD = JSON.stringify({
   }
 })
 
-const HEADERS = { 'Content-Type': 'application/json' }
+const HEADERS = {
+  'Content-Type': 'application/json'
+}
 if (API_KEY) HEADERS['x-api-key'] = API_KEY
 
 export default function () {

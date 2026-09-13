@@ -13,7 +13,7 @@
  ********************************************************************/
 
 const { execSync } = require('child_process');
-const nodeHelper = require('./nodeHelper')
+const nodeHelper = require('./helpers/node_helper')
 const { waitFor } = require('./helpers/timing')
 
 function executeCommand(comando) {

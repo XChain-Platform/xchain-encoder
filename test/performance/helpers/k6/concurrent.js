@@ -11,12 +11,13 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * k6 spike load test for xchain-encoder JSON-RPC API.
+ * k6 concurrency stress test for xchain-encoder JSON-RPC API.
  *
- * Simulates idle -> burst -> sustained spike -> recovery.
+ * Ramps virtual users from 1 to 100 in a tight loop (no sleep)
+ * to stress the Node.js event loop under heavy concurrent load.
  *
  * Requires a running API server:  npm run api
- * Run:  k6 run test/performance/k6/spike.js
+ * Run:  k6 run test/performance/helpers/k6/concurrent.js
  * Env:  ENCODER_URL (default http://localhost:3000)
  *       API_KEY     (default empty)
  */
@@ -29,24 +30,21 @@ const API_KEY = __ENV.API_KEY || ''
 
 export const options = {
   scenarios: {
-    spike: {
-      executor: 'ramping-arrival-rate',
-      startRate: 10,
-      timeUnit: '1s',
-      preAllocatedVUs: 50,
-      maxVUs: 200,
+    concurrent: {
+      executor: 'ramping-vus',
+      startVUs: 1,
       stages: [
-        { duration: '10s', target: 10 },   // idle baseline
-        { duration: '5s', target: 500 },    // spike ramp
-        { duration: '20s', target: 500 },   // sustained spike
-        { duration: '5s', target: 10 },     // recovery ramp
-        { duration: '20s', target: 10 }     // post-recovery baseline
+        { duration: '30s', target: 50 },
+        { duration: '60s', target: 50 },
+        { duration: '30s', target: 100 },
+        { duration: '60s', target: 100 },
+        { duration: '30s', target: 0 }
       ]
     }
   },
   thresholds: {
-    http_req_duration: ['p(95)<2000'],
-    http_req_failed: ['rate<0.05']
+    http_req_duration: ['p(95)<1000'],
+    http_req_failed: ['rate<0.01']
   }
 }
 

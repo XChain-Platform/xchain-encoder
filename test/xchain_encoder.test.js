@@ -20,7 +20,7 @@ import bitcoin from 'bitcoinjs-lib'
 import psbtutils from 'bitcoinjs-lib/src/psbt/psbtutils.js'
 import assert from 'assert'
 import XChainEncoder from '../src/XChainEncoder.js'
-import nodeHelper from './nodeHelper.js'
+import nodeHelper from './helpers/node_helper.js'
 import crypto from 'node:crypto'
 import {ECPairFactory} from 'ecpair'
 

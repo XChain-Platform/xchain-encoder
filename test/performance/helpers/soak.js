@@ -12,8 +12,8 @@
 // contact legal@dankest.llc.
 
 const path = require('path')
-const { BASE, CPLX, UTXO_COUNTS, PAYLOAD_SIZES, makeEncoder } = require('./helpers/fixtures')
-const { Histogram, MemoryTracker, GcTracker, EldTracker, formatReport, writeJsonReport } = require('./helpers/metrics')
+const { BASE, CPLX, UTXO_COUNTS, PAYLOAD_SIZES, makeEncoder } = require('./fixtures')
+const { Histogram, MemoryTracker, GcTracker, EldTracker, formatReport, writeJsonReport } = require('./metrics')
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -156,7 +156,7 @@ async function soak () {
 
   if (REPORT) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-')
-    const outPath = path.join(__dirname, '..', '..', 'reports', `soak-${ts}.json`)
+    const outPath = path.join(__dirname, '..', '..', '..', 'reports', `soak-${ts}.json`)
     writeJsonReport([{
       id: scenario.id,
       label: scenario.label,

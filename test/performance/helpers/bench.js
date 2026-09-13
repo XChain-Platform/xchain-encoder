@@ -12,8 +12,8 @@
 // contact legal@dankest.llc.
 
 const path = require('path')
-const { BASE, CPLX, UTXO_COUNTS, PAYLOAD_SIZES, makeEncoder } = require('./helpers/fixtures')
-const { Histogram, MemoryTracker, GcTracker, formatReport, writeJsonReport } = require('./helpers/metrics')
+const { BASE, CPLX, UTXO_COUNTS, PAYLOAD_SIZES, makeEncoder } = require('./fixtures')
+const { Histogram, MemoryTracker, GcTracker, formatReport, writeJsonReport } = require('./metrics')
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing (no deps)
@@ -121,7 +121,7 @@ async function main () {
 
   if (JSON_OUT) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-')
-    const outPath = path.join(__dirname, '..', '..', 'reports', `bench-${ts}.json`)
+    const outPath = path.join(__dirname, '..', '..', '..', 'reports', `bench-${ts}.json`)
     writeJsonReport(results, outPath)
     console.log(`JSON report written to: ${outPath}`)
   }
