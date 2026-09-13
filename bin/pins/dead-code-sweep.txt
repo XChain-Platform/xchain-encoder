@@ -1,0 +1,56 @@
+xchain-encoder dead-code sweep, 2026-09-13
+===================================================
+
+Tool: bin/reachability.js --no-siblings --json (repo-local runtime, tooling
+and test closures; sibling detection skipped because the ported
+sibling-reference-map.js is indexer-name-hardcoded, so the
+falsification step is command grep -r by hand instead). 29 tracked
+src/*.js files, 4 candidates: not reached from api.js (the runtime
+entry), bin/scripts/tools, or nothing at all.
+
+Candidates and their falsification, each by `command grep -r` (never the
+tool-layer Grep) across every xchain-* checkout on this Mac
+(xchain-contracts, xchain-dashboard, xchain-decoder, xchain-documentation,
+xchain-dot-github, xchain-e2e-test, xchain-encoder, xchain-explorer,
+xchain-hub, xchain-indexer, xchain-node, xchain-regtest-miner, xchain-sdk,
+xchain-sync, xchain-utxo-tracker, xchain-vm, xchain-wallet, xchain-websites),
+plus the platform's internal docs (1 hit, counted below):
+
+1. src/index.js
+   reachability.js verdict: NOT reachable from runtime/tooling/tests,
+   unreferencedAcrossPlatform.
+   FALSIFIED, NOT DEAD: it is the browserify entry point named literally by
+   package.json's `build` and `build:dev` scripts
+   (`npx browserify src/index.js ... -o dist/xchain_encoder.min.js`), and
+   xchain-documentation/components/encoder/README.md:119-120 documents that
+   exact build product for consumers. reachability.js's runtimeEntries()
+   only recognises `node <file>.js` invocations in package.json scripts, so
+   a browserify entry is a blind spot in the ported tool, not a dead file.
+   VERDICT: KEEP. Not deleted.
+
+2. src/adapters/ChainAdapter.js
+3. src/adapters/EvmAdapter.js
+4. src/adapters/evmFinality.js
+   reachability.js verdict: testOnly (reached only from
+   test/unit/evmAdapter.test.js), EvmAdapter.js additionally
+   unreferencedAcrossPlatform.
+   FALSIFIED, NOT DEAD: all three carry an explicit "PRE-WORK STUB" file
+   header and are the concrete first instance of the `ChainAdapter`
+   interface that the account-chains support design (1 platform-docs hit)
+   lays out for future EVM-chain support ("Introduce a ChainAdapter
+   interface with one implementation per family: UtxoAdapter (existing
+   logic, refactored behind the interface), EvmAdapter (new)..."; "reuses
+   the ChainAdapter seam"). They are unbuilt on purpose (every EVM method
+   throws AdapterNotImplementedError) and are exercised only by their own
+   unit suite until that spec is scheduled, which is the CODE-STYLE
+   dead-file signal working as intended for pre-work rather than for
+   dead weight.
+   VERDICT: KEEP. Not deleted. Noted for later: this pre-work scaffold sits
+   outside CODE-STYLE's "test-only means dead" heuristic, so anyone
+   touching src/adapters/ afterward should read the header before assuming
+   it is stale.
+
+RESULT: 0 files deleted. The sweep is the falsification, not a rename list;
+the acceptance bar ("every deleted file proven unreferenced ... before
+deleting") is vacuously met because nothing survived falsification as an
+actual deletion candidate.
