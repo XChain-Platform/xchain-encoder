@@ -126,7 +126,7 @@ indefinitely. A `since` in the future holds the window closed until it opens.
 `reason` is optional, bounded, and stripped to printable ASCII.
 
 `xchain-node` writes and removes this file automatically around a bootstrap
-publish (`src/services/EncoderMaintenanceWindow.js`).
+publish (`src/services/encoder_maintenance_window.js`).
 
 ## Metrics and log shipping (optional, off by default)
 

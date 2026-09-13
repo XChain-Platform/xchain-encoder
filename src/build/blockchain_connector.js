@@ -77,7 +77,7 @@ function feeEstimateSanityCeiling(){
 // the encoder logs (util.inspect walks error.config.auth). Scrub the credential
 // fields in place so neither this logger nor any upstream handler leaks them, and
 // return a compact, credential-free string (error.message never carries auth).
-// Kept in sync with xchain-decoder/src/BlockchainConnector.js sanitizeRpcError.
+// Kept in sync with xchain-decoder/src/chain/blockchain_connector.js sanitizeRpcError.
 function sanitizeRpcError(error){
     try {
         if (error && error.config) {

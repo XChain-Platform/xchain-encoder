@@ -218,7 +218,7 @@ describe('utxo-record conformance fixture: byte-identity to the tracker original
       fs.readFileSync(VENDORED, 'utf8'),
       fs.readFileSync(TRACKER_FIXTURE, 'utf8'),
       'vendored utxo-record-conformance.json drifted from the tracker original; re-run ' +
-      'xchain-utxo-tracker/test/conformance/generateUtxoRecordFixture.js and re-vendor the copy here.'
+      'xchain-utxo-tracker/test/conformance/support/generate_utxo_record_fixture.js and re-vendor the copy here.'
     )
   })
 })

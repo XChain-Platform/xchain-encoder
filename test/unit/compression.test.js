@@ -474,7 +474,7 @@ describe('encoder FILE payload compression (spec Part B)', function () {
         // raw, or vice versa.
         it('agrees with the SDK helper on every decision (skips without the sdk sibling)', async function () {
             const SDK = process.env.XCHAIN_SDK_DIR || path.join(__dirname, '..', '..', '..', 'xchain-sdk')
-            const SDK_COMPRESSION = path.join(SDK, 'src', 'compression.js')
+            const SDK_COMPRESSION = path.join(SDK, 'src', 'protocol', 'compression.js')
             if (!fs.existsSync(SDK_COMPRESSION)) {
                 if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1')
                     throw new Error('xchain-sdk sibling not found but XCHAIN_REQUIRE_SIBLINGS=1')

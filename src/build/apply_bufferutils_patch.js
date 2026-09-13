@@ -22,14 +22,15 @@
  * single output can legitimately exceed both ceilings (>~90.07M DOGE for
  * 2^53); without this patch the encoder cannot build such a PSBT at all.
  *
- * This is the WRITE-SIDE contract, shared with xchain-sdk/src/
- * applyBufferutilsPatch.js: the patch teaches the loaded modules to carry a
+ * This is the WRITE-SIDE contract, shared with xchain-sdk/src/utils/
+ * apply_bufferutils_patch.js: the patch teaches the loaded modules to carry a
  * satoshi value as either a Number (unchanged fast path) or a BigInt up to
  * 2^64-1 (the wire format's true ceiling). Readers return a Number whenever
  * the value is exactly representable and a BigInt only above 2^53-1, so
  * existing Number-based callers see identical behavior for every value they
- * could already handle. The READ-SIDE copies (xchain-decoder and
- * xchain-utxo-tracker, src/build/apply_bufferutils_patch.js) lift the same 2^53 wall
+ * could already handle. The READ-SIDE copies (xchain-decoder's
+ * src/apply_bufferutils_patch.js and xchain-utxo-tracker's
+ * src/chain/apply_bufferutils_patch.js) lift the same 2^53 wall
  * for block decode but deliberately implement a DIFFERENT contract:
  * BufferReader.readUInt64 always returns a BigInt and the module-level
  * readUInt64LE/writeUInt64LE helpers keep the stock 2^53-1 ceiling. Only the

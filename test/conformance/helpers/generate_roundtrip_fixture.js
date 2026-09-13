@@ -205,7 +205,7 @@ const ALIAS_CASES = [
   // which runs AFTER that gate, so the stored canonical record lands past the
   // numeric cap. This pins on the encoder half that the cap bounds the WIRE
   // (alias) form, never the stored record; the decoder half is pinned by
-  // xchain-decoder/test/unit/aliasExpansionBoundary.test.js. canonicalDataHex
+  // xchain-decoder/test/unit/alias_expansion_boundary.test.js. canonicalDataHex
   // below is the >cap BROADCAST record the roundtrip is expected to store.
   { name: 'alias rewrite CAST -> BROADCAST at the compiled ceiling', data: CAST_CEILING_DATA, rawData: null, expectedRawActionName: 'CAST', expectedActionName: 'BROADCAST' }
 ]
@@ -215,7 +215,7 @@ const ALIAS_CASES = [
 // the OP_PUSHDATA4 band in envelopePushSize; the decoder refuses to re-measure
 // an envelope payload at all), so it is also the lane where an unpinned
 // roundtrip costs the most. The arithmetic half of that asymmetry is pinned
-// directly by xchain-decoder/test/unit/compiledPushSizeConformance.test.js's
+// directly by xchain-decoder/test/unit/compiled_push_size_conformance.test.js's
 // envelope band block; these cases pin the STRUCTURAL half - an
 // encoder-emitted envelope reaching the stored record - which no test reached
 // before. Deliberately no case above 65,535 bytes: this artifact is vendored

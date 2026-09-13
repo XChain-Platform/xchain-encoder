@@ -13,7 +13,7 @@
 // case (a drift guard: any change to the compile construction or obfuscation
 // step that would desync the decoder fails here) and that bitcoin.script.compile
 // canonicalization matches the pinned gate expectation. The decoder half
-// (xchain-decoder/test/unit/roundtripConformance.test.js) consumes the SAME
+// (xchain-decoder/test/unit/roundtrip_conformance.test.js) consumes the SAME
 // JSON and feeds these bytes through the real decoder deobfuscation + decompile.
 
 const assert = require('assert')
@@ -280,7 +280,7 @@ describe('roundtrip conformance fixture: TAPROOT envelope emit', () => {
         // pre-check models an envelope push the way bitcoin.script.compile
         // frames it (OP_PUSHDATA4 above 0xffff), which compiledPushSize does
         // not. Both agree below the band; the band itself is swept by
-        // xchain-decoder/test/unit/compiledPushSizeConformance.test.js.
+        // xchain-decoder/test/unit/compiled_push_size_conformance.test.js.
         const dataBytes = Buffer.from(c.inputDataHex, 'hex').length
         const rawBytes = c.inputRawDataHex == null ? 0 : Buffer.from(c.inputRawDataHex, 'hex').length
         const measured = envelopePushSize(dataBytes) + (c.inputRawDataHex == null ? 0 : envelopePushSize(rawBytes))

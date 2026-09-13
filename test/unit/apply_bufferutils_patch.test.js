@@ -149,7 +149,7 @@ describe('applyBufferutilsPatch', function () {
         });
     });
 
-    // Twin guard. This file is a fork of xchain-sdk/src/applyBufferutilsPatch.js
+    // Twin guard. This file is a fork of xchain-sdk/src/utils/apply_bufferutils_patch.js
     // and has drifted apart three times. Convergence runs SDK-ward, so pin the
     // bodies byte-identical and let the fork be a deliberate, visible act
     // rather than a silent one.

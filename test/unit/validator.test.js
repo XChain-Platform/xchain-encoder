@@ -234,7 +234,7 @@ describe('Encoder input validator', function () {
         // stored as a BROADCAST record a few bytes past the numeric cap. That is
         // intentional: the cap is a wire-bytes cap, not a stored-record cap. This
         // pins the boundary on the encoder half; the decoder half is pinned by
-        // xchain-decoder/test/unit/aliasExpansionBoundary.test.js.
+        // xchain-decoder/test/unit/alias_expansion_boundary.test.js.
         const PREFIX = 'CAST|0|';
         // MAX_DATA_BYTES == MAX_COMPILED_ACTION_DATA_LENGTH - OP_PUSHDATA2 overhead:
         // the widest single raw push whose compiled form is exactly the ceiling.
