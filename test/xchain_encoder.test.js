@@ -125,6 +125,7 @@ describe('XChainEncoder', () => {
             const changeAddress = testAddress;
             const exactFee = 10000;
 
+            // Llamar a la función createTransaction
             console.log("Creating the transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
@@ -252,6 +253,7 @@ describe('XChainEncoder', () => {
             let tx2Hex = tx2.toHex()
             let tx2Id = tx2.getId()
             
+            //Broadcast first p2sh tx
             console.log("Broadcasting the first p2sh transacion to the node")
             let txHash = await nodeHelper.broadcastTx(tx1Hex)
             
@@ -263,6 +265,7 @@ describe('XChainEncoder', () => {
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
             
+            //Broadcast second p2sh tx
             console.log("Broadcasting the second p2sh transacion to the node")
             let tx2Hash = await nodeHelper.broadcastTx(tx2Hex)
             assert((tx2Hash != null) && (tx2Hash.length == 64))
@@ -362,6 +365,7 @@ describe('XChainEncoder', () => {
             let tx1Hex = tx1.toHex()
             let tx1Id = tx1.getId()
             
+            //Broadcast multisign tx
             console.log("Broadcasting the multisign transacion to the node")
             let txHash = await nodeHelper.broadcastTx(tx1Hex)
             
@@ -482,6 +486,7 @@ describe('XChainEncoder', () => {
             let tx2Hex = tx2.toHex()
             let tx2Id = tx2.getId()
             
+            //Broadcast first p2wsh tx
             console.log("Broadcasting the first p2wsh transacion to the node")
             let txHash = await nodeHelper.broadcastTx(tx1Hex)
             
@@ -493,6 +498,7 @@ describe('XChainEncoder', () => {
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
             
+            //Broadcast second p2wsh tx
             console.log("Broadcasting the second p2wsh transacion to the node")
             let tx2Hash = await nodeHelper.broadcastTx(tx2Hex)
             assert((tx2Hash != null) && (tx2Hash.length == 64))

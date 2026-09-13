@@ -58,6 +58,7 @@ describe('Category B: Encoding Type Integration', () => {
       assert.ok(opReturnOutput, 'should have an OP_RETURN output')
       assert.strictEqual(opReturnOutput.script[0], bitcoin.opcodes.OP_RETURN)
 
+      // Decompile and verify obfuscated data is present
       const decompiled = bitcoin.script.decompile(opReturnOutput.script)
       assert.ok(Buffer.isBuffer(decompiled[1]), 'data should be a buffer after OP_RETURN')
     })
@@ -154,6 +155,7 @@ describe('Category B: Encoding Type Integration', () => {
 
       assert.strictEqual(tx2Result.encoding, 'P2SH')
 
+      // tx2 should have at least 1 input (the P2SH spend)
       assert.ok(tx2Result.psbt.data.inputs.length >= 1)
 
       const markerOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
@@ -185,6 +187,7 @@ describe('Category B: Encoding Type Integration', () => {
       const input = tx2Result.psbt.data.inputs[0]
       assert.ok(input.redeemScript, 'P2SH input should have redeemScript')
 
+      // Decompile the redeemScript to verify it contains data
       const decompiled = bitcoin.script.decompile(input.redeemScript)
       assert.ok(Buffer.isBuffer(decompiled[0]), 'first element should be data')
       assert.strictEqual(decompiled[1], bitcoin.opcodes.OP_DROP)
@@ -252,6 +255,7 @@ describe('Category B: Encoding Type Integration', () => {
       const input = tx2Result.psbt.data.inputs[0]
       assert.ok(input.witnessScript, 'P2WSH input should have witnessScript')
 
+      // Decompile the witnessScript
       const decompiled = bitcoin.script.decompile(input.witnessScript)
       assert.ok(Buffer.isBuffer(decompiled[0]), 'first element should be data')
       assert.strictEqual(decompiled[1], bitcoin.opcodes.OP_DROP)

@@ -135,6 +135,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
     })
   })
 
+  // Note: The pipe character IS the delimiter, so including it in a memo
+  // would corrupt field parsing. This test documents that behavior.
+
   describe('E2E-7.7: Pipe character in memo field', () => {
     it('pipe in memo extends the field count (protocol limitation)', async () => {
       // The pipe is the field delimiter, so a memo containing one is parsed
@@ -142,6 +145,8 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       // string as-is. This is a known protocol characteristic, not a bug.
       const data = 'SEND|0|JDOG|1|mfWxJ45|memo|with|pipes'
       const { dataString } = await encodeAndExtract(data)
+      // The encoder preserves the string as-is; it's the decoder that would
+      // interpret the extra pipes as additional fields
       assert.strictEqual(dataString, data)
     })
   })

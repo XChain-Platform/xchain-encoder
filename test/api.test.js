@@ -31,8 +31,10 @@ async function sendToApi(method, params){
 			id: 1,
 		}
 
+		// Realizar la solicitud JSON-RPC al nodo
 		const response = await axios.post("http://"+apiUrl, data)
 
+		// Verificar si la solicitud fue exitosa y devolver el hex de la transacción
 		if (response.data.result) {
 			return response.data.result;
 		} else {

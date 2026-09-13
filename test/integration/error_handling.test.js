@@ -207,6 +207,7 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
         true, 0.00001, customDust
       )
 
+      // MULTISIGN output should use custom dust
       const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
       assert.ok(msOutput, 'MULTISIGN output should use custom dust value')
     })

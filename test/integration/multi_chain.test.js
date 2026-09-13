@@ -77,6 +77,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
 
         assert.strictEqual(result.encoding, 'P2SH')
 
+        // Verify the P2SH output has value >= dustThreshold
         const p2shOutput = result.psbt.txOutputs.find(o =>
           o.value > 0 && o.value < 100000000
         )
@@ -159,6 +160,7 @@ describe('Category F: Multi-Chain Network Configs', () => {
 
       assert.strictEqual(result.encoding, 'P2SH')
 
+      // The P2SH output should decode to a valid Dogecoin address
       const dogeNetwork = CryptoNetworks.getBitcoinJsNetwork('dogecoin-regtest')
       const p2shOutput = result.psbt.txOutputs.find(o => {
         if (o.value <= 0 || o.value >= 100000000) return false

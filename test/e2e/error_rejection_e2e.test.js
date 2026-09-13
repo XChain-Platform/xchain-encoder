@@ -233,6 +233,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
         )
         assert.ok(result.psbt)
       } catch (err) {
+        // If it throws, the error should be meaningful
         assert.ok(err.message.length > 0, 'error message should not be empty')
       }
     })
@@ -271,6 +272,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
           null, null, null, true, 0.00001
         )
 
+        // If it succeeds, no output should have negative value
         for (const output of result.psbt.txOutputs) {
           assert.ok(output.value >= 0, `output value ${output.value} should not be negative`)
         }

@@ -61,6 +61,7 @@ describe('Category D: UTXO & Fee Integration', () => {
       assert.strictEqual(result.psbt.data.inputs.length, 1)
       assert.strictEqual(result.psbt.txOutputs.length, 2)
 
+      // One OP_RETURN (value=0), one change
       const opReturn = result.psbt.txOutputs.filter(o => o.value === 0)
       const change = result.psbt.txOutputs.filter(o => o.value > 0)
       assert.strictEqual(opReturn.length, 1)
@@ -88,6 +89,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
+      // Should need multiple inputs to cover the fee
       assert.ok(result.psbt.data.inputs.length >= 2,
         `expected >= 2 inputs, got ${result.psbt.data.inputs.length}`)
     })
@@ -110,6 +112,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
+      // Should have at most 2 unique UTXOs as inputs
       assert.ok(result.psbt.data.inputs.length <= 2,
         `expected <= 2 inputs after dedup, got ${result.psbt.data.inputs.length}`)
     })
@@ -235,6 +238,7 @@ describe('Category D: UTXO & Fee Integration', () => {
 
   describe('D-7: Fee capped by maxFeePerBytes', () => {
     it('limits fee when maxFeeRateKb is set', async () => {
+      // Create encoder WITH fee cap
       const capped = new XChainEncoder(
         NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 1000 // 1000 sat/kB cap
       )
@@ -258,6 +262,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 100000000 // very high: 1e8 sat/kB = 100000 sat/byte
       )
 
+      // Create uncapped encoder for comparison
       const uncapped = makeEncoder(NETWORK)
       const resultUncapped = await uncapped.createTransaction(
         [utxo], address, null,
@@ -265,6 +270,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 100000000
       )
 
+      // Capped encoder should produce lower fee (more change)
       const cappedChange = result.psbt.txOutputs.find(o => o.value > 0)
       const uncappedChange = resultUncapped.psbt.txOutputs.find(o => o.value > 0)
       assert.ok(cappedChange.value > uncappedChange.value,

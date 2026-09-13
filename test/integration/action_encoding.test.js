@@ -269,6 +269,7 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
         assert.ok(result.psbt instanceof bitcoin.Psbt)
         assert.ok(['OP_RETURN', 'P2SH'].includes(result.encoding))
 
+        // For OP_RETURN results, verify full round-trip
         if (result.encoding === 'OP_RETURN') {
           const payload = extractOpReturnPayload(result, TXID_A)
           assert.strictEqual(payload.magic, MAGIC_WORD)

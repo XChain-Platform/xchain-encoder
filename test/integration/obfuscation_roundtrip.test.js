@@ -73,10 +73,12 @@ describe('Category C: Obfuscation Round-Trip', () => {
         null, null, null, true, 0.00001
       )
 
+      // Extract the raw obfuscated data from the OP_RETURN
       const opReturnOutput = result.psbt.txOutputs.find(o => o.value === 0)
       const decompiled = bitcoin.script.decompile(opReturnOutput.script)
       const obfuscatedData = decompiled[1]
 
+      // The obfuscated data should NOT start with "XCHN" in plaintext
       assert.notStrictEqual(
         obfuscatedData.subarray(0, 4).toString('utf8'),
         MAGIC_WORD,
@@ -115,6 +117,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
+      // tx1
       const tx1Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, null, address,
@@ -124,12 +127,14 @@ describe('Category C: Obfuscation Round-Trip', () => {
       const tx1Hex = tx1Result.psbt.__CACHE.__TX.toHex()
       const tx1Id = tx1Result.psbt.__CACHE.__TX.getId()
 
+      // tx2
       const tx2Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, null, address,
         tx1Id, tx1Hex, null, true, 0.00001
       )
 
+      // Extract OP_RETURN marker from tx2
       const markerOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
 
@@ -149,6 +154,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
 
+      // Encode with TXID_A
       const encoderA = makeEncoder(NETWORK)
       const utxoA = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const resultA = await encoderA.createTransaction(
@@ -157,6 +163,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
         null, null, null, true, 0.00001
       )
 
+      // Encode with TXID_B
       const encoderB = makeEncoder(NETWORK)
       const utxoB = makeUtxo(NETWORK, TXID_B, 0, 100000000)
       const resultB = await encoderB.createTransaction(
@@ -165,6 +172,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
         null, null, null, true, 0.00001
       )
 
+      // Extract raw obfuscated data from both
       const outputA = resultA.psbt.txOutputs.find(o => o.value === 0)
       const dataA = bitcoin.script.decompile(outputA.script)[1]
 
@@ -174,6 +182,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
       assert.ok(!dataA.equals(dataB),
         'same data obfuscated with different TXIDs should produce different output')
 
+      // But both should deobfuscate to the same original data
       const payloadA = extractOpReturnPayload(resultA, TXID_A)
       const payloadB = extractOpReturnPayload(resultB, TXID_B)
       assert.strictEqual(payloadA.magic, MAGIC_WORD)
@@ -221,6 +230,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
         null, null, null, true, 0.00001
       )
 
+      // Try to deobfuscate with the wrong TXID
       const payload = extractOpReturnPayload(result, TXID_B)
       assert.notStrictEqual(payload.magic, MAGIC_WORD,
         'wrong TXID should not produce valid magic word')
