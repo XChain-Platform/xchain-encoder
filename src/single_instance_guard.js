@@ -17,7 +17,7 @@
  * Three of the encoder's guards hold their whole state in-process: the UTXO
  * outpoint-reservation store (XChainEncoder.js `outpointReservations`), the
  * recent-build duplicate refusal behind it (`recentBuilds`, enforced in
- * `_refuseDuplicateBuild`), and the express-rate-limit MemoryStore. Running
+ * `refuseDuplicateBuild`), and the express-rate-limit MemoryStore. Running
  * more than one encoder replica behind one endpoint silently defeats all
  * three: two replicas can each build a PSBT spending the same tracker-fetched
  * UTXO (one tx is rejected at broadcast and the signer's fee work is wasted),

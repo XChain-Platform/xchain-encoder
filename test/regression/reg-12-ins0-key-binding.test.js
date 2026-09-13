@@ -13,7 +13,7 @@
 // lapses between key binding and input selection.
 //
 // The two phases sample the clock separately (nowFirst at pre-reservation, now at
-// selection) with the async data loop in between, and _isOutpointReserved treats
+// selection) with the async data loop in between, and isOutpointReserved treats
 // expiry <= now as free. So an earlier-sorted outpoint whose foreign reservation
 // expired in that window is no longer skipped and takes ins[0], while the key
 // stays bound to the outpoint this call pre-reserved. The decoder derives its
@@ -23,7 +23,7 @@
 // These tests model the lapse by mutating the reservation map from inside a
 // pass-through wrapper around obfuscate(), which is exactly the async window the
 // finding names. Nothing in the reservation or selection logic is stubbed: the
-// real _evictExpiredReservations / _isOutpointReserved / selection loop run, and
+// real evictExpiredReservations / isOutpointReserved / selection loop run, and
 // the payload is really obfuscated and really deobfuscated.
 
 const assert = require('assert')

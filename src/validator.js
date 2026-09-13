@@ -789,7 +789,7 @@ function validateAddress(address, label = 'address') {
 }
 
 // Reservation-ticket id for release_inputs: exactly the 16 random bytes
-// _mintReservationTicket emits, lowercase hex. Shape-checked here so a
+// mintReservationTicket emits, lowercase hex. Shape-checked here so a
 // non-string, an oversized blob or a wrong-length id is a precise -32602 rather
 // than reaching the encoder, and so the id can never be used as an unbounded
 // key into the ticket map.

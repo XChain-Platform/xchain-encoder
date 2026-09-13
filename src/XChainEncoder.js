@@ -529,7 +529,7 @@ class XChainEncoder {
       // outpoint distinguishable: the reservation is worth the highest live owner
       // expiry and is dropped only when the last owner lets go, so a failed retry
       // can no longer delete the reservation an earlier outstanding cancel holds.
-      // See _releaseEnvelopeCancelClaims and _maxLiveCancelOwnerExpiry.
+      // See releaseEnvelopeCancelClaims and maxLiveCancelOwnerExpiry.
       this.envelopeCancelClaims = new Map()
       // reservation ticket id -> the claims ONE successful build kept, with the
       // expiry stamp each of them wrote plus the recent-build record that build
@@ -541,9 +541,9 @@ class XChainEncoder {
       this.reservationTickets = new Map()
     }
 
-    // Sweep the recent-build map the same way _evictExpiredReservations sweeps
+    // Sweep the recent-build map the same way evictExpiredReservations sweeps
     // the outpoint map, so neither grows unbounded in a long-lived process.
-    _evictExpiredRecentBuilds(now) {
+    evictExpiredRecentBuilds(now) {
         for (const [txid, expiry] of this.recentBuilds) {
             if (expiry <= now) this.recentBuilds.delete(txid)
         }
@@ -557,8 +557,8 @@ class XChainEncoder {
     // identical rebuild one layer earlier (every input is still reserved), so
     // this only fires when those were bypassed or cleared; it exists so the
     // "same txid twice" failure can never present as two successes again.
-    _refuseDuplicateBuild(psbt, now) {
-        this._evictExpiredRecentBuilds(now)
+    refuseDuplicateBuild(psbt, now) {
+        this.evictExpiredRecentBuilds(now)
         const unsignedTx = bitcoin.Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer())
         const txid = unsignedTx.getId()
         if (this.recentBuilds.has(txid)) {
@@ -581,7 +581,7 @@ class XChainEncoder {
 
     // A reserved outpoint is one an in-flight selection has claimed and not yet
     // released. Expired entries are treated as free and lazily evicted here.
-    _isOutpointReserved(key, now) {
+    isOutpointReserved(key, now) {
         const expiry = this.outpointReservations.get(key)
         if (expiry == null) return false
         if (expiry <= now) {
@@ -592,8 +592,8 @@ class XChainEncoder {
     }
 
     // Returns the expiry it wrote, which doubles as this claim's ownership stamp
-    // (see _releaseCallReservations).
-    _reserveOutpoint(key, now) {
+    // (see releaseCallReservations).
+    reserveOutpoint(key, now) {
         const expiry = now + RESERVATION_TTL_MS
         this.outpointReservations.set(key, expiry)
         return expiry
@@ -601,8 +601,8 @@ class XChainEncoder {
 
     // Reserve an outpoint AND record the claim on the calling createTransaction's
     // own ledger, so a later throw can hand it back.
-    _claimOutpoint(callReservations, key, now) {
-        callReservations.push({ key, expiry: this._reserveOutpoint(key, now) })
+    claimOutpoint(callReservations, key, now) {
+        callReservations.push({ key, expiry: this.reserveOutpoint(key, now) })
     }
 
     // Release the reservations a single createTransaction call took, and only
@@ -613,7 +613,7 @@ class XChainEncoder {
     // a later clock. A mismatch therefore means the entry is foreign, and dropping
     // a foreign entry would reopen the same-address double-spend window the
     // reservation map exists to close. Leave it.
-    _releaseCallReservations(callReservations) {
+    releaseCallReservations(callReservations) {
         for (const claim of callReservations) {
             if (this.outpointReservations.get(claim.key) === claim.expiry){
                 this.outpointReservations.delete(claim.key)
@@ -626,7 +626,7 @@ class XChainEncoder {
     // carry while the cancel path holds an outpoint, and comparing it against the
     // reservation is how the build guard tells "held only by this path" from
     // "held by a foreign createTransaction claim".
-    _maxLiveCancelOwnerExpiry(key, now) {
+    maxLiveCancelOwnerExpiry(key, now) {
         const owners = this.envelopeCancelClaims.get(key)
         if (!owners) return null
         let max = null
@@ -642,11 +642,11 @@ class XChainEncoder {
     // of the owner set, because the releasing build's stamp is then no longer the
     // map's value and every stamp-checked delete below leaves the entry alone.
     // Returns true when the outpoint is still held by some other cancel owner.
-    _dropCancelOwner(key, ownerId, now) {
+    dropCancelOwner(key, ownerId, now) {
         const owners = this.envelopeCancelClaims.get(key)
         if (!owners) return false
         owners.delete(ownerId)
-        const remaining = this._maxLiveCancelOwnerExpiry(key, now)
+        const remaining = this.maxLiveCancelOwnerExpiry(key, now)
         if (remaining === null) {
             this.envelopeCancelClaims.delete(key)
             return false
@@ -662,8 +662,8 @@ class XChainEncoder {
     // build is still outstanding on, and deleting the reservation outright on the
     // retry's failure freed that outpoint to createTransaction while the earlier
     // unsigned cancel spent it. Ownership-checked exactly like
-    // _releaseCallReservations: a stamp that moved belongs to somebody else.
-    _releaseEnvelopeCancelClaims(callReservations) {
+    // releaseCallReservations: a stamp that moved belongs to somebody else.
+    releaseEnvelopeCancelClaims(callReservations) {
         const now = Date.now()
         const handBack = []
         for (const claim of callReservations) {
@@ -671,16 +671,16 @@ class XChainEncoder {
             // release below, and deliberately not left to that check: two builds a
             // millisecond apart share an expiry, so the stamp alone cannot tell the
             // surviving owner's reservation from this one's.
-            if (claim.cancelOwnerId && this._dropCancelOwner(claim.key, claim.cancelOwnerId, now)) continue
+            if (claim.cancelOwnerId && this.dropCancelOwner(claim.key, claim.cancelOwnerId, now)) continue
             handBack.push(claim)
         }
-        this._releaseCallReservations(handBack)
+        this.releaseCallReservations(handBack)
     }
 
     // Sweep the cancel ownership tokens alongside the reservation map, so neither
     // grows unbounded in a long-lived process. An outpoint whose last owner token
     // has lapsed goes with it.
-    _evictExpiredEnvelopeCancelClaims(now) {
+    evictExpiredEnvelopeCancelClaims(now) {
         for (const [key, owners] of this.envelopeCancelClaims) {
             for (const [ownerId, expiry] of owners) {
                 if (expiry <= now) owners.delete(ownerId)
@@ -691,7 +691,7 @@ class XChainEncoder {
 
     // Sweep expired reservations so the map cannot grow unbounded across a
     // long-lived process. Called opportunistically at the start of selection.
-    _evictExpiredReservations(now) {
+    evictExpiredReservations(now) {
         for (const [key, expiry] of this.outpointReservations) {
             if (expiry <= now) this.outpointReservations.delete(key)
         }
@@ -699,7 +699,7 @@ class XChainEncoder {
 
     // Sweep expired tickets so the ticket map cannot outgrow the reservation map
     // it describes. A ticket expires with the LAST of its claims.
-    _evictExpiredReservationTickets(now) {
+    evictExpiredReservationTickets(now) {
         for (const [id, ticket] of this.reservationTickets) {
             if (ticket.expiry <= now) this.reservationTickets.delete(id)
         }
@@ -715,8 +715,8 @@ class XChainEncoder {
     // Only claims whose stamp is still the map's value go on the ticket. Anything
     // else already lapsed and was re-taken by another call, and putting it on this
     // ticket would hand this caller a lever over a foreign claim.
-    _mintReservationTicket(callReservations, now) {
-        this._evictExpiredReservationTickets(now)
+    mintReservationTicket(callReservations, now) {
+        this.evictExpiredReservationTickets(now)
         const live = []
         for (const claim of callReservations) {
             // cancelOwnerId rides onto the ticket because releaseReservation has to
@@ -744,7 +744,7 @@ class XChainEncoder {
     }
 
     // Explicit, ownership-stamped release of ONE build's reservations, the
-    // counterpart of the receipt _mintReservationTicket put on that build's
+    // counterpart of the receipt mintReservationTicket put on that build's
     // result. The wallet composes when its send modal opens and most of those
     // builds are never broadcast, so without this every abandoned compose held a
     // few-UTXO address's whole balance for five minutes and the next compose read
@@ -764,10 +764,10 @@ class XChainEncoder {
             throw new TypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
         }
         const now = Date.now()
-        this._evictExpiredReservations(now)
-        this._evictExpiredEnvelopeCancelClaims(now)
-        this._evictExpiredRecentBuilds(now)
-        this._evictExpiredReservationTickets(now)
+        this.evictExpiredReservations(now)
+        this.evictExpiredEnvelopeCancelClaims(now)
+        this.evictExpiredRecentBuilds(now)
+        this.evictExpiredReservationTickets(now)
         const ticket = this.reservationTickets.get(reservationId)
         if (!ticket) return { reservationId, found: false, released: [], retained: [] }
         // A ticket is single-use: the claims it names are either freed now or were
@@ -779,11 +779,11 @@ class XChainEncoder {
             // Retire this build's cancel owner token first, whatever the stamp says.
             // A ticket whose stamp has moved still has to give the token up, or the
             // outpoint would stay reserved at this build's expiry long after the
-            // build that took it over released. _dropCancelOwner restates the
+            // build that took it over released. dropCancelOwner restates the
             // reservation at the highest expiry a surviving owner holds, which is
             // also what makes the stamp check below leave that owner's entry alone.
             const stillHeldByAnotherCancel = claim.cancelOwnerId
-                ? this._dropCancelOwner(claim.key, claim.cancelOwnerId, now)
+                ? this.dropCancelOwner(claim.key, claim.cancelOwnerId, now)
                 : false
             if (!stillHeldByAnotherCancel && this.outpointReservations.get(claim.key) === claim.expiry) {
                 this.outpointReservations.delete(claim.key)
@@ -1132,21 +1132,21 @@ class XChainEncoder {
     // error explicitly asks for hit its OWN dead reservations and came back
     // INSUFFICIENT_FUNDS for up to five minutes. The release is ownership-stamped
     // so a concurrent call's entries are never dropped; see
-    // _releaseCallReservations. The success path keeps its reservations on purpose:
+    // releaseCallReservations. The success path keeps its reservations on purpose:
     // the caller is about to sign and broadcast those inputs.
     // A successful build's kept claims come back as a `reservation` receipt on the
     // result, which the caller hands to releaseReservation the moment it knows it
-    // will not broadcast; see _mintReservationTicket.
+    // will not broadcast; see mintReservationTicket.
     async createTransaction(...args){
         const callReservations = []
         let result
         try {
             result = await this._buildTransaction(callReservations, ...args)
         } catch (err) {
-            this._releaseCallReservations(callReservations)
+            this.releaseCallReservations(callReservations)
             throw err
         }
-        const reservation = this._mintReservationTicket(callReservations, Date.now())
+        const reservation = this.mintReservationTicket(callReservations, Date.now())
         if (reservation && result && typeof result === 'object') result.reservation = reservation
         return result
     }
@@ -1692,7 +1692,7 @@ class XChainEncoder {
         //
         // The carve-out alone is NOT enough. It guarantees the pre-reserved
         // outpoint is SELECTED, not that it is FIRST: the selection loop re-evaluates
-        // reservations against a LATER clock, and _isOutpointReserved treats expiry <= now as
+        // reservations against a LATER clock, and isOutpointReserved treats expiry <= now as
         // free, so a foreign reservation blocking an EARLIER-sorted outpoint that lapses during
         // the async data loop un-skips that outpoint and it takes ins[0] while the key stays
         // bound here. Move the key-bound outpoint to the head of the selection order so ins[0]
@@ -1716,10 +1716,10 @@ class XChainEncoder {
         if (utxos.length){
             if (exactInputs){
                 const nowFirst = Date.now()
-                this._evictExpiredReservations(nowFirst)
+                this.evictExpiredReservations(nowFirst)
                 const heldByOthers = utxos
                     .map((u) => u.txid + ':' + u.vout)
-                    .filter((k) => this._isOutpointReserved(k, nowFirst))
+                    .filter((k) => this.isOutpointReserved(k, nowFirst))
                 if (heldByOthers.length){
                     throw new OperationalError(
                         'INPUT_RESERVED',
@@ -1731,7 +1731,7 @@ class XChainEncoder {
                     )
                 }
                 for (const u of utxos){
-                    this._claimOutpoint(callReservations, u.txid + ':' + u.vout, nowFirst)
+                    this.claimOutpoint(callReservations, u.txid + ':' + u.vout, nowFirst)
                 }
                 // No head-of-order splice: the caller's order IS the input order here,
                 // and firstReservedOutpoint stays null so the selection loop below
@@ -1739,12 +1739,12 @@ class XChainEncoder {
                 txidFirstInput = utxos[0]["txid"]
             } else {
                 const nowFirst = Date.now()
-                this._evictExpiredReservations(nowFirst)
+                this.evictExpiredReservations(nowFirst)
                 for (let i = 0; i < utxos.length; i++){
                     const u = utxos[i]
                     const k = u.txid + ':' + u.vout
-                    if (!this._isOutpointReserved(k, nowFirst)){
-                        this._claimOutpoint(callReservations, k, nowFirst)
+                    if (!this.isOutpointReserved(k, nowFirst)){
+                        this.claimOutpoint(callReservations, k, nowFirst)
                         firstReservedOutpoint = k
                         txidFirstInput = u.txid
                         // Head-of-order splice. The skipped entries ahead of it were all
@@ -2294,7 +2294,7 @@ class XChainEncoder {
         let reservedCandidates = 0
         if (!p2shHash){//The p2sh input is already created before
             const now = Date.now()
-            this._evictExpiredReservations(now)
+            this.evictExpiredReservations(now)
             let nextUtxoIndex = 0
             while (nextUtxoIndex < utxos.length){
                 let nextUtxo = utxos[nextUtxoIndex]
@@ -2345,13 +2345,13 @@ class XChainEncoder {
                     const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
                     // Skip outpoints reserved by OTHER calls, but NOT the one this
                     // call pre-reserved for ins[0] above (the obfuscation key binds to it).
-                    if (outpointKey !== firstReservedOutpoint && this._isOutpointReserved(outpointKey, now)){
+                    if (outpointKey !== firstReservedOutpoint && this.isOutpointReserved(outpointKey, now)){
                         reservedCandidates = reservedCandidates + 1
                         nextUtxoIndex = nextUtxoIndex + 1
                         continue
                     }
                     if (outpointKey !== firstReservedOutpoint){
-                        this._claimOutpoint(callReservations, outpointKey, now)
+                        this.claimOutpoint(callReservations, outpointKey, now)
                     }
                 }
 
@@ -2681,7 +2681,7 @@ class XChainEncoder {
                 }
 
                 if (allowed > 0){
-                    this._raiseOutputValue(psbt, revealPrefund.outputIndex, allowed)
+                    this.raiseOutputValue(psbt, revealPrefund.outputIndex, allowed)
                     outputSatoshis = outputSatoshis + BigInt(allowed)
                     revealPrefund.revealFee = revealPrefund.revealFee + allowed
                     // The envelope reveal is built in THIS call against these two
@@ -2995,7 +2995,7 @@ class XChainEncoder {
         // states there why duplicate refusal must not apply to it.
         // The txid rides back on the per-call reservation ledger so the ticket
         // minted for this build can retire this record too (see releaseReservation).
-        callReservations.buildTxid = this._refuseDuplicateBuild(psbt, Date.now())
+        callReservations.buildTxid = this.refuseDuplicateBuild(psbt, Date.now())
 
         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
 
@@ -3146,7 +3146,7 @@ class XChainEncoder {
     // psbt.toHex() and the reveal builder alike. Asserted rather than assumed:
     // a bitcoinjs release that reshapes this would otherwise underfund a reveal
     // silently, which is the exact failure this whole pass exists to prevent.
-    _raiseOutputValue(psbt, outputIndex, delta){
+    raiseOutputValue(psbt, outputIndex, delta){
         if (!Number.isInteger(delta) || delta <= 0){
             throw new RangeError('output uplift must be a positive integer')
         }
@@ -3284,17 +3284,17 @@ class XChainEncoder {
         const callReservations = []
         let result
         try {
-            result = await this._buildEnvelopeCancelTransaction(callReservations, params)
+            result = await this.buildEnvelopeCancelTransaction(callReservations, params)
         } catch (err) {
-            this._releaseEnvelopeCancelClaims(callReservations)
+            this.releaseEnvelopeCancelClaims(callReservations)
             throw err
         }
-        const reservation = this._mintReservationTicket(callReservations, Date.now())
+        const reservation = this.mintReservationTicket(callReservations, Date.now())
         if (reservation && result && typeof result === 'object') result.reservation = reservation
         return result
     }
 
-    async _buildEnvelopeCancelTransaction(callReservations, { commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
+    async buildEnvelopeCancelTransaction(callReservations, { commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
         if (typeof commitTxid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(commitTxid)) {
             throw new TypeError('commitTxid must be a 64-character hex string')
         }
@@ -3344,13 +3344,13 @@ class XChainEncoder {
         // observes it.
         const outpointKey = commitTxid.toLowerCase() + ':' + commitVout
         const nowClaim = Date.now()
-        this._evictExpiredReservations(nowClaim)
-        this._evictExpiredEnvelopeCancelClaims(nowClaim)
+        this.evictExpiredReservations(nowClaim)
+        this.evictExpiredEnvelopeCancelClaims(nowClaim)
         // Reserved AND not held by this path: the reservation is worth the highest
         // live cancel-owner expiry whenever a cancel build holds it, so any other
         // value means a foreign createTransaction claim owns the outpoint.
-        if (this._isOutpointReserved(outpointKey, nowClaim) &&
-            this._maxLiveCancelOwnerExpiry(outpointKey, nowClaim) !== this.outpointReservations.get(outpointKey)){
+        if (this.isOutpointReserved(outpointKey, nowClaim) &&
+            this.maxLiveCancelOwnerExpiry(outpointKey, nowClaim) !== this.outpointReservations.get(outpointKey)){
             throw new OperationalError(
                 'ENVELOPE_CANCEL_OUTPOINT_RESERVED',
                 `commit outpoint ${outpointKey} is reserved by a transaction built in the last ` +
@@ -3359,7 +3359,7 @@ class XChainEncoder {
                 { outpoint: outpointKey }
             )
         }
-        // Re-taking this path's OWN live claim is allowed, and _refuseDuplicateBuild
+        // Re-taking this path's OWN live claim is allowed, and refuseDuplicateBuild
         // is deliberately not wired in here, for the same reason: the header
         // contract above is that a cancel rebuilds from the persisted recovery
         // record alone, so a lost-response retry must not be refused for five
@@ -3369,7 +3369,7 @@ class XChainEncoder {
         // stamp, so an overlapping build's failure releases only what it took. A
         // single stamp, overwritten and then deleted, hands the commit outpoint back
         // to createTransaction while the first build's unsigned cancel still spends it.
-        this._claimOutpoint(callReservations, outpointKey, nowClaim)
+        this.claimOutpoint(callReservations, outpointKey, nowClaim)
         const cancelClaim = callReservations[callReservations.length - 1]
         const cancelOwnerId = crypto.randomBytes(16).toString('hex')
         cancelClaim.cancelOwnerId = cancelOwnerId

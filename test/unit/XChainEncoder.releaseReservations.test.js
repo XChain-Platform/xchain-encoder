@@ -81,7 +81,7 @@ describe('XChainEncoder reservation release', () => {
     assert.match(result.reservation.id, /^[0-9a-f]{32}$/)
     assert.ok(result.reservation.expiresAt > Date.now())
     // The receipt describes real state, not a label: that outpoint is claimed.
-    assert.strictEqual(encoder._isOutpointReserved(`${TXID_ONE}:0`, Date.now()), true)
+    assert.strictEqual(encoder.isOutpointReserved(`${TXID_ONE}:0`, Date.now()), true)
   })
 
   it('releasing frees the inputs, so the next compose funds instead of failing', async () => {
@@ -121,7 +121,7 @@ describe('XChainEncoder reservation release', () => {
     const out = encoder.releaseReservation('f'.repeat(32))
     assert.strictEqual(out.found, false)
     assert.deepStrictEqual(out.released, [])
-    assert.strictEqual(encoder._isOutpointReserved(`${TXID_ONE}:0`, Date.now()), true)
+    assert.strictEqual(encoder.isOutpointReserved(`${TXID_ONE}:0`, Date.now()), true)
     // And the address is still held, which is the point of refusing the release.
     await assert.rejects(
       () => createTx(encoder, oneFundedUtxo(), { fee: 11000 }),
@@ -169,8 +169,8 @@ describe('XChainEncoder reservation release', () => {
 
     const out = encoder.releaseReservation(first.reservation.id)
     assert.deepStrictEqual(out.released, [firstKey])
-    assert.strictEqual(encoder._isOutpointReserved(firstKey, Date.now()), false)
-    assert.strictEqual(encoder._isOutpointReserved(secondKey, Date.now()), true)
+    assert.strictEqual(encoder.isOutpointReserved(firstKey, Date.now()), false)
+    assert.strictEqual(encoder.isOutpointReserved(secondKey, Date.now()), true)
   })
 
   it('refuses a malformed ticket id with a TypeError, before touching any state', async () => {
@@ -179,14 +179,14 @@ describe('XChainEncoder reservation release', () => {
     for (const bad of [null, undefined, 42, {}, 'nothex', 'A'.repeat(32), 'f'.repeat(31)]) {
       assert.throws(() => encoder.releaseReservation(bad), TypeError, `accepted ${String(bad)}`)
     }
-    assert.strictEqual(encoder._isOutpointReserved(`${TXID_ONE}:0`, Date.now()), true)
+    assert.strictEqual(encoder.isOutpointReserved(`${TXID_ONE}:0`, Date.now()), true)
   })
 
   it('mints no receipt when the build kept no claims', async () => {
     // The p2sh/p2wsh reveal funds itself from phase-1 outputs and runs no input
     // selection, so there is nothing to release and no ticket to hand out.
     const encoder = makeEncoder()
-    const ticket = encoder._mintReservationTicket([], Date.now())
+    const ticket = encoder.mintReservationTicket([], Date.now())
     assert.strictEqual(ticket, null)
     assert.strictEqual(encoder.reservationTickets.size, 0)
   })
@@ -196,7 +196,7 @@ describe('XChainEncoder reservation release', () => {
     const first = await createTx(encoder, oneFundedUtxo())
     assert.strictEqual(encoder.reservationTickets.size, 1)
     const ticket = encoder.reservationTickets.get(first.reservation.id)
-    encoder._evictExpiredReservationTickets(ticket.expiry + 1)
+    encoder.evictExpiredReservationTickets(ticket.expiry + 1)
     assert.strictEqual(encoder.reservationTickets.size, 0)
     assert.strictEqual(encoder.releaseReservation(first.reservation.id).found, false)
   })
@@ -210,12 +210,12 @@ describe('release_inputs JSON-RPC method', () => {
   it('releases the claims the presented ticket owns', async () => {
     const claims = []
     const key = `${TXID_TWO}:7`
-    encoder._claimOutpoint(claims, key, Date.now())
-    const receipt = encoder._mintReservationTicket(claims, Date.now())
+    encoder.claimOutpoint(claims, key, Date.now())
+    const receipt = encoder.mintReservationTicket(claims, Date.now())
     const out = await jsonRpcController.release_inputs({ reservationId: receipt.id })
     assert.strictEqual(out.found, true)
     assert.deepStrictEqual(out.released, [key])
-    assert.strictEqual(encoder._isOutpointReserved(key, Date.now()), false)
+    assert.strictEqual(encoder.isOutpointReserved(key, Date.now()), false)
   })
 
   it('answers an unknown ticket with found:false rather than an error', async () => {

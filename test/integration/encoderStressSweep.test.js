@@ -35,7 +35,7 @@ describe('encoder stress-sweep @regression', function () {
                     [makeUtxo(NETWORK, TXID_A, 0, 100000000), makeUtxo(NETWORK, TXID_B, 0, 100000000)]
                 )
             }
-            encoder._reserveOutpoint(TXID_A + ':0', Date.now())
+            encoder.reserveOutpoint(TXID_A + ':0', Date.now())
 
             const action = actions.makeSend('JDOG', '42', actions.ADDR_BTC)
             // No utxos passed -> fetched from tracker (fetchedFromTracker = true).

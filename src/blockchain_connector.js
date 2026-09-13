@@ -284,7 +284,7 @@ class BlockchainConnector {
 
     async sendRawTransaction(txHex) {
         try {
-            return await this._sendRaw([txHex]);
+            return await this.sendRaw([txHex]);
         } catch (error) {
             // Regtest-only fee-cap recovery, mirroring xchain-e2e-test's
             // BlockchainConnector.broadcastTx. A regtest chain with accumulated
@@ -303,7 +303,7 @@ class BlockchainConnector {
                 let regtest = false;
                 try { regtest = await this.isRegtest(); } catch (_) { /* keep original error */ }
                 if (regtest) {
-                    return await this._sendRaw([txHex, 0]);
+                    return await this.sendRaw([txHex, 0]);
                 }
             }
             throw error;
@@ -312,7 +312,7 @@ class BlockchainConnector {
 
     // Single sendrawtransaction RPC to the coin node. `params` is [hex] or
     // [hex, maxfeerate]. Returns the txid; throws carrying the node's error body.
-    async _sendRaw(params) {
+    async sendRaw(params) {
         try {
             const data = {
                 jsonrpc: '2.0',
@@ -359,9 +359,9 @@ class BlockchainConnector {
     // break a build. Returns a verdict rather than throwing: {ok:true, result},
     // {ok:false, absent:true} for a txid the mempool does not hold (RPC -5, the
     // normal answer for an already-confirmed parent), or {ok:false} for anything
-    // else. Mirrors _sendRaw in reading the node's JSON-RPC error body off
+    // else. Mirrors sendRaw in reading the node's JSON-RPC error body off
     // error.response, because LTC/DOGE answer HTTP 500 for RPC-level errors.
-    async _mempoolRpc(method, params) {
+    async mempoolRpc(method, params) {
         const classify = (rpcError) => {
             const code = rpcError && rpcError.code
             const message = (rpcError && rpcError.message) || ''
@@ -439,7 +439,7 @@ class BlockchainConnector {
             // same mempool, so a confirmed root's bytes and fee never reach the
             // package the child pays to accelerate.
             const staged = new Map()
-            const self = await this._mempoolRpc('getmempoolentry', [txid])
+            const self = await this.mempoolRpc('getmempoolentry', [txid])
             if (!self.ok) {
                 if (self.absent) continue        // already confirmed, nothing to carry
                 return null
@@ -448,7 +448,7 @@ class BlockchainConnector {
 
             // verbose=true: the ancestors come back as a txid-keyed map of the same
             // entries, so one call per input covers the whole branch above it.
-            const ancestors = await this._mempoolRpc('getmempoolancestors', [txid, true])
+            const ancestors = await this.mempoolRpc('getmempoolancestors', [txid, true])
             if (!ancestors.ok) {
                 // The root confirmed mid-sequence; its ancestors confirmed at or
                 // before it did, so the whole staged branch is stale. Discard it.
@@ -482,7 +482,7 @@ class BlockchainConnector {
     // or a node that reports no usable relayfee). Null means the caller throws.
     // Consulted from both shapes the condition arrives in, the feerate:-1 success
     // body and an RPC error body, so the two paths cannot drift apart.
-    async _noEstimateRelayFallback() {
+    async noEstimateRelayFallback() {
         if ((await this.chainName()) === 'main') return null;
         const info = await this.getNetworkInfo();
         const relayfee = Number(info && info.relayfee);
@@ -571,7 +571,7 @@ class BlockchainConnector {
             // testnets it is 10 sat/vB, cheap in coin that costs nothing.
             // Mainnet keeps throwing: there a missing estimate means the node is
             // unhealthy, and paying real coin on a guess is the worse failure.
-            const fallback = await this._noEstimateRelayFallback();
+            const fallback = await this.noEstimateRelayFallback();
             if (fallback !== null) return fallback;
             throw new Error('Error getting smart fee from node');
         } catch (error) {
@@ -600,7 +600,7 @@ class BlockchainConnector {
                 // with nothing wrong at the node. Mainnet still returns null and
                 // rethrows, and a genuinely unreachable node makes the fallback's
                 // own RPCs throw, so node-down stays a hard failure.
-                const fallback = await this._noEstimateRelayFallback();
+                const fallback = await this.noEstimateRelayFallback();
                 if (fallback !== null) return fallback;
             } catch (_) {
                 // isRegtest() or the fallback's own RPC failed; fall through to rethrow.
