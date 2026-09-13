@@ -13,7 +13,7 @@
  *********************************************************************/
 
 const assert = require('assert')
-const { upstreamErrorMessage, isTransportError } = require('../../src/errorSanitize')
+const { upstreamErrorMessage, isTransportError, leaksInternalDetail } = require('../../src/errorSanitize')
 
 // Guards the encoder's outbound error sanitization: useful upstream RPC reasons
 // pass through, transport-level failures (which leak the internal node host:port)
@@ -54,5 +54,43 @@ describe('errorSanitize.upstreamErrorMessage', () => {
         assert.strictEqual(isTransportError({ code: 'ENOTFOUND' }), true)
         assert.strictEqual(isTransportError({ code: 'ECONNRESET' }), true)
         assert.strictEqual(isTransportError(new Error('dust')), false)
+    })
+
+    // Every re-wrap between the socket and this helper builds a plain Error and
+    // drops err.code, so a connect failure arrives UNCLASSIFIABLE. These pin the
+    // second gate: an unclassified error is never safe to forward verbatim.
+    it('collapses a credentialed RPC URL that arrives with no transport code', () => {
+        const err = new Error('Error in network request: connect to http://user:secret@10.0.0.5:8332 failed')
+        assert.strictEqual(isTransportError(err), false, 'the re-wrap has stripped the errno')
+        const out = upstreamErrorMessage(err, FALLBACK)
+        assert.strictEqual(out, FALLBACK)
+        assert.ok(!out.includes('user:secret'), 'no credentials survive')
+        assert.ok(!out.includes('10.0.0.5'), 'no host survives')
+    })
+
+    it('collapses bare topology: a dotted quad, a host:port, and a scheme', () => {
+        for (const message of [
+            'Error getting utxos: tracker at 10.0.0.7 is unreachable',
+            'Error in network request: btc-node.internal:8332 refused the call',
+            'upstream said https://utxo-tracker.internal/rpc returned nothing'
+        ]) {
+            assert.strictEqual(upstreamErrorMessage(new Error(message), FALLBACK), FALLBACK, message)
+        }
+    })
+
+    // The wallet's broadcast-permanence classifier substring-matches these exact
+    // reasons (xchain-wallet/packages/core/src/flows/broadcastPermanence.js), so
+    // collapsing them would silently turn a permanent failure into a retry loop.
+    it('still forwards node reasons the wallet classifies on', () => {
+        for (const reason of [
+            'min relay fee not met, 0 < 110',
+            'bad-txns-inputs-missingorspent',
+            'dust',
+            'too-long-mempool-chain',
+            'Error getting utxos: [ADDRESS_TOO_LARGE] address has too many utxos'
+        ]) {
+            assert.strictEqual(upstreamErrorMessage(new Error(reason), FALLBACK), reason, reason)
+            assert.strictEqual(leaksInternalDetail(reason), false, reason)
+        }
     })
 })

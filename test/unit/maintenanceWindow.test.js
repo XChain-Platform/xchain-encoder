@@ -108,6 +108,47 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             assert.strictEqual(parseMaintenanceWindow(JSON.stringify({ until: {} }), NOW), null);
         });
 
+        // A finite number past the Date range formats as a RangeError, not a
+        // string, so before this the readiness probe answered 500 instead of the
+        // honest 200/503 the sentinel exists to annotate.
+        it('refuses a timestamp no Date can represent instead of throwing', function () {
+            assert.strictEqual(parseMaintenanceWindow(JSON.stringify({ until: in2h, since: -1e100 }), NOW), null);
+            assert.strictEqual(parseMaintenanceWindow(JSON.stringify({ until: 1e20 }), NOW), null);
+            assert.strictEqual(parseMaintenanceWindow(JSON.stringify({ until: in2h, since: 8.64e15 + 1 }), NOW), null);
+        });
+
+        // The remaining-time ceiling alone is not monotone: a 30-day declaration
+        // is refused for 29 days and then turns active for its final 24 hours,
+        // which is exactly when a real outage would be running under it.
+        it('refuses an overlong DECLARED span, not just an overlong remainder', function () {
+            const thirtyDays = 30 * 24 * 3600 * 1000;
+            const stale = JSON.stringify({ since: NOW - thirtyDays, until: NOW + 3600 * 1000 });
+            assert.strictEqual(parseMaintenanceWindow(stale, NOW), null, 'a 30-day span is not a maintenance window');
+
+            // The same unchanged sentinel, evaluated at two clocks: an invalid
+            // declaration must not become valid as its expiry approaches.
+            const opened = JSON.stringify({ since: NOW, until: NOW + thirtyDays });
+            assert.strictEqual(parseMaintenanceWindow(opened, NOW + 60000), null, 'invalid just after it opens');
+            assert.strictEqual(parseMaintenanceWindow(opened, NOW + thirtyDays - 3600 * 1000), null, 'still invalid an hour before expiry');
+        });
+
+        it('keeps a declared span of exactly the ceiling, and refuses one millisecond more', function () {
+            const atCeiling = JSON.stringify({ since: NOW - (MAX_WINDOW_MS - 3600 * 1000), until: NOW + 3600 * 1000 });
+            assert.ok(parseMaintenanceWindow(atCeiling, NOW), 'the ceiling itself is still a window');
+            const overCeiling = JSON.stringify({ since: NOW - (MAX_WINDOW_MS - 3600 * 1000) - 1, until: NOW + 3600 * 1000 });
+            assert.strictEqual(parseMaintenanceWindow(overCeiling, NOW), null);
+        });
+
+        // MAX_SENTINEL_BYTES is named in bytes, so it must be measured in bytes:
+        // String.length counts UTF-16 code units, which a multibyte reason
+        // undercounts by up to 3x against the limit it is compared to.
+        it('measures the sentinel ceiling in bytes, not UTF-16 code units', function () {
+            const multibyte = JSON.stringify({ until: in2h, reason: '中'.repeat(1600) });
+            assert.ok(multibyte.length <= MAX_SENTINEL_BYTES, 'the fixture is under the ceiling by character count');
+            assert.ok(Buffer.byteLength(multibyte, 'utf8') > MAX_SENTINEL_BYTES, 'and over it by byte count');
+            assert.strictEqual(parseMaintenanceWindow(multibyte, NOW), null, 'an oversized file is not a sentinel');
+        });
+
         // The body is public JSON and the reason is free text, so it is bounded
         // and stripped before it can leave the process.
         it('bounds and sanitizes the reason', function () {
@@ -144,6 +185,27 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             const w = await readMaintenanceWindow(NOW, p);
             assert.strictEqual(w.active, true);
             assert.strictEqual(w.reason, 'bootstrap publish');
+        });
+
+        // A runaway file must be refused by SIZE, before it is decoded or
+        // parsed, which is the whole reason the ceiling exists.
+        it('refuses an oversized file without materializing it', async function () {
+            const p = path.join(dir, 'runaway.json');
+            fs.writeFileSync(p, JSON.stringify({ until: in2h, reason: '中'.repeat(200000) }));
+            assert.ok(fs.statSync(p).size > MAX_SENTINEL_BYTES * 100, 'the fixture is far past the ceiling');
+            assert.strictEqual(await readMaintenanceWindow(NOW, p), null);
+        });
+
+        it('never rejects on a sentinel whose timestamps cannot be formatted', async function () {
+            const p = path.join(dir, 'unrepresentable.json');
+            fs.writeFileSync(p, JSON.stringify({ until: in2h, since: -1e100 }));
+            assert.strictEqual(await readMaintenanceWindow(NOW, p), null);
+        });
+
+        it('refuses an overlong declared span read off disk', async function () {
+            const p = path.join(dir, 'stale.json');
+            fs.writeFileSync(p, JSON.stringify({ since: NOW - 30 * 24 * 3600 * 1000, until: NOW + 3600 * 1000 }));
+            assert.strictEqual(await readMaintenanceWindow(NOW, p), null);
         });
     });
 

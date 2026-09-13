@@ -33,6 +33,35 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const crypto = require('crypto')
+
+// Filesystems that cannot hard-link. The atomic publication below falls back to
+// the older open-'wx'-then-write on exactly these and on nothing else, because
+// swallowing an unrecognized errno would silently give up the atomicity the
+// whole protocol rests on.
+const NO_HARDLINK_CODES = new Set(['EPERM', 'ENOSYS', 'EOPNOTSUPP', 'ENOTSUP', 'EXDEV'])
+
+// How many times a contender re-reads a lock whose record is not yet legible,
+// and the pause between passes. A half-written record means an owner is mid
+// publication, NOT that the lock is stale: an empty file parses to pid NaN,
+// which skips every liveness and identity check, so judging it stale unlinks
+// the lock out from under the owner still writing it. The window is bounded so
+// a genuinely corrupt lock is still recoverable.
+const INITIALIZING_RECHECK_PASSES = 10
+const INITIALIZING_RECHECK_MS = 10
+
+// Break-and-retake passes. Two processes can judge one dead lock stale at the
+// same moment; the loser's re-take throws EEXIST, and the retry loop absorbs it
+// so it cannot escape acquireInstanceLock raw and kill boot with an opaque error
+// in place of the guard's own conflict message.
+const BREAK_PASSES = 5
+
+// Synchronous pause. This is a boot path that runs before the event loop has
+// any work on it, so there is nothing to yield to and no async seam to thread
+// through the callers.
+function sleepSync(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
 
 // Refuses boot when the operator declares a horizontally scaled deploy.
 // ENCODER_REPLICAS is a deploy-manifest declaration (set it next to the
@@ -135,76 +164,145 @@ function acquireInstanceLock(lockPath, env = process.env, deps = {}) {
         env.ENCODER_INSTANCE_LOCK_FILE ||
         path.join(os.tmpdir(), 'xchain-encoder-' + (env.ENCODER_API_PORT || 'default') + '.lock')
 
+    // This acquisition's ownership token. It is what release() and the break path
+    // test against, so a lock that has changed hands since is left alone: the old
+    // release unlinked by PATH, so the first owner out deleted whatever record
+    // happened to sit at that name, including a successor's.
+    const token = crypto.randomBytes(16).toString('hex')
+
+    // Publish ownership ATOMICALLY: write the complete record to a sibling temp
+    // file, then link it into place. link() either creates the name or throws
+    // EEXIST, and it publishes the finished record in one step, so the lock name
+    // is never observable as a zero-byte file that a contender reads as stale.
+    // openSync('wx') + a separate write cannot promise that, and the window is
+    // wide: self() reads /proc between the two.
     const tryTake = () => {
-        const fd = fs.openSync(file, 'wx')
-        fs.writeSync(fd, JSON.stringify({ pid: process.pid, cmd: self() }))
-        fs.closeSync(fd)
+        const record = JSON.stringify({ pid: process.pid, cmd: self(), token })
+        const tmp = file + '.' + process.pid + '.' + token.slice(0, 8) + '.tmp'
+        let tmpWritten = false
+        try {
+            const fd = fs.openSync(tmp, 'wx')
+            try { fs.writeSync(fd, record) } finally { fs.closeSync(fd) }
+            tmpWritten = true
+            fs.linkSync(tmp, file)
+        } catch (err) {
+            if (tmpWritten && NO_HARDLINK_CODES.has(err.code)) {
+                // No hard links on this mount. Fall back to the original
+                // non-atomic publication, which is why the reader below still
+                // treats an illegible record as an initializing owner.
+                const fd = fs.openSync(file, 'wx')
+                try { fs.writeSync(fd, record) } finally { fs.closeSync(fd) }
+                return
+            }
+            throw err
+        } finally {
+            if (tmpWritten) { try { fs.unlinkSync(tmp) } catch (e) { /* already gone */ } }
+        }
     }
 
-    // Accepts both shapes: the JSON written above, and the bare integer written
-    // by encoders that predate this change (a lock can outlive an upgrade).
+    // Accepts three shapes: the JSON written above, the tokenless JSON written by
+    // encoders that predate the token, and the bare integer written by those that
+    // predate the record (a lock can outlive an upgrade). `legible` separates "no
+    // readable record yet" from "a record that names no usable pid".
     const readHolder = () => {
         let text
-        try { text = fs.readFileSync(file, 'utf8') } catch (e) { return { pid: NaN, cmd: null } }
+        try { text = fs.readFileSync(file, 'utf8') } catch (e) { return { pid: NaN, cmd: null, token: null, legible: false } }
+        if (text.trim() === '') return { pid: NaN, cmd: null, token: null, legible: false }
         // NB: a bare pid is itself valid JSON ('1' parses to the number 1), so the
         // object check is what keeps a legacy lock on the legacy path instead of
         // reading it as a record with no pid and breaking a live holder's lock.
         try {
             const parsed = JSON.parse(text)
             if (parsed && typeof parsed === 'object') {
-                return { pid: parseInt(parsed.pid, 10), cmd: parsed.cmd || null }
+                const pid = parseInt(parsed.pid, 10)
+                return { pid, cmd: parsed.cmd || null, token: parsed.token || null, legible: Number.isInteger(pid) }
             }
         } catch (e) { /* not JSON at all: fall through to the bare-pid reading */ }
-        return { pid: parseInt(text, 10), cmd: null }
+        const pid = parseInt(text, 10)
+        return { pid, cmd: null, token: null, legible: Number.isInteger(pid) }
     }
 
-    try {
-        tryTake()
-    } catch (err) {
-        if (err.code !== 'EEXIST') throw err
-        const holder = readHolder()
-        const holderPid = holder.pid
-        if (Number.isInteger(holderPid) && holderPid > 0 && alive(holderPid) && holderPid !== process.pid) {
-            // Alive, and not us. Only a matching identity makes it a real conflict.
-            const liveCmd = describe(holderPid)
-            // Recorded identity: the strong test, an exact mismatch means reuse.
-            let reused = holder.cmd !== null && liveCmd !== null && liveCmd !== holder.cmd
-            // A lock written before this change carries no identity to compare, and
-            // refusing on it would reproduce the very wedge this fixes on the first
-            // restart after the upgrade (the lock outlives the process that wrote
-            // it, so an old bare-pid file is exactly what a rolling deploy meets).
-            // Weaker but sufficient test for that case: the holder cannot be an
-            // encoder if its command line is not running one.
-            if (!reused && holder.cmd === null && liveCmd !== null && !looksLikeEncoder(liveCmd)) {
-                reused = true
+    // Re-read an illegible lock a bounded number of times before judging it.
+    // An owner publishing through the non-atomic fallback above is mid-write,
+    // not dead, and breaking its lock is how two processes both came to hold one.
+    const readHolderSettled = () => {
+        let holder = readHolder()
+        for (let pass = 0; !holder.legible && pass < INITIALIZING_RECHECK_PASSES; pass++) {
+            sleepSync(INITIALIZING_RECHECK_MS)
+            holder = readHolder()
+        }
+        return holder
+    }
+
+    for (let pass = 0; ; pass++) {
+        try {
+            tryTake()
+            break
+        } catch (err) {
+            if (err.code !== 'EEXIST') throw err
+            const holder = readHolderSettled()
+            const holderPid = holder.pid
+            if (Number.isInteger(holderPid) && holderPid > 0 && alive(holderPid) && holderPid !== process.pid) {
+                // Alive, and not us. Only a matching identity makes it a real conflict.
+                const liveCmd = describe(holderPid)
+                // Recorded identity: the strong test, an exact mismatch means reuse.
+                let reused = holder.cmd !== null && liveCmd !== null && liveCmd !== holder.cmd
+                // A lock written before this change carries no identity to compare, and
+                // refusing on it would reproduce the very wedge this fixes on the first
+                // restart after the upgrade (the lock outlives the process that wrote
+                // it, so an old bare-pid file is exactly what a rolling deploy meets).
+                // Weaker but sufficient test for that case: the holder cannot be an
+                // encoder if its command line is not running one.
+                if (!reused && holder.cmd === null && liveCmd !== null && !looksLikeEncoder(liveCmd)) {
+                    reused = true
+                }
+                if (!reused) {
+                    throw new Error(
+                        'Another xchain-encoder instance (pid ' + holderPid + ') holds the instance lock ' +
+                        file + '. The outpoint-reservation and recent-build stores are in-process; ' +
+                        'running two encoder instances against one UTXO set risks conflicting ' +
+                        'double-spend PSBTs, and lets one transaction be built twice and journaled ' +
+                        'as two successes. Stop the other instance, or set ENCODER_INSTANCE_LOCK_FILE ' +
+                        'to isolate intentionally separate deployments.'
+                    )
+                }
+                console.warn('singleInstanceGuard: breaking a stale lock on ' + file + ': pid ' +
+                    holderPid + ' is alive but is running "' + liveCmd + '", ' +
+                    (holder.cmd === null
+                        ? 'which is not an encoder (the lock predates identity recording)'
+                        : 'not the "' + holder.cmd + '" that took the lock') +
+                    '. This is pid reuse after an unclean shutdown, not a second instance.')
             }
-            if (!reused) {
+            // Stale (dead holder, garbage contents, or a reused pid): break and
+            // re-take. A second process can reach this same verdict on the same lock,
+            // so the re-take is not guaranteed to win. Losing it is a normal outcome:
+            // go round again and re-evaluate whoever now holds the lock, and only
+            // when the passes run out does the conflict error below stand in place of
+            // a raw EEXIST escaping this function and killing boot.
+            try { fs.unlinkSync(file) } catch (e) { /* somebody else broke it first */ }
+            if (pass >= BREAK_PASSES) {
                 throw new Error(
-                    'Another xchain-encoder instance (pid ' + holderPid + ') holds the instance lock ' +
-                    file + '. The outpoint-reservation and recent-build stores are in-process; ' +
-                    'running two encoder instances against one UTXO set risks conflicting ' +
-                    'double-spend PSBTs, and lets one transaction be built twice and journaled ' +
-                    'as two successes. Stop the other instance, or set ENCODER_INSTANCE_LOCK_FILE ' +
-                    'to isolate intentionally separate deployments.'
+                    'Another xchain-encoder instance keeps re-taking the instance lock ' + file +
+                    ' faster than this one can. The outpoint-reservation and recent-build stores ' +
+                    'are in-process; running two encoder instances against one UTXO set risks ' +
+                    'conflicting double-spend PSBTs. Stop the other instance, or set ' +
+                    'ENCODER_INSTANCE_LOCK_FILE to isolate intentionally separate deployments.'
                 )
             }
-            console.warn('singleInstanceGuard: breaking a stale lock on ' + file + ': pid ' +
-                holderPid + ' is alive but is running "' + liveCmd + '", ' +
-                (holder.cmd === null
-                    ? 'which is not an encoder (the lock predates identity recording)'
-                    : 'not the "' + holder.cmd + '" that took the lock') +
-                '. This is pid reuse after an unclean shutdown, not a second instance.')
         }
-        // Stale (dead holder, garbage contents, or a reused pid): break and re-take.
-        fs.unlinkSync(file)
-        tryTake()
     }
 
     let released = false
     return function release() {
         if (released) return
         released = true
-        try { fs.unlinkSync(file) } catch (e) { /* already gone */ }
+        // Unlink only OUR record. The lock may legitimately have changed hands
+        // (an instance ruled stale on the pid-reuse path is still running and
+        // still owns a release), and deleting by path alone is how one owner's
+        // exit freed another owner's lock.
+        try {
+            if (readHolder().token === token) fs.unlinkSync(file)
+        } catch (e) { /* already gone, or unreadable: leave it for the stale path */ }
     }
 }
 

@@ -31,7 +31,8 @@
  *
  * The sentinel is deliberately fail-safe in the honest direction. Every
  * way it can be wrong - missing, unreadable, oversized, unparseable, no
- * expiry, expired, or claiming a window longer than MAX_WINDOW_MS -
+ * expiry, expired, a timestamp no Date can represent, or claiming a window
+ * longer than MAX_WINDOW_MS either in time remaining or in declared span -
  * resolves to "no maintenance", which puts the row back on Degraded. A
  * publish that crashes without cleaning up therefore stops excusing the
  * outage at its own declared end time rather than hiding it forever.
@@ -65,10 +66,19 @@ function sentinelPath() {
     return process.env.ENCODER_MAINTENANCE_FILE || DEFAULT_SENTINEL
 }
 
+// The largest absolute time value a JS Date can hold. A finite number past it
+// is not a timestamp: new Date(v).toISOString() raises RangeError on it, which
+// would break the readiness probe from inside the module whose whole job is
+// making a wrong sentinel harmless.
+const MAX_EPOCH_MS = 8.64e15
+
 // Accepts an ISO-8601 string or epoch milliseconds; returns null for anything
-// else, including the NaN a malformed date parses to.
+// else, including the NaN a malformed date parses to and a finite number
+// outside the representable Date range.
 function toEpochMs(value) {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    if (typeof value === 'number') {
+        return (Number.isFinite(value) && Math.abs(value) <= MAX_EPOCH_MS) ? value : null
+    }
     if (typeof value !== 'string') return null
     const ms = Date.parse(value)
     return Number.isFinite(ms) ? ms : null
@@ -84,7 +94,11 @@ function cleanReason(value) {
 // Turn raw sentinel text into the window /status publishes, or null when the
 // file does not describe an ACTIVE, bounded, currently-open window.
 function parseMaintenanceWindow(text, now = Date.now()) {
-    if (typeof text !== 'string' || text.length === 0 || text.length > MAX_SENTINEL_BYTES) return null
+    // The ceiling is named in BYTES, so it is measured in bytes: String.length
+    // counts UTF-16 code units, which a multibyte reason undercounts by up to
+    // 3x against the limit it is being compared to.
+    if (typeof text !== 'string' || text.length === 0) return null
+    if (Buffer.byteLength(text, 'utf8') > MAX_SENTINEL_BYTES) return null
 
     let doc
     try { doc = JSON.parse(text) } catch { return null }
@@ -97,9 +111,22 @@ function parseMaintenanceWindow(text, now = Date.now()) {
     if (until === null || until <= now) return null
     if (until - now > MAX_WINDOW_MS) return null
 
-    // A window may be declared ahead of time; it is not active until it opens.
+    // `since` is optional, but a SUPPLIED one that does not read as a timestamp
+    // is a wrong sentinel, not an absent start: silently demoting it to null
+    // would let a typo buy the unbounded-span treatment below.
+    const sinceSupplied = doc.since !== undefined && doc.since !== null
     const since = toEpochMs(doc.since)
+    if (sinceSupplied && since === null) return null
+
+    // A window may be declared ahead of time; it is not active until it opens.
     if (since !== null && since > now) return null
+
+    // The ceiling above bounds only the time REMAINING, which a stale overlong
+    // declaration grows into: a 30-day window is refused for 29 days and then
+    // starts excusing a genuine outage through its final 24 hours. When the
+    // operator declared a start, the declared span is bounded too, so the same
+    // sentinel can never go from refused to active as its expiry nears.
+    if (since !== null && until - since > MAX_WINDOW_MS) return null
 
     return {
         active: true,
@@ -113,13 +140,41 @@ function parseMaintenanceWindow(text, now = Date.now()) {
 // fails because a maintenance note is unreadable would be a strictly worse
 // probe than the one that predates this file.
 async function readMaintenanceWindow(now = Date.now(), filePath = sentinelPath()) {
-    let text
+    let bytes
     try {
-        text = await fs.promises.readFile(filePath, 'utf8')
+        bytes = await readBounded(filePath, MAX_SENTINEL_BYTES + 1)
     } catch {
         return null   // absent (the normal case) or unreadable
     }
-    return parseMaintenanceWindow(text, now)
+    // One byte past the ceiling is enough to know the file is too big to be a
+    // sentinel, and it is refused before it is decoded or parsed.
+    if (bytes.length > MAX_SENTINEL_BYTES) return null
+    // Defence in depth for the promise in this comment: a formatting bug in the
+    // parser must degrade to "no maintenance", not take the probe down with it.
+    try {
+        return parseMaintenanceWindow(bytes.toString('utf8'), now)
+    } catch {
+        return null
+    }
+}
+
+// At most `limit` bytes, so a runaway file is refused by size instead of being
+// materialized on every readiness probe. Reads in a loop because a single
+// read() may come back short, and closes the handle on every path.
+async function readBounded(filePath, limit) {
+    const handle = await fs.promises.open(filePath, 'r')
+    try {
+        const buf = Buffer.alloc(limit)
+        let filled = 0
+        while (filled < limit) {
+            const { bytesRead } = await handle.read(buf, filled, limit - filled, filled)
+            if (bytesRead === 0) break
+            filled += bytesRead
+        }
+        return buf.subarray(0, filled)
+    } finally {
+        await handle.close().catch(() => {})
+    }
 }
 
 module.exports = {

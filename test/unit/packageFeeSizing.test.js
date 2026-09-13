@@ -157,6 +157,87 @@ describe('BlockchainConnector.getUnconfirmedAncestorPackage() @regression @tier1
     assert.strictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A]), null)
   })
 
+  // Number(null), Number('') and Number(false) are all a finite 0, so a bare
+  // Number() cast priced an unreadable fee field as a genuine zero-fee ancestor
+  // and the package was uplifted against an understated total. An unreadable
+  // field has to invalidate the package, exactly as the contract above says.
+  for (const [label, fee] of [['null', null], ['an empty string', ''], ['false', false]]) {
+    it(`returns null when the flat fee field is ${label}`, async () => {
+      stubMempool({
+        [TXID_PARENT_A]: { entry: { size: 400, fee }, ancestors: [] }
+      })
+      assert.strictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A]), null)
+    })
+  }
+
+  it('returns null when the nested fees.base field is null', async () => {
+    stubMempool({
+      [TXID_PARENT_A]: { entry: { vsize: 400, fees: { base: null } }, ancestors: [] }
+    })
+    assert.strictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A]), null)
+  })
+
+  it('still prices a legitimate zero-fee ancestor, in both field layouts', async () => {
+    stubMempool({
+      [TXID_PARENT_A]: { entry: { size: 400, fee: 0 }, ancestors: [] }
+    })
+    assert.deepStrictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A]), { size: 400, fees: 0 })
+    stubMempool({
+      [TXID_PARENT_B]: { entry: { vsize: 250, fees: { base: 0 } }, ancestors: [] }
+    })
+    assert.deepStrictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_B]), { size: 250, fees: 0 })
+  })
+
+  it('returns null when the size field is a boolean rather than a number', async () => {
+    // Number(true) is 1, which used to be accepted as a one-byte ancestor.
+    stubMempool({
+      [TXID_PARENT_A]: { entry: { vsize: true, fee: 0.001 }, ancestors: [] }
+    })
+    assert.strictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A]), null)
+  })
+
+  // getmempoolentry and getmempoolancestors are two independent round trips, so
+  // a block can confirm the root between them; the node then answers the second
+  // call with -5. The root's bytes and fee must not survive that: paying to
+  // accelerate an already-mined parent is real coin spent on nothing.
+  it('discards a root that confirms between its two RPC calls', async () => {
+    const mempool = {
+      [TXID_PARENT_A]: { entry: entry(400, 0.001), ancestors: [TXID_GRANDPA] },
+      [TXID_GRANDPA]: { entry: entry(300, 0.0005), ancestors: [] }
+    }
+    stubMempool(mempool, (data) => {
+      if (data.method === 'getmempoolancestors' && data.params[0] === TXID_PARENT_A) {
+        delete mempool[TXID_PARENT_A]
+      }
+    })
+    const pkg = await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A])
+    assert.deepStrictEqual(pkg, { size: 0, fees: 0 })
+  })
+
+  it('keeps an earlier root\'s branch when a later root confirms mid-sequence', async () => {
+    const mempool = {
+      [TXID_PARENT_A]: { entry: entry(400, 0.001), ancestors: [TXID_SHARED] },
+      [TXID_PARENT_B]: { entry: entry(500, 0.002), ancestors: [TXID_SHARED] },
+      [TXID_SHARED]: { entry: entry(200, 0.0004), ancestors: [] }
+    }
+    stubMempool(mempool, (data) => {
+      if (data.method === 'getmempoolancestors' && data.params[0] === TXID_PARENT_B) {
+        delete mempool[TXID_PARENT_B]
+      }
+    })
+    const pkg = await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A, TXID_PARENT_B])
+    assert.strictEqual(pkg.size, 600, 'parent A plus the shared ancestor it validly committed')
+    assert.ok(Math.abs(pkg.fees - 0.0014) < 1e-12, 'got ' + pkg.fees)
+  })
+
+  it('returns null when the second call fails for a reason other than absence', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getmempoolentry') return { data: { result: entry(400, 0.001) } }
+      return { data: { error: { code: -32603, message: 'Internal error' } } }
+    }
+    assert.strictEqual(await makeConnector().getUnconfirmedAncestorPackage([TXID_PARENT_A]), null)
+  })
+
   it('does not leak the RPC password when a mempool call fails', async () => {
     const util = require('util')
     const FAKE_RPC_PASSWORD = 'FAKEPASS_must_never_be_logged_4b1e'

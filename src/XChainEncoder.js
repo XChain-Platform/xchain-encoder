@@ -517,10 +517,15 @@ class XChainEncoder {
       // map: a byte-identical rebuild hashes to the same txid, and returning it
       // as a fresh build let a caller journal one broadcast as two successes.
       this.recentBuilds = new Map()
-      // outpoint -> the reservation expiry the envelope-cancel path itself wrote,
-      // its ownership stamp in outpointReservations. A cancel is deterministic
-      // from the recovery record, so it must be able to re-take its OWN live
-      // claim; a claim it did not write belongs to another build and blocks it.
+      // outpoint -> Map(cancel-build owner id -> that build's reservation expiry).
+      // A cancel is deterministic from the recovery record, so it must be able to
+      // re-take an outpoint its OWN path already holds; an outpoint no cancel
+      // owner wrote belongs to another build and blocks it. The owner SET, rather
+      // than one expiry stamp, is what makes overlapping cancel builds of a single
+      // outpoint distinguishable: the reservation is worth the highest live owner
+      // expiry and is dropped only when the last owner lets go, so a failed retry
+      // can no longer delete the reservation an earlier outstanding cancel holds.
+      // See _releaseEnvelopeCancelClaims and _maxLiveCancelOwnerExpiry.
       this.envelopeCancelClaims = new Map()
       // reservation ticket id -> the claims ONE successful build kept, with the
       // expiry stamp each of them wrote plus the recent-build record that build
@@ -612,23 +617,71 @@ class XChainEncoder {
         }
     }
 
-    // Release an envelope-cancel claim and its ownership stamp together, so a
-    // failed cancel build hands the commit outpoint back instead of squatting it
-    // for the whole TTL. Ownership-checked exactly like _releaseCallReservations.
-    _releaseEnvelopeCancelClaims(callReservations) {
-        for (const claim of callReservations) {
-            if (this.envelopeCancelClaims.get(claim.key) === claim.expiry){
-                this.envelopeCancelClaims.delete(claim.key)
-            }
+    // The highest expiry any STILL-LIVE cancel owner holds on this outpoint, or
+    // null when no live owner remains. This is the value outpointReservations must
+    // carry while the cancel path holds an outpoint, and comparing it against the
+    // reservation is how the build guard tells "held only by this path" from
+    // "held by a foreign createTransaction claim".
+    _maxLiveCancelOwnerExpiry(key, now) {
+        const owners = this.envelopeCancelClaims.get(key)
+        if (!owners) return null
+        let max = null
+        for (const expiry of owners.values()) {
+            if (expiry > now && (max === null || expiry > max)) max = expiry
         }
-        this._releaseCallReservations(callReservations)
+        return max
     }
 
-    // Sweep the cancel ownership stamps alongside the reservation map, so neither
-    // grows unbounded in a long-lived process.
+    // Drop ONE cancel build's owner token and restate what the outpoint is now
+    // worth. While another live owner remains, outpointReservations is rewritten
+    // to that owner's expiry and the key stays reserved: this is the whole point
+    // of the owner set, because the releasing build's stamp is then no longer the
+    // map's value and every stamp-checked delete below leaves the entry alone.
+    // Returns true when the outpoint is still held by some other cancel owner.
+    _dropCancelOwner(key, ownerId, now) {
+        const owners = this.envelopeCancelClaims.get(key)
+        if (!owners) return false
+        owners.delete(ownerId)
+        const remaining = this._maxLiveCancelOwnerExpiry(key, now)
+        if (remaining === null) {
+            this.envelopeCancelClaims.delete(key)
+            return false
+        }
+        this.outpointReservations.set(key, remaining)
+        return true
+    }
+
+    // Release an envelope-cancel claim and its ownership token together, so a
+    // failed cancel build hands the commit outpoint back instead of squatting it
+    // for the whole TTL - but only once no other cancel build still owns it. A
+    // retry of a lost-response cancel legitimately re-claims an outpoint the first
+    // build is still outstanding on, and deleting the reservation outright on the
+    // retry's failure freed that outpoint to createTransaction while the earlier
+    // unsigned cancel spent it. Ownership-checked exactly like
+    // _releaseCallReservations: a stamp that moved belongs to somebody else.
+    _releaseEnvelopeCancelClaims(callReservations) {
+        const now = Date.now()
+        const handBack = []
+        for (const claim of callReservations) {
+            // A claim another cancel owner still holds is withheld from the stamped
+            // release below, and deliberately not left to that check: two builds a
+            // millisecond apart share an expiry, so the stamp alone cannot tell the
+            // surviving owner's reservation from this one's.
+            if (claim.cancelOwnerId && this._dropCancelOwner(claim.key, claim.cancelOwnerId, now)) continue
+            handBack.push(claim)
+        }
+        this._releaseCallReservations(handBack)
+    }
+
+    // Sweep the cancel ownership tokens alongside the reservation map, so neither
+    // grows unbounded in a long-lived process. An outpoint whose last owner token
+    // has lapsed goes with it.
     _evictExpiredEnvelopeCancelClaims(now) {
-        for (const [key, expiry] of this.envelopeCancelClaims) {
-            if (expiry <= now) this.envelopeCancelClaims.delete(key)
+        for (const [key, owners] of this.envelopeCancelClaims) {
+            for (const [ownerId, expiry] of owners) {
+                if (expiry <= now) owners.delete(ownerId)
+            }
+            if (owners.size === 0) this.envelopeCancelClaims.delete(key)
         }
     }
 
@@ -662,7 +715,12 @@ class XChainEncoder {
         this._evictExpiredReservationTickets(now)
         const live = []
         for (const claim of callReservations) {
-            if (this.outpointReservations.get(claim.key) === claim.expiry) live.push({ key: claim.key, expiry: claim.expiry })
+            // cancelOwnerId rides onto the ticket because releaseReservation has to
+            // retire this build's owner token as well as its reservation; leaving it
+            // behind would hold the outpoint until the token's own TTL lapsed.
+            if (this.outpointReservations.get(claim.key) === claim.expiry) {
+                live.push({ key: claim.key, expiry: claim.expiry, cancelOwnerId: claim.cancelOwnerId || null })
+            }
         }
         if (live.length === 0) return null
         const id = crypto.randomBytes(16).toString('hex')
@@ -714,12 +772,17 @@ class XChainEncoder {
         const released = []
         const retained = []
         for (const claim of ticket.claims) {
-            if (this.outpointReservations.get(claim.key) === claim.expiry) {
+            // Retire this build's cancel owner token first, whatever the stamp says.
+            // A ticket whose stamp has moved still has to give the token up, or the
+            // outpoint would stay reserved at this build's expiry long after the
+            // build that took it over released. _dropCancelOwner restates the
+            // reservation at the highest expiry a surviving owner holds, which is
+            // also what makes the stamp check below leave that owner's entry alone.
+            const stillHeldByAnotherCancel = claim.cancelOwnerId
+                ? this._dropCancelOwner(claim.key, claim.cancelOwnerId, now)
+                : false
+            if (!stillHeldByAnotherCancel && this.outpointReservations.get(claim.key) === claim.expiry) {
                 this.outpointReservations.delete(claim.key)
-                // The cancel path's stamp mirrors the reservation it wrote, so it
-                // has to go with it or the outpoint reads free to selection while
-                // the cancel path still believes it owns the claim.
-                if (this.envelopeCancelClaims.get(claim.key) === claim.expiry) this.envelopeCancelClaims.delete(claim.key)
                 released.push(claim.key)
             } else {
                 retained.push(claim.key)
@@ -3242,8 +3305,11 @@ class XChainEncoder {
         const nowClaim = Date.now()
         this._evictExpiredReservations(nowClaim)
         this._evictExpiredEnvelopeCancelClaims(nowClaim)
+        // Reserved AND not held by this path: the reservation is worth the highest
+        // live cancel-owner expiry whenever a cancel build holds it, so any other
+        // value means a foreign createTransaction claim owns the outpoint.
         if (this._isOutpointReserved(outpointKey, nowClaim) &&
-            this.envelopeCancelClaims.get(outpointKey) !== this.outpointReservations.get(outpointKey)){
+            this._maxLiveCancelOwnerExpiry(outpointKey, nowClaim) !== this.outpointReservations.get(outpointKey)){
             throw new OperationalError(
                 'ENVELOPE_CANCEL_OUTPOINT_RESERVED',
                 `commit outpoint ${outpointKey} is reserved by a transaction built in the last ` +
@@ -3257,8 +3323,21 @@ class XChainEncoder {
         // contract above is that a cancel rebuilds from the persisted recovery
         // record alone, so a lost-response retry must not be refused for five
         // minutes for producing the byte-identical transaction it is supposed to.
+        //
+        // Each build registers its own owner token rather than overwriting a single
+        // stamp, so an overlapping build's failure releases only what it took. A
+        // single stamp, overwritten and then deleted, hands the commit outpoint back
+        // to createTransaction while the first build's unsigned cancel still spends it.
         this._claimOutpoint(callReservations, outpointKey, nowClaim)
-        this.envelopeCancelClaims.set(outpointKey, callReservations[callReservations.length - 1].expiry)
+        const cancelClaim = callReservations[callReservations.length - 1]
+        const cancelOwnerId = crypto.randomBytes(16).toString('hex')
+        cancelClaim.cancelOwnerId = cancelOwnerId
+        let cancelOwners = this.envelopeCancelClaims.get(outpointKey)
+        if (!cancelOwners) {
+            cancelOwners = new Map()
+            this.envelopeCancelClaims.set(outpointKey, cancelOwners)
+        }
+        cancelOwners.set(cancelOwnerId, cancelClaim.expiry)
 
         // Fee-rate resolution with the same drain guards as createTransaction,
         // in miniature: the caller rate is clamped to the tighter of the

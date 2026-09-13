@@ -97,6 +97,19 @@ function buildServer(options){
         await held
         res.json({ ok: true, ip: req.ip })
     })
+
+    // /held is /expensive wrapped in gate.hold(), which is the shape api.js
+    // mounts the JSON-RPC router in. stubHold swaps the wrapper for a
+    // pass-through, and that IS the pre-fix gate, so the held-slot assertions
+    // below get a negative control instead of a second flavour of one route.
+    let heldEntered = 0
+    const wrap = options.stubHold ? (fn) => fn : gate.hold
+    app.get('/held', wrap(async (req, res) => {
+        heldEntered++
+        await held
+        res.json({ ok: true, ip: req.ip })
+    }))
+
     // The real /status makes an HTTP round-trip to the utxo-tracker, so it can
     // be made to park exactly like an expensive route; opts in per test.
     app.get('/status', async (req, res) => {
@@ -110,6 +123,7 @@ function buildServer(options){
     return {
         app, gate, probeGate, server,
         arrivals: () => expensiveArrivals,
+        enteredHeld: () => heldEntered,
         release: () => releaseHeld(), releaseProbe: () => releaseProbe()
     }
 }
@@ -206,6 +220,96 @@ describe('Security: global in-flight concurrency cap', function () {
         controller.abort()
         await aborted.catch(() => {})
         await waitFor(() => gate.getStats().in_flight === 0, 'aborted slot to be released')
+    })
+
+    it('keeps a held slot while the upstream work runs on after the client aborts', async function () {
+        // Express never awaits an async handler, so releasing on the socket's
+        // 'close' let a client start a create_tx, hang up, and take a fresh slot
+        // while the first build was still fanning out into node and tracker RPCs.
+        // Repeat the abort and the cap admits work it has already counted out,
+        // with in_flight reading zero. hold() binds the slot to the handler's
+        // promise instead.
+        const { server, gate, release, enteredHeld } = buildServer({ limit: 1 })
+        await listen(server)
+
+        const controller = new AbortController()
+        const aborted = get(server, '/held', 1, { signal: controller.signal })
+        await waitFor(() => gate.getStats().in_flight === 1, 'gate to reach its cap')
+        await waitFor(() => enteredHeld() === 1, 'the handler to have entered')
+
+        controller.abort()
+        await aborted.catch(() => {})
+        // Deliberate delay, NOT a synchronization point: do not convert this to
+        // waitFor. The claim is that in_flight STAYS 1 across a window in which
+        // 'close' had every chance to fire and be ignored, so the elapsed time IS
+        // the measurement. A predicate on in_flight === 1 already holds on entry
+        // and would return on its first tick, asserting nothing; without the
+        // wrapper the slot is already back by the end of this window.
+        await new Promise(r => setTimeout(r, 50))
+
+        assert.strictEqual(gate.getStats().in_flight, 1)
+        // The behavioural half: the next caller is refused because the work the
+        // first one started is still running.
+        const overflow = await get(server, '/held', 2)
+        assert.strictEqual(overflow.status, 429)
+        assert.strictEqual((await overflow.json()).error.message, 'Server busy, retry shortly')
+        assert.strictEqual(enteredHeld(), 1)
+
+        release()
+        await waitFor(() => gate.getStats().in_flight === 0, 'slot to come back once the work settled')
+        assert.strictEqual((await get(server, '/held', 3)).status, 200)
+    })
+
+    it('negative control: with hold() stubbed out, the aborted slot is handed to the next caller', async function () {
+        // The same scenario against a pass-through wrapper, which is exactly the
+        // pre-fix gate. If this ever goes green the assertion above has stopped
+        // measuring anything.
+        const { server, gate, enteredHeld } = buildServer({ limit: 1, stubHold: true })
+        await listen(server)
+
+        const controller = new AbortController()
+        const aborted = get(server, '/held', 1, { signal: controller.signal })
+        await waitFor(() => gate.getStats().in_flight === 1, 'gate to reach its cap')
+        await waitFor(() => enteredHeld() === 1, 'the handler to have entered')
+
+        controller.abort()
+        await aborted.catch(() => {})
+        await waitFor(() => gate.getStats().in_flight === 0, 'the socket close to free the slot')
+
+        // Over-admission: a second handler now runs the same expensive work the
+        // cap of 1 was meant to forbid. It is never awaited, because it parks in
+        // the handler exactly like the first one did.
+        get(server, '/held', 2).catch(() => {})
+        await waitFor(() => enteredHeld() === 2, 'a second handler to be admitted past the cap')
+        assert.strictEqual(gate.getStats().shed, 0)
+    })
+
+    it('passes a request through hold() untouched when the gate holds no slot for it', async function () {
+        // A disabled gate hands out no slots, so hold() must not invent one and
+        // must not swallow the handler.
+        const { server, gate, release, enteredHeld } = buildServer({ limit: 0 })
+        await listen(server)
+
+        const parked = get(server, '/held', 1)
+        await waitFor(() => enteredHeld() === 1, 'the wrapped handler to run past the disabled gate')
+        assert.deepStrictEqual(gate.getStats(), { limit: 0, in_flight: 0, shed: 0 })
+
+        release()
+        assert.strictEqual((await parked).status, 200)
+    })
+
+    it('api.js mounts the JSON-RPC router and /status inside hold()', function () {
+        // The wrapper is the whole fix, and it lives at the mount site rather
+        // than inside the gate, so an unwrapped mount silently puts a route back
+        // outside the cap with no test of its own going red.
+        const apiSource = require('fs').readFileSync(
+            require('path').join(__dirname, '../../src/api.js'), 'utf8')
+        assert.ok(apiSource.includes('app.use(requestGate.hold(jsonRouter('),
+            'the JSON-RPC router must be mounted inside requestGate.hold()')
+        // /status is skipped by the main gate, so its slot lives in the probe
+        // reserve and only that gate's hold() can claim it.
+        assert.ok(apiSource.includes("app.get('/status', probeGate.hold("),
+            '/status must hold its PROBE-reserve slot, not a main-gate slot')
     })
 
     it('still answers the /status readiness probe while the main gate sheds', async function () {

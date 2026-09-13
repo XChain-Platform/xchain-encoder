@@ -94,16 +94,46 @@ function sanitizeRpcError(error){
 // while modern Core reports `vsize` and nests the fee under `fees.base`. Either
 // reader returns null on a value it cannot price, which the caller treats as an
 // unusable package rather than as a zero-fee ancestor.
+// The node's own JSON-RPC error as a compact suffix, off either response shape
+// the fleet produces: BTC v28 answers HTTP 200 with an error body, while
+// LTC/DOGE answer HTTP 500 and axios hangs the body off error.response. Returns
+// '' when there is no error body, so a pure transport failure reads exactly as
+// it did before. Must be read BEFORE sanitizeRpcError, which scrubs
+// error.response down to its status.
+function rpcErrorDetail(body){
+    const rpcError = body && body.error
+    if (!rpcError || typeof rpcError !== 'object') return ''
+    const code = rpcError.code
+    const message = rpcError.message || ''
+    if (code === undefined && message === '') return ''
+    return ` (RPC error ${code === undefined ? 'unknown' : code}: ${message})`
+}
+
+// Type before coercion: Number(null), Number('') and Number(false) are all a
+// finite 0, and Number(true) is 1, so a bare Number() cast turns an unreadable
+// field into a priceable value. Only real numbers, and strings that spell one,
+// are priceable; anything else is null and invalidates the package.
+function readNumeric(raw){
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+    if (typeof raw === 'string') {
+        const trimmed = raw.trim()
+        if (trimmed === '') return null
+        const parsed = Number(trimmed)
+        return Number.isFinite(parsed) ? parsed : null
+    }
+    return null
+}
+
 function entrySize(entry){
     const raw = entry && (entry.vsize !== undefined ? entry.vsize : entry.size)
-    const size = Number(raw)
-    return (Number.isFinite(size) && size > 0) ? size : null
+    const size = readNumeric(raw)
+    return (size !== null && size > 0) ? size : null
 }
 
 function entryFee(entry){
     const raw = entry && (entry.fees && entry.fees.base !== undefined ? entry.fees.base : entry.fee)
-    const fee = Number(raw)
-    return (Number.isFinite(fee) && fee >= 0) ? fee : null
+    const fee = readNumeric(raw)
+    return (fee !== null && fee >= 0) ? fee : null
 }
 
 class BlockchainConnector {
@@ -134,10 +164,13 @@ class BlockchainConnector {
             if (responseData.result) {
                 return responseData.result;
             } else {
-                throw new Error('Error getting network info');
+                throw new Error('Error getting network info' + rpcErrorDetail(responseData));
             }
         } catch (error) {
-            throw new Error(`Error in network request: ${error.message}`);
+            // Keep the node's reason: a warming node answers -28 "Loading block
+            // index...", which is otherwise flattened to "status code 500".
+            const detail = rpcErrorDetail(error.response && error.response.data);
+            throw new Error(`Error in network request: ${sanitizeRpcError(error)}${detail}`);
         }
     }
 
@@ -173,10 +206,13 @@ class BlockchainConnector {
                 this._chainNameCache = String(responseData.result.chain);
                 return this._chainNameCache;
             } else {
-                throw new Error('Error getting blockchain info');
+                throw new Error('Error getting blockchain info' + rpcErrorDetail(responseData));
             }
         } catch (error) {
-            throw new Error(`Error in network request: ${error.message}`);
+            // Same reason as getNetworkInfo: preserve the node's own RPC code
+            // and message rather than the bare HTTP status.
+            const detail = rpcErrorDetail(error.response && error.response.data);
+            throw new Error(`Error in network request: ${sanitizeRpcError(error)}${detail}`);
         }
     }
 
@@ -382,41 +418,50 @@ class BlockchainConnector {
 
         // txid -> {size, fee}. The dedupe surface for shared ancestors.
         const packageEntries = new Map()
-        const record = (txid, entry) => {
+        const record = (staged, txid, entry) => {
             const key = String(txid).toLowerCase()
-            if (packageEntries.has(key)) return true
+            if (packageEntries.has(key) || staged.has(key)) return true
             const size = entrySize(entry)
             const fee = entryFee(entry)
             if (size === null || fee === null) return false
-            packageEntries.set(key, { size, fee })
+            staged.set(key, { size, fee })
             return true
         }
 
         for (const txid of roots) {
+            // A root's two RPC calls are not atomic, so a block can confirm the
+            // root between them; the node then answers the second call with -5.
+            // Stage the branch and merge it only once both calls described the
+            // same mempool, so a confirmed root's bytes and fee never reach the
+            // package the child pays to accelerate.
+            const staged = new Map()
             const self = await this._mempoolRpc('getmempoolentry', [txid])
             if (!self.ok) {
                 if (self.absent) continue        // already confirmed, nothing to carry
                 return null
             }
-            if (!record(txid, self.result)) return null
+            if (!record(staged, txid, self.result)) return null
 
             // verbose=true: the ancestors come back as a txid-keyed map of the same
             // entries, so one call per input covers the whole branch above it.
             const ancestors = await this._mempoolRpc('getmempoolancestors', [txid, true])
             if (!ancestors.ok) {
+                // The root confirmed mid-sequence; its ancestors confirmed at or
+                // before it did, so the whole staged branch is stale. Discard it.
                 if (ancestors.absent) continue
                 return null
             }
             const result = ancestors.result
             if (result && typeof result === 'object' && !Array.isArray(result)) {
                 for (const ancestorTxid of Object.keys(result)) {
-                    if (!record(ancestorTxid, result[ancestorTxid])) return null
+                    if (!record(staged, ancestorTxid, result[ancestorTxid])) return null
                 }
             } else {
                 // A non-verbose (array) answer carries no size or fee, so the package
                 // cannot be priced from it.
                 return null
             }
+            for (const [key, entry] of staged) packageEntries.set(key, entry)
         }
 
         let size = 0
@@ -426,6 +471,24 @@ class BlockchainConnector {
             fees += entry.fee
         }
         return { size, fees }
+    }
+
+    // The "node has no fee estimate" fallback for non-mainnet chains: a multiple
+    // of the node's own min-relay floor, or null when it does not apply (mainnet,
+    // or a node that reports no usable relayfee). Null means the caller throws.
+    // Consulted from both shapes the condition arrives in, the feerate:-1 success
+    // body and an RPC error body, so the two paths cannot drift apart.
+    async _noEstimateRelayFallback() {
+        if ((await this.chainName()) === 'main') return null;
+        const info = await this.getNetworkInfo();
+        const relayfee = Number(info && info.relayfee);
+        if (!(relayfee > 0)) return null;
+        const multiplier = noEstimateRelayMultiplier();
+        const feerate = relayfee * multiplier;
+        console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using ' +
+            multiplier + 'x the node relayfee floor: ' + feerate + '/kB ' +
+            '(FEE_NO_ESTIMATE_RELAY_MULTIPLIER to change)');
+        return feerate;
     }
 
     async getFeePerKilobyte(blocksNumber) {
@@ -504,18 +567,8 @@ class BlockchainConnector {
             // testnets it is 10 sat/vB, cheap in coin that costs nothing.
             // Mainnet keeps throwing: there a missing estimate means the node is
             // unhealthy, and paying real coin on a guess is the worse failure.
-            if ((await this.chainName()) !== 'main') {
-                const info = await this.getNetworkInfo();
-                const relayfee = Number(info && info.relayfee);
-                if (relayfee > 0) {
-                    const multiplier = noEstimateRelayMultiplier();
-                    const feerate = relayfee * multiplier;
-                    console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using ' +
-                        multiplier + 'x the node relayfee floor: ' + feerate + '/kB ' +
-                        '(FEE_NO_ESTIMATE_RELAY_MULTIPLIER to change)');
-                    return feerate;
-                }
-            }
+            const fallback = await this._noEstimateRelayFallback();
+            if (fallback !== null) return fallback;
             throw new Error('Error getting smart fee from node');
         } catch (error) {
             // On a fresh regtest chain estimatesmartfee can error (not enough
@@ -535,8 +588,18 @@ class BlockchainConnector {
                     }
                     return 0.00001000;
                 }
+                // A node can report the same "no estimate" condition with an RPC
+                // error instead of feerate:-1 (LTC/DOGE answer HTTP 500 with a
+                // JSON-RPC error body, so axios throws before the try-block's
+                // fallback is reached). Run the same non-mainnet fallback here, or
+                // a public testnet in that state fails every fee-bearing build
+                // with nothing wrong at the node. Mainnet still returns null and
+                // rethrows, and a genuinely unreachable node makes the fallback's
+                // own RPCs throw, so node-down stays a hard failure.
+                const fallback = await this._noEstimateRelayFallback();
+                if (fallback !== null) return fallback;
             } catch (_) {
-                // isRegtest() itself failed; fall through to rethrow.
+                // isRegtest() or the fallback's own RPC failed; fall through to rethrow.
             }
             console.error('Error:', sanitizeRpcError(error));
             throw error;

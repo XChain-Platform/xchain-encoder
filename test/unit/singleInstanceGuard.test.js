@@ -306,6 +306,77 @@ describe('singleInstanceGuard', function () {
             assert.strictEqual(fs.existsSync(file), true)
             release()
         })
+
+        // Publication is a single link() of a fully written record: finished, or not
+        // at all. A zero-byte file observable at the lock path reads as pid NaN, which
+        // fails the Number.isInteger test and so skips the ENTIRE liveness and identity
+        // block, falling straight through to unlink-and-take: two processes then hold
+        // the lock, and the first release deletes the other's record.
+        it('never leaves a half-written record observable at the lock path', function () {
+            const file = path.join(dir, 'atomic.lock')
+            const observed = []
+            // selfDescription runs INSIDE publication, which is exactly the window
+            // the old protocol left open, so it doubles as the observation hook.
+            const release = acquireInstanceLock(file, {}, {
+                selfDescription: () => {
+                    observed.push(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null)
+                    return 'node /XChainEncoder/src/api.js'
+                }
+            })
+            assert.ok(observed.length > 0, 'the observation hook must have run inside publication')
+            for (const sample of observed) {
+                if (sample === null) continue          // the name does not exist yet: fine
+                const parsed = JSON.parse(sample)      // throws on the zero-byte file
+                assert.ok(Number.isInteger(parsed.pid), 'a published record must name a pid')
+            }
+            release()
+        })
+
+        it('leaves no .tmp file behind after an acquire/release cycle', function () {
+            const file = path.join(dir, 'tmp.lock')
+            const release = acquireInstanceLock(file)
+            assert.deepStrictEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.tmp')), [])
+            release()
+            assert.deepStrictEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.tmp')), [])
+        })
+
+        it('waits out an illegible lock instead of breaking it on sight', function () {
+            const file = path.join(dir, 'initializing.lock')
+            // A zero-byte lock is an owner mid-publication on the no-hardlink
+            // fallback path, not a stale lock, so it must not be unlinked on sight.
+            // The ELAPSED TIME is the measurement: the bounded re-check has to
+            // expire before the break, and breaking on sight returns in no time.
+            fs.writeFileSync(file, '')
+            const started = Date.now()
+            const release = acquireInstanceLock(file, {}, { isPidAlive: () => true })
+            const elapsed = Date.now() - started
+            assert.ok(elapsed >= 50,
+                'an illegible lock must be re-read before it is judged stale, took ' + elapsed + 'ms')
+            assert.strictEqual(heldPid(file), process.pid, 'and it is still recoverable afterwards')
+            release()
+        })
+
+        it('release does not delete a lock that has changed hands', function () {
+            const file = path.join(dir, 'ownership.lock')
+            const release = acquireInstanceLock(file)
+            // A successor's record at the same path: a pid-reuse break leaves the
+            // ruled-stale process alive and still holding a release closure.
+            const successor = JSON.stringify({ pid: 999999, cmd: 'node other', token: 'f'.repeat(32) })
+            fs.writeFileSync(file, successor)
+            release()
+            assert.strictEqual(fs.existsSync(file), true,
+                'unlinking by path alone is how one owner\'s exit freed another owner\'s lock')
+            assert.strictEqual(fs.readFileSync(file, 'utf8'), successor)
+        })
+
+        it('records an ownership token, which is what release verifies against', function () {
+            const file = path.join(dir, 'token.lock')
+            const release = acquireInstanceLock(file)
+            const record = JSON.parse(fs.readFileSync(file, 'utf8'))
+            assert.match(record.token, /^[0-9a-f]{32}$/)
+            release()
+            assert.strictEqual(fs.existsSync(file), false)
+        })
     })
 
     describe('isPidAlive', function () {

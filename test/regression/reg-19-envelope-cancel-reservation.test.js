@@ -179,4 +179,96 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.strictEqual(encoder.envelopeCancelClaims.size, 0,
       'a stale stamp would let a foreign claim read as this path\'s own')
   })
+
+  // A lost-response retry legitimately re-claims an outpoint the first build is
+  // still outstanding on. While ownership was one expiry stamp per outpoint, the
+  // retry overwrote it and its own failure then deleted the reservation outright,
+  // handing the commit outpoint to create_tx while the first unsigned cancel was
+  // still spending it. Ownership is a per-build token set now: the last owner out
+  // frees the outpoint, nobody else.
+  it('a failed retry leaves the outstanding cancel\'s reservation in place', async function () {
+    const encoder = makeEncoder()
+    const first = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    const firstExpiry = encoder.outpointReservations.get(COMMIT_KEY)
+
+    await assert.rejects(
+      // Below the dust floor: throws after the retry has taken its own claim.
+      encoder.createEnvelopeCancelTransaction(cancelRecord(encoder, { commitValue: 600 })),
+      (err) => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
+
+    assert.strictEqual(encoder.outpointReservations.get(COMMIT_KEY), firstExpiry,
+      'the retry\'s failure must hand back only its own claim, not the outstanding build\'s')
+    assert.ok(first.reservation, 'the successful build must carry a release ticket')
+  })
+
+  it('create_tx still cannot select the commit outpoint after a failed retry', async function () {
+    const encoder = makeEncoder()
+    const address = callerAddress(encoder.network)
+    const action = actions.makeSend('JDOG', '42', actions.ADDR_BTC)
+
+    await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    await assert.rejects(
+      encoder.createEnvelopeCancelTransaction(cancelRecord(encoder, { commitValue: 600 })),
+      (err) => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
+
+    const utxos = [
+      segwitUtxo(encoder.network, COMMIT_TXID, COMMIT_VOUT, 100000000),
+      segwitUtxo(encoder.network, OTHER_TXID, 0, 100000000)
+    ]
+    const result = await encoder.createTransaction(
+      utxos, address, null, action.data, null, 10000, false, null, address,
+      null, null, null, true, 0.00001
+    )
+    const spent = result.psbt.txInputs.map(
+      (i) => Buffer.from(i.hash).reverse().toString('hex'))
+    assert.ok(!spent.includes(COMMIT_TXID),
+      'a retry\'s failure must not free an outpoint an outstanding unsigned cancel spends')
+  })
+
+  it('the first build\'s ticket still releases after a failed retry', async function () {
+    const encoder = makeEncoder()
+    const first = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    await assert.rejects(
+      encoder.createEnvelopeCancelTransaction(cancelRecord(encoder, { commitValue: 600 })),
+      (err) => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
+
+    const released = encoder.releaseReservation(first.reservation.id)
+    assert.deepStrictEqual(released.released, [COMMIT_KEY],
+      'the outstanding build\'s receipt must still work; a moved stamp reported it retained')
+    assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), false)
+    assert.strictEqual(encoder.envelopeCancelClaims.has(COMMIT_KEY), false)
+  })
+
+  it('last cancel owner out frees the outpoint, not the first', async function () {
+    const encoder = makeEncoder()
+    const first = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    const second = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+
+    const firstRelease = encoder.releaseReservation(first.reservation.id)
+    assert.deepStrictEqual(firstRelease.retained, [COMMIT_KEY],
+      'the second build is still outstanding, so the outpoint stays reserved')
+    assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), true)
+
+    const secondRelease = encoder.releaseReservation(second.reservation.id)
+    assert.deepStrictEqual(secondRelease.released, [COMMIT_KEY])
+    assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), false)
+    assert.strictEqual(encoder.envelopeCancelClaims.has(COMMIT_KEY), false)
+  })
+
+  it('three overlapping builds: an out-of-order failure frees nothing', async function () {
+    const encoder = makeEncoder()
+    const first = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    const second = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    await assert.rejects(
+      encoder.createEnvelopeCancelTransaction(cancelRecord(encoder, { commitValue: 600 })),
+      (err) => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
+    assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), true)
+
+    encoder.releaseReservation(second.reservation.id)
+    assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), true,
+      'the first build is still outstanding')
+    encoder.releaseReservation(first.reservation.id)
+    assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), false)
+    assert.strictEqual(encoder.envelopeCancelClaims.size, 0)
+  })
 })

@@ -102,6 +102,35 @@ describe('BlockchainConnector.getNetworkInfo()', () => {
     )
   })
 
+  // A warming node answers -28 "Loading block index..."; LTC/DOGE carry that in
+  // an HTTP 500 body, BTC v28 in an HTTP 200 one. Both must keep the RPC code and
+  // message: a bare status line leaves warmup indistinguishable from a network fault.
+  it('keeps the node RPC code and message from an HTTP-500 error body', async () => {
+    const err = new Error('Request failed with status code 500')
+    err.response = { status: 500, data: { error: { code: -28, message: 'Loading block index...' } } }
+    err.config = { auth: { username: 'rpcuser', password: 'FAKEPASS_must_never_be_logged_9c2d' } }
+    stubAxiosPostThrow(err)
+    const c = makeConnector()
+    await assert.rejects(() => c.getNetworkInfo(), (e) => {
+      assert.ok(/^Error in network request/.test(e.message), e.message)
+      assert.ok(e.message.includes('-28'), e.message)
+      assert.ok(e.message.includes('Loading block index'), e.message)
+      assert.ok(!e.message.includes('FAKEPASS'), 'the RPC password must never reach the message')
+      return true
+    })
+  })
+
+  it('keeps the node RPC code and message from an HTTP-200 error body', async () => {
+    stubAxiosPost({ data: { result: null, error: { code: -28, message: 'Loading block index...' } } })
+    const c = makeConnector()
+    await assert.rejects(() => c.getNetworkInfo(), (e) => {
+      assert.ok(/^Error in network request/.test(e.message), e.message)
+      assert.ok(e.message.includes('-28'), e.message)
+      assert.ok(e.message.includes('Loading block index'), e.message)
+      return true
+    })
+  })
+
   it('sets a timeout on the request', async () => {
     let capturedOptions
     axios.post = async (url, data, options) => {
@@ -170,6 +199,30 @@ describe('BlockchainConnector.isRegtest()', () => {
       () => c.isRegtest(),
       /Error in network request.*timeout/
     )
+  })
+
+  it('keeps the node RPC code and message from an HTTP-500 error body', async () => {
+    const err = new Error('Request failed with status code 500')
+    err.response = { status: 500, data: { error: { code: -28, message: 'Loading block index...' } } }
+    stubAxiosPostThrow(err)
+    const c = makeConnector()
+    await assert.rejects(() => c.chainName(), (e) => {
+      assert.ok(/^Error in network request/.test(e.message), e.message)
+      assert.ok(e.message.includes('-28'), e.message)
+      assert.ok(e.message.includes('Loading block index'), e.message)
+      return true
+    })
+  })
+
+  it('keeps the node RPC code and message from an HTTP-200 error body', async () => {
+    stubAxiosPost({ data: { result: null, error: { code: -28, message: 'Loading block index...' } } })
+    const c = makeConnector()
+    await assert.rejects(() => c.chainName(), (e) => {
+      assert.ok(/^Error in network request/.test(e.message), e.message)
+      assert.ok(e.message.includes('-28'), e.message)
+      assert.ok(e.message.includes('Loading block index'), e.message)
+      return true
+    })
   })
 })
 
@@ -647,6 +700,59 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
       () => c.getFeePerKilobyte(1),
       /Connection refused/
     )
+  })
+
+  // A node reports "no fee estimate" in two shapes, and only one of them is a
+  // success body carrying feerate:-1. LTC/DOGE answer HTTP 500 with a JSON-RPC
+  // error body, so axios throws before the try-block fallback is reached; the
+  // testnet relay-multiplier fallback has to run on that shape too, or a public
+  // testnet node in an ordinary state fails every fee-bearing build.
+  describe('no-estimate reported as an RPC error rather than feerate:-1', () => {
+    it('falls back to 10x the relayfee floor on testnet when estimatesmartfee throws', async () => {
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+        if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+        if (data.method === 'estimatesmartfee') {
+          const err = new Error('Request failed with status code 500')
+          err.response = { status: 500, data: { error: { code: -1, message: 'Insufficient data' } } }
+          throw err
+        }
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      const feerate = await c.getFeePerKilobyte(6)
+      assert.ok(Math.abs(feerate - 0.01) < 1e-12, 'expected 10x the 0.001 relay floor, got ' + feerate)
+    })
+
+    it('still rejects on testnet when the node reports no relayfee either', async () => {
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+        if (data.method === 'getnetworkinfo') return { data: { result: {} } }
+        if (data.method === 'estimatesmartfee') throw new Error('Request failed with status code 500')
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      await assert.rejects(() => c.getFeePerKilobyte(6), /status code 500/)
+    })
+
+    it('does NOT invent a rate on mainnet when estimatesmartfee throws', async () => {
+      let networkInfoCalled = false
+      axios.post = async (url, data) => {
+        if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'main' } } }
+        if (data.method === 'getnetworkinfo') { networkInfoCalled = true; return { data: { result: { relayfee: 0.001 } } } }
+        if (data.method === 'estimatesmartfee') throw new Error('Request failed with status code 500')
+        return { data: { result: {} } }
+      }
+      const c = makeConnector()
+      await assert.rejects(() => c.getFeePerKilobyte(6), /status code 500/)
+      assert.strictEqual(networkInfoCalled, false, 'mainnet must never substitute the relay floor')
+    })
+
+    it('keeps a node-down failure a failure', async () => {
+      stubAxiosPostThrow(new Error('ECONNREFUSED'))
+      const c = makeConnector()
+      await assert.rejects(() => c.getFeePerKilobyte(6), /ECONNREFUSED/)
+    })
   })
 
   it('throws when result is entirely missing (non-regtest)', async () => {
