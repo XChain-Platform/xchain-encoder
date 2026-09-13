@@ -83,7 +83,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
     it('adds UTXOs until inputs cover outputs + fee', async function () {
       const encoder = makeEncoder(NETWORK)
       // The oversized explicit fee forces multi-UTXO selection; it would trip
-      // the relative fee-rate cap (tested in XChainEncoder.feeRateCap.test.js).
+      // the relative fee-rate cap (tested in xchain_encoder_fee_rate_cap.test.js).
       encoder.maxFeeRateMultiplier = null
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
@@ -174,7 +174,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
     it('explicit fee parameter is used verbatim', async function () {
       const encoder = makeEncoder(NETWORK)
       // This fee sits above the relative fee-rate cap by design; the cap has
-      // its own suite (XChainEncoder.feeRateCap.test.js), disable it here.
+      // its own suite (xchain_encoder_fee_rate_cap.test.js), disable it here.
       encoder.maxFeeRateMultiplier = null
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)

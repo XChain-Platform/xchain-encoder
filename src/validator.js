@@ -135,7 +135,7 @@ const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 // this set, after alias expansion, silently no-actioning the tx); the encoder
 // had no equivalent gate, so a typoed or too-new ACTION name would encode, pay
 // fees, and broadcast, then vanish silently at decode. Pinned against drift by
-// test/unit/ActionManifestConformance.test.js, mirroring the decoder's own
+// test/unit/action_manifest_conformance.test.js, mirroring the decoder's own
 // conformance guard.
 const VALID_ACTION_NAMES = new Set([
     'ADDRESS', 'AIRDROP', 'ANCHOR', 'ATTEST',

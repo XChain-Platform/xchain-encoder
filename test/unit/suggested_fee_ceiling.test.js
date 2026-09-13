@@ -9,7 +9,7 @@
  * General Public License v3.0 or later; see LICENSE.md.
  *
  **********************************************************************
- * test/unit/suggestedFeeCeiling.test.js
+ * test/unit/suggested_fee_ceiling.test.js
  *
  * The suggested-rate ceiling for a caller that supplies no fee.
  *

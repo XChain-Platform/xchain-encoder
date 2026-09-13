@@ -37,14 +37,14 @@ describe('Chaos Category E: Resource Exhaustion', () => {
       const encoder = makeEncoder(BTC)
       const utxo = makeUtxo(BTC, TXID_A, 0, 1000000000)
 
-      // This test measures encoding time, not fee policy. It used to pass a
-      // flat 100000-sat fee and switch off the relative fee-rate cap
-      // (maxFeeRateMultiplier = null) to get it past. That knob no longer
-      // covers it: the absolute burn backstop is deliberately unconditional,
-      // precisely so disabling the rate cap cannot open a drain, and 100000 sat
-      // is over 100x the fair fee for this ~900-byte funding tx. Pay a fee that
-      // a real caller could pay instead of disarming the guard. Fee policy has
-      // its own suite (XChainEncoder.feeRateCap.test.js).
+      // This test measures encoding time, not fee policy, so it pays a fee a
+      // real caller could pay. A flat 100000-sat fee with the relative fee-rate
+      // cap switched off (maxFeeRateMultiplier = null) does not get it past: the
+      // absolute burn backstop is deliberately unconditional, precisely so
+      // disabling the rate cap cannot open a drain, and 100000 sat is over 100x
+      // the fair fee for this ~900-byte funding tx. The fee stays one a real
+      // caller could pay instead of disarming the guard. Fee policy has its own
+      // suite (xchain_encoder_fee_rate_cap.test.js).
       const start = Date.now()
       const result = await encoder.createTransaction(
         [utxo], BTC_ADDR, null,

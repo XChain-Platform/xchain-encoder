@@ -13,7 +13,7 @@
 // Boot guard: the encoder vendors the consensus-critical coin registry and reads
 // dustThreshold / supportsSegwit / address prefixes out of it, so it must run the
 // same fail-closed pin check every sibling consumer runs (decoder, indexer, hub,
-// utxo-tracker). coins-conformance.test.js catches commit-time drift only; it
+// utxo-tracker). coins_conformance.test.js catches commit-time drift only; it
 // cannot catch a stale deployed image, which is what this guard is for.
 
 const assert = require('assert');

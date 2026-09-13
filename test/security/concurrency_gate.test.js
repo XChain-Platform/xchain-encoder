@@ -20,7 +20,7 @@
  * IP per request, so a shed can only come from the global cap - the per-IP
  * limiter is mounted alongside at its production default and never fires.
  *
- * Run: mocha test/security/concurrency-gate.test.js --timeout 30000
+ * Run: mocha test/security/concurrency_gate.test.js --timeout 30000
  */
 
 'use strict'

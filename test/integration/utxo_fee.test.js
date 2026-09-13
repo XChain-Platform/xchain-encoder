@@ -40,7 +40,7 @@ const actions = require('./helpers/actionFactory')
 // 'dogecoin-regtest' (dust 100000), so any fee below 100000 was floored and the
 // "verbatim"/cap-comparison assertions failed. Bitcoin-regtest matches the
 // semantics these assertions actually test. (DOGE's high-dust floor is covered
-// in test/boundary/fee-calculation-boundaries.test.js.)
+// in test/boundary/fee_calculation_boundaries.test.js.)
 const NETWORK = 'bitcoin-regtest'
 
 describe('Category D: UTXO & Fee Integration', () => {

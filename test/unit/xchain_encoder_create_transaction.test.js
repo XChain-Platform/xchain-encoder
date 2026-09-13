@@ -283,7 +283,7 @@ describe('XChainEncoder.createTransaction()', () => {
   describe('fee handling', () => {
     it('uses custom fee when provided', async () => {
       const encoder = makeEncoder()
-      // The relative fee-rate cap has its own suite (XChainEncoder.feeRateCap.test.js)
+      // The relative fee-rate cap has its own suite (xchain_encoder_fee_rate_cap.test.js)
       // and the absolute burn backstop has its own test below; disable/isolate
       // both here so only the passthrough behaviour is under test.
       encoder.maxFeeRateMultiplier = null

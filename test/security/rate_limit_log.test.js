@@ -21,7 +21,7 @@
  * source check pins src/api.js's limiter to this handler rather than a
  * bare `message:` option.
  *
- * Run: mocha test/security/rate-limit-log.test.js --timeout 30000
+ * Run: mocha test/security/rate_limit_log.test.js --timeout 30000
  */
 
 'use strict'
