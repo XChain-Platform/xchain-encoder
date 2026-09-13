@@ -34,6 +34,7 @@ const BIG_DATA = 'x'.repeat(80)
 
 describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
+  // Reveal derives inputs from phase 1, never re-queries the tracker.
   describe('M-5: P2SH reveal does not re-query the UTXO tracker', () => {
     it('builds the reveal from p2shHex alone, even when the tracker would fail', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
@@ -70,6 +71,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     })
   })
 
+  // Sub-dust change is folded into the fee, never emitted.
   describe('M-6: sub-dust change folding', () => {
     it('folds 1-sat change into the fee (no unbroadcastable dust output)', async () => {
       const encoder = makeEncoder('bitcoin-regtest') // dust = 546
@@ -113,6 +115,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     })
   })
 
+  // The 500-UTXO cap gates the SELECTED count, not the fetched set.
   describe('M-7: MAX_UTXO_COUNT applies to selected inputs, not the fetched set', () => {
     it('builds from a tracker set larger than 500 UTXOs when a few inputs cover', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -154,6 +157,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     })
   })
 
+  // Under-funded selection throws a typed error, not a dead PSBT.
   describe('M-8: insufficient-funds error', () => {
     it('throws INSUFFICIENT_FUNDS with a required/available payload', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -176,6 +180,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     })
   })
 
+  // Outpoint reservation prevents concurrent same-address double-spends.
   describe('L-1: in-memory outpoint reservation', () => {
     function twoUtxoTracker (encoder) {
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
@@ -243,6 +248,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
     })
   })
 
+  // api.js forwards typed operational errors, sanitizes internals.
   describe('L-2: API surfaces typed operational errors', () => {
     const { OperationalError } = require('../../src/build/errors')
     const { jsonRpcController, encoder } = require('../../src/api')
