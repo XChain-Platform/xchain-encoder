@@ -231,6 +231,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
           '', null, 10000, false, null, address,
           null, null, null, true, 0.00001
         )
+        // If it succeeds, it should still be a valid PSBT
         assert.ok(result.psbt)
       } catch (err) {
         // If it throws, the error should be meaningful
@@ -277,6 +278,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
           assert.ok(output.value >= 0, `output value ${output.value} should not be negative`)
         }
       } catch (err) {
+        // Throwing is also acceptable
         assert.ok(err)
       }
     })
@@ -298,8 +300,10 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
           null, null, null, true, 0.00001
         )
 
+        // If it somehow succeeds, verify structural validity
         assert.ok(result.psbt)
       } catch (err) {
+        // Expected to throw due to insufficient funds
         assert.ok(err)
       }
     })

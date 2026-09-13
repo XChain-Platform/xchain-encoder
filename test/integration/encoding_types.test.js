@@ -138,6 +138,7 @@ describe('Category B: Encoding Type Integration', () => {
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeIssueFull('BIGTOKEN')
 
+      // Create tx1
       const tx1Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, null, address,
@@ -147,6 +148,7 @@ describe('Category B: Encoding Type Integration', () => {
       const tx1Hex = tx1Result.psbt.__CACHE.__TX.toHex()
       const tx1Id = tx1Result.psbt.__CACHE.__TX.getId()
 
+      // Create tx2
       const tx2Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, null, address,
@@ -158,6 +160,7 @@ describe('Category B: Encoding Type Integration', () => {
       // tx2 should have at least 1 input (the P2SH spend)
       assert.ok(tx2Result.psbt.data.inputs.length >= 1)
 
+      // tx2 should have an OP_RETURN marker output with value 0
       const markerOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
       assert.strictEqual(markerOutput.script[0], bitcoin.opcodes.OP_RETURN)
@@ -184,6 +187,7 @@ describe('Category B: Encoding Type Integration', () => {
         tx1Id, tx1Hex, null, true, 0.00001
       )
 
+      // The first input should have a redeemScript
       const input = tx2Result.psbt.data.inputs[0]
       assert.ok(input.redeemScript, 'P2SH input should have redeemScript')
 
@@ -235,6 +239,7 @@ describe('Category B: Encoding Type Integration', () => {
       const utxo = makeUtxo(p2wshNetwork, TXID_A, 0, 100000000)
       const action = actions.makeFileLarge()
 
+      // Create tx1
       const tx1Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, 'P2WSH', address,
@@ -244,6 +249,7 @@ describe('Category B: Encoding Type Integration', () => {
       const tx1Hex = tx1Result.psbt.__CACHE.__TX.toHex()
       const tx1Id = tx1Result.psbt.__CACHE.__TX.getId()
 
+      // Create tx2
       const tx2Result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, 10000, false, 'P2WSH', address,
@@ -252,6 +258,7 @@ describe('Category B: Encoding Type Integration', () => {
 
       assert.strictEqual(tx2Result.encoding, 'P2WSH')
 
+      // tx2 first input should have a witnessScript
       const input = tx2Result.psbt.data.inputs[0]
       assert.ok(input.witnessScript, 'P2WSH input should have witnessScript')
 
@@ -260,6 +267,7 @@ describe('Category B: Encoding Type Integration', () => {
       assert.ok(Buffer.isBuffer(decompiled[0]), 'first element should be data')
       assert.strictEqual(decompiled[1], bitcoin.opcodes.OP_DROP)
 
+      // tx2 should have OP_RETURN marker
       const markerOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
     })
@@ -284,6 +292,7 @@ describe('Category B: Encoding Type Integration', () => {
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
+      // Find the multisig output (value = dustAmount)
       const msOutput = result.psbt.txOutputs.find(o =>
         o.value === encoder.dustAmount
       )

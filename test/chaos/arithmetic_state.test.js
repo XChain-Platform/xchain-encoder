@@ -199,6 +199,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       ]
       const orderBefore = utxos.map(u => u.txid)
 
+      // First call
       await encoder.createTransaction(
         utxos, ADDRESS, null,
         actions.makeSend().data, null, 10000, false, null, ADDRESS,

@@ -105,6 +105,7 @@ describe('Category C: Obfuscation Round-Trip', () => {
       const payload = extractMultisignPayload(result, TXID_MULTISIGN, encoder.dustAmount)
       assert.strictEqual(payload.magic, MAGIC_WORD)
 
+      // The decompiled data should contain our original string
       const decompiled = decompilePayload(payload.dataBuffer)
       assert.strictEqual(decompiled[0].toString('utf8'), MS_DATA)
     })
@@ -210,6 +211,8 @@ describe('Category C: Obfuscation Round-Trip', () => {
         null, null, null, true, 0.00001
       )
 
+      // After sorting, TXID_A (largest) should be the first UTXO
+      // and therefore the obfuscation key
       const payload = extractOpReturnPayload(result, TXID_A)
       assert.strictEqual(payload.magic, MAGIC_WORD,
         'obfuscation key should derive from largest UTXO txid (TXID_A)')

@@ -115,6 +115,7 @@ describe('XChainEncoder', () => {
                 }
             }
             
+            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -130,6 +131,7 @@ describe('XChainEncoder', () => {
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
 
+            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -208,6 +210,7 @@ describe('XChainEncoder', () => {
                 }
             }
             
+            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -218,10 +221,12 @@ describe('XChainEncoder', () => {
             const changeAddress = testAddress;
             const exactFee = 10000;
 
+            // Llamar a la función createTransaction
             console.log("Creating the first transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
             
+            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -237,6 +242,7 @@ describe('XChainEncoder', () => {
             let tx1Hex = tx1.toHex()
             let tx1Id = tx1.getId()
             
+            //Cargar el psbt2
             console.log("Creating the second transaction with XchainEncoder")
             const psbt2Resultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, tx1Id, tx1Hex);
             const psbt2Base64 = psbt2Resultante.toBase64()
@@ -334,6 +340,7 @@ describe('XChainEncoder', () => {
                 }
             }
             
+            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -346,10 +353,12 @@ describe('XChainEncoder', () => {
             const compressedPubKey = address.publicKey.toString("hex")
 
 
+            // Llamar a la función createTransaction
             console.log("Creating the first transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, null, null, compressedPubKey);
             const psbtBase64 = psbtResultante.toBase64()
             
+            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -441,6 +450,7 @@ describe('XChainEncoder', () => {
                 }
             }
             
+            // Configurar instancias y datos de prueba
             const encoder = new XChainEncoder("bitcoin-regtest", "127.0.0.1", "8333", "rpc", "rpc", "");
             const pubkey = testAddress;
             const customOutputs = {};
@@ -451,10 +461,12 @@ describe('XChainEncoder', () => {
             const changeAddress = testAddress;
             const exactFee = 10000;
 
+            // Llamar a la función createTransaction
             console.log("Creating the first transaction with XchainEncoder")
             const psbtResultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress);
             const psbtBase64 = psbtResultante.toBase64()
             
+            //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
             var ECPair = ECPairFactory(ecc);
 
@@ -470,6 +482,7 @@ describe('XChainEncoder', () => {
             let tx1Hex = tx1.toHex()
             let tx1Id = tx1.getId()
             
+            //Cargar el psbt2
             console.log("Creating the second transaction with XchainEncoder")
             const psbt2Resultante = await encoder.createTransaction(utxos, pubkey, customOutputs, data, rawData, exactFee, replacebyfee, outputType, changeAddress, tx1Id, tx1Hex);
             const psbt2Base64 = psbt2Resultante.toBase64()

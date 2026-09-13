@@ -382,6 +382,7 @@ describe('Category D: UTXO & Fee Integration', () => {
         null, null, null, true, 0.00001
       )
 
+      // The large UTXO alone covers everything, so only 1 input needed
       assert.strictEqual(result.psbt.data.inputs.length, 1)
     })
   })
