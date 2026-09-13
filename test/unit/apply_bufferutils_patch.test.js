@@ -157,11 +157,14 @@ describe('applyBufferutilsPatch', function () {
         const repoRoot = path.resolve(__dirname, '../../..');
         const sdkRoot = path.join(repoRoot, 'xchain-sdk');
         const mine = path.join(__dirname, '../../src/apply_bufferutils_patch.js');
-        // NOT renamed here: this resolves into xchain-sdk, whose own copy of
-        // the patch has not moved. A bare-literal rewrite pass cannot tell
-        // this string from a same-repo reference and over-corrected it once;
-        // restored by hand.
-        const twin = path.join(sdkRoot, 'src/applyBufferutilsPatch.js');
+        // NOT renamed by THIS repo's codemod: this resolves into xchain-sdk,
+        // which owns its own rename independently. A bare-literal rewrite
+        // pass cannot tell this string from a same-repo reference and
+        // over-corrected it once; restored by hand. Repointed here to the
+        // SDK repo's own published new path (src/applyBufferutilsPatch.js
+        // -> src/utils/apply_bufferutils_patch.js) once that repo made its
+        // own move, so this test does not read a sibling change as drift.
+        const twin = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch.js');
 
         it('is byte-identical to the SDK copy below the banner', function () {
             // Skipped ONLY where the sibling repo is absent entirely (a
