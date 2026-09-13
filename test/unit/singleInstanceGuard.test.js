@@ -13,7 +13,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals, isPidAlive } = require('../../src/singleInstanceGuard')
+const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals, isPidAlive } = require('../../src/single_instance_guard')
 
 describe('singleInstanceGuard', function () {
 

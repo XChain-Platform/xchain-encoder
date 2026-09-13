@@ -36,8 +36,8 @@
  *
  ********************************************************************/
 
-const { ChainAdapter, AdapterNotImplementedError } = require('./ChainAdapter');
-const evmFinality = require('./evmFinality');
+const { ChainAdapter, AdapterNotImplementedError } = require('./chain_adapter');
+const evmFinality = require('./evm_finality');
 
 class EvmAdapter extends ChainAdapter {
     // `chain` is an EVM chain key present in evmFinality.EVM_FINALITY (e.g. 'ETH',

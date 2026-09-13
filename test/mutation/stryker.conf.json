@@ -3,8 +3,8 @@
   "mutate": [
     "src/XChainEncoder.js",
     "src/validator.js",
-    "src/TxSizeEstimator.js",
-    "src/CryptoNetworks.js"
+    "src/tx_size_estimator.js",
+    "src/crypto_networks.js"
   ],
   "testRunner": "mocha",
   "mochaOptions": {

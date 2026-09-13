@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const axios = require('axios')
-const UtxoTracker = require('../../src/UtxoTracker')
+const UtxoTracker = require('../../src/utxo_tracker')
 
 function makeTracker () {
   return new UtxoTracker('127.0.0.1', 18420)

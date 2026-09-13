@@ -7,7 +7,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const bufferutils = require('../../src/applyBufferutilsPatch.js');
+const bufferutils = require('../../src/apply_bufferutils_patch.js');
 
 // The two copies share one body and differ only in the licence/doc banner,
 // because each header names the other copy and its own read-side relationship.
@@ -156,7 +156,11 @@ describe('applyBufferutilsPatch', function () {
     describe('twin guard against the SDK copy', function () {
         const repoRoot = path.resolve(__dirname, '../../..');
         const sdkRoot = path.join(repoRoot, 'xchain-sdk');
-        const mine = path.resolve(__dirname, '../../src/applyBufferutilsPatch.js');
+        const mine = path.join(__dirname, '../../src/apply_bufferutils_patch.js');
+        // NOT renamed here: this resolves into xchain-sdk, whose own copy of
+        // the patch has not moved. A bare-literal rewrite pass cannot tell
+        // this string from a same-repo reference and over-corrected it once;
+        // restored by hand.
         const twin = path.join(sdkRoot, 'src/applyBufferutilsPatch.js');
 
         it('is byte-identical to the SDK copy below the banner', function () {
@@ -184,7 +188,7 @@ describe('applyBufferutilsPatch', function () {
             for (const name of required) {
                 assert.ok(
                     Object.prototype.hasOwnProperty.call(pkg.dependencies || {}, name),
-                    name + ' is required by src/applyBufferutilsPatch.js but not declared in package.json dependencies'
+                    name + ' is required by src/apply_bufferutils_patch.js but not declared in package.json dependencies'
                 );
             }
         });

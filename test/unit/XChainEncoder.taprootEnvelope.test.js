@@ -23,8 +23,9 @@ const bitcoin = require('bitcoinjs-lib')
 const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 const XChainEncoder = require('../../src/XChainEncoder')
-const TxSizeEstimator = require('../../src/TxSizeEstimator')
+const TxSizeEstimator = require('../../src/tx_size_estimator')
 const { ENVELOPE_MAX_PAYLOAD, MAX_COMPILED_ACTION_DATA_LENGTH, MAX_STANDARD_TX_WEIGHT } = require('../../src/validator')
+const vectors = require('../../../xchain-documentation/protocol/test-vectors/taproot_envelope.json');
 
 bitcoin.initEccLib(ecc)
 const ECPair = ECPairFactory(ecc)
@@ -146,7 +147,6 @@ describe('XChainEncoder TAPROOT envelope', function () {
     })
 
     it('matches the golden grammar vector', function () {
-      const vectors = require('../../../xchain-documentation/protocol/test-vectors/taproot_envelope.json')
       const v = vectors.envelope_grammar
       const payload = Buffer.from(v.compiled_payload_hex, 'hex')
       const prepared = encoder.prepareData(payload, 'TAPROOT', callerAddress(encoder.network), v.internal_pubkey_compressed)

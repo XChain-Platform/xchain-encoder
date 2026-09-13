@@ -32,6 +32,7 @@ const {
   buildRawTxHex
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
+const XChainEncoder = require('../../src/XChainEncoder');
 
 // Regression expectations encode BITCOIN fee semantics (explicit fees honored
 // verbatim, e.g. fee=50000; 546 dust). The network was mislabeled
@@ -239,7 +240,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
     })
 
     it('maxFeeRateKb cap produces lower fee than uncapped encoder', async function () {
-      const XChainEncoder = require('../../src/XChainEncoder')
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()

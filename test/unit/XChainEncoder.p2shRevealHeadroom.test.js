@@ -29,7 +29,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
-const CryptoNetworks = require('../../src/CryptoNetworks')
+const CryptoNetworks = require('../../src/crypto_networks')
 
 const SATOSHI_UNIT = 100000000
 const pubkeyBuf = Buffer.from(

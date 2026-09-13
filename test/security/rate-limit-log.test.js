@@ -13,7 +13,7 @@
  **********************************************************************
  * Security: rate-limit refusal counter/logger
  *
- * Covers src/rateLimitLog.js directly (the 429 body, the once-per-window
+ * Covers src/rate_limit_log.js directly (the 429 body, the once-per-window
  * log line, the silence in between, and the accumulated-count reset) with
  * an injectable clock/logger so nothing here needs a real timer, plus one
  * end-to-end pass through express-rate-limit to prove the draft-6 headers
@@ -32,7 +32,7 @@ const path = require('path')
 const express = require('express')
 const rateLimit = require('express-rate-limit')
 const http = require('http')
-const { limitedHandler } = require('../../src/rateLimitLog.js')
+const { limitedHandler } = require('../../src/rate_limit_log.js')
 
 const MESSAGE = { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Too many requests' } }
 

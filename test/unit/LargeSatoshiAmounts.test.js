@@ -33,7 +33,8 @@ const pubkeyBuf = Buffer.from(
 )
 const TXID_A = 'a'.repeat(64)
 
-const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const bufferutils = require('bitcoinjs-lib/src/bufferutils');
 const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: LTC_REGTEST }).address
 
 function makeSegwitUtxo (txid, vout, value) {
@@ -163,7 +164,6 @@ describe('large satoshi amounts (>2^53-1)', () => {
 
   describe('patched 64-bit serializers', () => {
     it('round-trips safe-range values as Number and big values as BigInt', () => {
-      const bufferutils = require('bitcoinjs-lib/src/bufferutils')
       const buf = Buffer.alloc(8)
       bufferutils.writeUInt64LE(buf, 546, 0)
       assert.strictEqual(bufferutils.readUInt64LE(buf, 0), 546)
@@ -172,7 +172,6 @@ describe('large satoshi amounts (>2^53-1)', () => {
     })
 
     it('rejects negative, fractional, and >u64 writes', () => {
-      const bufferutils = require('bitcoinjs-lib/src/bufferutils')
       const buf = Buffer.alloc(8)
       assert.throws(() => bufferutils.writeUInt64LE(buf, -1, 0), /negative/)
       assert.throws(() => bufferutils.writeUInt64LE(buf, 1.5, 0), /fractional/)

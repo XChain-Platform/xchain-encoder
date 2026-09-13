@@ -19,6 +19,7 @@
 
 const assert = require('assert');
 const v = require('../../src/validator.js');
+const bitcoin = require('bitcoinjs-lib');
 
 const HEX64 = 'a'.repeat(64);
 
@@ -190,7 +191,6 @@ describe('Encoder input validator', function () {
         // compiled buffer, so under-counting here by 2 per large push moved the
         // boundary payload from this -32602 pre-check to a -32603 builder error.
         it('counts the OP_PUSHDATA4 band on a push past 65,535 bytes', function () {
-            const bitcoin = require('bitcoinjs-lib');
             // The widest rawData whose real compiled size is exactly the ceiling:
             // OP_0 (1 byte, the empty data push) + rawLen + 5.
             const atCeiling = v.ENVELOPE_MAX_PAYLOAD - 1 - 5;
@@ -209,7 +209,6 @@ describe('Encoder input validator', function () {
         });
 
         it('leaves the OP_PUSHDATA2 band alone at its upper edge', function () {
-            const bitcoin = require('bitcoinjs-lib');
             // 65,535 is still +3, so the correction must not start a byte early,
             // and compiledPushSize itself must stay unforked for the decoder pin.
             assert.strictEqual(bitcoin.script.compile([Buffer.alloc(65535)]).length, 65538);

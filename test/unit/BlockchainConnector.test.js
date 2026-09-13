@@ -10,7 +10,8 @@
 
 const assert = require('assert')
 const axios = require('axios')
-const BlockchainConnector = require('../../src/BlockchainConnector')
+const BlockchainConnector = require('../../src/blockchain_connector')
+const util = require('util');
 
 function makeConnector () {
   return new BlockchainConnector('127.0.0.1', 18332, 'rpcuser', 'rpcpass')
@@ -864,7 +865,6 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
 // scrubbed from the re-thrown error. FAKE_RPC_PASSWORD is a test sentinel.
 describe('BlockchainConnector RPC-credential log sanitization', () => {
   it('does not leak the RPC password when an axios call fails', async () => {
-    const util = require('util')
     const FAKE_RPC_PASSWORD = 'FAKEPASS_must_never_be_logged_9c3f'
 
     const err = new Error('Request failed with status code 401')

@@ -21,36 +21,42 @@
 
 const assert = require('assert')
 const crypto = require('crypto')
+const mod = require('../../src/XChainEncoder');
+const bitcoin = require('bitcoinjs-lib');
+const ecc = require('tiny-secp256k1');
+const XChainEncoder = require('../../src/XChainEncoder');
+const CryptoNetworks = require('../../src/crypto_networks');
+const TxSizeEstimator = require('../../src/tx_size_estimator');
+const express = require('express');
+const bodyParser = require('body-parser');
+const helmet = require('helmet');
+const cors = require('cors');
+const jsonRouter = require('express-json-rpc-router');
+const http = require('http');
 
 describe('S1: Module Loading', () => {
   it('loads XChainEncoder', () => {
-    const mod = require('../../src/XChainEncoder')
     assert.strictEqual(typeof mod, 'function')
   })
 
   it('loads BlockchainConnector', () => {
-    const mod = require('../../src/BlockchainConnector')
     assert.strictEqual(typeof mod, 'function')
   })
 
   it('loads CryptoNetworks', () => {
-    const mod = require('../../src/CryptoNetworks')
     assert.strictEqual(typeof mod.getBitcoinJsNetwork, 'function')
   })
 
   it('loads TxSizeEstimator', () => {
-    const mod = require('../../src/TxSizeEstimator')
     assert.strictEqual(typeof mod.estimateOpReturnOutput, 'function')
     assert.strictEqual(typeof mod.estimateInputSize, 'function')
   })
 
   it('loads UtxoTracker', () => {
-    const mod = require('../../src/UtxoTracker')
     assert.strictEqual(typeof mod, 'function')
   })
 
   it('loads bitcoinjs-lib with required exports', () => {
-    const bitcoin = require('bitcoinjs-lib')
     assert.ok(bitcoin.Psbt)
     assert.ok(bitcoin.payments)
     assert.ok(bitcoin.script)
@@ -59,13 +65,11 @@ describe('S1: Module Loading', () => {
   })
 
   it('loads tiny-secp256k1 native module', () => {
-    const ecc = require('tiny-secp256k1')
     assert.strictEqual(typeof ecc.isPoint, 'function')
   })
 })
 
 describe('S2: Encoder Instantiation', () => {
-  const XChainEncoder = require('../../src/XChainEncoder')
 
   const networks = ['bitcoin-regtest', 'dogecoin-regtest', 'litecoin-regtest']
 
@@ -96,7 +100,6 @@ describe('S2: Encoder Instantiation', () => {
 })
 
 describe('S3: CryptoNetworks Integrity', () => {
-  const CryptoNetworks = require('../../src/CryptoNetworks')
 
   const allNetworks = [
     'bitcoin-mainnet', 'bitcoin-testnet', 'bitcoin-regtest',
@@ -137,8 +140,6 @@ describe('S3: CryptoNetworks Integrity', () => {
 })
 
 describe('S4: PSBT Creation', () => {
-  const bitcoin = require('bitcoinjs-lib')
-  const CryptoNetworks = require('../../src/CryptoNetworks')
 
   it('creates a PSBT for bitcoin-regtest', () => {
     const network = CryptoNetworks.getBitcoinJsNetwork('bitcoin-regtest')
@@ -172,15 +173,13 @@ describe('S4: PSBT Creation', () => {
 })
 
 describe('S5: prepareData', () => {
-  const bitcoin = require('bitcoinjs-lib')
-  const XChainEncoder = require('../../src/XChainEncoder')
 
   // Use a regtest P2PKH address for P2SH/P2WSH encoding paths
   const PUBKEY_BUF = Buffer.from(
     '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
     'hex'
   )
-  const network = require('../../src/CryptoNetworks').getBitcoinJsNetwork('bitcoin-regtest')
+  const network = require('../../src/crypto_networks').getBitcoinJsNetwork('bitcoin-regtest')
   const testAddress = bitcoin.payments.p2pkh({ pubkey: PUBKEY_BUF, network }).address
 
   let encoder
@@ -250,7 +249,6 @@ describe('S5: prepareData', () => {
 })
 
 describe('S6: Obfuscation Round-Trip', () => {
-  const XChainEncoder = require('../../src/XChainEncoder')
   const TXID = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
 
   let encoder
@@ -293,8 +291,6 @@ describe('S6: Obfuscation Round-Trip', () => {
 })
 
 describe('S7: TxSizeEstimator', () => {
-  const TxSizeEstimator = require('../../src/TxSizeEstimator')
-  const bitcoin = require('bitcoinjs-lib')
 
   it('estimateOpReturnOutput returns positive integer', () => {
     const data = Buffer.from('XCHN test data')
@@ -365,8 +361,6 @@ describe('S7: TxSizeEstimator', () => {
 })
 
 describe('S8: Segwit UTXO Detection', () => {
-  const XChainEncoder = require('../../src/XChainEncoder')
-  const bitcoin = require('bitcoinjs-lib')
 
   const PUBKEY_BUF = Buffer.from(
     '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -423,7 +417,6 @@ describe('S8: Segwit UTXO Detection', () => {
 })
 
 describe('S9: dataToPubkey', () => {
-  const XChainEncoder = require('../../src/XChainEncoder')
 
   let encoder
   before(() => {
@@ -457,11 +450,6 @@ describe('S9: dataToPubkey', () => {
 })
 
 describe('S10: API Server Startup', () => {
-  const express = require('express')
-  const bodyParser = require('body-parser')
-  const helmet = require('helmet')
-  const cors = require('cors')
-  const jsonRouter = require('express-json-rpc-router')
 
   let server
 
@@ -488,7 +476,6 @@ describe('S10: API Server Startup', () => {
     // Listen on port 0 to let the OS pick a free port
     server = app.listen(0, () => {
       const port = server.address().port
-      const http = require('http')
       const payload = JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 })
 
       const req = http.request({

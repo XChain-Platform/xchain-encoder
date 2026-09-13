@@ -33,7 +33,7 @@ const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 const psbtutils = require('bitcoinjs-lib/src/psbt/psbtutils')
 const XChainEncoder = require('../../src/XChainEncoder')
-const TxSizeEstimator = require('../../src/TxSizeEstimator')
+const TxSizeEstimator = require('../../src/tx_size_estimator')
 
 const ECPair = ECPairFactory(ecc)
 const NET = bitcoin.networks.regtest

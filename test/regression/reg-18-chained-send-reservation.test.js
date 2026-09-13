@@ -28,6 +28,7 @@
 // the reservation window is refused even if the outpoint map was bypassed.
 
 const assert = require('assert')
+const bitcoin = require('bitcoinjs-lib');
 const {
   makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B, TXID_C
 } = require('../integration/helpers/utxoFactory')
@@ -44,7 +45,6 @@ function build (encoder, utxos, action = MINT) {
 }
 
 function txidOf (result) {
-  const bitcoin = require('bitcoinjs-lib')
   return bitcoin.Transaction.fromBuffer(result.psbt.data.globalMap.unsignedTx.toBuffer()).getId()
 }
 

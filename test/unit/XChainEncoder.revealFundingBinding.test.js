@@ -81,7 +81,7 @@ const BTC_REGTEST_ADDR = bitcoin.payments.p2pkh({
   network: bitcoin.networks.regtest
 }).address
 
-const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+const DOGE_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
 const DOGE_REGTEST_ADDR = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: DOGE_REGTEST

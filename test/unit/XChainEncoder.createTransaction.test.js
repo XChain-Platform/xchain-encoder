@@ -93,7 +93,8 @@ function makeEncoder (networkName = 'litecoin-regtest') {
   return encoder
 }
 
-const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const TxSizeEstimator = require('../../src/tx_size_estimator');
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: LTC_REGTEST
@@ -562,7 +563,7 @@ describe('XChainEncoder.createTransaction()', () => {
         return { utxos: [makeLegacyUtxo(TXID_A, 0, 100000000)] }
       }
 
-      const dogeNetwork = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+      const dogeNetwork = require('../../src/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
       const dogeAddress = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: dogeNetwork }).address
       const rawPubkeyHex = pubkeyBuf.toString('hex')
       await encoder.createTransaction(
@@ -794,7 +795,6 @@ describe('XChainEncoder.createTransaction()', () => {
       encoder.dustAmount = 546
       encoder.outputFloor = 546
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-      const TxSizeEstimator = require('../../src/TxSizeEstimator')
 
       // Baseline funding output value with no customOutputs.
       const base = await encoder.createTransaction(
@@ -1027,7 +1027,6 @@ describe('XChainEncoder.createTransaction()', () => {
   describe('estimateSpendingP2shTx()', () => {
     it('returns 10 + P2SH input + OP_RETURN + 8-byte safety margin', () => {
       const encoder = makeEncoder()
-      const TxSizeEstimator = require('../../src/TxSizeEstimator')
       const redeemData = Buffer.alloc(200, 0xAA)
 
       const expected = 10

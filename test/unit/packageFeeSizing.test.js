@@ -21,8 +21,10 @@
 const assert = require('assert')
 const axios = require('axios')
 const bitcoin = require('bitcoinjs-lib')
-const BlockchainConnector = require('../../src/BlockchainConnector')
+const BlockchainConnector = require('../../src/blockchain_connector')
 const XChainEncoder = require('../../src/XChainEncoder')
+const util = require('util');
+const ecc = require('tiny-secp256k1');
 
 const SATOSHI_UNIT = 100000000
 
@@ -239,7 +241,6 @@ describe('BlockchainConnector.getUnconfirmedAncestorPackage() @regression @tier1
   })
 
   it('does not leak the RPC password when a mempool call fails', async () => {
-    const util = require('util')
     const FAKE_RPC_PASSWORD = 'FAKEPASS_must_never_be_logged_4b1e'
     const err = new Error('Request failed with status code 401')
     err.config = { auth: { username: 'rpcuser', password: FAKE_RPC_PASSWORD } }
@@ -325,7 +326,7 @@ describe('packageFeeUpliftSatoshis() @regression @tier1', () => {
 
 describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
   const pubkeyBuf = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex')
-  const DOGE_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('dogecoin-regtest')
+  const DOGE_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
   const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: DOGE_REGTEST }).address
   const INPUT_VALUE = 100000000            // 1 DOGE in koinu
   const NODE_RATE_PER_KB = 0.01            // Dogecoin's block-inclusion floor
@@ -551,13 +552,12 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
 // commit. These pin that the commit prefunds the reveal at the PACKAGE rate, and
 // that the P2SH reveal keeps that money as fee instead of sweeping it home.
 describe('two-phase reveal package prefund @regression @tier1', () => {
-  const ecc = require('tiny-secp256k1')
   const { ECPairFactory } = require('ecpair')
   bitcoin.initEccLib(ecc)
   const KEY = ECPairFactory(ecc).fromPrivateKey(Buffer.alloc(32, 7))
   const PUBKEY_HEX = Buffer.from(KEY.publicKey).toString('hex')
 
-  const BTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('bitcoin-regtest')
+  const BTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('bitcoin-regtest')
   const BTC_RATE_KB = 0.0001                                  // 10 sat/byte
   const BTC_TARGET_PER_BYTE = BTC_RATE_KB * SATOSHI_UNIT / 1000
   const COMMIT_INPUT_VALUE = 100000000
@@ -745,7 +745,7 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
 // instead of sweeping it back to the caller.
 describe('P2SH two-phase package prefund @regression @tier1', () => {
   const DOGE = 'dogecoin-regtest'
-  const DOGE_REGTEST_NET = require('../../src/CryptoNetworks').getBitcoinJsNetwork(DOGE)
+  const DOGE_REGTEST_NET = require('../../src/crypto_networks').getBitcoinJsNetwork(DOGE)
   const RATE_KB = 1000000                       // 1000 koinu/byte, the venue rate
   const TARGET_PER_BYTE = RATE_KB / 1000
   const pubkeyBuf = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex')

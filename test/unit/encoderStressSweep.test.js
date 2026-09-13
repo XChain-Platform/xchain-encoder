@@ -31,7 +31,7 @@ for (const k of _envKeys) {
 }
 const v = require('../../src/validator')
 const axios = require('axios')
-const UtxoTracker = require('../../src/UtxoTracker')
+const UtxoTracker = require('../../src/utxo_tracker')
 
 describe('encoder stress-sweep unit @regression', function () {
     this.timeout(10000)

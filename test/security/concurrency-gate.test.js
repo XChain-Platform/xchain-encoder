@@ -29,7 +29,9 @@ const assert    = require('assert')
 const express   = require('express')
 const http      = require('http')
 const rateLimit = require('express-rate-limit')
-const { createConcurrencyGate, resolveLimit } = require('../../src/concurrencyGate.js')
+const { createConcurrencyGate, resolveLimit } = require('../../src/concurrency_gate.js')
+const fs = require('fs');
+const path = require('path');
 
 // The 429 body the gate serves in production (src/api.js). -32029 is the
 // encoder's "too many requests" JSON-RPC code, shared with the per-IP limiter,
@@ -381,8 +383,6 @@ describe('Security: global in-flight concurrency cap', function () {
 
     describe('api.js wiring', function () {
 
-        const fs        = require('fs')
-        const path      = require('path')
         const apiSource = fs.readFileSync(path.join(__dirname, '../../src/api.js'), 'utf8')
 
         it('mounts the gate on the app with an env-overridable cap', function () {

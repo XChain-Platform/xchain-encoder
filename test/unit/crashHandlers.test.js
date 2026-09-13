@@ -20,7 +20,7 @@ const { EventEmitter } = require('events')
 const fs = require('fs')
 const path = require('path')
 
-const crash = require('../../src/crashHandlers')
+const crash = require('../../src/crash_handlers')
 const observability = require('../../src/observability')
 
 describe('encoder crash handlers', function () {

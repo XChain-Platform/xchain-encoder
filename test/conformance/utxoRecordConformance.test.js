@@ -11,7 +11,7 @@
 // CONSUMER half of the shared UTXO-record conformance fixture.
 //
 // WHAT THIS PINS: the record shape xchain-utxo-tracker actually serves, driven
-// through BOTH of this repo's inbound gates - src/UtxoTracker.js's shape gate
+// through BOTH of this repo's inbound gates - src/utxo_tracker.js's shape gate
 // inside getUtxosFromAddress, and src/validator.js validateUtxoEntry. Until
 // this file the inbound contract was pinned only by those two hand-written
 // restatements plus a prose comment on the tracker side, while every OUTBOUND
@@ -35,7 +35,7 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const axios = require('axios')
-const UtxoTracker = require('../../src/UtxoTracker')
+const UtxoTracker = require('../../src/utxo_tracker')
 const validator = require('../../src/validator')
 
 const VENDORED = path.join(__dirname, '..', 'fixtures', 'utxo-record-conformance.json')

@@ -61,7 +61,7 @@ function makeEncoder () {
   return encoder
 }
 
-const LTC_REGTEST = require('../../src/CryptoNetworks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: LTC_REGTEST

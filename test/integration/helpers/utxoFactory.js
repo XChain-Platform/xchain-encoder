@@ -18,7 +18,7 @@
  */
 
 const bitcoin = require('bitcoinjs-lib')
-const CryptoNetworks = require('../../../src/CryptoNetworks')
+const CryptoNetworks = require('../../../src/crypto_networks')
 
 // Canonical test pubkey (secp256k1 generator point)
 const PUBKEY_BUF = Buffer.from(

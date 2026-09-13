@@ -15,7 +15,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
-const CryptoNetworks = require('../../src/CryptoNetworks')
+const CryptoNetworks = require('../../src/crypto_networks')
 
 const SOFT_DUST_DOGE = 1000000     // 0.01 DOGE in koinu
 const HARD_DUST_DOGE = 100000      // the pinned network.dustThreshold
