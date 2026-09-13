@@ -19,6 +19,9 @@
  ********************************************************************/
 
 const axios = require('axios')
+const util = require('node:util');
+const { getLogger } = require('./observability');
+const logger = getLogger();
 
 // How long to wait on the tracker before giving up on a request.
 const TRACKER_TIMEOUT = 15000
@@ -142,7 +145,7 @@ class UtxoTracker {
                 throw new Error('utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to fetch UTXOs')
             }
         } catch (error) {
-            console.error('Error checking UTXO tracker sync status:', error);
+            logger.error(util.format('Error checking UTXO tracker sync status:', error));
             throw error;
         }
 
@@ -271,7 +274,7 @@ class UtxoTracker {
                 }
             }
         } catch (error) {
-            console.error('Error fetching UTXOs:', error);
+            logger.error(util.format('Error fetching UTXOs:', error));
             throw error;
         }
     }

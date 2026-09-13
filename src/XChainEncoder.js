@@ -32,6 +32,9 @@ const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, v
 const { compressPayloadForAction } = require('./compression')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./error_sanitize')
+const util = require('node:util');
+const { getLogger } = require('./observability');
+const logger = getLogger();
 
 const OP_RETURN_SIZE = 80
 const P2SH_SIZE = 520
@@ -1230,7 +1233,7 @@ class XChainEncoder {
                 // with). The relative cap has no anchor; fall back to the
                 // relayfee anchor below and the absolute MAX_FEE_RATE_KB cap,
                 // if configured.
-                console.warn('Relative fee cap skipped: node fee estimate unavailable:', err.message)
+                logger.warn(util.format('Relative fee cap skipped: node fee estimate unavailable:', err.message))
             }
         } else {
             feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
@@ -1248,7 +1251,7 @@ class XChainEncoder {
                     const floor = suggestedFeeCeilingFloorPerByte(info && info.relayfee)
                     if (floor != null && floor > suggestedCap) suggestedCap = floor
                 } catch (err) {
-                    console.warn('Suggested-fee ceiling relayfee floor unavailable; using the configured ceiling:', err.message)
+                    logger.warn(util.format('Suggested-fee ceiling relayfee floor unavailable; using the configured ceiling:', err.message))
                 }
             }
             // Compare with a relative epsilon. Both sides are coin-per-byte floats
@@ -1260,7 +1263,7 @@ class XChainEncoder {
             if (suggestedCap != null && feePerBytes > suggestedCap * (1 + 1e-12)){
                 if (!this._suggestedFeeClampWarned){
                     this._suggestedFeeClampWarned = true
-                    console.warn(`Suggested fee rate ${Math.round(feePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
+                    logger.warn(`Suggested fee rate ${Math.round(feePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
                         `test-chain ceiling; using ${Math.round(suggestedCap * SATOSHI_UNIT)} per vByte. ` +
                         `Set SUGGESTED_FEE_MAX_PER_VBYTE to change or 0 to disable.`)
                 }
@@ -1288,7 +1291,7 @@ class XChainEncoder {
                 const relayfee = Number(info && info.relayfee);
                 if (relayfee > 0) nodeFeePerBytes = relayfee / 1000;
             } catch (err) {
-                console.warn('Fee cap relayfee-anchor fallback failed; feePerKb cap disabled this build:', err.message);
+                logger.warn(util.format('Fee cap relayfee-anchor fallback failed; feePerKb cap disabled this build:', err.message));
             }
         }
 
@@ -1303,7 +1306,7 @@ class XChainEncoder {
             capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
         }
         if (capFeePerBytes != null && feePerBytes > capFeePerBytes) {
-            console.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds the fee-rate cap, clamping to ${capFeePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
+            logger.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds the fee-rate cap, clamping to ${capFeePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
             feePerBytes = capFeePerBytes
         }
         
@@ -2551,7 +2554,7 @@ class XChainEncoder {
             try {
                 ancestorPackage = await this.connector.getUnconfirmedAncestorPackage(unconfirmedInputTxids)
             } catch (err) {
-                console.warn('Package fee sizing skipped: ancestor lookup failed:', err.message)
+                logger.warn(util.format('Package fee sizing skipped: ancestor lookup failed:', err.message))
             }
             if (ancestorPackage && Number.isFinite(Number(ancestorPackage.size)) && Number(ancestorPackage.size) > 0){
                 commitAncestorSize = Number(ancestorPackage.size)
@@ -2601,7 +2604,7 @@ class XChainEncoder {
                 if (allowed < wanted){
                     const packageSize = ancestorPackage.size + estimatedTxSize
                     const packageFee = Math.round(ancestorPackage.fees * SATOSHI_UNIT) + estimatedFee + allowed
-                    console.warn(`Package fee uplift clamped to ${allowed} of ${wanted} base units: this transaction ` +
+                    logger.warn(`Package fee uplift clamped to ${allowed} of ${wanted} base units: this transaction ` +
                         `spends ${unconfirmedInputTxids.length} unconfirmed input(s) whose ancestors total ` +
                         `${ancestorPackage.size} bytes. The package will pay ${Math.round(packageFee / packageSize * 1000)} ` +
                         `base units/kB against a target of ${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}, so it may ` +
@@ -2669,7 +2672,7 @@ class XChainEncoder {
                 if (allowed < wanted){
                     const packageSize = commitAncestorSize + estimatedTxSize + revealPrefund.revealSize
                     const packageFee = commitAncestorFeeSat + estimatedFee + revealPrefund.revealFee + allowed
-                    console.warn(`Reveal package prefund clamped to ${allowed} of ${wanted} base units: this commit ` +
+                    logger.warn(`Reveal package prefund clamped to ${allowed} of ${wanted} base units: this commit ` +
                         `pays ${estimatedFee} base units over ~${estimatedTxSize} bytes, so the commit/reveal package ` +
                         `will pay ${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
                         `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}. The reveal cannot raise its own fee later, ` +
@@ -2825,7 +2828,7 @@ class XChainEncoder {
                 try {
                     commitPackage = await this.connector.getUnconfirmedAncestorPackage([p2shHash])
                 } catch (err) {
-                    console.warn('Reveal package fee sizing skipped: commit lookup failed:', err.message)
+                    logger.warn(util.format('Reveal package fee sizing skipped: commit lookup failed:', err.message))
                 }
                 const wanted = commitPackage ? packageFeeUpliftSatoshis({
                     currentFee: revealFeeKept,
@@ -2854,7 +2857,7 @@ class XChainEncoder {
                     if (allowed < wanted){
                         const packageSize = commitPackage.size + revealSizeForFee
                         const packageFee = Math.round(commitPackage.fees * SATOSHI_UNIT) + revealFeeKept + allowed
-                        console.warn(`Reveal package fee uplift clamped to ${allowed} of ${wanted} base units: the commit ` +
+                        logger.warn(`Reveal package fee uplift clamped to ${allowed} of ${wanted} base units: the commit ` +
                             `package totals ${commitPackage.size} bytes, so the commit/reveal package will pay ` +
                             `${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
                             `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)} and may stay unmined. The reveal has no ` +
@@ -3388,7 +3391,7 @@ class XChainEncoder {
             try {
                 nodeFeePerBytes = await this.connector.getFeePerKilobyte(1) / 1000
             } catch (err) {
-                console.warn('Envelope-cancel relative fee cap skipped: node fee estimate unavailable:', err.message)
+                logger.warn(util.format('Envelope-cancel relative fee cap skipped: node fee estimate unavailable:', err.message))
             }
         } else {
             feePerBytes = await this.connector.getFeePerKilobyte(1) / 1000

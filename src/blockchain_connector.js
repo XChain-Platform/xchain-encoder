@@ -19,6 +19,9 @@
  ********************************************************************/
 
 const axios = require('axios')
+const util = require('node:util');
+const { getLogger } = require('./observability');
+const logger = getLogger();
 
 const RPC_TIMEOUT = parseInt(process.env.NODE_RPC_TIMEOUT ?? '30000', 10)
 // Fee-rate multiple of the node's relay floor used on non-mainnet chains when
@@ -273,7 +276,7 @@ class BlockchainConnector {
             if (body && body.error?.code === -5) {
                 throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
             }
-            console.error('Error:', sanitizeRpcError(error));
+            logger.error(util.format('Error:', sanitizeRpcError(error)));
             throw error;
         }
     }
@@ -346,7 +349,7 @@ class BlockchainConnector {
             if (body && body.error) {
                 throw new Error(body.error.message || JSON.stringify(body.error));
             }
-            console.error('Error:', sanitizeRpcError(error));
+            logger.error(util.format('Error:', sanitizeRpcError(error)));
             throw error;
         }
     }
@@ -382,7 +385,7 @@ class BlockchainConnector {
         } catch (error) {
             const body = error.response && error.response.data
             if (body && body.error) return classify(body.error)
-            console.warn(`Mempool RPC ${method} failed:`, sanitizeRpcError(error))
+            logger.warn(util.format(`Mempool RPC ${method} failed:`, sanitizeRpcError(error)))
             return { ok: false }
         }
     }
@@ -485,7 +488,7 @@ class BlockchainConnector {
         if (!(relayfee > 0)) return null;
         const multiplier = noEstimateRelayMultiplier();
         const feerate = relayfee * multiplier;
-        console.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using ' +
+        logger.warn('estimatesmartfee returned no estimate on a non-mainnet chain; using ' +
             multiplier + 'x the node relayfee floor: ' + feerate + '/kB ' +
             '(FEE_NO_ESTIMATE_RELAY_MULTIPLIER to change)');
         return feerate;
@@ -544,7 +547,7 @@ class BlockchainConnector {
                 if (feerate > ceiling) {
                     // Loud diagnostic: this is a money-affecting path and a clamp here
                     // is silent everywhere else unless it is logged at error level.
-                    console.error('estimatesmartfee returned ' + feerate + '/kB on a non-regtest ' +
+                    logger.error('estimatesmartfee returned ' + feerate + '/kB on a non-regtest ' +
                         'chain, above the ' + ceiling + '/kB sanity ceiling; clamping to the ceiling. ' +
                         'Set FEE_ESTIMATE_SANITY_CEILING to override.');
                     return ceiling;
@@ -601,7 +604,7 @@ class BlockchainConnector {
             } catch (_) {
                 // isRegtest() or the fallback's own RPC failed; fall through to rethrow.
             }
-            console.error('Error:', sanitizeRpcError(error));
+            logger.error(util.format('Error:', sanitizeRpcError(error)));
             throw error;
         }
     }

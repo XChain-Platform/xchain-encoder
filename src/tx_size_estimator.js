@@ -20,6 +20,9 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const { compiledPushSize } = require('./validator');
+const util = require('node:util');
+const { getLogger } = require('./observability');
+const logger = getLogger();
 
 // Byte width of the compactSize varint that length-prefixes a witness-stack
 // item on the wire. NOT compiledPushSize: that models script-push framing,
@@ -154,12 +157,12 @@ class TxSizeEstimator {
                     scriptPubKey = output.script
                 }
             } catch (e) {
-                console.error("Error decoding nonWitnessUtxo:", e)
+                logger.error(util.format("Error decoding nonWitnessUtxo:", e))
                 return 350
             }
 
             if (!scriptPubKey) {
-                console.log("It was not possible to obtain the scriptPubKey. Assuming P2PKH.");
+                logger.info("It was not possible to obtain the scriptPubKey. Assuming P2PKH.");
                 return 180;
             }
         } else {

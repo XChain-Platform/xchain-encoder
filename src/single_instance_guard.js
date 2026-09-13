@@ -34,6 +34,8 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
+const { getLogger } = require('./observability');
+const logger = getLogger();
 
 // Filesystems that cannot hard-link. The atomic publication below falls back to
 // the older open-'wx'-then-write on exactly these and on nothing else, because
@@ -266,7 +268,7 @@ function acquireInstanceLock(lockPath, env = process.env, deps = {}) {
                         'to isolate intentionally separate deployments.'
                     )
                 }
-                console.warn('singleInstanceGuard: breaking a stale lock on ' + file + ': pid ' +
+                logger.warn('singleInstanceGuard: breaking a stale lock on ' + file + ': pid ' +
                     holderPid + ' is alive but is running "' + liveCmd + '", ' +
                     (holder.cmd === null
                         ? 'which is not an encoder (the lock predates identity recording)'

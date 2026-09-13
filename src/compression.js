@@ -44,6 +44,9 @@
 'use strict'
 
 const zlib = require('zlib')
+const util = require('node:util');
+const { getLogger } = require('./observability');
+const logger = getLogger();
 const {
     COMPRESSION_CODE_DEFLATE_RAW,
     COMPRESSION_MAX_RATIO,
@@ -208,7 +211,7 @@ async function compressPayloadForAction(actionString, rawDataBuffer, options = {
     } catch (err) {
         // A zlib failure is not fatal to the transaction: the uncompressed
         // payload is still perfectly valid, so degrade rather than refuse.
-        console.warn('Compression skipped, deflate failed:', err && err.message ? err.message : err)
+        logger.warn(util.format('Compression skipped, deflate failed:', err && err.message ? err.message : err))
         return unchanged('deflate-failed')
     }
 

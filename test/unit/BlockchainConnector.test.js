@@ -12,6 +12,8 @@ const assert = require('assert')
 const axios = require('axios')
 const BlockchainConnector = require('../../src/blockchain_connector')
 const util = require('util');
+const { getLogger } = require('../../src/observability');
+const logger = getLogger();
 
 function makeConnector () {
   return new BlockchainConnector('127.0.0.1', 18332, 'rpcuser', 'rpcpass')
@@ -781,15 +783,19 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
       delete process.env.NETWORK
       delete process.env.FEE_ESTIMATE_SANITY_CEILING
       errorSpy = []
-      const originalError = console.error
-      console.error = (...args) => { errorSpy.push(args.join(' ')); }
-      warnSpy = originalError
+      // Spy at the logger boundary, not console.error: this diagnostic now
+      // routes through observability/index.js's logger, whose _lazyLogger
+      // falls through to console.error only until some earlier-run test file
+      // has installed a real shipper in the shared _logger singleton, after
+      // which it no longer touches console at all.
+      warnSpy = logger.error
+      logger.error = (...args) => { errorSpy.push(args.join(' ')); }
     })
 
     afterEach(() => {
       if (originalNetwork === undefined) delete process.env.NETWORK; else process.env.NETWORK = originalNetwork
       if (originalCeiling === undefined) delete process.env.FEE_ESTIMATE_SANITY_CEILING; else process.env.FEE_ESTIMATE_SANITY_CEILING = originalCeiling
-      console.error = warnSpy
+      logger.error = warnSpy
     })
 
     it('clamps a spiked mainnet estimate to the coin-default ceiling and logs loudly', async () => {
