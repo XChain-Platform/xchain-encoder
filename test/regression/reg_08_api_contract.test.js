@@ -20,7 +20,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const { validateAll } = require('../../src/validator')
+const { validateAll } = require('../../src/common/validator')
 const {
   TXID_A,
   makeUtxo,

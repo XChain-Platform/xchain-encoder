@@ -33,7 +33,7 @@ const {
 } = require('../integration/helpers/utxoFactory')
 const { deobfuscate } = require('../integration/helpers/deobfuscate')
 const actions = require('../integration/helpers/actionFactory')
-const validator = require('../../src/validator')
+const validator = require('../../src/common/validator')
 
 const NETWORK = 'dogecoin-regtest'
 const MAGIC = 'XCHN'

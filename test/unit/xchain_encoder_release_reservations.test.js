@@ -29,7 +29,7 @@ const pubkeyBuf = Buffer.from(
 const TXID_ONE = 'a'.repeat(64)
 const TXID_TWO = 'b'.repeat(64)
 
-const LTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: LTC_REGTEST }).address
 const PUBKEY_HEX = pubkeyBuf.toString('hex')
 

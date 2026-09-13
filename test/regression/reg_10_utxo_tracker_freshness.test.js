@@ -296,7 +296,7 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
   })
 
   describe('api.js maps UTXO_TRACKER_STALE to -32010', () => {
-    const { OperationalError } = require('../../src/errors')
+    const { OperationalError } = require('../../src/build/errors')
     const { jsonRpcController, encoder } = require('../../src/api')
     const address = getTestAddress('bitcoin-regtest')
 

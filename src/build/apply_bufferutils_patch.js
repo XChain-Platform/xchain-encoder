@@ -29,7 +29,7 @@
  * the value is exactly representable and a BigInt only above 2^53-1, so
  * existing Number-based callers see identical behavior for every value they
  * could already handle. The READ-SIDE copies (xchain-decoder and
- * xchain-utxo-tracker, src/apply_bufferutils_patch.js) lift the same 2^53 wall
+ * xchain-utxo-tracker, src/build/apply_bufferutils_patch.js) lift the same 2^53 wall
  * for block decode but deliberately implement a DIFFERENT contract:
  * BufferReader.readUInt64 always returns a BigInt and the module-level
  * readUInt64LE/writeUInt64LE helpers keep the stock 2^53-1 ceiling. Only the

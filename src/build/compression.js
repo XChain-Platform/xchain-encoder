@@ -45,13 +45,13 @@
 
 const zlib = require('zlib')
 const util = require('node:util');
-const { getLogger } = require('./observability');
+const { getLogger } = require('../observability');
 const logger = getLogger();
 const {
     COMPRESSION_CODE_DEFLATE_RAW,
     COMPRESSION_MAX_RATIO,
     COMPRESSION_MAX_INPUT_BYTES
-} = require('./validator.js')
+} = require('../common/validator.js')
 
 // FILE v0 field indices in the FULL action string (ACTION token included):
 // FILE|0|NAME|TYPE|TITLE|MEMO|GATE_TICKER|ENCRYPTION_METHOD|KEY_HASH|GATE_MIN_AMOUNT|COMPRESSION

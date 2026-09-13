@@ -11,14 +11,14 @@
  * contact legal@dankest.llc.
  *
  **********************************************************************
- * Unit tests for src/validator.js: centralized createTransaction input
+ * Unit tests for src/common/validator.js: centralized createTransaction input
  * validation. Every validator returns the coerced value or throws
  * TypeError/RangeError. validateCustomOutput / validateFeeQuote are exercised
  * through their array/validateAll wrappers (not individually exported).
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../src/validator.js');
+const v = require('../../src/common/validator.js');
 const bitcoin = require('bitcoinjs-lib');
 
 const HEX64 = 'a'.repeat(64);

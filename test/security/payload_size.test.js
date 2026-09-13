@@ -27,7 +27,7 @@ const {
     makeEncoder,
     getTestAddress
 } = require('../integration/helpers/utxoFactory')
-const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('../../src/validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('../../src/common/validator')
 
 const NETWORK = 'dogecoin-regtest'
 

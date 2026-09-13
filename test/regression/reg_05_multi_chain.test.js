@@ -20,7 +20,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const CryptoNetworks = require('../../src/crypto_networks')
+const CryptoNetworks = require('../../src/build/crypto_networks')
 const {
   extractOpReturnPayload,
   MAGIC_WORD

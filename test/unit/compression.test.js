@@ -40,8 +40,8 @@ const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 
 const XChainEncoder = require('../../src/XChainEncoder')
-const compression = require('../../src/compression')
-const validator = require('../../src/validator')
+const compression = require('../../src/build/compression')
+const validator = require('../../src/common/validator')
 
 bitcoin.initEccLib(ecc)
 const ECPair = ECPairFactory(ecc)

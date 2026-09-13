@@ -20,9 +20,9 @@
 
 // Load required libraries
 const bitcoin = require('bitcoinjs-lib');
-const { compiledPushSize } = require('./validator');
+const { compiledPushSize } = require('../common/validator');
 const util = require('node:util');
-const { getLogger } = require('./observability');
+const { getLogger } = require('../observability');
 const logger = getLogger();
 
 // Byte width of the compactSize varint that length-prefixes a witness-stack

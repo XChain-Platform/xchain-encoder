@@ -13,7 +13,7 @@
  *********************************************************************/
 
 const assert = require('assert')
-const { upstreamErrorMessage, isTransportError, leaksInternalDetail } = require('../../src/error_sanitize')
+const { upstreamErrorMessage, isTransportError, leaksInternalDetail } = require('../../src/common/error_sanitize')
 
 // Guards the encoder's outbound error sanitization: useful upstream RPC reasons
 // pass through, transport-level failures (which leak the internal node host:port)

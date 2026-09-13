@@ -39,10 +39,10 @@ const helmet = require('helmet');
 const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { limitedHandler } = require('./rate_limit_log.js')
+const { limitedHandler } = require('./server/rate_limit_log.js')
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
-const concurrencyGate = require('./concurrency_gate.js')
+const concurrencyGate = require('./server/concurrency_gate.js')
 
 // Express middleware that rejects an over-cap JSON-RPC batch array before dispatch, so one
 // HTTP request cannot amplify into thousands of backend RPCs (the rate limiter counts a batch
@@ -58,14 +58,14 @@ function makeRpcBatchGuard(maxBatch){
         next()
     }
 }
-const validator = require('./validator')
-const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./single_instance_guard')
-const { upstreamErrorMessage } = require('./error_sanitize')
-const { parseCorsOrigin } = require('./cors_origin')
+const validator = require('./common/validator')
+const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./server/single_instance_guard')
+const { upstreamErrorMessage } = require('./common/error_sanitize')
+const { parseCorsOrigin } = require('./server/cors_origin')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
-const { installCrashHandlers } = require('./crash_handlers')
-const { readMaintenanceWindow } = require('./maintenance_window')   // operator-declared scheduled outage, reported beside readiness
+const { installCrashHandlers } = require('./server/crash_handlers')
+const { readMaintenanceWindow } = require('./server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
 
 
 const NETWORK = process.env.NETWORK
@@ -258,7 +258,7 @@ installObservability(app, {
 // tracker_halted (bool), tracker_mempool_ready (bool), maintenance (object|null).
 //
 // maintenance is the operator's DECLARED scheduled-outage window (see
-// src/maintenance_window.js), carried alongside the readiness fields and never
+// src/server/maintenance_window.js), carried alongside the readiness fields and never
 // folded into them: it cannot make an unready encoder read ready, and it does
 // not move the 503. A planned tracker stop and a broken tracker are the same
 // readiness verdict - the difference is only that somebody meant one of them,

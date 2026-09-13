@@ -20,21 +20,21 @@
 
 // Must load before any PSBT is built: teaches bitcoinjs-lib/bip174 to carry
 // satoshi values above 2^53-1 as BigInt (DOGE has no supply cap).
-require('./apply_bufferutils_patch')
+require('./build/apply_bufferutils_patch')
 const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const bs58check = require('bs58check')
-const BlockchainConnector = require('./blockchain_connector')
-const CryptoNetworks = require('./crypto_networks')
-const UtxoTracker = require('./utxo_tracker')
-const TxSizeEstimator = require("./tx_size_estimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateDataParam, validateActionPushDecodability, unknownActionName } = require('./validator')
-const { compressPayloadForAction } = require('./compression')
-const { OperationalError } = require('./errors')
-const { upstreamErrorMessage } = require('./error_sanitize')
+const BlockchainConnector = require('./build/blockchain_connector')
+const CryptoNetworks = require('./build/crypto_networks')
+const UtxoTracker = require('./build/utxo_tracker')
+const TxSizeEstimator = require("./build/tx_size_estimator")
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateDataParam, validateActionPushDecodability, unknownActionName } = require('./common/validator')
+const { compressPayloadForAction } = require('./build/compression')
+const { OperationalError } = require('./build/errors')
+const { upstreamErrorMessage } = require('./common/error_sanitize')
 const util = require('node:util');
 const { getLogger } = require('./observability');
-const config = require('./config');
+const config = require('./common/config');
 const logger = getLogger();
 
 const OP_RETURN_SIZE = 80

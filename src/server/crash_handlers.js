@@ -32,7 +32,7 @@
 
 'use strict'
 
-const { getLogger, getRegistry } = require('./observability')
+const { getLogger, getRegistry } = require('../observability')
 
 let _counters = null
 

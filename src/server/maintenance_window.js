@@ -40,7 +40,7 @@
  ********************************************************************/
 
 const fs = require('fs')
-const config = require('./config');
+const config = require('../common/config');
 
 // Inside the encoder container, so xchain-node can write it with a plain
 // `docker exec tee` against an already-running encoder: no bind mount, and

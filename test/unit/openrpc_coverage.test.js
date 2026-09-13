@@ -67,7 +67,7 @@ describe('openrpc.json method coverage', () => {
     // is how create_tx came to validate and act on `attachPrevTx` while the published
     // contract never named it: the field was undiscoverable from the spec and every
     // generated client dropped it. Every params.<x> validateAll reads must be declared.
-    const validatorSrc = fs.readFileSync(path.join(__dirname, '../../src/validator.js'), 'utf8');
+    const validatorSrc = fs.readFileSync(path.join(__dirname, '../../src/common/validator.js'), 'utf8');
     // Slice validateAll's body only. `params.pubkey` also appears in an unrelated
     // function earlier in the file, and including it would make this pass for the
     // wrong reason. The digit class is required: p2shHash, p2shHex, compressedPubKey.
@@ -79,7 +79,7 @@ describe('openrpc.json method coverage', () => {
     )].sort();
 
     it('extracts a sane validateAll param list', () => {
-        assert.notStrictEqual(fnStart, -1, 'validateAll not found in src/validator.js');
+        assert.notStrictEqual(fnStart, -1, 'validateAll not found in src/common/validator.js');
         assert.ok(fnEnd > fnStart, 'validateAll body slice is empty; the return marker moved');
         assert.ok(validatedParams.includes('pubkey') && validatedParams.includes('attachPrevTx'),
             `extraction broken: ${validatedParams.join(', ')}`);

@@ -35,7 +35,7 @@ const config = {
     get NETWORK() { return process.env.NETWORK || ''; },
     get XCHAIN_COMPRESSION_DEFAULT() { return process.env.XCHAIN_COMPRESSION_DEFAULT; },
     // Raw pass-throughs: the reading module still parses/bounds-checks these,
-    // src/config.js only stops the process.env read happening outside it.
+    // src/common/config.js only stops the process.env read happening outside it.
     get SUGGESTED_FEE_MAX_PER_VBYTE() { return process.env.SUGGESTED_FEE_MAX_PER_VBYTE; },
     get MAX_CPFP_UPLIFT_SAT() { return process.env.MAX_CPFP_UPLIFT_SAT; },
     get NODE_RPC_TIMEOUT() { return process.env.NODE_RPC_TIMEOUT; },

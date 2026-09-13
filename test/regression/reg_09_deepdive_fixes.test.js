@@ -244,7 +244,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
   })
 
   describe('L-2: API surfaces typed operational errors', () => {
-    const { OperationalError } = require('../../src/errors')
+    const { OperationalError } = require('../../src/build/errors')
     const { jsonRpcController, encoder } = require('../../src/api')
     const address = getTestAddress('bitcoin-regtest')
 

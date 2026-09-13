@@ -31,7 +31,7 @@ const fs = require('fs')
 const path = require('path')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
-const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('../../src/validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH } = require('../../src/common/validator')
 
 const MAGIC_WORD = 'XCHN'
 const MAGIC_BUFFER = Buffer.from(MAGIC_WORD, 'utf8')

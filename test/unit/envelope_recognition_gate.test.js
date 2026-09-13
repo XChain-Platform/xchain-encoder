@@ -24,7 +24,7 @@ const fs     = require('fs');
 const path   = require('path');
 
 const XChainEncoder  = require('../../src/XChainEncoder');
-const CryptoNetworks = require('../../src/crypto_networks');
+const CryptoNetworks = require('../../src/build/crypto_networks');
 
 // The gate reads only the resolved recognition height and connector.getBlockCount,
 // so a network KEY plus a stub connector is the whole surface; building a real

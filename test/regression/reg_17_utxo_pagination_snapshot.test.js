@@ -19,7 +19,7 @@
 
 const assert = require('assert')
 const axios = require('axios')
-const UtxoTracker = require('../../src/utxo_tracker')
+const UtxoTracker = require('../../src/build/utxo_tracker')
 
 const SCRIPT = '0014' + '11'.repeat(20)
 const HEALTHY_STATUS = { synced: true, lag: 0, halted: false, mempool_ready: true }

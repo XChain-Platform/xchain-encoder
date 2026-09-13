@@ -26,7 +26,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const validator = require('../../src/validator')
+const validator = require('../../src/common/validator')
 const XChainEncoder = require('../../src/XChainEncoder')
 
 const B05 = String.fromCharCode(0x05) // 1-byte 0x05 under both utf8 and latin1

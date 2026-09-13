@@ -23,8 +23,8 @@ const bitcoin = require('bitcoinjs-lib')
 const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 const XChainEncoder = require('../../src/XChainEncoder')
-const TxSizeEstimator = require('../../src/tx_size_estimator')
-const { ENVELOPE_MAX_PAYLOAD, MAX_COMPILED_ACTION_DATA_LENGTH, MAX_STANDARD_TX_WEIGHT } = require('../../src/validator')
+const TxSizeEstimator = require('../../src/build/tx_size_estimator')
+const { ENVELOPE_MAX_PAYLOAD, MAX_COMPILED_ACTION_DATA_LENGTH, MAX_STANDARD_TX_WEIGHT } = require('../../src/common/validator')
 const vectors = require('../../../xchain-documentation/protocol/test-vectors/taproot_envelope.json');
 
 bitcoin.initEccLib(ecc)

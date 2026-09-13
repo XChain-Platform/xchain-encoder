@@ -25,8 +25,8 @@ const mod = require('../../src/XChainEncoder');
 const bitcoin = require('bitcoinjs-lib');
 const ecc = require('tiny-secp256k1');
 const XChainEncoder = require('../../src/XChainEncoder');
-const CryptoNetworks = require('../../src/crypto_networks');
-const TxSizeEstimator = require('../../src/tx_size_estimator');
+const CryptoNetworks = require('../../src/build/crypto_networks');
+const TxSizeEstimator = require('../../src/build/tx_size_estimator');
 const express = require('express');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
@@ -179,7 +179,7 @@ describe('S5: prepareData', () => {
     '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
     'hex'
   )
-  const network = require('../../src/crypto_networks').getBitcoinJsNetwork('bitcoin-regtest')
+  const network = require('../../src/build/crypto_networks').getBitcoinJsNetwork('bitcoin-regtest')
   const testAddress = bitcoin.payments.p2pkh({ pubkey: PUBKEY_BUF, network }).address
 
   let encoder

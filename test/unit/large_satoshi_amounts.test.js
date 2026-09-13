@@ -21,7 +21,7 @@ const {
   validateUtxoEntry,
   validateCustomOutputs,
   MAX_SATOSHI_U64
-} = require('../../src/validator')
+} = require('../../src/common/validator')
 
 const MAX_SAFE = Number.MAX_SAFE_INTEGER // 9007199254740991
 const BIG_STR = '9007199254740993' // 2^53 + 1, not representable as Number
@@ -33,7 +33,7 @@ const pubkeyBuf = Buffer.from(
 )
 const TXID_A = 'a'.repeat(64)
 
-const LTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
 const bufferutils = require('bitcoinjs-lib/src/bufferutils');
 const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: LTC_REGTEST }).address
 

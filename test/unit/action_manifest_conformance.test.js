@@ -9,7 +9,7 @@
 // contact legal@dankest.llc.
 
 // Cross-repo ACTION-manifest conformance guard, encoder side.
-// The encoder's validateActionName gate (src/validator.js) must reject
+// The encoder's validateActionName gate (src/common/validator.js) must reject
 // exactly the leading ACTION tokens the decoder would reject, or it either
 // blocks a name the decoder actually accepts (false-positive reject on a
 // valid caller) or lets a name through that the decoder silently drops. The
@@ -24,7 +24,7 @@
 const assert = require('assert');
 const fs   = require('fs');
 const path = require('path');
-const v = require('../../src/validator.js');
+const v = require('../../src/common/validator.js');
 
 const VENDORED = path.join(__dirname, '..', 'fixtures', 'action-manifest.json');
 const MANIFEST = JSON.parse(fs.readFileSync(VENDORED, 'utf8'));
@@ -43,7 +43,7 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
             'encoder VALID_ACTION_NAMES drifted from action-manifest.json wireDecoded set (== the decoder\'s own VALID_ACTION_NAMES). ' +
             'MISSING (decoder decodes, encoder gate would wrongly reject): ' + JSON.stringify(missing) +
             '. EXTRA (encoder gate accepts, decoder would drop): ' + JSON.stringify(extra) +
-            '. Edit xchain-documentation/protocol/action-manifest.json + re-vendor, and update src/validator.js VALID_ACTION_NAMES to match xchain-decoder\'s.');
+            '. Edit xchain-documentation/protocol/action-manifest.json + re-vendor, and update src/common/validator.js VALID_ACTION_NAMES to match xchain-decoder\'s.');
     });
 
     it('ACTION_ALIASES exactly equals the manifest aliases (and the decoder ACTION_ALIASES)', function () {
@@ -51,7 +51,7 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
         const actual = v.ACTION_ALIASES;
         assert.deepStrictEqual(actual, expected,
             'encoder ACTION_ALIASES drifted from action-manifest.json aliases / xchain-decoder ACTION_ALIASES. ' +
-            'Keep src/validator.js ACTION_ALIASES byte-identical to xchain-decoder\'s.');
+            'Keep src/common/validator.js ACTION_ALIASES byte-identical to xchain-decoder\'s.');
     });
 
     // IDENTITY: the vendored copy must match the canonical source (skip when the

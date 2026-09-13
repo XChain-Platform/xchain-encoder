@@ -93,8 +93,8 @@ function makeEncoder (networkName = 'litecoin-regtest') {
   return encoder
 }
 
-const LTC_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
-const TxSizeEstimator = require('../../src/tx_size_estimator');
+const LTC_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const TxSizeEstimator = require('../../src/build/tx_size_estimator');
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: LTC_REGTEST
@@ -563,7 +563,7 @@ describe('XChainEncoder.createTransaction()', () => {
         return { utxos: [makeLegacyUtxo(TXID_A, 0, 100000000)] }
       }
 
-      const dogeNetwork = require('../../src/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
+      const dogeNetwork = require('../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
       const dogeAddress = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: dogeNetwork }).address
       const rawPubkeyHex = pubkeyBuf.toString('hex')
       await encoder.createTransaction(

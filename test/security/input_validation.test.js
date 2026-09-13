@@ -14,7 +14,7 @@
  * Security: input validation
  *
  * The encoder is handed untrusted request parameters (UTXOs, addresses,
- * ACTION data, fees, encodings). src/validator.js is the gate that must
+ * ACTION data, fees, encodings). src/common/validator.js is the gate that must
  * reject hostile input with a typed error, or coerce it to a safe
  * primitive, before any of it reaches bitcoinjs-lib or the PSBT builder.
  * These tests attack that gate: malformed types, injection-shaped strings,
@@ -24,7 +24,7 @@
  */
 
 const assert = require('assert')
-const V = require('../../src/validator')
+const V = require('../../src/common/validator')
 
 const HEX64 = 'a'.repeat(64)
 const SQLI = "1'; DROP TABLE blocks;--"

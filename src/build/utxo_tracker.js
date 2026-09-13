@@ -20,7 +20,7 @@
 
 const axios = require('axios')
 const util = require('node:util');
-const { getLogger } = require('./observability');
+const { getLogger } = require('../observability');
 const logger = getLogger();
 
 // How long to wait on the tracker before giving up on a request.

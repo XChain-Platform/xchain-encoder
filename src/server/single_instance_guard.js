@@ -34,8 +34,8 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
-const { getLogger } = require('./observability');
-const config = require('./config');
+const { getLogger } = require('../observability');
+const config = require('../common/config');
 const logger = getLogger();
 
 // Filesystems that cannot hard-link. The atomic publication below falls back to

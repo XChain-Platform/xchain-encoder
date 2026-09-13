@@ -13,7 +13,7 @@
  **********************************************************************
  * REG-04: Validator Functions
  *
- * Primary dedicated coverage for src/validator.js, filling the identified
+ * Primary dedicated coverage for src/common/validator.js, filling the identified
  * gap where no existing test file imports the validator directly. Tests each
  * exported validate* function individually plus validateAll() as integration.
  * Purely synchronous (no encoder instantiation needed).
@@ -40,7 +40,7 @@ const {
   MAX_CUSTOM_OUTPUTS,
   MAX_FEE_SATOSHIS,
   VALID_ENCODINGS
-} = require('../../src/validator')
+} = require('../../src/common/validator')
 
 const VALID_TXID = 'a'.repeat(64)
 const VALID_COMPRESSED_02 = '02' + 'a'.repeat(64)

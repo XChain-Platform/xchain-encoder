@@ -29,9 +29,9 @@ for (const k of _envKeys) {
     if (_savedEnv[k] === undefined) delete process.env[k]
     else process.env[k] = _savedEnv[k]
 }
-const v = require('../../src/validator')
+const v = require('../../src/common/validator')
 const axios = require('axios')
-const UtxoTracker = require('../../src/utxo_tracker')
+const UtxoTracker = require('../../src/build/utxo_tracker')
 
 describe('encoder stress-sweep unit @regression', function () {
     this.timeout(10000)

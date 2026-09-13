@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const axios = require('axios')
-const BlockchainConnector = require('../../src/blockchain_connector')
+const BlockchainConnector = require('../../src/build/blockchain_connector')
 const util = require('util');
 const { getLogger } = require('../../src/observability');
 const logger = getLogger();

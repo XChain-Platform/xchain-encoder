@@ -55,8 +55,8 @@ function makeP2pkhUtxo (txid, vout, value) {
   return { txid, vout, value, confirmations: 6, scriptPubKey: script }
 }
 
-const DOGE_REGTEST = require('../../src/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
-const TxSizeEstimator = require('../../src/tx_size_estimator');
+const DOGE_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
+const TxSizeEstimator = require('../../src/build/tx_size_estimator');
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: DOGE_REGTEST

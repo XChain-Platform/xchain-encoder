@@ -19,7 +19,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
-const { ACTION_ALIASES, envelopePushSize, ENVELOPE_MAX_PAYLOAD } = require('../../src/validator')
+const { ACTION_ALIASES, envelopePushSize, ENVELOPE_MAX_PAYLOAD } = require('../../src/common/validator')
 const fixture = require('../fixtures/roundtrip-conformance.json')
 
 const MAGIC_BUFFER = Buffer.from(fixture.magicWord, 'utf8')

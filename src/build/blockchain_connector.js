@@ -20,8 +20,8 @@
 
 const axios = require('axios')
 const util = require('node:util');
-const { getLogger } = require('./observability');
-const config = require('./config');
+const { getLogger } = require('../observability');
+const config = require('../common/config');
 const logger = getLogger();
 
 const RPC_TIMEOUT = parseInt(config.NODE_RPC_TIMEOUT ?? '30000', 10)
