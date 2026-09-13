@@ -24,6 +24,9 @@ require('./build/apply_bufferutils_patch')
 const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const bs58check = require('bs58check')
+// Held as the module object and dereferenced per call, so a test that swaps
+// coins.verifyConsensusPin still reaches the constructor's pin check.
+const coins = require('./coins')
 const BlockchainConnector = require('./build/blockchain_connector')
 const CryptoNetworks = require('./build/crypto_networks')
 const UtxoTracker = require('./build/utxo_tracker')
@@ -76,7 +79,7 @@ const SOFT_DUST_FLOOR_BY_COIN = {
 // Keyed on the coin, not the network: the soft limit is node policy on every Dogecoin chain.
 function softDustFloorFor(networkKey){
     const fullName = String(networkKey || '').slice(0, Math.max(0, String(networkKey || '').lastIndexOf('-')))
-    const tick = require('./coins').FULL_NAME_TO_TICK[fullName]
+    const tick = coins.FULL_NAME_TO_TICK[fullName]
     return (tick && SOFT_DUST_FLOOR_BY_COIN[tick]) || 0
 }
 
@@ -481,7 +484,7 @@ class XChainEncoder {
       // Deliberately not wrapped in try/catch, and deliberately in the constructor:
       // api.js builds the singleton encoder at module load, so a later check would
       // let the HTTP surface bind and serve builds first.
-      require('./coins').verifyConsensusPin(this.consensusNetwork)
+      coins.verifyConsensusPin(this.consensusNetwork)
       this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
       this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
       // Two floors: dustAmount is the pinned consensus threshold (fee floor, fee-drain
