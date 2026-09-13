@@ -215,10 +215,12 @@ describe('E2E-4: Obfuscation Integrity', () => {
 
   describe('E2E-4.7: Oversized OP_RETURN rejected', () => {
     it('forced OP_RETURN beyond a single output is rejected', async () => {
-      // Bitcoin permits only one OP_RETURN per transaction, so an oversized
-      // payload must reject here rather than split into independently
-      // obfuscated outputs; force the bitcoin network since dogecoin/litecoin
-      // allow multiple OP_RETURNs.
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A payload larger than one 76-byte chunk must be rejected at
+      // construction rather than split into independently-obfuscated outputs.
+      // The rejection is unconditional on every coin, so the bitcoin network
+      // here is a fixture, not a condition.
       const bigData = 'Y'.repeat(200)
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)

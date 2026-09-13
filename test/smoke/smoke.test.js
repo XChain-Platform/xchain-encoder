@@ -240,8 +240,9 @@ describe('S5: prepareData', () => {
   })
 
   it('oversized OP_RETURN is rejected (single output per transaction)', () => {
-    // Bitcoin permits only one OP_RETURN per transaction, so a payload too
-    // large for one must throw rather than split into multiple outputs.
+    // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+    // rejects multi-OP_RETURN transactions as non-standard. A payload larger
+    // than one 76-byte chunk must throw rather than split into outputs.
     const data = Buffer.alloc(200, 0x44)
     const compiled = bitcoin.script.compile([data])
     assert.throws(() => encoder.prepareData(compiled, 'OP_RETURN', testAddress), RangeError)

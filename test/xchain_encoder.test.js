@@ -28,6 +28,10 @@ function xchainP2shFinalizer(inputIndex, input, script, isSegwit, isP2SH, isP2WS
     if (isP2SH){
         const decompiled = bitcoin.script.decompile(script);
 
+        // The redeem-script shape check is deliberately not enforced here: it
+        // would require [data] OP_DROP OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY
+        // OP_CHECKSIG and throw "Can not finalize input #n" on any other script.
+
         let payment = {
             network: bitcoin.networks.regtest,
             input: 

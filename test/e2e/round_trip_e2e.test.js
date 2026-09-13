@@ -191,9 +191,12 @@ describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.5: Oversized OP_RETURN rejected', () => {
     it('forced OP_RETURN beyond a single output is rejected', async () => {
-      // Bitcoin permits only one OP_RETURN per transaction; large payloads
-      // round-trip via the P2SH path instead. Force the bitcoin network since
-      // dogecoin/litecoin allow multiple OP_RETURNs.
+      // A transaction may carry at most one OP_RETURN output; Bitcoin Core
+      // rejects multi-OP_RETURN transactions as non-standard at broadcast.
+      // A payload larger than one 76-byte chunk must be rejected at
+      // construction. Large payloads round-trip via the P2SH path instead.
+      // The rejection is unconditional on every coin, so the bitcoin network
+      // here is a fixture, not a condition.
       const bigData = 'X'.repeat(200)
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')

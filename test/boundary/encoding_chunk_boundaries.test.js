@@ -135,6 +135,7 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('150-char data (compiled=152) → rejected', async () => {
+      // Rejects on every shipped coin; bitcoin-regtest here is a fixture, not a condition
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
@@ -150,6 +151,7 @@ describe('Encoding Chunk Boundaries: Full Pipeline', () => {
     })
 
     it('151-char data (compiled=153) → rejected', async () => {
+      // Rejects on every shipped coin; bitcoin-regtest here is a fixture, not a condition
       const orNet = 'bitcoin-regtest'
       const encoder = makeEncoder(orNet)
       const address = getTestAddress(orNet)
