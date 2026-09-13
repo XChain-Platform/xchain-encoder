@@ -375,16 +375,37 @@ function validateActionPushDecodability(data, rawData) {
 // ACTION token to validate and the decoder never reaches its own name gate
 // for a zero-length payload either (see the `parseResult["data"].length > 0`
 // guard around the decoder's gate).
+//
+// The recognition test itself lives in unknownActionName below, so the two
+// surfaces that need it share one tokenizer: this validator REFUSES on the
+// JSON-RPC path, and XChainEncoder._buildTransaction REPORTS on the library
+// path, where a generic `data` payload is a supported shape.
 function validateActionName(data) {
-    if (data == null || data.length === 0) return
-    const rawActionName = data.split('|')[0]
+    const rawActionName = unknownActionName(data)
+    if (rawActionName == null) return
+    throw new RangeError(
+        `data has unknown ACTION name '${rawActionName.slice(0, 32)}'; ` +
+        'the decoder rejects any leading token that is not a canonical action ' +
+        'name or alias, silently dropping the ACTION on a fee-paid transaction')
+}
+
+// The leading ACTION token of `data` when the decoder would NOT recognize it,
+// else null. Same tokenization as the decoder and as validateActionName's own
+// contract above; splitting it out lets a caller that must stay buildable
+// report the token instead of throwing on it.
+//
+// Buffer `data` reads too, because the library builder accepts that shape and
+// the compiler copies those bytes verbatim, so the decoder tokenizes the same
+// leading token whichever shape arrived. Every canonical name and alias is
+// ASCII, so decoding the buffer never turns a recognized name into an
+// unrecognized one. A value that is neither a string nor a Buffer reads as null
+// and is left to the shape errors downstream.
+function unknownActionName(data) {
+    if (data == null || data.length === 0) return null
+    if (typeof data !== 'string' && !Buffer.isBuffer(data)) return null
+    const rawActionName = (Buffer.isBuffer(data) ? data.toString('utf8') : data).split('|')[0]
     const actionName = ACTION_ALIASES[rawActionName] ?? rawActionName
-    if (!VALID_ACTION_NAMES.has(actionName)) {
-        throw new RangeError(
-            `data has unknown ACTION name '${rawActionName.slice(0, 32)}'; ` +
-            'the decoder rejects any leading token that is not a canonical action ' +
-            'name or alias, silently dropping the ACTION on a fee-paid transaction')
-    }
+    return VALID_ACTION_NAMES.has(actionName) ? null : rawActionName
 }
 
 // MEASURAND: the CALLER'S bytes, before compression, deliberately (AML #5308).
@@ -893,6 +914,7 @@ module.exports = {
     isMinimalOpSingleByte,
     validateActionPushDecodability,
     validateActionName,
+    unknownActionName,
     VALID_ACTION_NAMES,
     ACTION_ALIASES,
     // Exported for the decoder's compiledPushSizeConformance test, which pins

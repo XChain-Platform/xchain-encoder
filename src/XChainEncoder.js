@@ -28,7 +28,7 @@ const BlockchainConnector = require('./BlockchainConnector')
 const CryptoNetworks = require('./CryptoNetworks')
 const UtxoTracker = require('./UtxoTracker')
 const TxSizeEstimator = require("./TxSizeEstimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateDataParam, validateActionPushDecodability } = require('./validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateDataParam, validateActionPushDecodability, unknownActionName } = require('./validator')
 const { compressPayloadForAction } = require('./compression')
 const { OperationalError } = require('./errors')
 const { upstreamErrorMessage } = require('./errorSanitize')
@@ -1173,6 +1173,28 @@ class XChainEncoder {
         // than close a data-loss path.
         if (typeof data === 'string') validateDataParam(data, 'data')
         if (typeof rawData === 'string') validateDataParam(rawData, 'rawData')
+
+        // The ACTION-name recognition check has the same one-surface problem, and a
+        // different answer. validateAll REFUSES an unrecognized leading token on the
+        // JSON-RPC path (validator.js), so only a direct library caller reaches the
+        // compiler with one: the transaction compiles, pays a real miner fee, and the
+        // decoder drops the ACTION with nothing reported back. The compiled-size
+        // checks cannot catch it, because an unknown name is an ordinary length.
+        //
+        // REPORTED, not refused, matching the rawDataOnlyPayload advisory below
+        // rather than the RPC gate. createTransaction is a general PSBT builder as
+        // well as an ACTION builder, and its supported shapes include a payload that
+        // is not an XChain ACTION at all; refusing here would withdraw that contract
+        // from every library and browser-bundle caller to close a silence, and the
+        // silence is the whole of the harm. The fee-payer learns before it signs,
+        // which needs no acceptance change.
+        //
+        // Read BEFORE compression, on the caller's own bytes, which is the surface
+        // validateAll measures; the compression pass rewrites `data` afterwards.
+        // Buffer inputs read too, unlike the latin-1 re-check above: that one is
+        // string-only because a Buffer loses nothing in the conversion, while the
+        // decoder tokenizes the compiled push whatever shape the caller handed over.
+        const unknownAction = unknownActionName(data)
 
         // If feeQuote is provided, inject it as a custom output
         if(feeQuote && feeQuote.address && feeQuote.amount > 0){
@@ -2983,6 +3005,21 @@ class XChainEncoder {
                     'XChain decoders read as empty: the transaction will confirm and the fee ' +
                     'will be paid, but the payload will not be indexed as an ACTION'
             }]
+        }
+
+        // The library path's ACTION-name advisory; see unknownAction above. Same
+        // additive `warnings` field, appended rather than assigned so it can ride
+        // alongside the rawData-only advisory when a caller earns both.
+        if (unknownAction != null){
+            if (!result.warnings) result.warnings = []
+            result.warnings.push({
+                code: 'UNKNOWN_ACTION_NAME',
+                message: `data leads with '${String(unknownAction).slice(0, 32)}', which is ` +
+                    'neither a canonical XChain ACTION name nor a known alias: the transaction ' +
+                    'will confirm and the fee will be paid, but every decoder drops the payload ' +
+                    'instead of indexing it as an ACTION. The JSON-RPC create_tx surface refuses ' +
+                    'this payload outright'
+            })
         }
 
         // What compression actually did, reported rather than inferred. The

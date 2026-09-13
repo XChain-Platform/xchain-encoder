@@ -1258,4 +1258,55 @@ describe('XChainEncoder.createTransaction() payload guards (library boundary)', 
     )
     assert.ok(result.psbt instanceof bitcoin.Psbt)
   })
+
+  // The ACTION-name parity gap. validateAll refuses an unrecognized leading
+  // token on the JSON-RPC path, so the direct library entry point is the one
+  // surface that can compile and pay for a payload every decoder then drops. The
+  // builder reports it instead of refusing, because a non-ACTION payload is a
+  // supported library shape; what must not happen is the silence.
+  const warningCodes = (result) => (result.warnings || []).map((w) => w.code)
+
+  it('warns a library caller whose data leads with an unknown ACTION name', async () => {
+    const encoder = makeEncoder()
+    const result = await encoder.createTransaction(
+      [makeSegwitUtxo(TXID_A, 0, 100000000)], TEST_ADDRESS, null,
+      'TRANSFRE|0|TOKEN|1|^2', null, 10000, false, null, TEST_ADDRESS,
+      null, null, null, true, 0.00001
+    )
+    assert.ok(result.psbt instanceof bitcoin.Psbt, 'the build must still succeed')
+    assert.ok(warningCodes(result).includes('UNKNOWN_ACTION_NAME'))
+    assert.ok(/TRANSFRE/.test(result.warnings.find((w) => w.code === 'UNKNOWN_ACTION_NAME').message))
+  })
+
+  it('warns when an unknown ACTION name arrives as a Buffer', async () => {
+    const encoder = makeEncoder()
+    const result = await encoder.createTransaction(
+      [makeSegwitUtxo(TXID_A, 0, 100000000)], TEST_ADDRESS, null,
+      Buffer.from('TRANSFRE|0|TOKEN|1|^2', 'utf8'), null, 10000, false, null, TEST_ADDRESS,
+      null, null, null, true, 0.00001
+    )
+    assert.ok(warningCodes(result).includes('UNKNOWN_ACTION_NAME'))
+  })
+
+  // The negative controls: a canonical name and an alias must produce NO
+  // advisory, or the warning is decoration rather than a signal.
+  it('does not warn on a canonical ACTION name', async () => {
+    const encoder = makeEncoder()
+    const result = await encoder.createTransaction(
+      [makeSegwitUtxo(TXID_A, 0, 100000000)], TEST_ADDRESS, null,
+      'SEND|0|TOKEN|1|^2', null, 10000, false, null, TEST_ADDRESS,
+      null, null, null, true, 0.00001
+    )
+    assert.ok(!warningCodes(result).includes('UNKNOWN_ACTION_NAME'))
+  })
+
+  it('does not warn on a known ACTION alias', async () => {
+    const encoder = makeEncoder()
+    const result = await encoder.createTransaction(
+      [makeSegwitUtxo(TXID_A, 0, 100000000)], TEST_ADDRESS, null,
+      'TRANSFER|0|TOKEN|1|^2', null, 10000, false, null, TEST_ADDRESS,
+      null, null, null, true, 0.00001
+    )
+    assert.ok(!warningCodes(result).includes('UNKNOWN_ACTION_NAME'))
+  })
 })
