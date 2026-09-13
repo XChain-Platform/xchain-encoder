@@ -8,6 +8,17 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
+// Additional tests targeting the branches in XChainEncoder.js not yet
+// covered by the existing test files, specifically:
+//   - P2WSH encoding: tx1 (funding), tx2 (spending), segwit-unsupported guard
+//   - Non-segwit (P2PKH) UTXO path that calls connector.getTransactionHex
+//   - feeQuote injection into customOutputs
+//   - payload-too-large guard (MAX_COMPILED_ACTION_DATA_LENGTH)
+//   - fee=null/false fast-path vs computed fee increment loop
+//   - changeSatoshis <= 0 / <= dustAmount with no change address (no-throw path)
+//   - estimateSpendingP2wshTx() across all three push-size brackets
+//   - maxFeeRateKb cap on computed fee rate
+
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../src/XChainEncoder')
