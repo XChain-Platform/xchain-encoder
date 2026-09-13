@@ -21,7 +21,8 @@
 
 const assert = require('assert')
 const crypto = require('crypto')
-const mod = require('../../src/XChainEncoder');
+const BlockchainConnector = require('../../src/build/blockchain_connector');
+const UtxoTracker = require('../../src/build/utxo_tracker');
 const bitcoin = require('bitcoinjs-lib');
 const ecc = require('tiny-secp256k1');
 const XChainEncoder = require('../../src/XChainEncoder');
@@ -36,24 +37,24 @@ const http = require('http');
 
 describe('S1: Module Loading', () => {
   it('loads XChainEncoder', () => {
-    assert.strictEqual(typeof mod, 'function')
+    assert.strictEqual(typeof XChainEncoder, 'function')
   })
 
   it('loads BlockchainConnector', () => {
-    assert.strictEqual(typeof mod, 'function')
+    assert.strictEqual(typeof BlockchainConnector, 'function')
   })
 
   it('loads CryptoNetworks', () => {
-    assert.strictEqual(typeof mod.getBitcoinJsNetwork, 'function')
+    assert.strictEqual(typeof CryptoNetworks.getBitcoinJsNetwork, 'function')
   })
 
   it('loads TxSizeEstimator', () => {
-    assert.strictEqual(typeof mod.estimateOpReturnOutput, 'function')
-    assert.strictEqual(typeof mod.estimateInputSize, 'function')
+    assert.strictEqual(typeof TxSizeEstimator.estimateOpReturnOutput, 'function')
+    assert.strictEqual(typeof TxSizeEstimator.estimateInputSize, 'function')
   })
 
   it('loads UtxoTracker', () => {
-    assert.strictEqual(typeof mod, 'function')
+    assert.strictEqual(typeof UtxoTracker, 'function')
   })
 
   it('loads bitcoinjs-lib with required exports', () => {
