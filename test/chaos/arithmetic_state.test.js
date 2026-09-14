@@ -28,26 +28,25 @@ const actions = require('../integration/helpers/actionFactory')
 const NETWORK = 'dogecoin-regtest'
 const ADDRESS = getTestAddress(NETWORK)
 
+// These two cases were written against the pre-M-8 encoder, which returned
+// "success" when changeSatoshis came out negative: the caller signed a PSBT
+// whose outputs exceeded its inputs, and the excess went to the miner. M-8
+// (_buildTransaction) now rejects an under-funded selection with a typed
+// INSUFFICIENT_FUNDS error, so the chaos scenario is unchanged and only the
+// expected outcome moved: from a quietly-wrong PSBT to a loud refusal.
+
+const assertInsufficientFunds = (err) => {
+  assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS',
+    `expected INSUFFICIENT_FUNDS, got ${err.xchainCode}: ${err.message}`)
+  // The details carry what the caller needs to top up, so assert them rather
+  // than the message text: available must be the real selected total, and
+  // required must exceed it, or the guard fired on the wrong arithmetic.
+  assert.ok(Number(err.details.required) > Number(err.details.available),
+    'required must exceed available for this error to be the right one')
+  return true
+}
+
 describe('Chaos Category D: Arithmetic & State Corruption', () => {
-
-  // These two cases were written against the pre-M-8 encoder, which returned
-  // "success" when changeSatoshis came out negative: the caller signed a PSBT
-  // whose outputs exceeded its inputs, and the excess went to the miner. M-8
-  // (_buildTransaction) now rejects an under-funded selection with a typed
-  // INSUFFICIENT_FUNDS error, so the chaos scenario is unchanged and only the
-  // expected outcome moved: from a quietly-wrong PSBT to a loud refusal.
-
-  const assertInsufficientFunds = (err) => {
-    assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS',
-      `expected INSUFFICIENT_FUNDS, got ${err.xchainCode}: ${err.message}`)
-    // The details carry what the caller needs to top up, so assert them rather
-    // than the message text: available must be the real selected total, and
-    // required must exceed it, or the guard fired on the wrong arithmetic.
-    assert.ok(Number(err.details.required) > Number(err.details.available),
-      'required must exceed available for this error to be the right one')
-    return true
-  }
-
   describe('D-1: Negative change is refused, not signed', () => {
     it('1-sat UTXO + 10000-sat fee → INSUFFICIENT_FUNDS, no PSBT', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -91,7 +90,9 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       )
     })
   })
+})
 
+describe('Chaos Category D: Arithmetic & State Corruption', () => {
   describe('D-2: Insufficient UTXOs produce no PSBT', () => {
     it('total inputs < fee → rejected instead of returned', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -138,7 +139,9 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
+describe('Chaos Category D: Arithmetic & State Corruption', () => {
   describe('D-3: Concurrent calls with shared UTXO array', () => {
     it('two concurrent calls with independent arrays both succeed', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -188,7 +191,9 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       assert.ok(r2.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
+describe('Chaos Category D: Arithmetic & State Corruption', () => {
   describe('D-4: UTXO array mutation across calls', () => {
     it('createTransaction mutates the caller\'s utxos array in-place', async () => {
       const encoder = makeEncoder(NETWORK)
