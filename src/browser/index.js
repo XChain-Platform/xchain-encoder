@@ -12,7 +12,7 @@
  *
  ********************************************************************/
 
-let XChainEncoder = require('./XChainEncoder');
+let XChainEncoder = require('../XChainEncoder');
 
 window.XChainEncoder = XChainEncoder;
 
