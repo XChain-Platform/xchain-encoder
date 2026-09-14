@@ -89,7 +89,9 @@ describe('Custom Output Boundaries', () => {
       assert.strictEqual(changeOutput.value, 100000000 - 50000 - 10000)
     })
   })
+})
 
+describe('Custom Output Boundaries', () => {
   describe('many custom outputs', () => {
     it('10 custom outputs each worth 100000 → correct total in outputSatoshis', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -146,7 +148,9 @@ describe('Custom Output Boundaries', () => {
         'more custom outputs should produce higher estimated fee')
     })
   })
+})
 
+describe('Custom Output Boundaries', () => {
   describe('custom output with value=0', () => {
     // Contract change (input-validation finding): a 0-sat caller output is
     // consensus-valid but relay-rejected as dust, so building it hands the caller
@@ -171,7 +175,9 @@ describe('Custom Output Boundaries', () => {
       )
     })
   })
+})
 
+describe('Custom Output Boundaries', () => {
   describe('custom output value exceeding inputs', () => {
     // M-8: custom outputs (50000) + fee (10000) exceed the 10000-sat input, so
     // the encoder throws INSUFFICIENT_FUNDS rather than return an unbroadcastable
@@ -197,7 +203,9 @@ describe('Custom Output Boundaries', () => {
       )
     })
   })
+})
 
+describe('Custom Output Boundaries', () => {
   describe('empty customOutputs array', () => {
     it('empty array has no effect on outputs or fees', async () => {
       const encoder = makeEncoder(NETWORK)
