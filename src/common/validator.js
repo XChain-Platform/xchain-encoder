@@ -588,9 +588,14 @@ function validateDust(dust) {
 }
 
 function validateUtxoEntry(entry, index) {
+    // Reject anything that is not a plain object: a string, number, array or
+    // null here means the caller sent the wrong shape, not a bad field, so
+    // each UTXO must arrive as its own {txid, vout, value, scriptPubKey} record.
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
         throw new TypeError(`utxos[${index}] must be an object`)
     }
+    // The outpoint's transaction id must be exactly 32 bytes of hex (64 chars);
+    // anything shorter, longer or non-hex cannot name a real transaction.
     if (typeof entry.txid !== 'string' || !HEX_64_RE.test(entry.txid)) {
         throw new TypeError(`utxos[${index}].txid must be a 64-character hex string`)
     }
@@ -805,6 +810,14 @@ function validateChange(change) {
     return validateAddress(change)
 }
 
+/**
+ * Validate and coerce every createTransaction parameter in one pass.
+ * @param {object} params - the raw JSON-RPC params object for create_tx.
+ * @returns {object} the same fields, each coerced to its checked form
+ *   (amounts to exact integers, hex strings to lowercase, etc).
+ * @throws {TypeError} a field is missing, the wrong type, or the wrong shape.
+ * @throws {RangeError} a field is the right type but outside its allowed bound.
+ */
 function validateAll(params) {
     // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
     // params cleared this gate and died 50 lines later on 'pubkey is required',
