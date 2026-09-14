@@ -79,7 +79,9 @@ describe('Data/Payload Boundaries', () => {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
+})
 
+describe('Data/Payload Boundaries', () => {
   // An empty payload used to compile to an OP_0 push, take the 4-byte magic
   // word, and ship as a magic-word-only OP_RETURN carrying no action, so every
   // plain native-coin payment paid for a nulldata output and announced itself
@@ -124,7 +126,9 @@ describe('Data/Payload Boundaries', () => {
       assert.strictEqual(decompilePayload(payload.dataBuffer)[0].toString('utf8'), 'X')
     })
   })
+})
 
+describe('Data/Payload Boundaries', () => {
   describe('rawData parameter interactions', () => {
     it('rawData=null: decompiled script has 1 element', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -156,7 +160,11 @@ describe('Data/Payload Boundaries', () => {
       assert.strictEqual(decompiled.length, 2)
       assert.strictEqual(decompiled[1].toString('utf8'), 'extra-metadata')
     })
+  })
+})
 
+describe('Data/Payload Boundaries', () => {
+  describe('rawData parameter interactions', () => {
     it('small data + large rawData pushes combined size over OP_RETURN into P2SH', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -187,7 +195,9 @@ describe('Data/Payload Boundaries', () => {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
+})
 
+describe('Data/Payload Boundaries', () => {
   describe('null bytes in data', () => {
     it('data with embedded null bytes survives round-trip intact', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -214,7 +224,9 @@ describe('Data/Payload Boundaries', () => {
         'null bytes should survive encoding round-trip')
     })
   })
+})
 
+describe('Data/Payload Boundaries', () => {
   describe('very large payload', () => {
     it('1000-byte data forced to OP_RETURN is rejected (exceeds single output)', async () => {
       const encoder = makeEncoder(NETWORK)
