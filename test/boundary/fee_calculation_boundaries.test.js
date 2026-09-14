@@ -95,7 +95,9 @@ describe('Fee Calculation Boundaries', () => {
         `DOGE fee should be floored to ${DOGE_DUST}, got ${impliedFee}`)
     })
   })
+})
 
+describe('Fee Calculation Boundaries', () => {
   describe('negative feePerKb → floored to dustAmount', () => {
     it('negative feePerKb does not produce negative fee', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -114,7 +116,9 @@ describe('Fee Calculation Boundaries', () => {
         `fee ${impliedFee} should be >= dustAmount ${BTC_DUST} even with negative feePerKb`)
     })
   })
+})
 
+describe('Fee Calculation Boundaries', () => {
   describe('maxFeeRateKb caps feePerBytes', () => {
     it('high feePerKb with cap produces lower fee than without cap', async () => {
       // Capped encoder: maxFeeRateKb = 1000 sat/kB
@@ -151,7 +155,11 @@ describe('Fee Calculation Boundaries', () => {
       assert.ok(cappedChange > uncappedChange,
         'capped fee should leave more change than uncapped')
     })
+  })
+})
 
+describe('Fee Calculation Boundaries', () => {
+  describe('maxFeeRateKb caps feePerBytes', () => {
     it('feePerKb below cap → cap has no effect', async () => {
       const capped = new XChainEncoder(
         NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 100000
@@ -185,7 +193,9 @@ describe('Fee Calculation Boundaries', () => {
         'cap should have no effect when feePerKb is below it')
     })
   })
+})
 
+describe('Fee Calculation Boundaries', () => {
   describe('Math.trunc precision', () => {
     it('fractional fee is truncated toward zero, not rounded', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -209,7 +219,9 @@ describe('Fee Calculation Boundaries', () => {
       assert.ok(impliedFee >= BTC_DUST, 'fee should be at least dust')
     })
   })
+})
 
+describe('Fee Calculation Boundaries', () => {
   describe('fee exceeding total inputs', () => {
     // M-8: the dust-floored fee (546) exceeds the 1-sat input, so the encoder
     // throws INSUFFICIENT_FUNDS instead of returning a PSBT with negative change.
@@ -255,7 +267,9 @@ describe('Fee Calculation Boundaries', () => {
       )
     })
   })
+})
 
+describe('Fee Calculation Boundaries', () => {
   describe('explicit fee parameter', () => {
     it('fee=10000 sets estimatedFee=10000 regardless of tx size', async () => {
       const encoder = makeEncoder(NETWORK)
