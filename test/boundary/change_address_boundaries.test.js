@@ -74,7 +74,9 @@ describe('Change Address Boundaries', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
+describe('Change Address Boundaries', () => {
   describe('changeSatoshis = 1 (minimum positive change)', () => {
     // M-6: sub-dust change (1..dustAmount-1 sats) is folded into the miner fee,
     // not emitted. A 1-sat output is below every chain's dust threshold and would
@@ -115,7 +117,9 @@ describe('Change Address Boundaries', () => {
         'no change output when change address is null (even with 1 sat remaining)')
     })
   })
+})
 
+describe('Change Address Boundaries', () => {
   describe('dust threshold boundary (BTC: 546)', () => {
     it('changeSatoshis = 546 (= dustAmount): no throw with null change', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -167,7 +171,9 @@ describe('Change Address Boundaries', () => {
       assert.strictEqual(changeOutputs[0].value, BTC_DUST + 1)
     })
   })
+})
 
+describe('Change Address Boundaries', () => {
   describe('dust threshold boundary (LTC: 5460)', () => {
     it('changeSatoshis = 5460: no throw with null change', async () => {
       const ltcEncoder = makeEncoder('litecoin-regtest')
@@ -200,7 +206,9 @@ describe('Change Address Boundaries', () => {
       )
     })
   })
+})
 
+describe('Change Address Boundaries', () => {
   // Inputs cannot cover outputs + fee. The encoder must throw a typed
   // INSUFFICIENT_FUNDS error rather than return an unbroadcastable PSBT whose
   // outputs exceed its inputs (the pre-M-8 behavior returned it silently).
