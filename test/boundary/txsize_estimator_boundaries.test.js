@@ -67,7 +67,9 @@ describe('TxSizeEstimator Boundaries', () => {
       assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), trueOutputSize(data))
     })
   })
+})
 
+describe('TxSizeEstimator Boundaries', () => {
   describe('estimateInputSize with missing UTXO data', () => {
     it('returns 350 (conservative fallback) for UTXO with neither witnessUtxo nor nonWitnessUtxo', () => {
       const utxo = { hash: TXID_A, index: 0, sequence: 0xffffffff }
@@ -84,7 +86,9 @@ describe('TxSizeEstimator Boundaries', () => {
         'fallback of 350 contributes to fee estimation')
     })
   })
+})
 
+describe('TxSizeEstimator Boundaries', () => {
   describe('estimateInputSize with out-of-bounds vout index', () => {
     it('returns 180 (P2PKH fallback) when output at vout does not exist', () => {
       // Build a raw tx with 1 output, but reference vout=5
@@ -107,7 +111,9 @@ describe('TxSizeEstimator Boundaries', () => {
       assert.strictEqual(estimate, 180, 'should fall back to P2PKH estimate')
     })
   })
+})
 
+describe('TxSizeEstimator Boundaries', () => {
   describe('estimateInputSize unknown script type', () => {
     it('returns 350-byte fallback for unrecognized script', () => {
       // Create a UTXO with a non-standard scriptPubKey
@@ -125,7 +131,9 @@ describe('TxSizeEstimator Boundaries', () => {
       assert.strictEqual(estimate, 350, 'should fall back to 350 for unknown script')
     })
   })
+})
 
+describe('TxSizeEstimator Boundaries', () => {
   describe('estimateP2shInputWithRedeem', () => {
     it('returns overhead (149) for 0-byte redeem script', () => {
       const estimate = TxSizeEstimator.estimateP2shInputWithRedeem(Buffer.alloc(0))
@@ -139,7 +147,9 @@ describe('TxSizeEstimator Boundaries', () => {
       assert.strictEqual(estimate, 629)
     })
   })
+})
 
+describe('TxSizeEstimator Boundaries', () => {
   describe('conservative fallback in pipeline', () => {
     it('missing UTXO data uses 350-byte fallback → fee includes input estimate', async () => {
       const encoder = makeEncoder('dogecoin-regtest')
