@@ -69,7 +69,11 @@ describe('Chaos Category F: API Layer Failures', () => {
       // 'commitTxid must be a 64-character hex string'.
       assert.strictEqual(err.message, 'Request params must be an object')
     })
+  })
+})
 
+describe('Chaos Category F: API Layer Failures', () => {
+  describe('F-1: Validator with malformed params', () => {
     it('data exceeding 65536 bytes → RangeError', () => {
       assert.throws(
         () => validator.validateAll({ data: 'X'.repeat(65537), pubkey: 'test' }),
@@ -109,7 +113,9 @@ describe('Chaos Category F: API Layer Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category F: API Layer Failures', () => {
   // api.js line 124 calls psbt.toHex() OUTSIDE the try/catch block.
   // If toHex() throws, it would be an unhandled error in the API.
 
@@ -152,7 +158,9 @@ describe('Chaos Category F: API Layer Failures', () => {
       assert.doesNotThrow(() => result.psbt.toHex())
     })
   })
+})
 
+describe('Chaos Category F: API Layer Failures', () => {
   describe('F-3b: psbt.toHex() monkey-patch (documents api.js exposure)', () => {
     let _origToHex
 
