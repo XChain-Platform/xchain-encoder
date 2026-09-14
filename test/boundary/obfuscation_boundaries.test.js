@@ -92,7 +92,9 @@ describe('Obfuscation Boundaries', () => {
       assert.deepStrictEqual(deobfuscated, data)
     })
   })
+})
 
+describe('Obfuscation Boundaries', () => {
   describe('short TXID causes AES failure', () => {
     const encoder = makeTestEncoder()
 
@@ -118,7 +120,9 @@ describe('Obfuscation Boundaries', () => {
       )
     })
   })
+})
 
+describe('Obfuscation Boundaries', () => {
   describe('pipeline: all-zero TXID in first UTXO', () => {
     it('produces valid PSBT with deobfuscatable payload', async () => {
       const zeroTxid = '0'.repeat(64)
@@ -141,7 +145,9 @@ describe('Obfuscation Boundaries', () => {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
+})
 
+describe('Obfuscation Boundaries', () => {
   describe('pipeline: short TXID in first UTXO', () => {
     it('createTransaction throws during obfuscation step', async () => {
       const shortTxid = 'abcd'
