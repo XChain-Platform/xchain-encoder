@@ -76,7 +76,9 @@ describe('UTXO Value Boundaries', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
+describe('UTXO Value Boundaries', () => {
   describe('string-typed UTXO values (parseInt coercion)', () => {
     it('"1000000" string value → treated as 1000000 sats correctly', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -108,7 +110,9 @@ describe('UTXO Value Boundaries', () => {
       ), /must be a non-negative integer/)
     })
   })
+})
 
+describe('UTXO Value Boundaries', () => {
   describe('all-duplicate UTXOs', () => {
     it('3 identical UTXOs dedup to 1; if sufficient, single input', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -151,7 +155,9 @@ describe('UTXO Value Boundaries', () => {
       )
     })
   })
+})
 
+describe('UTXO Value Boundaries', () => {
   describe('UTXO with large value', () => {
     it('value = 2.1 trillion sats (21M BTC max supply) works correctly', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -209,7 +215,9 @@ describe('UTXO Value Boundaries', () => {
       )
     })
   })
+})
 
+describe('UTXO Value Boundaries', () => {
   describe('unconfirmed filtering exhaustion', () => {
     it('all UTXOs mempool + unconfirmed=false → falls to UtxoTracker', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -238,7 +246,9 @@ describe('UTXO Value Boundaries', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
+describe('UTXO Value Boundaries', () => {
   describe('UTXO sorting with mixed values', () => {
     it('largest UTXO is always used as first input (txidFirstInput)', async () => {
       const encoder = makeEncoder(NETWORK)
