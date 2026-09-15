@@ -75,6 +75,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       assert.ok(result.psbt)
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('H-2: BlockchainConnector.getTransactionHex() failure', () => {
     it('propagates error when fetching raw tx for legacy UTXO fails', async () => {
@@ -106,6 +109,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('H-3: UtxoTracker unreachable', () => {
     it('propagates error when tracker is down and utxos=null', async () => {
@@ -127,6 +133,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('H-4: Invalid network name', () => {
     it('throws TypeError during construction for invalid network', () => {
@@ -138,6 +147,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('H-5: MULTISIGN without compressedPubKey', () => {
     it('throws when compressedPubKey is null', async () => {
@@ -155,6 +167,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('H-6: P2SH without valid pubkey address', () => {
     it('throws when pubkey is not a valid base58 address', async () => {
@@ -171,6 +186,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       )
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('Return value shape', () => {
     it('returns { psbt, encoding } where psbt is a Psbt instance', async () => {
@@ -190,6 +208,9 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       assert.ok(['OP_RETURN', 'P2SH', 'P2WSH', 'MULTISIGN'].includes(result.encoding))
     })
   })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
 
   describe('Custom dust parameter', () => {
     it('overrides dust for MULTISIGN output value but not fee floor', async () => {
@@ -211,6 +232,11 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
       const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
       assert.ok(msOutput, 'MULTISIGN output should use custom dust value')
     })
+  })
+})
+
+describe('Category H: Error Handling at Integration Boundaries', () => {
+  describe('Custom dust parameter', () => {
 
     it('fee floor still uses network dustAmount, not custom dust', async () => {
       const encoder = makeEncoder(NETWORK)
