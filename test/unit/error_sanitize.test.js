@@ -49,6 +49,10 @@ describe('errorSanitize.upstreamErrorMessage', () => {
         assert.strictEqual(upstreamErrorMessage(null, FALLBACK), FALLBACK)
         assert.strictEqual(upstreamErrorMessage({}, FALLBACK), FALLBACK)
     })
+})
+
+describe('errorSanitize.upstreamErrorMessage', () => {
+    const FALLBACK = 'Transaction broadcast failed'
 
     it('isTransportError matches network errnos but not application errors', () => {
         assert.strictEqual(isTransportError({ code: 'ENOTFOUND' }), true)
