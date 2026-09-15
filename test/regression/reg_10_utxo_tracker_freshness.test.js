@@ -33,6 +33,20 @@ const {
 } = require('../integration/helpers/utxoFactory')
 const XChainEncoder = require('../../src/XChainEncoder')
 
+function stubSync(encoder, sync) {
+  encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
+    utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
+    sync
+  })
+}
+
+function build(encoder, address) {
+  return encoder.createTransaction(
+    null, address, null, 'test', null, 10000, false, null, address,
+    null, null, null, true, 0.00001
+  )
+}
+
 describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
   describe('stale gate fires', () => {
@@ -78,6 +92,11 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
                  err.details.lag === 5
       )
     })
+  })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
+  describe('stale gate fires', () => {
 
     it('respects a custom UTXO_TRACKER_MAX_LAG_BLOCKS threshold passed to the constructor', async () => {
       // lag=3 would fail the default threshold (2) but passes a wider one (5).
@@ -100,26 +119,15 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       assert.ok(result.psbt, 'a lag under the custom threshold must build normally')
     })
   })
+})
 
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
   // The gate used to read only `synced` and an upper lag bound, so three views
   // the tracker itself considers unusable reached input selection on the
   // money path: one it halted on, one whose committed tip sits above the node's, and
   // one whose mempool index is still empty and cannot filter an already-spent
   // confirmed output.
   describe('unusable-source gates fire', () => {
-    function stubSync(encoder, sync) {
-      encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
-        sync
-      })
-    }
-    function build(encoder, address) {
-      return encoder.createTransaction(
-        null, address, null, 'test', null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-    }
-
     it('throws UTXO_TRACKER_HALTED when the tracker halted, even at lag 0 and synced=true', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
@@ -151,6 +159,11 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
                  err.details.lag === 0
       )
     })
+  })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
+  describe('unusable-source gates fire', () => {
 
     it('throws UTXO_TRACKER_STALE when the tracker is ahead of the node (negative lag)', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -186,6 +199,11 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
                  /orphaned/.test(err.message)
       )
     })
+  })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
+  describe('unusable-source gates fire', () => {
 
     // The gate ships ahead of the fleet, so a tracker whose sync sibling predates
     // these fields must keep serving rather than being refused wholesale.
@@ -209,6 +227,9 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       assert.ok(result.psbt)
     })
   })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
   describe('lag below threshold passes', () => {
     it('builds normally when lag is under the default 2-block threshold', async () => {
@@ -241,6 +262,9 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       assert.ok(result.psbt, 'lag exactly at the threshold must not gate')
     })
   })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
   describe('absent freshness surface passes (backward compat)', () => {
     it('builds normally when the tracker response has no sync field (pre-ce16bdd tracker)', async () => {
@@ -273,6 +297,9 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       assert.ok(result.psbt, 'an unknown (null) lag must not be treated as exceeding the threshold')
     })
   })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
   describe('caller-supplied UTXOs bypass the gate', () => {
     it('never consults or gates on the tracker when UTXOs are explicitly provided', async () => {
@@ -294,6 +321,9 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
       assert.strictEqual(trackerCalled, false, 'explicit coin-control must skip the tracker entirely')
     })
   })
+})
+
+describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
   describe('api.js maps UTXO_TRACKER_STALE to -32010', () => {
     const { OperationalError } = require('../../src/build/errors')
