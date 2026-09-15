@@ -76,6 +76,9 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), action.data)
     })
   })
+})
+
+describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.2: P2SH ISSUE round-trip (all 25+ fields)', () => {
     it('all ISSUE fields survive P2SH tx1→tx2 round-trip', async () => {
@@ -125,6 +128,9 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.ok(recoveredAction.includes('RT memo'))
     })
   })
+})
+
+describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.3: MULTISIGN round-trip', () => {
     it('data encoded in fake pubkeys recovers original payload', async () => {
@@ -149,6 +155,9 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), MS_DATA)
     })
   })
+})
+
+describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.4: P2WSH FILE round-trip', () => {
     it('large file content survives P2WSH encoding', async () => {
@@ -188,6 +197,9 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
+})
+
+describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.5: Oversized OP_RETURN rejected', () => {
     it('forced OP_RETURN beyond a single output is rejected', async () => {
@@ -212,6 +224,9 @@ describe('E2E-9: Round-Trip Verification', () => {
       )
     })
   })
+})
+
+describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.6: BATCH round-trip', () => {
     it('semicolon-separated batch survives encoding', async () => {
@@ -250,6 +265,9 @@ describe('E2E-9: Round-Trip Verification', () => {
       }
     })
   })
+})
+
+describe('E2E-9: Round-Trip Verification', () => {
 
   describe('E2E-9.7: Cross-chain decode equivalence', () => {
     it('same ACTION on BTC/DOGE/LTC produces identical decoded payloads', async () => {
