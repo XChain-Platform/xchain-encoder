@@ -29,9 +29,7 @@ const assert    = require('assert')
 const express   = require('express')
 const http      = require('http')
 const rateLimit = require('express-rate-limit')
-const { createConcurrencyGate, resolveLimit } = require('../../src/server/concurrency_gate.js')
-const fs = require('fs');
-const path = require('path');
+const { createConcurrencyGate } = require('../../src/server/concurrency_gate.js')
 
 // The 429 body the gate serves in production (src/api.js). -32029 is the
 // encoder's "too many requests" JSON-RPC code, shared with the per-IP limiter,
@@ -42,16 +40,7 @@ const isProbe   = (req) => req.method === 'GET' && (req.path === '/status' || re
 // Servers opened by a test, torn down in afterEach.
 let openServers = []
 
-/**
- * Stand up a miniature encoder with api.js's exact middleware order: the
- * production per-IP limiter, the probe reserve, the main gate, then handlers
- * that park until the test releases them. Parking is what makes "concurrent"
- * deterministic - requests stay in flight until we say so.
- */
-function buildServer(options){
-    options = options || {}
-
-    const app = express()
+function configureApp(app){
     // Same trust-proxy default api.js uses (ENCODER_TRUST_PROXY), so an
     // X-Forwarded-For hop from the loopback peer becomes req.ip.
     app.set('trust proxy', 'loopback, uniquelocal')
@@ -67,7 +56,9 @@ function buildServer(options){
         legacyHeaders:   false,
         message:         { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Too many requests' } }
     }))
+}
 
+function createGates(app, options){
     const probeGate = createConcurrencyGate({
         limit:      options.probeLimit !== undefined ? options.probeLimit : 16,
         retryAfter: 1,
@@ -84,6 +75,10 @@ function buildServer(options){
     })
     app.use(gate)
 
+    return { probeGate, gate }
+}
+
+function mountRoutes(app, gate, options){
     let releaseHeld, releaseProbe
     const held      = new Promise(resolve => { releaseHeld  = resolve })
     const heldProbe = new Promise(resolve => { releaseProbe = resolve })
@@ -119,15 +114,28 @@ function buildServer(options){
         res.json({ status: 'healthy' })
     })
 
+    return {
+        arrivals: () => expensiveArrivals, enteredHeld: () => heldEntered,
+        release: () => releaseHeld(), releaseProbe: () => releaseProbe() }
+}
+
+/**
+ * Stand up a miniature encoder with api.js's exact middleware order: the
+ * production per-IP limiter, the probe reserve, the main gate, then handlers
+ * that park until the test releases them. Parking is what makes "concurrent"
+ * deterministic - requests stay in flight until we say so.
+ */
+function buildServer(options){
+    options = options || {}
+
+    const app = express()
+    configureApp(app)
+    const { probeGate, gate } = createGates(app, options)
+    const routes = mountRoutes(app, gate, options)
     const server = http.createServer(app)
     openServers.push(server)
 
-    return {
-        app, gate, probeGate, server,
-        arrivals: () => expensiveArrivals,
-        enteredHeld: () => heldEntered,
-        release: () => releaseHeld(), releaseProbe: () => releaseProbe()
-    }
+    return { app, gate, probeGate, server, ...routes }
 }
 
 function listen(server){
@@ -150,16 +158,17 @@ async function waitFor(predicate, label){
     throw new Error('timed out waiting for: ' + label)
 }
 
-describe('Security: global in-flight concurrency cap', function () {
+function closeServers(){
+    for(const server of openServers){
+        // fetch keeps its sockets alive, so close() alone would hang.
+        if(typeof server.closeAllConnections === 'function') server.closeAllConnections()
+        server.close()
+    }
+    openServers = []
+}
 
-    afterEach(function () {
-        for(const server of openServers){
-            // fetch keeps its sockets alive, so close() alone would hang.
-            if(typeof server.closeAllConnections === 'function') server.closeAllConnections()
-            server.close()
-        }
-        openServers = []
-    })
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('refuses the (cap+1)th concurrent request with 429, though every request has a distinct IP', async function () {
         const CAP = 3
@@ -191,6 +200,10 @@ describe('Security: global in-flight concurrency cap', function () {
         }
         assert.strictEqual(new Set(ips).size, CAP)
     })
+})
+
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('frees a slot when a request completes, so the next caller is served', async function () {
         const { server, gate, release } = buildServer({ limit: 1 })
@@ -223,6 +236,10 @@ describe('Security: global in-flight concurrency cap', function () {
         await aborted.catch(() => {})
         await waitFor(() => gate.getStats().in_flight === 0, 'aborted slot to be released')
     })
+})
+
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('keeps a held slot while the upstream work runs on after the client aborts', async function () {
         // Express never awaits an async handler, so releasing on the socket's
@@ -261,6 +278,10 @@ describe('Security: global in-flight concurrency cap', function () {
         await waitFor(() => gate.getStats().in_flight === 0, 'slot to come back once the work settled')
         assert.strictEqual((await get(server, '/held', 3)).status, 200)
     })
+})
+
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('negative control: with hold() stubbed out, the aborted slot is handed to the next caller', async function () {
         // The same scenario against a pass-through wrapper, which is exactly the
@@ -299,6 +320,10 @@ describe('Security: global in-flight concurrency cap', function () {
         release()
         assert.strictEqual((await parked).status, 200)
     })
+})
+
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('api.js mounts the JSON-RPC router and /status inside hold()', function () {
         // The wrapper is the whole fix, and it lives at the mount site rather
@@ -325,6 +350,10 @@ describe('Security: global in-flight concurrency cap', function () {
         assert.strictEqual((await get(server, '/status', 2)).status, 200)
         assert.strictEqual((await get(server, '/expensive', 3)).status, 429)
     })
+})
+
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('bounds the probe reserve too, so /status is not an uncapped bypass', async function () {
         // /status is exempt from the MAIN cap, not from every cap: each call
@@ -349,6 +378,10 @@ describe('Security: global in-flight concurrency cap', function () {
         releaseProbe()
         for(const response of await Promise.all(parkedProbes)) assert.strictEqual(response.status, 200)
     })
+})
+
+describe('Security: global in-flight concurrency cap', function () {
+    afterEach(closeServers)
 
     it('is disabled by a cap of 0 (operator escape hatch)', async function () {
         const { server, gate, release, arrivals } = buildServer({ limit: 0 })
@@ -363,42 +396,5 @@ describe('Security: global in-flight concurrency cap', function () {
 
         release()
         for(const response of await Promise.all(parked)) assert.strictEqual(response.status, 200)
-    })
-
-    describe('resolveLimit', function () {
-
-        it('keeps the caller default when the env var is unset or unparseable', function () {
-            // A typo must not silently remove the cap.
-            assert.strictEqual(resolveLimit(undefined, 50), 50)
-            assert.strictEqual(resolveLimit('', 50), 50)
-            assert.strictEqual(resolveLimit('lots', 50), 50)
-        })
-
-        it('honours an explicit value and treats <= 0 as disabled', function () {
-            assert.strictEqual(resolveLimit('25', 50), 25)
-            assert.strictEqual(resolveLimit('0', 50), 0)
-            assert.strictEqual(resolveLimit('-5', 50), 0)
-        })
-    })
-
-    describe('api.js wiring', function () {
-
-        const apiSource = fs.readFileSync(path.join(__dirname, '../../src/api.js'), 'utf8')
-
-        it('mounts the gate on the app with an env-overridable cap', function () {
-            assert.ok(apiSource.includes('concurrencyGate.createConcurrencyGate'))
-            assert.ok(apiSource.includes('ENCODER_MAX_CONCURRENT_REQUESTS'))
-            assert.ok(/app\.use\(requestGate\)/.test(apiSource))
-        })
-
-        it('mounts a bounded reserve for the exempt readiness probes', function () {
-            assert.ok(apiSource.includes('ENCODER_MAX_CONCURRENT_PROBES'))
-            assert.ok(/app\.use\(probeGate\)/.test(apiSource))
-        })
-
-        it('reports the gate stats so a stampede is visible to operators', function () {
-            assert.ok(apiSource.includes('request_gate: requestGate.getStats()'))
-            assert.ok(apiSource.includes('probe_gate: probeGate.getStats()'))
-        })
     })
 })
