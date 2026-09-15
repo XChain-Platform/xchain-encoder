@@ -31,6 +31,76 @@ const BTC = 'bitcoin-regtest'
 const DOGE_ADDR = getTestAddress(DOGE)
 const BTC_ADDR = getTestAddress(BTC)
 
+function defineArithmeticLimitCases () {
+  describe('B-2: UTXO values at arithmetic boundaries', () => {
+    // value=0 and value=1 used to build a PSBT with negative change (the fee
+    // silently ate more than the inputs held). M-8 rejects the under-funded
+    // selection instead, so both now assert the typed refusal.
+    it('value=0 → INSUFFICIENT_FUNDS, available reported as 0', async () => {
+      const encoder = makeEncoder(DOGE)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 0)
+
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], DOGE_ADDR, null,
+          actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
+          null, null, null, true, 0.00001
+        ),
+        (err) => {
+          assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
+          assert.strictEqual(Number(err.details.available), 0)
+          return true
+        }
+      )
+    })
+
+    it('value=1 → INSUFFICIENT_FUNDS rather than negative change', async () => {
+      const encoder = makeEncoder(DOGE)
+      const utxo = makeUtxo(DOGE, TXID_A, 0, 1)
+
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], DOGE_ADDR, null,
+          actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
+          null, null, null, true, 0.00001
+        ),
+        (err) => {
+          assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
+          assert.ok(Number(err.details.required) > Number(err.details.available))
+          return true
+        }
+      )
+    })
+  })
+}
+
+function defineMalformedValueCases () {
+  describe('B-2: UTXO values at arithmetic boundaries', () => {
+    it('hex string value "0xff" is rejected (parseInt would read it as 0)', async () => {
+      const encoder = makeEncoder(DOGE)
+      const utxo = { ...makeUtxo(DOGE, TXID_A, 0, 1), value: '0xff' }
+
+      // parseInt('0xff', 10) === 0 silently zeroed the UTXO; reject instead.
+      await assert.rejects(() => encoder.createTransaction(
+        [utxo], DOGE_ADDR, null,
+        actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
+        null, null, null, true, 0.00001
+      ), /must be a non-negative integer/)
+    })
+
+    it('float string "100.7" is rejected (parseInt would truncate to 100)', async () => {
+      const encoder = makeEncoder(DOGE)
+      const utxo = { ...makeUtxo(DOGE, TXID_A, 0, 1), value: '100.7' }
+
+      await assert.rejects(() => encoder.createTransaction(
+        [utxo], DOGE_ADDR, null,
+        actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
+        null, null, null, true, 0.00001
+      ), /must be a non-negative integer/)
+    })
+  })
+}
+
 describe('Chaos Category B: Input & Data Corruption', () => {
 
   // KNOWN BUG: line 277 of XChainEncoder.js has no guard for empty
@@ -79,71 +149,14 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
-  describe('B-2: UTXO values at arithmetic boundaries', () => {
-    // value=0 and value=1 used to build a PSBT with negative change (the fee
-    // silently ate more than the inputs held). M-8 rejects the under-funded
-    // selection instead, so both now assert the typed refusal.
-    it('value=0 → INSUFFICIENT_FUNDS, available reported as 0', async () => {
-      const encoder = makeEncoder(DOGE)
-      const utxo = makeUtxo(DOGE, TXID_A, 0, 0)
+describe('Chaos Category B: Input & Data Corruption', () => {
+  defineArithmeticLimitCases()
+  defineMalformedValueCases()
+})
 
-      await assert.rejects(
-        () => encoder.createTransaction(
-          [utxo], DOGE_ADDR, null,
-          actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
-          null, null, null, true, 0.00001
-        ),
-        (err) => {
-          assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
-          assert.strictEqual(Number(err.details.available), 0)
-          return true
-        }
-      )
-    })
-
-    it('value=1 → INSUFFICIENT_FUNDS rather than negative change', async () => {
-      const encoder = makeEncoder(DOGE)
-      const utxo = makeUtxo(DOGE, TXID_A, 0, 1)
-
-      await assert.rejects(
-        () => encoder.createTransaction(
-          [utxo], DOGE_ADDR, null,
-          actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
-          null, null, null, true, 0.00001
-        ),
-        (err) => {
-          assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
-          assert.ok(Number(err.details.required) > Number(err.details.available))
-          return true
-        }
-      )
-    })
-
-    it('hex string value "0xff" is rejected (parseInt would read it as 0)', async () => {
-      const encoder = makeEncoder(DOGE)
-      const utxo = { ...makeUtxo(DOGE, TXID_A, 0, 1), value: '0xff' }
-
-      // parseInt('0xff', 10) === 0 silently zeroed the UTXO; reject instead.
-      await assert.rejects(() => encoder.createTransaction(
-        [utxo], DOGE_ADDR, null,
-        actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
-        null, null, null, true, 0.00001
-      ), /must be a non-negative integer/)
-    })
-
-    it('float string "100.7" is rejected (parseInt would truncate to 100)', async () => {
-      const encoder = makeEncoder(DOGE)
-      const utxo = { ...makeUtxo(DOGE, TXID_A, 0, 1), value: '100.7' }
-
-      await assert.rejects(() => encoder.createTransaction(
-        [utxo], DOGE_ADDR, null,
-        actions.makeSend().data, null, 10000, false, null, DOGE_ADDR,
-        null, null, null, true, 0.00001
-      ), /must be a non-negative integer/)
-    })
-  })
-
+describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-3: Obfuscation key edge cases (degenerate AES keys)', () => {
     it('all-zero txid (000...0) works as AES key', async () => {
       const encoder = makeEncoder(DOGE)
@@ -188,6 +201,7 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
   // The encoder caps the *compiled* on-chain push at MAX_COMPILED_ACTION_DATA_LENGTH
   // (8192), the same ceiling the indexing decoder enforces. An 8189-byte payload
@@ -195,6 +209,8 @@ describe('Chaos Category B: Input & Data Corruption', () => {
   // compiles to 8193 and is rejected, because the decoder would otherwise silently
   // drop it on chain. (createTransaction enforces the compiled ceiling directly;
   // the api.js validator additionally pre-checks the raw byte count at 8189.)
+
+describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-4: Maximum payload stress (8192 byte compiled boundary)', () => {
     it('8189-byte data → compiled=8192 → at limit, P2WSH succeeds', async () => {
       const encoder = makeEncoder(BTC)
@@ -223,7 +239,9 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       )
     })
   })
+})
 
+describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-5: Corrupted scriptPubKey in UTXOs', () => {
     function makeCorruptUtxo (scriptPubKey) {
       return { txid: TXID_A, vout: 0, value: 100000000, confirmations: 6, scriptPubKey }
@@ -265,7 +283,9 @@ describe('Chaos Category B: Input & Data Corruption', () => {
       assert.ok(result.psbt instanceof bitcoin.Psbt)
     })
   })
+})
 
+describe('Chaos Category B: Input & Data Corruption', () => {
   describe('B-6: Binary/NUL content in ACTION data', () => {
     it('NUL bytes in data produce valid PSBT', async () => {
       const encoder = makeEncoder(DOGE)
