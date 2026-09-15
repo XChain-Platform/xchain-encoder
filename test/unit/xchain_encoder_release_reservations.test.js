@@ -114,7 +114,9 @@ describe('XChainEncoder reservation release', () => {
     const again = await createTx(encoder, oneFundedUtxo())
     assert.strictEqual(again.psbt.txInputs.length, 1)
   })
+})
 
+describe('XChainEncoder reservation release', () => {
   it('a foreign ticket id releases nothing and leaves the claims standing', async () => {
     const encoder = makeEncoder()
     await createTx(encoder, oneFundedUtxo())
@@ -156,7 +158,9 @@ describe('XChainEncoder reservation release', () => {
     assert.strictEqual(second.found, false)
     assert.deepStrictEqual(second.released, [])
   })
+})
 
+describe('XChainEncoder reservation release', () => {
   it('releases only the presented build\'s claims, not a concurrent build\'s', async () => {
     const encoder = makeEncoder()
     const utxos = [makeSegwitUtxo(TXID_ONE, 0, 5000000), makeSegwitUtxo(TXID_TWO, 1, 4000000)]
