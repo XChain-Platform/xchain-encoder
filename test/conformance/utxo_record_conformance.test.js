@@ -52,9 +52,6 @@ const clone = (r) => JSON.parse(JSON.stringify(r))
 
 let originalPost
 
-beforeEach(() => { originalPost = axios.post })
-afterEach(() => { axios.post = originalPost })
-
 // Serve the fixture through the real transport seam: one get_sync_status call,
 // then one get_utxos page carrying the fixture's own records and sync sibling.
 function stubTrackerServing (records, sync) {
@@ -83,7 +80,9 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
     assert.ok(fixture.withheldOutpoints.length >= 1, 'fixture lost its withheld-outpoint expectation')
     assert.ok(fixture.sync && typeof fixture.sync === 'object', 'fixture lost its sync sibling')
   })
+})
 
+describe('utxo-record conformance fixture: the tracker record passes both inbound gates', function () {
   it('validateUtxoEntry accepts every record the tracker serves', function () {
     fixture.servedRecords.forEach((r, i) => {
       const entry = clone(r)
@@ -98,6 +97,11 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
         `${r.txid}: validateUtxoEntry lost satoshi precision`)
     })
   })
+})
+
+describe('utxo-record conformance fixture: the tracker record passes both inbound gates', function () {
+  beforeEach(() => { originalPost = axios.post })
+  afterEach(() => { axios.post = originalPost })
 
   it('the getUtxosFromAddress shape gate accepts every record the tracker serves', async function () {
     stubTrackerServing(fixture.servedRecords, fixture.sync)
@@ -109,6 +113,11 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
       assert.strictEqual(u.confirmations, fixture.servedRecords[i].confirmations)
     })
   })
+})
+
+describe('utxo-record conformance fixture: the tracker record passes both inbound gates', function () {
+  beforeEach(() => { originalPost = axios.post })
+  afterEach(() => { axios.post = originalPost })
 
   it('the shape gate leaves value as the decimal string it re-exports over get_utxos', async function () {
     // NOT a restatement of the tier above, and the difference is the point.
@@ -130,7 +139,9 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
     assert.doesNotThrow(() => JSON.stringify({ utxos: result.utxos }),
       'the get_utxos payload must stay JSON-serializable')
   })
+})
 
+describe('utxo-record conformance fixture: the tracker record passes both inbound gates', function () {
   it('the served set withholds every outpoint the tracker refuses to serve', function () {
     const servedKeys = fixture.servedRecords.map((r) => r.txid + ':' + r.vout)
     for (const w of fixture.withheldOutpoints) {
@@ -138,6 +149,11 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
         `withheld outpoint ${w.txid}:${w.vout} appeared in the served set (${w.why})`)
     }
   })
+})
+
+describe('utxo-record conformance fixture: the tracker record passes both inbound gates', function () {
+  beforeEach(() => { originalPost = axios.post })
+  afterEach(() => { axios.post = originalPost })
 
   it('the freshness sibling satisfies the encoder fetch gate', async function () {
     // The sync shape is a contract too: getUtxosFromAddress refuses outright on
@@ -153,6 +169,11 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
     assert.ok(fixture.sync.lag >= 0 && fixture.sync.synced === true && fixture.sync.mempool_ready === true,
       'the pinned sync sample must be one the encoder accepts')
   })
+})
+
+describe('utxo-record conformance fixture: the tracker record passes both inbound gates', function () {
+  beforeEach(() => { originalPost = axios.post })
+  afterEach(() => { axios.post = originalPost })
 
   // A conformance test that only proves acceptance has no teeth: these are the
   // producer-side drifts the seam is here to catch, each mutated from a REAL
