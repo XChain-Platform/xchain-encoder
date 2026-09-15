@@ -32,6 +32,15 @@ const {
 // P2SH forces the two-transaction flow (payload over the 76-byte OP_RETURN cap).
 const BIG_DATA = 'x'.repeat(80)
 
+function twoUtxoTracker (encoder) {
+  encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
+    utxos: [
+      makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000),
+      makeUtxo('bitcoin-regtest', TXID_A, 1, 100000000)
+    ]
+  })
+}
+
 describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   // Reveal derives inputs from phase 1, never re-queries the tracker.
@@ -70,6 +79,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       assert.ok(tx2.psbt.data.inputs.length >= 1, 'reveal must reconstruct its inputs from phase 1')
     })
   })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   // Sub-dust change is folded into the fee, never emitted.
   describe('M-6: sub-dust change folding', () => {
@@ -114,6 +126,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
         'change one sat below dust must be folded')
     })
   })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   // The 500-UTXO cap gates the SELECTED count, not the fetched set.
   describe('M-7: MAX_UTXO_COUNT applies to selected inputs, not the fetched set', () => {
@@ -156,6 +171,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       )
     })
   })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   // Under-funded selection throws a typed error, not a dead PSBT.
   describe('M-8: insufficient-funds error', () => {
@@ -179,18 +197,12 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       )
     })
   })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   // Outpoint reservation prevents concurrent same-address double-spends.
   describe('L-1: in-memory outpoint reservation', () => {
-    function twoUtxoTracker (encoder) {
-      encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({
-        utxos: [
-          makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000),
-          makeUtxo('bitcoin-regtest', TXID_A, 1, 100000000)
-        ]
-      })
-    }
-
     it('two sequential tracker-fed selections pick disjoint outpoints', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
@@ -209,6 +221,11 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       assert.deepStrictEqual(r2.psbt.txInputs.map(i => i.index), [1],
         'second call must skip the outpoint the first reserved')
     })
+  })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
+  describe('L-1: in-memory outpoint reservation', () => {
 
     it('once every outpoint is reserved a further call reports insufficient funds', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -228,6 +245,11 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       const r = await encoder.createTransaction(null, address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
       assert.deepStrictEqual(r.psbt.txInputs.map(i => i.index), [0])
     })
+  })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
+  describe('L-1: in-memory outpoint reservation', () => {
 
     it('caller-supplied UTXOs are reserved too, and the SDK supplies a tracker-fetched set', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -247,6 +269,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       )
     })
   })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   // api.js forwards typed operational errors, sanitizes internals.
   describe('L-2: API surfaces typed operational errors', () => {
@@ -294,6 +319,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       assert.strictEqual(caught.data, undefined, 'internal errors carry no data payload')
     })
   })
+})
+
+describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
 
   describe('FIX K: get_utxos validates the address param before the tracker call', () => {
     const { jsonRpcController } = require('../../src/api')
