@@ -8,27 +8,15 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Additional tests targeting the branches in XChainEncoder.js not yet
-// covered by the existing test files, specifically:
-//   - P2WSH encoding: tx1 (funding), tx2 (spending), segwit-unsupported guard
-//   - Non-segwit (P2PKH) UTXO path that calls connector.getTransactionHex
-//   - feeQuote injection into customOutputs
-//   - payload-too-large guard (MAX_COMPILED_ACTION_DATA_LENGTH)
-//   - fee=null/false fast-path vs computed fee increment loop
-//   - changeSatoshis <= 0 / <= dustAmount with no change address (no-throw path)
-//   - estimateSpendingP2wshTx() across all three push-size brackets
-//   - maxFeeRateKb cap on computed fee rate
-
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
   'hex'
 )
 const TXID_A = 'a'.repeat(64)
-const TXID_B = 'b'.repeat(64)
 
 // Build a raw legacy P2PKH transaction hex (nonWitnessUtxo)
 function buildRawP2pkhTxHex (value) {
@@ -66,7 +54,7 @@ function makeP2pkhUtxo (txid, vout, value) {
   return { txid, vout, value, confirmations: 6, scriptPubKey: script }
 }
 
-const DOGE_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
+const DOGE_REGTEST = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: DOGE_REGTEST
@@ -95,63 +83,57 @@ function makeEncoder (network) {
   return encoder
 }
 
-describe('XChainEncoder.createTransaction(): non-segwit UTXO path', () => {
-  it('calls connector.getTransactionHex for a P2PKH UTXO', async () => {
-    const encoder = makeEncoder()
-    let hexFetched = false
-    encoder.connector.getTransactionHex = async (txid) => {
-      hexFetched = true
-      assert.strictEqual(txid, TXID_A)
-      return RAW_TX_HEX
-    }
-    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
-    await encoder.createTransaction(
-      [utxo], TEST_ADDRESS, null,
-      'test', null, 10000, false, null, TEST_ADDRESS,
-      null, null, null, true, 0.00001
-    )
-    assert.strictEqual(hexFetched, true)
-  })
-
-  it('stores the nonWitnessUtxo buffer from the hex for legacy inputs', async () => {
+describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
+  it('adds feeQuote as an extra output when address and amount > 0', async () => {
     const encoder = makeEncoder()
     const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
+    const feeQuote = { address: TEST_ADDRESS, amount: 99000 }
 
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null,
       'test', null, 10000, false, null, TEST_ADDRESS,
-      null, null, null, true, 0.00001
+      null, null, null, true, 0.00001,
+      null, // dust
+      feeQuote
     )
 
-    // The PSBT input should have a nonWitnessUtxo buffer (not witnessUtxo)
-    const input = result.psbt.data.inputs[0]
-    assert.ok(Buffer.isBuffer(input.nonWitnessUtxo), 'should have nonWitnessUtxo buffer')
-    assert.ok(!input.witnessUtxo, 'should NOT have witnessUtxo')
+    // Should have OP_RETURN (0) + feeQuote (99000) + change
+    const feeQuoteOutput = result.psbt.txOutputs.find(o => o.value === 99000)
+    assert.ok(feeQuoteOutput, 'should have a feeQuote output with the correct value')
   })
 
-  it('uses multiple UTXOs when first is insufficient to cover fee', async () => {
+  it('does not add feeQuote when amount is 0', async () => {
     const encoder = makeEncoder()
-    // The oversized explicit fee here exists to force multi-UTXO selection; it
-    // would trip the relative fee-rate cap (tested in its own suite), so
-    // disable the cap for this test.
-    encoder.maxFeeRateMultiplier = null
-    // Two P2PKH UTXOs that must be combined. Sorted largest-first:
-    // utxo2 (80000) then utxo1 (50000). With a 90000-sat explicit fee (kept
-    // under the fixed 100x-fair-fee burn backstop, whose ceiling here is
-    // dogecoin-regtest's 100000-koinu dust floor), inputSatoshis after utxo2
-    // alone = 80000, which is not > 0 + 90000, so the loop continues and
-    // picks up utxo1 too (combined = 130000 > 90000).
-    const utxo1 = makeP2pkhUtxo(TXID_A, 0, 50000)
-    const utxo2 = makeP2pkhUtxo(TXID_B, 1, 80000)
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
+    const feeQuote = { address: TEST_ADDRESS, amount: 0 }
 
     const result = await encoder.createTransaction(
-      [utxo1, utxo2], TEST_ADDRESS, null,
-      'test', null, 90000, false, null, TEST_ADDRESS,
-      null, null, null, true, 0.00001
+      [utxo], TEST_ADDRESS, null,
+      'test', null, 10000, false, null, TEST_ADDRESS,
+      null, null, null, true, 0.00001,
+      null,
+      feeQuote
     )
 
-    // Both UTXOs should be consumed (neither alone covers the fee)
-    assert.strictEqual(result.psbt.data.inputs.length, 2)
+    // Only OP_RETURN (0) + change (no feeQuote output)
+    assert.strictEqual(result.psbt.txOutputs.length, 2)
+  })
+
+  it('does not add feeQuote when feeQuote has no address', async () => {
+    const encoder = makeEncoder()
+    const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
+    const feeQuote = { amount: 50000 } // no address
+
+    const result = await encoder.createTransaction(
+      [utxo], TEST_ADDRESS, null,
+      'test', null, 10000, false, null, TEST_ADDRESS,
+      null, null, null, true, 0.00001,
+      null,
+      feeQuote
+    )
+
+    // No feeQuote output; just OP_RETURN + change
+    assert.strictEqual(result.psbt.txOutputs.length, 2)
   })
 })
