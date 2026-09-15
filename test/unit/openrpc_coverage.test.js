@@ -23,14 +23,15 @@ const fs     = require('fs');
 const path   = require('path');
 const assert = require('assert');
 
-describe('openrpc.json method coverage', () => {
-
+{
     const src  = fs.readFileSync(path.join(__dirname, '../../src/api.js'), 'utf8');
     const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '../../docs/openrpc.json'), 'utf8'));
 
     // Method names inside the jsonRpcController object literal.
     const block = src.slice(src.indexOf('jsonRpcController = {'), src.indexOf('jsonRouter('));
     const controllerMethods = [...block.matchAll(/^\s{4}async\s+([a-z][a-z0-9_]*)\s*\(/gm)].map((m) => m[1]);
+
+describe('openrpc.json method coverage', () => {
 
     it('extracts a sane controller method list', () => {
         assert.ok(controllerMethods.includes('ping') && controllerMethods.includes('create_tx'),
@@ -62,6 +63,7 @@ describe('openrpc.json method coverage', () => {
         assert.deepStrictEqual(spec, JSON.parse(JSON.stringify(built)),
             'docs/openrpc.json is out of date or hand-edited; run: node docs/openrpc.build.js');
     });
+});
 
     // Param-level drift guard. The method check above never looked at params, which
     // is how create_tx came to validate and act on `attachPrevTx` while the published
@@ -77,6 +79,8 @@ describe('openrpc.json method coverage', () => {
     const validatedParams = [...new Set(
         [...validateAllBody.matchAll(/params\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1])
     )].sort();
+
+describe('openrpc.json method coverage', () => {
 
     it('extracts a sane validateAll param list', () => {
         assert.notStrictEqual(fnStart, -1, 'validateAll not found in src/common/validator.js');
@@ -95,3 +99,4 @@ describe('openrpc.json method coverage', () => {
             + 'then regenerate with: node docs/openrpc.build.js');
     });
 });
+}
