@@ -19,7 +19,7 @@ const axios = require('axios');
 // silently resolve back into a known-vulnerable range. npm only re-resolves
 // a lock entry when that entry is absent, so an override alone is not enough
 // to prove the tree is clean: assert the resolved version too.
-describe('Security: remediated dependency advisories @regression @tier4', function () {
+{
     // Located by walking up to the lockfile rather than by a fixed number of
     // '..' hops, so this file stays byte-identical across all the sibling
     // repos that carry it regardless of where each one files its tests.
@@ -138,6 +138,7 @@ describe('Security: remediated dependency advisories @regression @tier4', functi
             || (pkg.devDependencies || {})[name];
     }
 
+describe('Security: remediated dependency advisories @regression @tier4', function () {
     advisories.forEach(function (adv) {
         const floor   = adv.minSafe.join('.');
         const present = lockEntries(adv.name).length > 0;
@@ -165,11 +166,13 @@ describe('Security: remediated dependency advisories @regression @tier4', functi
             });
         });
     });
+});
 
-    // The version pins above are necessary but not sufficient: a minimatch that
-    // cannot call the overridden brace-expansion installs quietly and only fails
-    // when something actually expands a brace, which in this tree is mocha's own
-    // file collector. Exercise the seam so the breakage surfaces here.
+// The version pins above are necessary but not sufficient: a minimatch that
+// cannot call the overridden brace-expansion installs quietly and only fails
+// when something actually expands a brace, which in this tree is mocha's own
+// file collector. Exercise the seam so the breakage surfaces here.
+describe('Security: remediated dependency advisories @regression @tier4', function () {
     it('ADV-3: minimatch can still brace-expand through the overridden brace-expansion', function () {
         const { minimatch, braceExpand } = require('minimatch');
 
@@ -202,3 +205,4 @@ describe('Security: remediated dependency advisories @regression @tier4', functi
             `installed axios is ${axios.VERSION}, inside the vulnerable range (fixed in 1.18.0)`);
     });
 });
+}
