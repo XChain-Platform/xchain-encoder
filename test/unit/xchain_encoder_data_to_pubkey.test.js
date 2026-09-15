@@ -54,6 +54,14 @@ describe('XChainEncoder.dataToPubkey()', () => {
       assert.strictEqual(padding[i], 0x00, `padding byte at index ${i} is not 0x00`)
     }
   })
+})
+
+describe('XChainEncoder.dataToPubkey()', () => {
+  let encoder
+
+  beforeEach(() => {
+    encoder = makeEncoder()
+  })
 
   it('no padding when data is exactly 32 bytes', async () => {
     const data = Buffer.alloc(32, 0xCC)
