@@ -18,6 +18,8 @@ const evmFinality = require('../../src/adapters/evm_finality')
 const { ChainAdapter, AdapterNotImplementedError } = require('../../src/adapters/chain_adapter')
 const { EvmAdapter } = require('../../src/adapters/evm_adapter')
 
+describe('EVM finality gate (evmFinality)', registerFinalityChoices)
+
 describe('EVM finality gate (evmFinality)', () => {
 
   describe('.finalityGate()', () => {
@@ -34,6 +36,9 @@ describe('EVM finality gate (evmFinality)', () => {
       assert.throws(() => evmFinality.finalityGate(undefined), /No EVM finality gate/)
     })
   })
+})
+
+describe('EVM finality gate (evmFinality)', () => {
 
   describe('L1 Ethereum', () => {
     it('gates on checkpoint finality, not raw depth', () => {
@@ -51,6 +56,9 @@ describe('EVM finality gate (evmFinality)', () => {
       assert.strictEqual(evmFinality.requiresSettlementChainFinality('ETH'), false)
     })
   })
+})
+
+describe('EVM finality gate (evmFinality)', () => {
 
   describe('L2 rollups (THE L2 TRAP, spec §12)', () => {
     const l2s = ['BASE', 'ARBITRUM', 'OPTIMISM']
@@ -73,7 +81,9 @@ describe('EVM finality gate (evmFinality)', () => {
       })
     })
   })
+})
 
+function registerFinalityChoices() {
   it('recommends Base as the primary L2 target (spec §11)', () => {
     assert.strictEqual(evmFinality.PRIMARY_L2_TARGET, 'BASE')
     // The recommended target must itself be a defined L2 gate.
@@ -87,7 +97,7 @@ describe('EVM finality gate (evmFinality)', () => {
         key + ' must stay unarmed until a coordinated coin-file + pin bump')
     }
   })
-})
+}
 
 describe('ChainAdapter base', () => {
   it('every surface method throws AdapterNotImplementedError with the method name', () => {
