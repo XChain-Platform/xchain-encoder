@@ -70,6 +70,9 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
             assert.strictEqual(h.tracker_synced, false);
         } finally { restore(); }
     });
+});
+
+describe('health(): tracker_synced is serve-readiness (create_tx parity) @regression', function () {
 
     // The tracker publishes halted independently of synced, so a tracker
     // frozen on an unrecoverable reorg whose last committed height still shows an
@@ -104,6 +107,9 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
             assert.strictEqual(h.tracker_lag, -100);
         } finally { restore(); }
     });
+});
+
+describe('health(): tracker_synced is serve-readiness (create_tx parity) @regression', function () {
 
     // create_tx refuses UTXO_TRACKER_NOT_READY for the whole post-restart
     // window in which the mempool index is still rebuilding, so a probe blind to that
