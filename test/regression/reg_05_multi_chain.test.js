@@ -62,7 +62,9 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       )
     })
   })
+})
 
+describe('REG-05: Multi-Chain Network Configs', function () {
   describe('REG-05.2: Bitcoin (regtest) OP_RETURN', function () {
     it('produces valid PSBT with correct encoding', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -86,7 +88,9 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       assert.strictEqual(encoder.dustAmount, 546)
     })
   })
+})
 
+describe('REG-05: Multi-Chain Network Configs', function () {
   describe('REG-05.3: Dogecoin (regtest) OP_RETURN', function () {
     it('produces valid PSBT with correct encoding', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
@@ -124,7 +128,9 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       )
     })
   })
+})
 
+describe('REG-05: Multi-Chain Network Configs', function () {
   describe('REG-05.4: Litecoin (regtest) OP_RETURN', function () {
     it('produces valid PSBT with correct encoding', async function () {
       const encoder = makeEncoder('litecoin-regtest')
@@ -164,7 +170,9 @@ describe('REG-05: Multi-Chain Network Configs', function () {
         `Litecoin fee ${impliedFee} should be >= 5460`)
     })
   })
+})
 
+describe('REG-05: Multi-Chain Network Configs', function () {
   describe('REG-05.5: P2SH dust per chain', function () {
     for (const [network, expectedDust] of [
       ['bitcoin-regtest', 546],
@@ -198,7 +206,9 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       })
     }
   })
+})
 
+describe('REG-05: Multi-Chain Network Configs', function () {
   describe('REG-05.6: MULTISIGN dust per chain', function () {
     for (const [network, expectedDust] of [
       ['bitcoin-regtest', 546],
