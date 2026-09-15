@@ -103,7 +103,9 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.ok(changeOutput.value > 0, 'should have a change output')
     })
   })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.2: P2SH tx2 structure', function () {
     it('tx2 has P2SH input with redeemScript', async function () {
       const action = actions.makeIssueFull('REGTEST')
@@ -138,7 +140,9 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(marker.script[0], bitcoin.opcodes.OP_RETURN)
     })
   })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.3: P2SH chaining integrity', function () {
     it('tx2 first input hash references tx1 ID', async function () {
       const action = actions.makeIssueFull('CHAIN')
@@ -167,7 +171,9 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2sh')
     })
   })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.4: P2SH data fidelity', function () {
     it('redeemScript data chunk decompiles back to original ACTION string', async function () {
       const action = actions.makeIssueFull('FIDELITY')
@@ -180,7 +186,9 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.5: P2WSH tx1 structure', function () {
     it('tx1 creates P2WSH output (OP_0 <32-byte-hash>)', async function () {
       const action = actions.makeFileLarge()
@@ -200,7 +208,9 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.ok(p2wshOutput, 'tx1 should have P2WSH output')
     })
   })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.6: P2WSH tx2 structure', function () {
     it('tx2 has witnessScript in input', async function () {
       const action = actions.makeFileLarge()
@@ -240,7 +250,9 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2wsh')
     })
   })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.7: P2WSH data fidelity', function () {
     it('witnessScript data chunks reassemble to the original ACTION string', async function () {
       const action = actions.makeFileLarge()
@@ -263,6 +275,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
+})
 
   // A P2WSH reveal that spends a single data chunk is just 1 input + 1
   // OP_RETURN marker = 71 stripped (non-witness) bytes, because the payload
@@ -276,38 +289,38 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   // minStandardTxNonWitnessSize on every chain. Both the minimum (75) and
   // maximum (476) single-chunk compiled-payload sizes must clear the floor.
 
+async function buildSingleChunkReveal (network, compiledTarget) {
+  // makeActionOfSize(N) returns a raw N-byte ACTION string; script.compile
+  // prepends the push opcode/length, so compiled = N+1 for N<76 and N+3 for
+  // N>=256. Hence compiled 75 ⇒ raw 74, compiled 476 ⇒ raw 473.
+  const rawLen = compiledTarget < 256 ? compiledTarget - 1 : compiledTarget - 3
+  const action = actions.makeActionOfSize(rawLen)
+  const compiled = bitcoin.script.compile([Buffer.from(action.data, 'utf8')]).length
+  assert.strictEqual(compiled, compiledTarget,
+    `compiled payload should be exactly ${compiledTarget} bytes (single chunk)`)
+
+  const encoder = makeEncoder(network)
+  const address = getTestAddress(network)
+  const utxo = stdUtxo(network)
+
+  const tx1 = await encoder.createTransaction(
+    [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
+    null, null, null, true, 0.00001)
+  const tx1Hex = tx1.psbt.__CACHE.__TX.toHex()
+  const tx1Id = tx1.psbt.__CACHE.__TX.getId()
+
+  const tx2 = await encoder.createTransaction(
+    [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
+    tx1Id, tx1Hex, null, true, 0.00001)
+
+  // A single compiled chunk must produce exactly one P2WSH reveal input.
+  assert.strictEqual(tx2.psbt.txInputs.length, 1,
+    'single-chunk reveal should have exactly one input')
+  return { tx2, encoder }
+}
+
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
   describe('REG-06.8: P2WSH single-chunk stripped-size floor', function () {
-
-    async function buildSingleChunkReveal (network, compiledTarget) {
-      // makeActionOfSize(N) returns a raw N-byte ACTION string; script.compile
-      // prepends the push opcode/length, so compiled = N+1 for N<76 and N+3 for
-      // N>=256. Hence compiled 75 ⇒ raw 74, compiled 476 ⇒ raw 473.
-      const rawLen = compiledTarget < 256 ? compiledTarget - 1 : compiledTarget - 3
-      const action = actions.makeActionOfSize(rawLen)
-      const compiled = bitcoin.script.compile([Buffer.from(action.data, 'utf8')]).length
-      assert.strictEqual(compiled, compiledTarget,
-        `compiled payload should be exactly ${compiledTarget} bytes (single chunk)`)
-
-      const encoder = makeEncoder(network)
-      const address = getTestAddress(network)
-      const utxo = stdUtxo(network)
-
-      const tx1 = await encoder.createTransaction(
-        [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
-        null, null, null, true, 0.00001)
-      const tx1Hex = tx1.psbt.__CACHE.__TX.toHex()
-      const tx1Id = tx1.psbt.__CACHE.__TX.getId()
-
-      const tx2 = await encoder.createTransaction(
-        [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
-        tx1Id, tx1Hex, null, true, 0.00001)
-
-      // A single compiled chunk must produce exactly one P2WSH reveal input.
-      assert.strictEqual(tx2.psbt.txInputs.length, 1,
-        'single-chunk reveal should have exactly one input')
-      return { tx2, encoder }
-    }
-
     for (const compiled of [75, 476]) {
       it(`Litecoin reveal (compiled ${compiled}B) clears the tx-size-small floor`, async function () {
         const { tx2, encoder } = await buildSingleChunkReveal('litecoin-regtest', compiled)
@@ -320,7 +333,11 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
           `stripped size ${stripped} must be >= litecoin floor ${floor}`)
       })
     }
+  })
+})
 
+describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
+  describe('REG-06.8: P2WSH single-chunk stripped-size floor', function () {
     for (const compiled of [75, 476]) {
       it(`Bitcoin reveal (compiled ${compiled}B) clears the tx-size-small floor`, async function () {
         const { tx2, encoder } = await buildSingleChunkReveal('bitcoin-regtest', compiled)
