@@ -89,17 +89,23 @@ async function isApiRunning () {
   }
 }
 
-describe('E2E-10: JSON-RPC API Layer', function () {
-  let apiAvailable = false
+let apiAvailable = false
+let apiChecked = false
 
-  before(async function () {
+async function requireApi () {
+  if (!apiChecked) {
     apiAvailable = await isApiRunning()
-    if (!apiAvailable) {
-      console.log('    [SKIPPED] API server not running on port ' + API_PORT)
-      console.log('    Start with: npm run api')
-      this.skip()
-    }
-  })
+    apiChecked = true
+  }
+  if (!apiAvailable) {
+    console.log('    [SKIPPED] API server not running on port ' + API_PORT)
+    console.log('    Start with: npm run api')
+    this.skip()
+  }
+}
+
+describe('E2E-10: JSON-RPC API Layer', function () {
+  before(requireApi)
 
   describe('E2E-10.1: create_tx with full params', () => {
     it('returns {psbt: hex, encoding: string}', async function () {
@@ -139,7 +145,10 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       assert.ok(res.body.result || res.body.error)
     })
   })
+})
 
+describe('E2E-10: JSON-RPC API Layer', function () {
+  before(requireApi)
   describe('E2E-10.3: PSBT hex validity', () => {
     it('returned hex can be parsed by Psbt.fromHex()', async function () {
       if (!apiAvailable) this.skip()
@@ -171,7 +180,10 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       assert.ok(res.body.error || res.status !== 200)
     })
   })
+})
 
+describe('E2E-10: JSON-RPC API Layer', function () {
+  before(requireApi)
   describe('E2E-10.5: CORS headers', () => {
     it('response includes Access-Control-Allow-Origin', async function () {
       if (!apiAvailable) this.skip()
@@ -191,7 +203,10 @@ describe('E2E-10: JSON-RPC API Layer', function () {
       )
     })
   })
+})
 
+describe('E2E-10: JSON-RPC API Layer', function () {
+  before(requireApi)
   describe('E2E-10.6: Concurrent requests', () => {
     it('multiple simultaneous requests do not interfere', async function () {
       if (!apiAvailable) this.skip()
