@@ -122,7 +122,9 @@ describe('XChainEncoder fee-rate cap', () => {
     assert.ok(paidFee(result) >= 1000 && paidFee(result) <= 3000,
       `fee ${paidFee(result)} should be ~10 sat/byte (~1310 sats), not clamped or 1e8x inflated`)
   })
+})
 
+describe('XChainEncoder fee-rate cap', () => {
   it('clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable', async () => {
     const encoder = makeEncoder()
     // Node has no smart-fee estimate (fresh node / warming mempool / low
@@ -170,7 +172,9 @@ describe('XChainEncoder fee-rate cap', () => {
       (err) => err instanceof RangeError && /fee-rate cap/.test(err.message)
     )
   })
+})
 
+describe('XChainEncoder fee-rate cap', () => {
   it('burn backstop ceiling is anchored to the node rate, not a caller-inflated feePerKb (cap disabled)', async () => {
     // MAX_FEE_RATE_MULTIPLIER=0 disables the relative cap and no absolute
     // MAX_FEE_RATE_KB is set. Before the fix, the 100x burn backstop derived
