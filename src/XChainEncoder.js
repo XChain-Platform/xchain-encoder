@@ -70,6 +70,44 @@ const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
 // that without false-positiving on routine operation.
 const DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS = 2
 
+// The per-instance double-spend bookkeeping a build consults: outpoint
+// reservations, recent builds, envelope-cancel owners and reservation tickets.
+function initReservationMaps(){
+    // outpoint ("txid:vout") -> reservation-expiry epoch ms. Guards against
+    // two create_tx calls for the same address, concurrent or a few hundred
+    // milliseconds apart, both selecting the same UTXO and emitting conflicting
+    // double-spends. Engaged for EVERY selection, caller-supplied sets
+    // included: the SDK fetches the funding set itself and hands it over as
+    // `utxos`, so "caller-supplied" is the mainstream wallet path, not a
+    // coin-control opt-in. Treating it as unreserved is how three chained
+    // MINTs on BTC testnet4 built the same transaction twice.
+    // See RESERVATION_TTL_MS.
+    this.outpointReservations = new Map()
+    // unsigned txid -> expiry epoch ms of every transaction this process built
+    // within RESERVATION_TTL_MS. Second line of defense behind the outpoint
+    // map: a byte-identical rebuild hashes to the same txid, and returning it
+    // as a fresh build let a caller journal one broadcast as two successes.
+    this.recentBuilds = new Map()
+    // outpoint -> Map(cancel-build owner id -> that build's reservation expiry).
+    // A cancel is deterministic from the recovery record, so it must be able to
+    // re-take an outpoint its OWN path already holds; an outpoint no cancel
+    // owner wrote belongs to another build and blocks it. The owner SET, rather
+    // than one expiry stamp, is what makes overlapping cancel builds of a single
+    // outpoint distinguishable: the reservation is worth the highest live owner
+    // expiry and is dropped only when the last owner lets go, so a failed retry
+    // can no longer delete the reservation an earlier outstanding cancel holds.
+    // See releaseEnvelopeCancelClaims and maxLiveCancelOwnerExpiry.
+    this.envelopeCancelClaims = new Map()
+    // reservation ticket id -> the claims ONE successful build kept, with the
+    // expiry stamp each of them wrote plus the recent-build record that build
+    // registered. This is what makes an explicit release possible without
+    // handing callers a way to free somebody else's inputs: the ticket id is
+    // unguessable and the per-claim stamp is re-checked at release time, so a
+    // caller can only ever drop entries its own build still owns.
+    // See releaseReservation.
+    this.reservationTickets = new Map()
+}
+
 
 
 
@@ -118,39 +156,7 @@ class XChainEncoder {
       // parameter default above (only a literal `undefined` triggers a JS default
       // parameter, so this normalizes `null` the same way).
       this.maxUtxoTrackerLagBlocks = (maxUtxoTrackerLagBlocks == null) ? DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS : maxUtxoTrackerLagBlocks
-      // outpoint ("txid:vout") -> reservation-expiry epoch ms. Guards against
-      // two create_tx calls for the same address, concurrent or a few hundred
-      // milliseconds apart, both selecting the same UTXO and emitting conflicting
-      // double-spends. Engaged for EVERY selection, caller-supplied sets
-      // included: the SDK fetches the funding set itself and hands it over as
-      // `utxos`, so "caller-supplied" is the mainstream wallet path, not a
-      // coin-control opt-in. Treating it as unreserved is how three chained
-      // MINTs on BTC testnet4 built the same transaction twice.
-      // See RESERVATION_TTL_MS.
-      this.outpointReservations = new Map()
-      // unsigned txid -> expiry epoch ms of every transaction this process built
-      // within RESERVATION_TTL_MS. Second line of defense behind the outpoint
-      // map: a byte-identical rebuild hashes to the same txid, and returning it
-      // as a fresh build let a caller journal one broadcast as two successes.
-      this.recentBuilds = new Map()
-      // outpoint -> Map(cancel-build owner id -> that build's reservation expiry).
-      // A cancel is deterministic from the recovery record, so it must be able to
-      // re-take an outpoint its OWN path already holds; an outpoint no cancel
-      // owner wrote belongs to another build and blocks it. The owner SET, rather
-      // than one expiry stamp, is what makes overlapping cancel builds of a single
-      // outpoint distinguishable: the reservation is worth the highest live owner
-      // expiry and is dropped only when the last owner lets go, so a failed retry
-      // can no longer delete the reservation an earlier outstanding cancel holds.
-      // See releaseEnvelopeCancelClaims and maxLiveCancelOwnerExpiry.
-      this.envelopeCancelClaims = new Map()
-      // reservation ticket id -> the claims ONE successful build kept, with the
-      // expiry stamp each of them wrote plus the recent-build record that build
-      // registered. This is what makes an explicit release possible without
-      // handing callers a way to free somebody else's inputs: the ticket id is
-      // unguessable and the per-claim stamp is re-checked at release time, so a
-      // caller can only ever drop entries its own build still owns.
-      // See releaseReservation.
-      this.reservationTickets = new Map()
+      initReservationMaps.call(this)
     }
 
 
