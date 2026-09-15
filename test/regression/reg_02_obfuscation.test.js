@@ -82,7 +82,9 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNTEST')
     })
   })
+})
 
+describe('REG-02: Obfuscation Round-Trip', function () {
   describe('REG-02.2: TXID sensitivity', function () {
     it('same ACTION with different TXIDs produces different ciphertext', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -101,7 +103,9 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       assert.notStrictEqual(prefix, MAGIC_WORD, 'wrong key should not produce XCHN prefix')
     })
   })
+})
 
+describe('REG-02: Obfuscation Round-Trip', function () {
   describe('REG-02.3: UTXO sort determines obfuscation key', function () {
     it('largest UTXO TXID is always the obfuscation key', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -143,7 +147,9 @@ describe('REG-02: Obfuscation Round-Trip', function () {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
+})
 
+describe('REG-02: Obfuscation Round-Trip', function () {
   describe('REG-02.4: P2SH/P2WSH marker strings', function () {
     it('P2SH tx2 OP_RETURN marker deobfuscates to XCHNp2sh', async function () {
       const encoder = makeEncoder(NETWORK)
