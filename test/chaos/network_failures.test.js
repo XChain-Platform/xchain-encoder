@@ -87,7 +87,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       assert.ok(result.psbt)
     })
   })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-2: Coin daemon returns invalid JSON (502 HTML)', () => {
     it('SyntaxError from JSON parse propagates', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -107,7 +109,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-3: Coin daemon RPC error (node still loading)', () => {
     it('RPC error from getFeePerKilobyte propagates', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -145,7 +149,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-4: UTXO tracker unreachable', () => {
     it('propagates ECONNREFUSED when utxos=null', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -181,7 +187,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-5: UTXO tracker malformed responses', () => {
     it('A-5a: tracker returns null → throws about no utxos', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -210,7 +218,11 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
         /no utxos/i
       )
     })
+  })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
+  describe('A-5: UTXO tracker malformed responses', () => {
     it('A-5c: tracker returns { utxos: null } → throws', async () => {
       const encoder = makeEncoder(NETWORK)
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({ utxos: null })
@@ -242,7 +254,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-6: Intermittent RPC failures', () => {
     it('first call succeeds, second call fails (alternating pattern)', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -284,7 +298,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
       assert.ok(result3.psbt)
     })
   })
+})
 
+describe('Chaos Category A: Network & Dependency Failures', () => {
   describe('A-7: Slow RPC responses', () => {
     it('150ms delay on getFeePerKilobyte still completes', async () => {
       const encoder = makeEncoder(NETWORK)
