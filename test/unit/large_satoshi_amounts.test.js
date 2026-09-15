@@ -87,6 +87,9 @@ describe('large satoshi amounts (>2^53-1)', () => {
       assert.throws(() => parseSatoshiAmount(BIG_STR + '.5', 'v', { allowBig: true }), /non-negative integer/)
     })
   })
+})
+
+describe('large satoshi amounts (>2^53-1)', () => {
 
   describe('validateUtxoEntry / validateCustomOutputs', () => {
     it('accepts a >2^53-1 utxo value string, coercing to BigInt', () => {
@@ -101,6 +104,9 @@ describe('large satoshi amounts (>2^53-1)', () => {
       assert.strictEqual(outs[0].value, 9007199254740993n)
     })
   })
+})
+
+describe('large satoshi amounts (>2^53-1)', () => {
 
   describe('createTransaction', () => {
     it('builds a PSBT paying a >2^53-1-sat custom output with exact change', async () => {
@@ -141,6 +147,12 @@ describe('large satoshi amounts (>2^53-1)', () => {
       const expectedChange = 12000000000000000000n - 100000000n - 10000n
       assert.ok(values.includes(expectedChange), `change ${expectedChange} missing exactly; got ${values}`)
     })
+  })
+})
+
+describe('large satoshi amounts (>2^53-1)', () => {
+
+  describe('createTransaction', () => {
 
     it('reports insufficient funds with JSON-safe (stringified) big amounts', async () => {
       const encoder = makeEncoder()
@@ -161,6 +173,9 @@ describe('large satoshi amounts (>2^53-1)', () => {
       )
     })
   })
+})
+
+describe('large satoshi amounts (>2^53-1)', () => {
 
   describe('patched 64-bit serializers', () => {
     it('round-trips safe-range values as Number and big values as BigInt', () => {
