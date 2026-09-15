@@ -94,7 +94,9 @@ describe('classifyTrackerFreshness(): the single tracker-freshness verdict', fun
         assert.strictEqual(classify({ lag: 7, synced: true }, 2).code, 'UTXO_TRACKER_STALE')
         assert.strictEqual(classify({ lag: 7, synced: true }, 10).code, null)
     })
+})
 
+describe('classifyTrackerFreshness(): the single tracker-freshness verdict', function () {
     it('serves at exactly the ceiling (lag == max is not "above")', function () {
         const v = classify({ lag: 2, synced: true }, 2)
         assert.strictEqual(v.code, null)
