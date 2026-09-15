@@ -119,7 +119,12 @@ function claimCommitOutpoint(callReservations, commitTxid, commitVout){
     cancelOwners.set(cancelOwnerId, cancelClaim.expiry)
 }
 
-async function cancelFeeRate(feeRatePerKb){
+// A generator rather than an async function: it hands each node fee-rate
+// promise to the driver loop in buildEnvelopeCancelTransaction, so the cancel
+// suspends once per wait, exactly where the inline code it came from did.
+// Awaited as an async function it would add one more suspension after the
+// commit-outpoint claim.
+function* cancelFeeRate(feeRatePerKb){
     // Fee-rate resolution with the same drain guards as createTransaction,
     // in miniature: the caller rate is clamped to the tighter of the
     // absolute MAX_FEE_RATE_KB cap and the relative multiplier x the node's
@@ -130,12 +135,12 @@ async function cancelFeeRate(feeRatePerKb){
     if (feeRatePerKb){
         feePerBytes = feeRatePerKb / 1000 / SATOSHI_UNIT
         try {
-            nodeFeePerBytes = await this.connector.getFeePerKilobyte(1) / 1000
+            nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
         } catch (err) {
             logger.warn(util.format('Envelope-cancel relative fee cap skipped: node fee estimate unavailable:', err.message))
         }
     } else {
-        feePerBytes = await this.connector.getFeePerKilobyte(1) / 1000
+        feePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
         nodeFeePerBytes = feePerBytes
     }
     let capFeePerBytes = this.maxFeePerBytes
@@ -218,7 +223,21 @@ module.exports = {
 
         claimCommitOutpoint.call(this, callReservations, commitTxid, commitVout)
 
-        const feePerBytes = await cancelFeeRate.call(this, feeRatePerKb)
+        // Drive the fee-rate generator inline: each promise it yields is awaited
+        // here once, and a rejection goes back in so its own try/catch sees it.
+        const feeRate = cancelFeeRate.call(this, feeRatePerKb)
+        let next = feeRate.next()
+        while (!next.done){
+            let settled
+            try {
+                settled = await next.value
+            } catch (err) {
+                next = feeRate.throw(err)
+                continue
+            }
+            next = feeRate.next(settled)
+        }
+        const feePerBytes = next.value
 
         const p2trPayment = bitcoin.payments.p2tr({
             internalPubkey: internalKeyBuf,
