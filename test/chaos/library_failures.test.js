@@ -58,7 +58,9 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category C: Library & Crypto Failures', () => {
   describe('C-2a: Psbt.addOutput() all calls fail', () => {
     let _origAddOutput
 
@@ -87,7 +89,9 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category C: Library & Crypto Failures', () => {
   describe('C-2b: Psbt.addOutput() fails on Nth call only', () => {
     let _origAddOutput
     let outputCallCount
@@ -120,7 +124,9 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category C: Library & Crypto Failures', () => {
   describe('C-3: crypto.createCipheriv failure', () => {
     let _origCreateCipheriv
 
@@ -149,7 +155,9 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
+})
 
+describe('Chaos Category C: Library & Crypto Failures', () => {
   describe('C-4: bitcoin.script.compile failure', () => {
     let _origCompile
     let encoder
@@ -181,6 +189,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
       )
     })
   })
+})
 
   // No monkey-patching needed; uses the real encoder.
   //
@@ -193,6 +202,7 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
   // and the remaining error is a specific, named refusal rather than a library
   // crash. The chaos value is in that split: what resolves, and what does not.
 
+describe('Chaos Category C: Library & Crypto Failures', () => {
   describe('C-5: Non-base58 caller identity for P2SH encoding', () => {
     it('bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey', async () => {
       const encoder = makeEncoder(DOGE)
