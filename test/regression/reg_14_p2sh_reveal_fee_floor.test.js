@@ -135,17 +135,33 @@ async function buildRevealed (payload, { encoding = 'P2SH', customOutputs = null
   }
 }
 
+// 400 bytes compiles to a single data chunk whose reveal lands well above the
+// dust floor, so the fee is estimate-driven: the exact regime that failed.
+const SINGLE_CHUNK = 'Z'.repeat(400)
+// Small payloads land on the dust floor instead; 546 sat covered the reveal
+// right up until an unfunded 34-byte fee output pushed it past 546 vbytes.
+const DUST_FLOORED = 'Z'.repeat(340)
+const MULTI_CHUNK = 'Z'.repeat(1024)
+
+const nativeFeeOutput = (address) => [{ address, value: 5000 }]
+
 describe('REG-14: P2SH/P2WSH reveal clears the min-relay fee floor', () => {
 
-  // 400 bytes compiles to a single data chunk whose reveal lands well above the
-  // dust floor, so the fee is estimate-driven: the exact regime that failed.
-  const SINGLE_CHUNK = 'Z'.repeat(400)
-  // Small payloads land on the dust floor instead; 546 sat covered the reveal
-  // right up until an unfunded 34-byte fee output pushed it past 546 vbytes.
-  const DUST_FLOORED = 'Z'.repeat(340)
-  const MULTI_CHUNK = 'Z'.repeat(1024)
+  it('charges the funding tx exactly the fee output byte cost it forgot before', async () => {
+    // The regression in one number: the only difference between these two runs
+    // is one 34-byte P2PKH output on the reveal, so the funding outputs must
+    // grow by its value plus its 34 sat of fee at 1 sat/vB.
+    const bare = await buildRevealed(SINGLE_CHUNK, { encoding: 'P2SH' })
+    const withFee = await buildRevealed(SINGLE_CHUNK, {
+      encoding: 'P2SH', customOutputs: nativeFeeOutput(LEGACY_ADDRESS)
+    })
+    const outputBytes = TxSizeEstimator.estimateOutputSizeForAddress(LEGACY_ADDRESS, NET)
+    assert.strictEqual(outputBytes, 34)
+    assert.strictEqual(withFee.fee - bare.fee, outputBytes)
+  })
+})
 
-  const nativeFeeOutput = (address) => [{ address, value: 5000 }]
+describe('REG-14: P2SH/P2WSH reveal clears the min-relay fee floor', () => {
 
   for (const encoding of ['P2SH', 'P2WSH']) {
     describe(encoding, () => {
@@ -191,17 +207,4 @@ describe('REG-14: P2SH/P2WSH reveal clears the min-relay fee floor', () => {
       })
     })
   }
-
-  it('charges the funding tx exactly the fee output byte cost it forgot before', async () => {
-    // The regression in one number: the only difference between these two runs
-    // is one 34-byte P2PKH output on the reveal, so the funding outputs must
-    // grow by its value plus its 34 sat of fee at 1 sat/vB.
-    const bare = await buildRevealed(SINGLE_CHUNK, { encoding: 'P2SH' })
-    const withFee = await buildRevealed(SINGLE_CHUNK, {
-      encoding: 'P2SH', customOutputs: nativeFeeOutput(LEGACY_ADDRESS)
-    })
-    const outputBytes = TxSizeEstimator.estimateOutputSizeForAddress(LEGACY_ADDRESS, NET)
-    assert.strictEqual(outputBytes, 34)
-    assert.strictEqual(withFee.fee - bare.fee, outputBytes)
-  })
 })
