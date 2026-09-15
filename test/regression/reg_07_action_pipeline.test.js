@@ -77,7 +77,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(decoded, action.data)
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.2: ISSUE P2SH path', function () {
     it('full ISSUE (25+ fields) auto-selects P2SH', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -100,7 +102,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.3: MULTISEND v2 (multiple recipients)', function () {
     it('two TICK|AMOUNT|DEST triplets preserved', async function () {
       // Use short addresses to keep payload within OP_RETURN limit
@@ -115,7 +119,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.ok(decoded.startsWith('SEND|2|'))
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.4: ORDER DEX round-trip', function () {
     it('ORDER|0|BUY|JDOG|100|BRRR|50|0 survives encoding', async function () {
       const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
@@ -123,7 +129,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(decompiled[0].toString('utf8'), action.data)
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.5: BROADCAST oversized OP_RETURN rejected', function () {
     it('long broadcast forced to OP_RETURN is rejected', async function () {
       // The rejection fires on every coin, not just bitcoin: singleOpReturnPolicy is
@@ -163,7 +171,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.6: FILE P2WSH path (bitcoin-regtest)', function () {
     it('large FILE uses P2WSH on segwit-capable network', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -180,7 +190,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(result.encoding, 'P2WSH')
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.7: BATCH semicolon delimiter', function () {
     it('semicolon-separated commands preserved verbatim', async function () {
       const action = actions.makeBatch([
@@ -194,7 +206,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.ok(decoded.includes(';'), 'should contain semicolon separator')
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.8: data + rawData dual field', function () {
     it('both data and rawData present in decompiled output', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -214,7 +228,9 @@ describe('REG-07: Action Pipeline Regression', function () {
       assert.strictEqual(decompiled[1].toString('utf8'), 'extra-raw-data')
     })
   })
+})
 
+describe('REG-07: Action Pipeline Regression', function () {
   describe('REG-07.9: Special characters in payload', function () {
     it('TICK name with special chars preserved', async function () {
       const action = actions.makeIssueSpecialChars('J-DOG_#1')
