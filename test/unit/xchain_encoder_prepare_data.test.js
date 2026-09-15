@@ -31,12 +31,14 @@ function makeEncoder () {
   )
 }
 
-describe('XChainEncoder.prepareData()', () => {
-  let encoder
+let encoder
 
-  beforeEach(() => {
-    encoder = makeEncoder()
-  })
+function resetEncoder () {
+  encoder = makeEncoder()
+}
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   describe('auto-selection (encoding = null/undefined)', () => {
     it('selects OP_RETURN when data fits within 76 bytes (80 - 4 magic)', () => {
@@ -63,6 +65,10 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
+})
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   describe('OP_RETURN encoding', () => {
     it('produces a single chunk for data that fits', () => {
@@ -94,7 +100,13 @@ describe('XChainEncoder.prepareData()', () => {
           `chunk length ${chunk.length} exceeds ${OP_RETURN_SIZE}`)
       }
     })
+  })
+})
 
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
+
+  describe('OP_RETURN encoding', () => {
     it('accepts a payload exactly at the 76-byte single-output limit', () => {
       const data = Buffer.alloc(OP_RETURN_SIZE - MAGIC_LEN) // 76 bytes
       const result = encoder.prepareData(data, 'OP_RETURN', null)
@@ -122,6 +134,10 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
+})
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   describe('P2SH encoding', () => {
     const chunkDataSize = P2SH_SIZE - 44 // 476
@@ -169,6 +185,10 @@ describe('XChainEncoder.prepareData()', () => {
       assert.deepStrictEqual(reassembled, data)
     })
   })
+})
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   // The chunk-lane redeem script gates its reveal spend with HASH160(caller
   // pubkey). prepareData must derive that 20-byte hash from ANY identity form a
@@ -217,6 +237,10 @@ describe('XChainEncoder.prepareData()', () => {
         /cannot resolve a 20-byte caller HASH160/)
     })
   })
+})
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   describe('P2WSH encoding', () => {
     const chunkDataSize = PW2SH_SIZE - 44 // 476
@@ -247,6 +271,10 @@ describe('XChainEncoder.prepareData()', () => {
       assert.strictEqual(result.dataBufferArray.length, 2)
     })
   })
+})
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   describe('MULTISIGN encoding', () => {
     // MULTISIGN_SIZE(69) - MAGIC_LEN(4) - 1 - 1 - 1 - 1 - 1 = 60
@@ -294,7 +322,13 @@ describe('XChainEncoder.prepareData()', () => {
       const result = encoder.prepareData(data, 'MULTISIGN', null)
       assert.ok(result)
     })
+  })
+})
 
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
+
+  describe('MULTISIGN encoding', () => {
     // Every MULTISIGN output splits its 64 data bytes across two 32-byte
     // pubkey halves. A short final chunk used to leave the second half empty
     // or near-empty, so dataToPubkey() produced an all-zero / low-entropy EC
@@ -322,6 +356,10 @@ describe('XChainEncoder.prepareData()', () => {
       }
     })
   })
+})
+
+describe('XChainEncoder.prepareData()', () => {
+  beforeEach(resetEncoder)
 
   describe('invalid encoding', () => {
     it('throws TypeError for unrecognized encoding string', () => {
