@@ -70,7 +70,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.ok(dataString.includes('J-DOG_#1'))
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.2: TICK by numeric ID (caret prefix)', () => {
     it('^1234 preserved in SEND', async () => {
       const action = actions.makeSendByTickId('1234', '100', actions.ADDR_BTC)
@@ -79,7 +81,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.ok(dataString.includes('^1234'))
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.3: Long TICK name', () => {
     it('12-character TICK survives encoding', async () => {
       const tick = 'ABCDEFGHIJKL' // 12 chars
@@ -89,7 +93,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.ok(dataString.includes(tick))
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.4: Zero amount', () => {
     it('SEND with amount=0 preserves the zero', async () => {
       const action = { data: `SEND|0|JDOG|0|${actions.ADDR_BTC}`, rawData: null }
@@ -100,7 +106,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(parts[3], '0')
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.5: Large amount with high precision', () => {
     it('18-digit amount preserved exactly', async () => {
       const bigAmount = '999999999999999999'
@@ -117,7 +125,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.ok(dataString.includes(amount))
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.6: Unicode in memo', () => {
     it('emoji and CJK characters survive UTF-8 encoding', async () => {
       const memo = 'Hello World'
@@ -134,10 +144,12 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
+})
 
   // Note: The pipe character IS the delimiter, so including it in a memo
   // would corrupt field parsing. This test documents that behavior.
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.7: Pipe character in memo field', () => {
     it('pipe in memo extends the field count (protocol limitation)', async () => {
       // The pipe is the field delimiter, so a memo containing one is parsed
@@ -150,7 +162,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(dataString, data)
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.8: ISSUE with empty optional fields', () => {
     it('empty lock and callback fields preserved as empty strings', async () => {
       const action = actions.makeIssueFull('EMPTY', {
@@ -175,7 +189,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.ok(['OP_RETURN', 'P2SH'].includes(result.encoding))
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.9: data + rawData dual parameter', () => {
     it('both buffers compiled into script and recoverable', async () => {
       const data = 'SEND|0|JDOG|1|mfWxJ45'
@@ -202,7 +218,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(decompiled[1].toString('utf8'), rawData)
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.10: DISPENSER with all fields', () => {
     it('all 8 dispenser fields including trailing zeros preserved', async () => {
       const action = actions.makeDispenser('JDOG', '100', '10', '1', actions.ADDR_BTC)
@@ -220,7 +238,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(parts[8], '0') // trailing field
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.11: ORDER with zero expiration', () => {
     it('expiration=0 (no expiry) preserved', async () => {
       const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
@@ -229,7 +249,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(parts[7], '0')
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.12: Large BATCH with 10+ actions', () => {
     it('10 actions in batch all preserved', async () => {
       const batchActions = []
@@ -257,7 +279,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
       assert.strictEqual(parts.length, 10)
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.13: Custom dust parameter', () => {
     it('MULTISIGN output uses custom dust value', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -297,7 +321,9 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
         `fee ${impliedFee} should be >= network dust ${encoder.dustAmount}, not custom 100`)
     })
   })
+})
 
+describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
   describe('E2E-7.14: ISSUE with all locks enabled', () => {
     it('all lock fields set to 1 are preserved', async () => {
       const action = actions.makeIssueFull('LOCKED', {
