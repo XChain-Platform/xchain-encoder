@@ -92,6 +92,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.ok(encoder.outpointReservations.has(COMMIT_KEY),
       'a built cancel must hold the commit outpoint, or a concurrent create_tx can respend it')
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('normalizes a mixed-case commitTxid to the lowercase reservation key', async function () {
     const encoder = makeEncoder()
@@ -101,6 +105,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
       'an uppercase key could never collide with the reservations create_tx takes')
     assert.strictEqual(encoder.outpointReservations.has(COMMIT_TXID.toUpperCase() + ':0'), false)
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('a live cancel claim keeps create_tx from selecting the commit outpoint', async function () {
     const encoder = makeEncoder()
@@ -125,6 +133,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
       'create_tx must not spend an outpoint an outstanding unsigned cancel already spends')
     assert.strictEqual(ins0Txid(result), OTHER_TXID)
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('refuses a cancel of an outpoint another build holds', async function () {
     const encoder = makeEncoder()
@@ -137,6 +149,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
         err.xchainCode === 'ENVELOPE_CANCEL_OUTPOINT_RESERVED' &&
         err.details.outpoint === COMMIT_KEY)
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('stays retry-safe: a repeat cancel rebuilds the byte-identical PSBT', async function () {
     const encoder = makeEncoder()
@@ -146,6 +162,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
       'a cancel replayed from the recovery record must not be refused as a duplicate')
     assert.ok(encoder.outpointReservations.has(COMMIT_KEY))
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('releases the claim when the build throws', async function () {
     const encoder = makeEncoder()
@@ -157,6 +177,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
       'a failed cancel must not squat the commit outpoint for the reservation window')
     assert.strictEqual(encoder.envelopeCancelClaims.has(COMMIT_KEY), false)
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('a foreign claim taken after the cancel is never dropped by its release', async function () {
     const encoder = makeEncoder()
@@ -171,6 +195,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.strictEqual(encoder.outpointReservations.get(COMMIT_KEY), foreignExpiry,
       'dropping a foreign entry would reopen the double-spend window the map closes')
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('clearReservations drops the cancel ownership stamps too', async function () {
     const encoder = makeEncoder()
@@ -179,6 +207,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.strictEqual(encoder.envelopeCancelClaims.size, 0,
       'a stale stamp would let a foreign claim read as this path\'s own')
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   // A lost-response retry legitimately re-claims an outpoint the first build is
   // still outstanding on. While ownership was one expiry stamp per outpoint, the
@@ -200,6 +232,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
       'the retry\'s failure must hand back only its own claim, not the outstanding build\'s')
     assert.ok(first.reservation, 'the successful build must carry a release ticket')
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('create_tx still cannot select the commit outpoint after a failed retry', async function () {
     const encoder = makeEncoder()
@@ -224,6 +260,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.ok(!spent.includes(COMMIT_TXID),
       'a retry\'s failure must not free an outpoint an outstanding unsigned cancel spends')
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('the first build\'s ticket still releases after a failed retry', async function () {
     const encoder = makeEncoder()
@@ -238,6 +278,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), false)
     assert.strictEqual(encoder.envelopeCancelClaims.has(COMMIT_KEY), false)
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('last cancel owner out frees the outpoint, not the first', async function () {
     const encoder = makeEncoder()
@@ -254,6 +298,10 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.strictEqual(encoder.outpointReservations.has(COMMIT_KEY), false)
     assert.strictEqual(encoder.envelopeCancelClaims.has(COMMIT_KEY), false)
   })
+})
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
 
   it('three overlapping builds: an out-of-order failure frees nothing', async function () {
     const encoder = makeEncoder()
