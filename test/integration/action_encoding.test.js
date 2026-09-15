@@ -70,6 +70,29 @@ async function encodeAndExtract (actionObj) {
   }
 }
 
+const SMALL_ACTIONS = [
+  { name: 'SEND', factory: () => actions.makeSend() },
+  { name: 'SEND v1', factory: () => actions.makeMultiSendV1() },
+  { name: 'ISSUE (minimal)', factory: () => actions.makeIssueMinimal() },
+  { name: 'ISSUE v1', factory: () => actions.makeIssueEditDescription() },
+  { name: 'MINT', factory: () => actions.makeMint() },
+  { name: 'DESTROY', factory: () => actions.makeDestroy() },
+  { name: 'CALLBACK', factory: () => actions.makeCallback() },
+  { name: 'SLEEP', factory: () => actions.makeSleep() },
+  { name: 'SWEEP', factory: () => actions.makeSweep() },
+  { name: 'AIRDROP', factory: () => actions.makeAirdrop() },
+  { name: 'DIVIDEND', factory: () => actions.makeDividend() },
+  { name: 'ORDER', factory: () => actions.makeOrder() },
+  { name: 'COINPAY', factory: () => actions.makeCoinpay() },
+  { name: 'DISPENSER', factory: () => actions.makeDispenser() },
+  { name: 'SWAP', factory: () => actions.makeSwap() },
+  { name: 'BROADCAST', factory: () => actions.makeBroadcast() },
+  { name: 'MESSAGE', factory: () => actions.makeMessage() },
+  { name: 'ADDRESS', factory: () => actions.makeAddress() },
+  { name: 'LINK', factory: () => actions.makeLink() },
+  { name: 'LIST', factory: () => actions.makeList() },
+]
+
 describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('A-1: Minimal SEND (fits OP_RETURN)', () => {
@@ -100,6 +123,9 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('A-4: Full ISSUE with all fields (P2SH)', () => {
     it('encodes as P2SH and preserves all 25+ fields', async () => {
@@ -135,6 +161,9 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(dataString, 'ISSUE|0|X')
     })
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('A-6: BATCH with multiple commands', () => {
     it('semicolon-separated commands preserved', async () => {
@@ -164,6 +193,9 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(dataString, action.data)
     })
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('A-11: TICK with special characters', () => {
     it('special chars in TICK name survive encoding', async () => {
@@ -182,6 +214,9 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.ok(dataString.includes('^1234'))
     })
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('A-13: Maximum OP_RETURN boundary', () => {
     it('ACTION of exactly 72 bytes fits in single OP_RETURN', async () => {
@@ -205,6 +240,9 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('A-14: One byte over OP_RETURN boundary', () => {
     it('ACTION exceeding 76 compiled bytes auto-selects P2SH', async () => {
@@ -224,32 +262,12 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('All ACTION types: basic OP_RETURN encoding', () => {
-    const smallActions = [
-      { name: 'SEND', factory: () => actions.makeSend() },
-      { name: 'SEND v1', factory: () => actions.makeMultiSendV1() },
-      { name: 'ISSUE (minimal)', factory: () => actions.makeIssueMinimal() },
-      { name: 'ISSUE v1', factory: () => actions.makeIssueEditDescription() },
-      { name: 'MINT', factory: () => actions.makeMint() },
-      { name: 'DESTROY', factory: () => actions.makeDestroy() },
-      { name: 'CALLBACK', factory: () => actions.makeCallback() },
-      { name: 'SLEEP', factory: () => actions.makeSleep() },
-      { name: 'SWEEP', factory: () => actions.makeSweep() },
-      { name: 'AIRDROP', factory: () => actions.makeAirdrop() },
-      { name: 'DIVIDEND', factory: () => actions.makeDividend() },
-      { name: 'ORDER', factory: () => actions.makeOrder() },
-      { name: 'COINPAY', factory: () => actions.makeCoinpay() },
-      { name: 'DISPENSER', factory: () => actions.makeDispenser() },
-      { name: 'SWAP', factory: () => actions.makeSwap() },
-      { name: 'BROADCAST', factory: () => actions.makeBroadcast() },
-      { name: 'MESSAGE', factory: () => actions.makeMessage() },
-      { name: 'ADDRESS', factory: () => actions.makeAddress() },
-      { name: 'LINK', factory: () => actions.makeLink() },
-      { name: 'LIST', factory: () => actions.makeList() },
-    ]
-
-    for (const { name, factory } of smallActions) {
+    for (const { name, factory } of SMALL_ACTIONS) {
       it(`${name} action string survives encoding round-trip`, async () => {
         const action = factory()
 
@@ -279,6 +297,9 @@ describe('Category A: ACTION Payload Encoding Fidelity', () => {
       })
     }
   })
+})
+
+describe('Category A: ACTION Payload Encoding Fidelity', () => {
 
   describe('data + rawData dual parameter', () => {
     it('both data and rawData are preserved in encoding', async () => {
