@@ -18,18 +18,18 @@
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../src/common/validator.js');
+const v = require('../../../src/common/validator.js');
+
+const HEX64 = 'a'.repeat(64);
 
 describe('Encoder input validator', function () {
 
-    describe('validatePubkey', function () {
-        it('passes null/valid through, throws on bad input', function () {
-            assert.strictEqual(v.validatePubkey(null), null);
-            assert.strictEqual(v.validatePubkey(undefined), null);
-            assert.strictEqual(v.validatePubkey('02abcd'), '02abcd');
-            assert.throws(() => v.validatePubkey(''), TypeError);
-            assert.throws(() => v.validatePubkey(123), TypeError);
-            assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
+    describe('validateCompressedPubKey', function () {
+        it('null passes; enforces the 02/03 + 64-hex shape', function () {
+            assert.strictEqual(v.validateCompressedPubKey(null), null);
+            assert.strictEqual(v.validateCompressedPubKey('02' + HEX64), '02' + HEX64);
+            assert.throws(() => v.validateCompressedPubKey('04' + HEX64), /02 or 03/);
+            assert.throws(() => v.validateCompressedPubKey('nope'), TypeError);
         });
     });
 });

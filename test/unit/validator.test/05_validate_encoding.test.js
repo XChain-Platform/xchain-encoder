@@ -18,18 +18,16 @@
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../src/common/validator.js');
+const v = require('../../../src/common/validator.js');
 
 describe('Encoder input validator', function () {
 
-    describe('validatePubkey', function () {
-        it('passes null/valid through, throws on bad input', function () {
-            assert.strictEqual(v.validatePubkey(null), null);
-            assert.strictEqual(v.validatePubkey(undefined), null);
-            assert.strictEqual(v.validatePubkey('02abcd'), '02abcd');
-            assert.throws(() => v.validatePubkey(''), TypeError);
-            assert.throws(() => v.validatePubkey(123), TypeError);
-            assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
+    describe('validateEncoding', function () {
+        it('accepts the valid set, null passes, unknown throws', function () {
+            for (const e of v.VALID_ENCODINGS) assert.strictEqual(v.validateEncoding(e), e);
+            assert.strictEqual(v.validateEncoding(null), null);
+            assert.throws(() => v.validateEncoding('BOGUS'), /Invalid encoding/);
+            assert.throws(() => v.validateEncoding(7), /Invalid encoding/);
         });
     });
 });

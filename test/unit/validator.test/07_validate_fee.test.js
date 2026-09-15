@@ -18,18 +18,19 @@
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../src/common/validator.js');
+const v = require('../../../src/common/validator.js');
 
 describe('Encoder input validator', function () {
 
-    describe('validatePubkey', function () {
-        it('passes null/valid through, throws on bad input', function () {
-            assert.strictEqual(v.validatePubkey(null), null);
-            assert.strictEqual(v.validatePubkey(undefined), null);
-            assert.strictEqual(v.validatePubkey('02abcd'), '02abcd');
-            assert.throws(() => v.validatePubkey(''), TypeError);
-            assert.throws(() => v.validatePubkey(123), TypeError);
-            assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
+    describe('validateFee', function () {
+        it('null/false pass; coerces; rejects NaN, negative, over-max', function () {
+            assert.strictEqual(v.validateFee(null), null);
+            assert.strictEqual(v.validateFee(false), null);
+            assert.strictEqual(v.validateFee('1000'), 1000);
+            assert.throws(() => v.validateFee('abc'), TypeError);
+            assert.throws(() => v.validateFee({}), /got: object/);
+            assert.throws(() => v.validateFee(-1), RangeError);
+            assert.throws(() => v.validateFee(v.MAX_FEE_SATOSHIS + 1), /exceeds maximum/);
         });
     });
 });

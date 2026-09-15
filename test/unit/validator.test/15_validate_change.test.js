@@ -18,18 +18,16 @@
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../src/common/validator.js');
+const v = require('../../../src/common/validator.js');
 
 describe('Encoder input validator', function () {
 
-    describe('validatePubkey', function () {
-        it('passes null/valid through, throws on bad input', function () {
-            assert.strictEqual(v.validatePubkey(null), null);
-            assert.strictEqual(v.validatePubkey(undefined), null);
-            assert.strictEqual(v.validatePubkey('02abcd'), '02abcd');
-            assert.throws(() => v.validatePubkey(''), TypeError);
-            assert.throws(() => v.validatePubkey(123), TypeError);
-            assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
+    describe('validateChange', function () {
+        it('null passes; rejects empty and over-long', function () {
+            assert.strictEqual(v.validateChange(null), null);
+            assert.strictEqual(v.validateChange('addr'), 'addr');
+            assert.throws(() => v.validateChange(''), /non-empty/);
+            assert.throws(() => v.validateChange('x'.repeat(101)), /maximum length/);
         });
     });
 });

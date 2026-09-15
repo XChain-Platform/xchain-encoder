@@ -18,18 +18,16 @@
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../src/common/validator.js');
+const v = require('../../../src/common/validator.js');
 
 describe('Encoder input validator', function () {
 
-    describe('validatePubkey', function () {
-        it('passes null/valid through, throws on bad input', function () {
-            assert.strictEqual(v.validatePubkey(null), null);
-            assert.strictEqual(v.validatePubkey(undefined), null);
-            assert.strictEqual(v.validatePubkey('02abcd'), '02abcd');
-            assert.throws(() => v.validatePubkey(''), TypeError);
-            assert.throws(() => v.validatePubkey(123), TypeError);
-            assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
+    describe('MAX_FEE_SATOSHIS', function () {
+        it('is pinned at 21,000 BTC in satoshis, not 21M BTC', function () {
+            // A misread of '21M BTC' here would invite a 1000x 'repair' that
+            // would loosen validateFee/validateDust/validateFeeQuote together.
+            assert.strictEqual(v.MAX_FEE_SATOSHIS, 2_100_000_000_000);
+            assert.strictEqual(v.MAX_FEE_SATOSHIS / 100_000_000, 21_000);
         });
     });
 });
