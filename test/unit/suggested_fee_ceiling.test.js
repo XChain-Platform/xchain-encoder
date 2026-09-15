@@ -29,9 +29,8 @@ const SATOSHI_UNIT = 100000000;
 const ceiling      = (net) => XChainEncoder.suggestedFeeCeilingPerByte(net, SATOSHI_UNIT);
 const perVbyte     = (btcPerByte) => btcPerByte == null ? null : Math.round(btcPerByte * SATOSHI_UNIT);
 
-afterEach(function () { delete process.env.SUGGESTED_FEE_MAX_PER_VBYTE; });
-
 describe('suggested fee-rate ceiling @regression @tier1', function () {
+    afterEach(function () { delete process.env.SUGGESTED_FEE_MAX_PER_VBYTE; });
 
     it('clamps test chains to the default ceiling', function () {
         for (const net of ['bitcoin-testnet', 'litecoin-testnet', 'dogecoin-testnet', 'bitcoin-regtest']) {
@@ -76,6 +75,10 @@ describe('suggested fee-rate ceiling @regression @tier1', function () {
             assert.strictEqual(ceiling(net), null, net + ' must not be clamped');
         }
     });
+});
+
+describe('suggested fee-rate ceiling @regression @tier1', function () {
+    afterEach(function () { delete process.env.SUGGESTED_FEE_MAX_PER_VBYTE; });
 
     it('treats an unknown or empty network as mainnet, never as a test chain', function () {
         // Fail toward the unclamped side: wrongly clamping a real fee market
