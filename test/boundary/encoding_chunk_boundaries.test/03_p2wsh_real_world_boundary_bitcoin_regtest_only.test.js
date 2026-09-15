@@ -38,12 +38,12 @@ const {
   makeUtxo,
   makeEncoder,
   getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 const {
   extractOpReturnPayload,
   decompilePayload,
   MAGIC_WORD
-} = require('../integration/helpers/deobfuscate')
+} = require('../../integration/helpers/deobfuscate')
 
 const NETWORK = 'dogecoin-regtest'
 
@@ -51,46 +51,62 @@ function standardUtxo (txid = TXID_A) {
   return makeUtxo(NETWORK, txid, 0, 100000000)
 }
 describe('Encoding Chunk Boundaries: Full Pipeline', () => {
-  describe('OP_RETURN auto-select threshold (75/76 chars)', () => {
-    it('75-char data (compiled=76) → OP_RETURN (exactly fits 76+4=80)', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(75)
+  describe('P2WSH real-world boundary (bitcoin-regtest only)', () => {
+    // PW2SH_SIZE = 520, giving a chunk capacity of 476 bytes, the same as
+    // P2SH. Each data chunk is pushed as a single script element inside the
+    // witness script, so it is bound by consensus MAX_SCRIPT_ELEMENT_SIZE
+    // (520), NOT by the larger total witness-script policy limit. (A bigger
+    // chunk builds a witness script the node rejects at spend time with
+    // "Push value size limit exceeded".) Through the full pipeline a 473-char
+    // string (compiled to 476 bytes with a 3-byte OP_PUSHDATA2 prefix) is the
+    // last to fit in one chunk; 474 chars (compiled 477) splits to 2.
+
+    it('473-char data → 1 P2WSH output (last single-chunk size)', async () => {
+      const p2wshNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(p2wshNet)
+      const address = getTestAddress(p2wshNet)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
+        'A'.repeat(473), null, 10000, false, 'P2WSH', address,
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.encoding, 'OP_RETURN')
+      assert.strictEqual(result.encoding, 'P2WSH')
+      const nonZeroOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
+      assert.strictEqual(nonZeroOutputs.length, 2)
     })
 
-    it('76-char data (compiled=78) → P2SH (78+4=82 > 80)', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(76)
+    it('474-char data (compiled=477) → 2 P2WSH outputs (crosses chunk boundary)', async () => {
+      // chunksSize = PW2SH_SIZE(520) - 44 = 476. Compiled 477 > 476 → 2 chunks.
+      const p2wshNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(p2wshNet)
+      const address = getTestAddress(p2wshNet)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
+        'A'.repeat(474), null, 10000, false, 'P2WSH', address,
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.encoding, 'P2SH')
+      assert.strictEqual(result.encoding, 'P2WSH')
+      // 2 P2WSH outputs + change
+      const nonZeroOutputs = result.psbt.txOutputs.filter(o => o.value > 0)
+      assert.strictEqual(nonZeroOutputs.length, 3)
     })
 
-    it('74-char data (compiled=75) → OP_RETURN (75+4=79 < 80)', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
+    it('small P2WSH data (500 chars) works correctly', async () => {
+      const p2wshNet = 'bitcoin-regtest'
+      const encoder = makeEncoder(p2wshNet)
+      const address = getTestAddress(p2wshNet)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        'A'.repeat(74), null, 10000, false, null, address,
+        'A'.repeat(500), null, 10000, false, 'P2WSH', address,
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.encoding, 'OP_RETURN')
+      assert.strictEqual(result.encoding, 'P2WSH')
     })
   })
 })

@@ -38,12 +38,12 @@ const {
   makeUtxo,
   makeEncoder,
   getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 const {
   extractOpReturnPayload,
   decompilePayload,
   MAGIC_WORD
-} = require('../integration/helpers/deobfuscate')
+} = require('../../integration/helpers/deobfuscate')
 
 const NETWORK = 'dogecoin-regtest'
 
@@ -51,46 +51,34 @@ function standardUtxo (txid = TXID_A) {
   return makeUtxo(NETWORK, txid, 0, 100000000)
 }
 describe('Encoding Chunk Boundaries: Full Pipeline', () => {
-  describe('OP_RETURN auto-select threshold (75/76 chars)', () => {
-    it('75-char data (compiled=76) → OP_RETURN (exactly fits 76+4=80)', async () => {
+  describe('singleOpReturnPolicy enforcement (always fail-closed)', () => {
+    it('throws RangeError for an oversized OP_RETURN when the flag is absent', () => {
+      // A network config that omits singleOpReturnPolicy must STILL enforce the
+      // single-output ceiling.
       const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(75)
-
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
+      delete encoder.network.singleOpReturnPolicy
+      const oversized = Buffer.alloc(100) // > the 76-byte OP_RETURN payload ceiling
+      assert.throws(() => encoder.prepareData(oversized, 'OP_RETURN'), RangeError)
     })
 
-    it('76-char data (compiled=78) → P2SH (78+4=82 > 80)', async () => {
+    it('throws RangeError for an oversized OP_RETURN even when singleOpReturnPolicy is explicitly false', () => {
+      // The multi-chunk split path selected by this flag is unreassemblable (no
+      // shipped decoder reads more than one OP_RETURN push) and unrelayable (Core's
+      // IsStandardTx rejects multi-OP_RETURN as non-standard). The flag cannot
+      // disarm the ceiling; an oversized OP_RETURN payload always throws.
       const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(76)
-
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      assert.strictEqual(result.encoding, 'P2SH')
+      encoder.network.singleOpReturnPolicy = false
+      const oversized = Buffer.alloc(100)
+      assert.throws(() => encoder.prepareData(oversized, 'OP_RETURN'), RangeError)
     })
 
-    it('74-char data (compiled=75) → OP_RETURN (75+4=79 < 80)', async () => {
+    it('a max-size single-chunk payload still encodes as exactly one OP_RETURN output regardless of the flag', () => {
       const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        'A'.repeat(74), null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
+      encoder.network.singleOpReturnPolicy = false
+      const atCeiling = Buffer.alloc(76) // exactly the 76-byte OP_RETURN payload ceiling
+      const prepared = encoder.prepareData(atCeiling, 'OP_RETURN')
+      assert.strictEqual(prepared.dataBufferArray.length, 1)
+      assert.strictEqual(prepared.dataBufferArray[0].length, 76 + 4) // + 4-byte magic word
     })
   })
 })

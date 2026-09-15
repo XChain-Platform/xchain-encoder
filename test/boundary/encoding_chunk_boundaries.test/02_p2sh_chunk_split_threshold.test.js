@@ -38,12 +38,12 @@ const {
   makeUtxo,
   makeEncoder,
   getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 const {
   extractOpReturnPayload,
   decompilePayload,
   MAGIC_WORD
-} = require('../integration/helpers/deobfuscate')
+} = require('../../integration/helpers/deobfuscate')
 
 const NETWORK = 'dogecoin-regtest'
 
@@ -51,46 +51,81 @@ function standardUtxo (txid = TXID_A) {
   return makeUtxo(NETWORK, txid, 0, 100000000)
 }
 describe('Encoding Chunk Boundaries: Full Pipeline', () => {
-  describe('OP_RETURN auto-select threshold (75/76 chars)', () => {
-    it('75-char data (compiled=76) → OP_RETURN (exactly fits 76+4=80)', async () => {
+  describe('P2SH chunk-split threshold', () => {
+    // P2SH chunksSize = 520 - 44 = 476
+    // For string of N chars (N <= 255): compiled = N + 2 (OP_PUSHDATA1 overhead)
+    // So compiled <= 476 when N <= 474... wait: for N <= 75, overhead is 1.
+    // For 76 <= N <= 255, overhead is 2. So compiled = N + 2.
+    // compiled <= 476 → N <= 474 (for N >= 76)
+    // But for a large string we expect: 473-char (compiled 475) → 1 chunk,
+    // 474-char (compiled 476) → 1 chunk, 475-char (compiled 477) → 2 chunks
+
+    it('473-char data (compiled=476) → 1 P2SH output (exactly fits)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(75)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-    })
-
-    it('76-char data (compiled=78) → P2SH (78+4=82 > 80)', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(76)
-
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
+        'A'.repeat(473), null, 10000, false, 'P2SH', address,
         null, null, null, true, 0.00001
       )
 
       assert.strictEqual(result.encoding, 'P2SH')
+      // Count non-zero outputs: 1 P2SH output + 1 change output
+      const outputs = result.psbt.txOutputs.filter(o => o.value > 0)
+      assert.strictEqual(outputs.length, 2)
     })
 
-    it('74-char data (compiled=75) → OP_RETURN (75+4=79 < 80)', async () => {
+    it('474-char data (compiled=477) → 2 P2SH outputs (first overflow)', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        'A'.repeat(74), null, 10000, false, null, address,
+        'A'.repeat(474), null, 10000, false, 'P2SH', address,
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.encoding, 'OP_RETURN')
+      assert.strictEqual(result.encoding, 'P2SH')
+      // 2 P2SH outputs + 1 change output
+      const outputs = result.psbt.txOutputs.filter(o => o.value > 0)
+      assert.strictEqual(outputs.length, 3)
+    })
+  })
+})
+
+describe('Encoding Chunk Boundaries: Full Pipeline', () => {
+  describe('P2SH chunk-split threshold', () => {
+    it('P2SH data integrity: 475-char data reassembles from tx2 redeemScripts', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const data = 'A'.repeat(475)
+
+      // Create tx1
+      const tx1 = await encoder.createTransaction(
+        [standardUtxo()], address, null,
+        data, null, 10000, false, 'P2SH', address,
+        null, null, null, true, 0.00001
+      )
+
+      const tx1Hex = tx1.psbt.__CACHE.__TX.toHex()
+      const tx1Id = tx1.psbt.__CACHE.__TX.getId()
+
+      // Create tx2
+      const tx2 = await encoder.createTransaction(
+        [standardUtxo()], address, null,
+        data, null, 10000, false, 'P2SH', address,
+        tx1Id, tx1Hex, null, true, 0.00001
+      )
+
+      // tx2 inputs should have redeemScripts containing the data
+      const inputs = tx2.psbt.data.inputs
+      const dataChunks = inputs
+        .filter(i => i.redeemScript)
+        .map(i => bitcoin.script.decompile(i.redeemScript)[0])
+
+      assert.ok(dataChunks.length >= 2,
+        'should have 2 redeemScript inputs for 475-char data')
     })
   })
 })

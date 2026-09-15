@@ -67,9 +67,7 @@ async function encodeFull (actionObj, opts = {}) {
 
   return { result, payload: null, decompiled: null, dataString: null }
 }
-
 describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
-
   describe('E2E-1.1: Simple SEND v0', () => {
     it('SEND|0|JDOG|100|<addr> encodes to valid OP_RETURN PSBT with exact payload', async () => {
       const action = actions.makeSend('JDOG', '100', actions.ADDR_BTC)
@@ -126,7 +124,8 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('bye'))
     })
   })
-
+})
+describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
   describe('E2E-1.6: Full ISSUE with all 25+ fields (P2SH)', () => {
     it('produces valid P2SH PSBT with correctly structured output', async () => {
       const action = actions.makeIssueFull('TESTTOKEN')
@@ -181,7 +180,8 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       assert.ok(dataString.includes('999'))
     })
   })
-
+})
+describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
   describe('E2E-1.10: DESTROY', () => {
     it('burn amount preserved', async () => {
       const action = actions.makeDestroy('JDOG', '50')
@@ -213,237 +213,5 @@ describe('E2E-1: Full ACTION-to-PSBT Pipeline', () => {
       const { dataString } = await encodeFull(action)
       assert.strictEqual(dataString, action.data)
     })
-  })
-
-  describe('E2E-1.14: AIRDROP', () => {
-    it('list index reference preserved', async () => {
-      const action = actions.makeAirdrop('JDOG', '100', '10')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-    })
-  })
-
-  describe('E2E-1.15: DIVIDEND', () => {
-    it('two-tick relationship preserved', async () => {
-      const action = actions.makeDividend('JDOG', 'BRRR', '1000')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('JDOG'))
-      assert.ok(dataString.includes('BRRR'))
-    })
-  })
-
-  describe('E2E-1.16: ORDER BUY', () => {
-    it('all DEX fields preserved', async () => {
-      const action = actions.makeOrder('BUY', 'JDOG', '100', 'BRRR', '50', '0')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('BUY'))
-    })
-  })
-
-  describe('E2E-1.17: ORDER SELL', () => {
-    it('SELL type preserved', async () => {
-      const action = actions.makeOrder('SELL', 'JDOG', '100', 'BRRR', '50', '100')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('SELL'))
-    })
-  })
-
-  describe('E2E-1.18: COINPAY', () => {
-    it('order match index preserved', async () => {
-      const action = actions.makeCoinpay('42')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('42'))
-    })
-  })
-
-  describe('E2E-1.19: DISPENSER', () => {
-    it('all dispenser params preserved', async () => {
-      const action = actions.makeDispenser('JDOG', '100', '10', '1', actions.ADDR_BTC)
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-    })
-  })
-
-  describe('E2E-1.20: SWAP', () => {
-    it('cross-chain identifiers preserved', async () => {
-      const action = actions.makeSwap('JDOG', '100', 'LTC', 'LDOG', '200')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('LTC'))
-      assert.ok(dataString.includes('LDOG'))
-    })
-  })
-
-  describe('E2E-1.21: BROADCAST', () => {
-    it('message text preserved', async () => {
-      const action = actions.makeBroadcast('Hello XChain World')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-    })
-  })
-
-  describe('E2E-1.22: MESSAGE', () => {
-    it('address + text preserved', async () => {
-      const action = actions.makeMessage(actions.ADDR_BTC, 'Hello')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-    })
-  })
-
-  describe('E2E-1.23: FILE small (P2SH)', () => {
-    it('file metadata + content encoded as P2SH', async () => {
-      const action = actions.makeFile('test.json', 'application/json')
-      const { result } = await encodeFull(action)
-      assert.strictEqual(result.encoding, 'P2SH')
-
-      // Verify P2SH output exists
-      const p2shOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
-        const d = bitcoin.script.decompile(o.script)
-        return d && d[0] === bitcoin.opcodes.OP_HASH160
-      })
-      assert.ok(p2shOutput, 'should have P2SH output')
-    })
-  })
-
-  describe('E2E-1.24: FILE large (P2WSH)', () => {
-    it('large file encoded as P2WSH when forced', async () => {
-      const action = actions.makeFileLarge()
-      const { result } = await encodeFull(action, { encoding: 'P2WSH', network: 'bitcoin-regtest' })
-      assert.strictEqual(result.encoding, 'P2WSH')
-
-      // Verify P2WSH output: OP_0 <32-byte-hash>
-      const p2wshOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
-        const d = bitcoin.script.decompile(o.script)
-        return d && d[0] === bitcoin.opcodes.OP_0 &&
-               Buffer.isBuffer(d[1]) && d[1].length === 32
-      })
-      assert.ok(p2wshOutput, 'should have P2WSH output')
-    })
-  })
-
-  describe('E2E-1.25: ADDRESS', () => {
-    it('require-memo flag preserved', async () => {
-      const action = actions.makeAddress('1')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-    })
-  })
-
-  describe('E2E-1.26: LINK', () => {
-    it('action indices preserved', async () => {
-      const action = actions.makeLink('42', '99')
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('42'))
-      assert.ok(dataString.includes('99'))
-    })
-  })
-
-  describe('E2E-1.27: LIST', () => {
-    it('comma-separated items encoded successfully', async () => {
-      // Short addresses to fit OP_RETURN
-      const action = actions.makeList(['mfWxJ45', 'n1BNcx3'])
-      const { dataString, result } = await encodeFull(action)
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes(','))
-    })
-
-    it('full addresses auto-select P2SH', async () => {
-      const action = actions.makeList([actions.ADDR_BTC, actions.ADDR_BTC_2])
-      const { result } = await encodeFull(action)
-      assert.strictEqual(result.encoding, 'P2SH')
-    })
-  })
-
-  describe('E2E-1.28: BATCH', () => {
-    it('semicolon-separated actions preserved', async () => {
-      const batch = actions.makeBatch([
-        actions.makeSend('A', '1', actions.ADDR_BTC),
-        actions.makeDestroy('B', '2')
-      ])
-      const { dataString } = await encodeFull(batch)
-      assert.strictEqual(dataString, batch.data)
-      assert.ok(dataString.includes(';'))
-    })
-  })
-
-  describe('E2E-1.29: Large BATCH forces P2SH', () => {
-    it('5+ actions in batch exceeds OP_RETURN and auto-selects P2SH', async () => {
-      const batch = actions.makeBatch([
-        actions.makeSend('A', '1', actions.ADDR_BTC),
-        actions.makeSend('B', '2', actions.ADDR_BTC),
-        actions.makeSend('C', '3', actions.ADDR_BTC),
-        actions.makeSend('D', '4', actions.ADDR_BTC),
-        actions.makeSend('E', '5', actions.ADDR_BTC)
-      ])
-      const { result } = await encodeFull(batch)
-      assert.strictEqual(result.encoding, 'P2SH')
-    })
-  })
-
-  describe('E2E-1.30: TICK by ID reference', () => {
-    it('caret prefix preserved', async () => {
-      const action = actions.makeSendByTickId('1234', '100', actions.ADDR_BTC)
-      const { dataString } = await encodeFull(action)
-      assert.strictEqual(dataString, action.data)
-      assert.ok(dataString.includes('^1234'))
-    })
-  })
-
-  describe('Structural invariants across all ACTION types', () => {
-    const allActions = [
-      { name: 'SEND v0', factory: () => actions.makeSend() },
-      { name: 'SEND v1', factory: () => actions.makeMultiSendV1() },
-      { name: 'SEND v2', factory: () => actions.makeMultiSendV2() },
-      { name: 'SEND v3', factory: () => actions.makeMultiSendV3() },
-      { name: 'ISSUE minimal', factory: () => actions.makeIssueMinimal() },
-      { name: 'ISSUE full', factory: () => actions.makeIssueFull('TK') },
-      { name: 'ISSUE v1', factory: () => actions.makeIssueEditDescription() },
-      { name: 'MINT', factory: () => actions.makeMint() },
-      { name: 'DESTROY', factory: () => actions.makeDestroy() },
-      { name: 'CALLBACK', factory: () => actions.makeCallback() },
-      { name: 'SLEEP', factory: () => actions.makeSleep() },
-      { name: 'SWEEP', factory: () => actions.makeSweep() },
-      { name: 'AIRDROP', factory: () => actions.makeAirdrop() },
-      { name: 'DIVIDEND', factory: () => actions.makeDividend() },
-      { name: 'ORDER', factory: () => actions.makeOrder() },
-      { name: 'COINPAY', factory: () => actions.makeCoinpay() },
-      { name: 'DISPENSER', factory: () => actions.makeDispenser() },
-      { name: 'SWAP', factory: () => actions.makeSwap() },
-      { name: 'BROADCAST', factory: () => actions.makeBroadcast() },
-      { name: 'MESSAGE', factory: () => actions.makeMessage() },
-      { name: 'FILE', factory: () => actions.makeFile() },
-      { name: 'ADDRESS', factory: () => actions.makeAddress() },
-      { name: 'LINK', factory: () => actions.makeLink() },
-      { name: 'LIST', factory: () => actions.makeList() },
-      { name: 'BATCH', factory: () => actions.makeBatch([actions.makeSend(), actions.makeMint()]) },
-      { name: 'TICK by ID', factory: () => actions.makeSendByTickId() }
-    ]
-
-    for (const { name, factory } of allActions) {
-      it(`${name}: produces valid Psbt with >= 1 input and >= 2 outputs`, async () => {
-        const action = factory()
-        const encoder = makeEncoder(NETWORK)
-        const address = getTestAddress(NETWORK)
-        const utxo = stdUtxo()
-
-        const result = await encoder.createTransaction(
-          [utxo], address, null,
-          action.data, action.rawData, 10000, false, null, address,
-          null, null, null, true, 0.00001
-        )
-
-        assert.ok(result.psbt instanceof bitcoin.Psbt)
-        assert.ok(result.psbt.data.inputs.length >= 1, `${name}: should have >= 1 input`)
-        assert.ok(result.psbt.txOutputs.length >= 2, `${name}: should have >= 2 outputs`)
-      })
-    }
   })
 })

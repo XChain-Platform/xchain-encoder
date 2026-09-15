@@ -38,12 +38,12 @@ const {
   makeUtxo,
   makeEncoder,
   getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 const {
   extractOpReturnPayload,
   decompilePayload,
   MAGIC_WORD
-} = require('../integration/helpers/deobfuscate')
+} = require('../../integration/helpers/deobfuscate')
 
 const NETWORK = 'dogecoin-regtest'
 
@@ -51,46 +51,33 @@ function standardUtxo (txid = TXID_A) {
   return makeUtxo(NETWORK, txid, 0, 100000000)
 }
 describe('Encoding Chunk Boundaries: Full Pipeline', () => {
-  describe('OP_RETURN auto-select threshold (75/76 chars)', () => {
-    it('75-char data (compiled=76) → OP_RETURN (exactly fits 76+4=80)', async () => {
+  describe('forced encoding override', () => {
+    it('small data forced to P2SH produces P2SH output', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(75)
 
       const result = await encoder.createTransaction(
         [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
-    })
-
-    it('76-char data (compiled=78) → P2SH (78+4=82 > 80)', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const data = 'A'.repeat(76)
-
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        data, null, 10000, false, null, address,
+        'SEND|0|X|1|a', null, 10000, false, 'P2SH', address,
         null, null, null, true, 0.00001
       )
 
       assert.strictEqual(result.encoding, 'P2SH')
     })
 
-    it('74-char data (compiled=75) → OP_RETURN (75+4=79 < 80)', async () => {
+    it('invalid encoding string throws TypeError from prepareData', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
 
-      const result = await encoder.createTransaction(
-        [standardUtxo()], address, null,
-        'A'.repeat(74), null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+      // prepareData throws TypeError for unknown encoding
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [standardUtxo()], address, null,
+          'test', null, 10000, false, 'INVALID_TYPE', address,
+          null, null, null, true, 0.00001
+        ),
+        { name: 'TypeError' }
       )
-
-      assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
 })
