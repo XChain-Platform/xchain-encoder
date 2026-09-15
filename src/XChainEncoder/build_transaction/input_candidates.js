@@ -87,23 +87,23 @@ function checkExactInputs(build){
 
 // The candidate set: the caller's utxos, an empty set on a reveal, or the
 // tracker's view of the caller's address.
-async function gatherUtxos(build){
+function* gatherUtxos(build){
     let { utxos, isReveal, p2shHex } = build
     if ((utxos == null) || (utxos.length == 0)){
         if (isReveal && p2shHex){
             utxos = []
         Object.assign(build, { utxos })
         } else {
-        await fetchTrackerUtxos.call(this, build)
+        yield* fetchTrackerUtxos.call(this, build)
         }
     }
 }
 
-async function fetchTrackerUtxos(build){
+function* fetchTrackerUtxos(build){
     let { pubkey } = build
     let fetched
     try {
-        fetched = await this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network))
+        fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network)))
     } catch (err) {
         // Surface a typed, credential-free operational error. A
         // transport failure embeds the tracker's internal host:port,

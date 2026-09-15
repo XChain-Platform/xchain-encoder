@@ -81,7 +81,7 @@ function checkPayloadInput(build){
     Object.assign(build, { unknownAction, customOutputs })
 }
 
-async function compressPayload(build){
+function* compressPayload(build){
     let { compress, data, rawData } = build
     // Transparent FILE payload compression, ON by default. Runs HERE, before
     // the payload buffers are assembled, so everything downstream prices the
@@ -107,7 +107,7 @@ async function compressPayload(build){
     let compressionResult = null
     if (compressEnabled && rawData != null){
         let originalBuffer = Buffer.from(rawData, 'binary')
-        compressionResult = await compressPayloadForAction(data, originalBuffer, { explicit: compressExplicit })
+        compressionResult = (yield compressPayloadForAction(data, originalBuffer, { explicit: compressExplicit }))
         if (compressionResult.compressed){
             // Both halves move together: the marker and the bytes it
             // describes. They must never be assigned separately.
@@ -234,7 +234,7 @@ function chooseEncoding(build){
     Object.assign(build, { encoding })
 }
 
-async function checkEnvelopeEncoding(build){
+function* checkEnvelopeEncoding(build){
     let { encoding, p2shHash } = build
     // Envelope availability is a property of the network definition:
     // DOGE has no segwit, hence no Taproot; same gate, same error shape as
@@ -254,7 +254,7 @@ async function checkEnvelopeEncoding(build){
         // an action that will never exist, and they pay real coin for it. The
         // decoder's refusal is silent and correct, so nothing downstream can
         // detect the loss; this is the only place it can be caught.
-        await this.assertEnvelopeRecognized()
+        yield this.assertEnvelopeRecognized()
         ensureEccLib()
     }
 }

@@ -24,21 +24,21 @@ const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte } = require(
 
 // The per-byte rate this build charges, the node rate the drain caps anchor
 // to, the effective cap, and the dust floor, settled in that order.
-async function resolveFeeRates(build){
+function* resolveFeeRates(build){
     let { feePerKb } = build
     let feePerBytes = null
     let nodeFeePerBytes = null
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
     if (feePerKb){
-        await useCallerFeeRate.call(this, build)
+        yield* useCallerFeeRate.call(this, build)
     } else {
-        await useNodeFeeRate.call(this, build)
+        yield* useNodeFeeRate.call(this, build)
     }
-    await anchorRelayFeeRate.call(this, build)
+    yield* anchorRelayFeeRate.call(this, build)
     applyFeeCapAndDustFloor.call(this, build)
 }
 
-async function useCallerFeeRate(build){
+function* useCallerFeeRate(build){
     let { feePerKb, feePerBytes, nodeFeePerBytes } = build
     // feePerKb is the caller's rate in BASE UNITS (sat/litoshi/koinu)
     // per kB: docs/openrpc.json documents it as "base units per kB" and
@@ -58,7 +58,7 @@ async function useCallerFeeRate(build){
     // own rate (that would let an inflated feePerKb lift the ceiling
     // with it).
     try {
-        nodeFeePerBytes = await this.connector.getFeePerKilobyte(1)/1000
+        nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1))/1000
     } catch (err) {
         // The node cannot produce an estimate (e.g. a quiet testnet,
         // exactly the case where callers must pass feePerKb to begin
@@ -70,9 +70,9 @@ async function useCallerFeeRate(build){
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
 }
 
-async function useNodeFeeRate(build){
+function* useNodeFeeRate(build){
     let { feePerBytes, nodeFeePerBytes } = build
-    feePerBytes = await this.connector.getFeePerKilobyte(1)/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
+    feePerBytes = (yield this.connector.getFeePerKilobyte(1))/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
     nodeFeePerBytes = feePerBytes
     // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
     // chain. nodeFeePerBytes keeps the raw estimate so the fee-drain caps
@@ -83,7 +83,7 @@ async function useNodeFeeRate(build){
         // suggestedFeeCeilingFloorPerByte); the floor is coin-correct
         // because it comes from the node, where the ceiling constant is not.
         try {
-            const info = await this.connector.getNetworkInfo()
+            const info = yield this.connector.getNetworkInfo()
             const floor = suggestedFeeCeilingFloorPerByte(info && info.relayfee)
             if (floor != null && floor > suggestedCap) suggestedCap = floor
         } catch (err) {
@@ -108,7 +108,7 @@ async function useNodeFeeRate(build){
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
 }
 
-async function anchorRelayFeeRate(build){
+function* anchorRelayFeeRate(build){
     let { nodeFeePerBytes } = build
     // Relative-cap anchor fallback. On non-regtest chains getFeePerKilobyte
     // THROWS when estimatesmartfee has no data (fresh node, warming mempool,
@@ -126,7 +126,7 @@ async function anchorRelayFeeRate(build){
     // when the operator disables the relative cap (multiplier 0).
     if (nodeFeePerBytes == null){
         try {
-            const info = await this.connector.getNetworkInfo();
+            const info = yield this.connector.getNetworkInfo();
             const relayfee = Number(info && info.relayfee);
             if (relayfee > 0) nodeFeePerBytes = relayfee / 1000;
         } catch (err) {

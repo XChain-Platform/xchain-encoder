@@ -71,7 +71,7 @@ function emitChangeAndPad(build){
     }
 }
 
-async function sweepP2shReveal(build){
+function* sweepP2shReveal(build){
     let { p2shHash, preparedData, phaseLegInputSatoshis, customOutputs, feePerBytes, estimatedFee, outputSatoshis,
         change, pubkey, psbt } = build
     // Sweep the P2SH reveal's leg surplus back to the
@@ -100,7 +100,7 @@ async function sweepP2shReveal(build){
             revealFeeKept = estimatedFee
         }
 
-        revealFeeKept = await upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept)
+        revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
         let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
         let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
@@ -114,7 +114,7 @@ async function sweepP2shReveal(build){
     }
 }
 
-async function upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
+function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
     let { feePerBytes, p2shHash } = build
     // Keep the package prefund as FEE instead of sweeping it home.
     //
@@ -138,7 +138,7 @@ async function upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
         this.connector && typeof this.connector.getUnconfirmedAncestorPackage === 'function'){
         let commitPackage = null
         try {
-            commitPackage = await this.connector.getUnconfirmedAncestorPackage([p2shHash])
+            commitPackage = (yield this.connector.getUnconfirmedAncestorPackage([p2shHash]))
         } catch (err) {
             logger.warn(util.format('Reveal package fee sizing skipped: commit lookup failed:', err.message))
         }

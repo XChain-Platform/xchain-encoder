@@ -53,10 +53,10 @@ function initSelection(build){
     Object.assign(build, { estimatedTxSize, estimatedFee, selectedInputCount, unconfirmedInputTxids, reservedCandidates })
 }
 
-async function selectFundingInputs(build){
+function* selectFundingInputs(build){
     let { p2shHash } = build
     if (!p2shHash){//The p2sh input is already created before
-        await selectInputs.call(this, build)
+        yield* selectInputs.call(this, build)
         refuseEmptySelection.call(this, build)
         refuseFirstInputRace.call(this, build)
     }
@@ -64,7 +64,7 @@ async function selectFundingInputs(build){
 
 // Walks the ordered candidates, claiming and adding inputs until they cover
 // outputs plus fee (or, in exact-input mode, until every named one is spent).
-async function selectInputs(build){
+function* selectInputs(build){
     let { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
         attachPrevTx, fee, feePerBytes, outputSatoshis, estimatedTxSize, estimatedFee, inputSatoshis,
         selectedInputCount, unconfirmedInputTxids, reservedCandidates } = build
@@ -84,7 +84,7 @@ async function selectInputs(build){
 
         nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
 
-        const added = await addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis)
+        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis)
         estimatedTxSize = added.estimatedTxSize
         inputSatoshis = added.inputSatoshis
 
@@ -173,7 +173,7 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
     return false
 }
 
-async function addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis){
+function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis){
     if (this.isSegwitUTXO(nextUtxo)){
         let nextInput = {
             hash: nextUtxo.txid,
@@ -196,14 +196,14 @@ async function addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, esti
         // that gets signed - hydrating it later would break the
         // byte-identity guarantee the confirm surface rests on.
         if (attachPrevTx) {
-            const prevTxHex = await this.connector.getTransactionHex(nextUtxo.txid)
+            const prevTxHex = yield this.connector.getTransactionHex(nextUtxo.txid)
             nextInput.nonWitnessUtxo = Buffer.from(prevTxHex, 'hex')
         }
         psbt.addInput(nextInput)
         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
         inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
     } else {
-        let wholeUtxoHex = await this.connector.getTransactionHex(nextUtxo.txid)
+        let wholeUtxoHex = yield this.connector.getTransactionHex(nextUtxo.txid)
         let nextInput = {
             hash: nextUtxo.txid,
             index: nextUtxo.vout,

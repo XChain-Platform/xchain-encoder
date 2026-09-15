@@ -127,23 +127,23 @@ function initEmissionState(build){
 }
 
 // One carrier output (or reveal input) per prepared chunk, by encoding.
-async function emitDataOutputs(build){
+function* emitDataOutputs(build){
     let { preparedData } = build
     for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
         let nextDataBuffer = preparedData["dataBufferArray"][nextDataBufferIndex]
         
         switch (preparedData["encoding"]){
             case Encoding.OP_RETURN:
-                await emitOpReturnChunk.call(this, build, nextDataBuffer)
+                yield* emitOpReturnChunk.call(this, build, nextDataBuffer)
                 break
             case Encoding.P2SH:
-                await emitP2shChunk.call(this, build, nextDataBuffer)
+                yield* emitP2shChunk.call(this, build, nextDataBuffer)
                 break
             case Encoding.P2WSH:
-                await emitP2wshChunk.call(this, build, nextDataBuffer)
+                yield* emitP2wshChunk.call(this, build, nextDataBuffer)
                 break
             case Encoding.MULTISIGN:
-                await emitMultisignChunk.call(this, build, nextDataBuffer)
+                yield* emitMultisignChunk.call(this, build, nextDataBuffer)
                 break
             case Encoding.TAPROOT: {
                     emitEnvelopeCommit.call(this, build, nextDataBuffer)
@@ -153,9 +153,9 @@ async function emitDataOutputs(build){
     }
 }
 
-async function emitOpReturnChunk(build, nextDataBuffer){
+function* emitOpReturnChunk(build, nextDataBuffer){
     let { obfuscatedData, txidFirstInput, psbt, estimatedTxSize } = build
-    obfuscatedData = await this.obfuscate(nextDataBuffer, txidFirstInput)
+    obfuscatedData = (yield this.obfuscate(nextDataBuffer, txidFirstInput))
     let opReturnScript = bitcoin.payments.embed({ data: [obfuscatedData] })
     
     psbt.addOutput({
@@ -172,11 +172,11 @@ async function emitOpReturnChunk(build, nextDataBuffer){
     Object.assign(build, { obfuscatedData, estimatedTxSize })
 }
 
-async function emitMultisignChunk(build, nextDataBuffer){
+function* emitMultisignChunk(build, nextDataBuffer){
     let { obfuscatedData, txidFirstInput, compressedPubKey, finalDust, psbt, outputSatoshis, estimatedTxSize } = build
-    obfuscatedData = await this.obfuscate(nextDataBuffer, txidFirstInput)
-    let pubkey1 = await this.dataToPubkey(obfuscatedData.slice(0, 32))
-    let pubkey2 = await this.dataToPubkey(obfuscatedData.slice(32, obfuscatedData.length))
+    obfuscatedData = (yield this.obfuscate(nextDataBuffer, txidFirstInput))
+    let pubkey1 = yield this.dataToPubkey(obfuscatedData.slice(0, 32))
+    let pubkey2 = yield this.dataToPubkey(obfuscatedData.slice(32, obfuscatedData.length))
     let pubkey3 = Buffer.from(compressedPubKey,"hex")
     
     let pubkeys = [

@@ -25,7 +25,7 @@ const { asSatValue } = require('../script_amount_helpers.js')
 const { assertRevealFundingTxMatches } = require('../request_resolution.js')
 
 // A P2SH chunk: a funding output on the commit, or an input spending it on the reveal.
-async function emitP2shChunk(build, nextDataBuffer){
+function* emitP2shChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
     if (p2shHex && !p2shTx){
         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
@@ -35,16 +35,16 @@ async function emitP2shChunk(build, nextDataBuffer){
     Object.assign(build, { p2shTx, txidFirstInput })
 
     if (p2shHash){
-        await spendP2shLeg.call(this, build, nextDataBuffer)
+        yield* spendP2shLeg.call(this, build, nextDataBuffer)
     } else {
         fundP2shLeg.call(this, build, nextDataBuffer)
     }
 }
 
-async function spendP2shLeg(build, nextDataBuffer){
+function* spendP2shLeg(build, nextDataBuffer){
     let { psbt, txidFirstInput, estimatedTxSize, p2shTx, voutPsbtIndex, utxoSequence, p2shHash, p2shHex, phaseLegInputSatoshis } = build
     if (!psbt){
-        let opReturnData = await this.obfuscate(
+        let opReturnData = yield this.obfuscate(
             Buffer.concat([
                 Buffer.from(MAGIC_WORD,'utf8'),
                 Buffer.from("p2sh",'utf8')
@@ -190,7 +190,7 @@ function sumP2shRevealLegs(preparedData, feePerBytes, finalDust){
 }
 
 // A P2WSH chunk: a funding output on the commit, or an input spending it on the reveal.
-async function emitP2wshChunk(build, nextDataBuffer){
+function* emitP2wshChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
     if (p2shHex && !p2shTx){
         p2shTx = bitcoin.Transaction.fromHex(p2shHex)
@@ -200,26 +200,26 @@ async function emitP2wshChunk(build, nextDataBuffer){
     Object.assign(build, { p2shTx, txidFirstInput })
     
     if (p2shHash){
-        await spendP2wshLeg.call(this, build, nextDataBuffer)
+        yield* spendP2wshLeg.call(this, build, nextDataBuffer)
     } else {
         fundP2wshLeg.call(this, build, nextDataBuffer)
     }
 }
 
-async function spendP2wshLeg(build, nextDataBuffer){
+function* spendP2wshLeg(build, nextDataBuffer){
     let { psbt, txidFirstInput, p2shTx, voutPsbtIndex, utxoSequence, p2shHash, estimatedTxSize } = build
     if (!psbt){
         psbt = new bitcoin.Psbt({ network: this.network })
         psbt.addOutput({
             script: bitcoin.payments.embed({
                 data: [
-                    await this.obfuscate(
+                    (yield this.obfuscate(
                         Buffer.concat([
                             Buffer.from(MAGIC_WORD,'utf8'),
                             Buffer.from("p2wsh",'utf8')
                         ]),
                         txidFirstInput
-                    )
+                    ))
                 ]
             }).output,
             value: 0

@@ -179,37 +179,67 @@ class XChainEncoder {
         const build = { callReservations, utxos, pubkey, customOutputs, data, rawData, fee, replacebyfee,
             encoding, change, p2shHash, p2shHex, compressedPubKey,
             unconfirmed, feePerKb, dust, feeQuote, attachPrevTx, compress, options }
-        checkPayloadInput.call(this, build)
-        await resolveFeeRates.call(this, build)
-        await compressPayload.call(this, build)
-        compilePayload.call(this, build)
-        classifyPayload.call(this, build)
-        chooseEncoding.call(this, build)
-        await checkEnvelopeEncoding.call(this, build)
-        initInputState.call(this, build)
-        checkExactInputs.call(this, build)
-        await gatherUtxos.call(this, build)
-        refuseShrunkExactInputs.call(this, build)
-        filterAndOrderUtxos.call(this, build)
-        bindObfuscationKey.call(this, build)
-        prepareDataChunks.call(this, build)
-        priceRevealCustomOutputs.call(this, build)
-        initEmissionState.call(this, build)
-        await emitDataOutputs.call(this, build)
-        emitCustomOutputs.call(this, build)
-        initSelection.call(this, build)
-        await selectFundingInputs.call(this, build)
-        refuseExcessiveFee.call(this, build)
-        await upliftForAncestors.call(this, build)
-        floorEstimatedFee.call(this, build)
-        prefundRevealPackage.call(this, build)
-        computeChange.call(this, build)
-        emitChangeAndPad.call(this, build)
-        await sweepP2shReveal.call(this, build)
-        buildEnvelopeReveal.call(this, build)
-        return finishBuild.call(this, build)
+        // The steps are generators that yield each node, tracker or payload
+        // promise to this loop, so the build suspends only where it waits on a
+        // value, once per wait, and runs without a break in between. That is
+        // what keeps concurrent builds from interleaving their reservations: a
+        // build with nothing to wait on between claiming its first input and
+        // finishing selection holds the whole stretch, so a second build over
+        // the same address sees every outpoint it took. Awaiting each step as
+        // an async function would add a suspension at every step boundary and
+        // after every selected input, and two builds would then split one
+        // address's outpoints between them and both fail insufficient funds.
+        const steps = buildSteps.call(this, build)
+        let next = steps.next()
+        while (!next.done){
+            let settled
+            try {
+                settled = await next.value
+            } catch (err) {
+                next = steps.throw(err)
+                continue
+            }
+            next = steps.next(settled)
+        }
+        return next.value
     }
 
+}
+
+// The build's steps in the order the checks and emissions depend on. A step
+// that reads the node, the tracker or a payload promise is a generator
+// delegated to with yield*, which adds no suspension of its own; every other
+// step runs synchronously inside the same stretch.
+function* buildSteps(build){
+    checkPayloadInput.call(this, build)
+    yield* resolveFeeRates.call(this, build)
+    yield* compressPayload.call(this, build)
+    compilePayload.call(this, build)
+    classifyPayload.call(this, build)
+    chooseEncoding.call(this, build)
+    yield* checkEnvelopeEncoding.call(this, build)
+    initInputState.call(this, build)
+    checkExactInputs.call(this, build)
+    yield* gatherUtxos.call(this, build)
+    refuseShrunkExactInputs.call(this, build)
+    filterAndOrderUtxos.call(this, build)
+    bindObfuscationKey.call(this, build)
+    prepareDataChunks.call(this, build)
+    priceRevealCustomOutputs.call(this, build)
+    initEmissionState.call(this, build)
+    yield* emitDataOutputs.call(this, build)
+    emitCustomOutputs.call(this, build)
+    initSelection.call(this, build)
+    yield* selectFundingInputs.call(this, build)
+    refuseExcessiveFee.call(this, build)
+    yield* upliftForAncestors.call(this, build)
+    floorEstimatedFee.call(this, build)
+    prefundRevealPackage.call(this, build)
+    computeChange.call(this, build)
+    emitChangeAndPad.call(this, build)
+    yield* sweepP2shReveal.call(this, build)
+    buildEnvelopeReveal.call(this, build)
+    return finishBuild.call(this, build)
 }
 
 Object.assign(XChainEncoder.prototype, require('./XChainEncoder/outpoint_reservations.js'), require('./XChainEncoder/payload_preparation.js'), require('./XChainEncoder/size_estimation.js'), require('./XChainEncoder/envelope_cancel.js'))

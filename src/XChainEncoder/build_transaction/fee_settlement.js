@@ -66,7 +66,7 @@ function refuseExcessiveFee(build){
     }
 }
 
-async function upliftForAncestors(build){
+function* upliftForAncestors(build){
     let { unconfirmedInputTxids, feePerBytes, estimatedFee, estimatedTxSize } = build
     // CPFP-aware package sizing.
     //
@@ -95,7 +95,7 @@ async function upliftForAncestors(build){
         this.connector && typeof this.connector.getUnconfirmedAncestorPackage === 'function'){
         let ancestorPackage = null
         try {
-            ancestorPackage = await this.connector.getUnconfirmedAncestorPackage(unconfirmedInputTxids)
+            ancestorPackage = (yield this.connector.getUnconfirmedAncestorPackage(unconfirmedInputTxids))
         } catch (err) {
             logger.warn(util.format('Package fee sizing skipped: ancestor lookup failed:', err.message))
         }
