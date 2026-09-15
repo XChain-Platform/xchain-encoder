@@ -111,7 +111,7 @@ function validateDust(dust) {
     return num
 }
 
-function validateUtxoEntry(entry, index) {
+function validateUtxoOutpoint(entry, index) {
     // Reject anything that is not a plain object: a string, number, array or
     // null here means the caller sent the wrong shape, not a bad field, so
     // each UTXO must arrive as its own {txid, vout, value, scriptPubKey} record.
@@ -142,7 +142,9 @@ function validateUtxoEntry(entry, index) {
         throw new TypeError(`utxos[${index}].vout must be a non-negative integer`)
     }
     entry.vout = vout
+}
 
+function validateUtxoValueAndScript(entry, index) {
     // allowBig: a DOGE consolidation UTXO can legitimately exceed 2^53-1 sats;
     // the tracker emits it as an exact decimal string and the encoder's money
     // path carries it as a BigInt.
@@ -177,6 +179,11 @@ function validateUtxoEntry(entry, index) {
         }
         entry.confirmations = confirmations
     }
+}
+
+function validateUtxoEntry(entry, index) {
+    validateUtxoOutpoint(entry, index)
+    validateUtxoValueAndScript(entry, index)
     return entry
 }
 

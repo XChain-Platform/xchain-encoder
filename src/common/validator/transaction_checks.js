@@ -123,23 +123,7 @@ function validateChange(change) {
 }
 
 
-/**
- * Validate and coerce every createTransaction parameter in one pass.
- * @param {object} params - the raw JSON-RPC params object for create_tx.
- * @returns {object} the same fields, each coerced to its checked form
- *   (amounts to exact integers, hex strings to lowercase, etc).
- * @throws {TypeError} a field is missing, the wrong type, or the wrong shape.
- * @throws {RangeError} a field is the right type but outside its allowed bound.
- */
-function validateAll(params) {
-    // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
-    // params cleared this gate and died 50 lines later on 'pubkey is required',
-    // reporting a missing field for what is a shape error. Same guard the
-    // object-shaped validators below carry (lines 484/566/644/686).
-    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        throw new TypeError('Request params must be an object')
-    }
-
+function validateActionFields(params) {
     const data = validateDataParam(params.data, 'data')
     const rawData = validateDataParam(params.rawData, 'rawData')
     // Resolve encoding before the length check so validateCombinedDataLength can
@@ -150,7 +134,10 @@ function validateAll(params) {
         validateActionPushDecodability(data, rawData)
         validateActionName(data)
     }
+    return { data, rawData, encoding }
+}
 
+function validatePaymentFields(params) {
     const pubkey = validatePubkey(params.pubkey)
     const fee = validateFee(params.fee)
     const feePerKb = validateFeePerKb(params.feePerKb)
@@ -161,7 +148,13 @@ function validateAll(params) {
     const { p2shHash, p2shHex } = validateP2shParams(params.p2shHash, params.p2shHex)
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
     const change = validateChange(params.change)
+    return {
+        pubkey, fee, feePerKb, dust, utxos, customOutputs, feeQuote,
+        p2shHash, p2shHex, compressedPubKey, change
+    }
+}
 
+function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey) {
     // MULTISIGN packs the caller's real pubkey as the 3rd fake-multisig pubkey, so it is
     // required. Without it the encoder reaches `Buffer.from(compressedPubKey, 'hex')` with
     // null and throws an opaque deep error; reject up front with a precise reason instead.
@@ -192,7 +185,9 @@ function validateAll(params) {
     if (pubkey == null) {
         throw new RangeError('pubkey is required')
     }
+}
 
+function validatePolicyFields(params) {
     // rbf and unconfirmed must be real JSON booleans when explicitly provided.
     // Truthiness coercion here is a policy flip on a money path: Boolean("false")
     // is true, so a stringy-boolean client asking to EXCLUDE mempool coins would
@@ -225,6 +220,36 @@ function validateAll(params) {
     // envelope. Kept in an options bag rather than as another positional
     // parameter, so the next capability does not grow the signature again.
     const options = validateCreateTxOptions(params.options)
+
+    return { rbf, unconfirmed, attachPrevTx, compress, options }
+}
+
+/**
+ * Validate and coerce every createTransaction parameter in one pass.
+ * @param {object} params - the raw JSON-RPC params object for create_tx.
+ * @returns {object} the same fields, each coerced to its checked form
+ *   (amounts to exact integers, hex strings to lowercase, etc).
+ * @throws {TypeError} a field is missing, the wrong type, or the wrong shape.
+ * @throws {RangeError} a field is the right type but outside its allowed bound.
+ */
+function validateAll(params) {
+    // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
+    // params cleared this gate and died 50 lines later on 'pubkey is required',
+    // reporting a missing field for what is a shape error. Same guard the
+    // object-shaped validators below carry (lines 484/566/644/686).
+    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+        throw new TypeError('Request params must be an object')
+    }
+
+    const { data, rawData, encoding } = validateActionFields(params)
+    const {
+        pubkey, fee, feePerKb, dust, utxos, customOutputs, feeQuote,
+        p2shHash, p2shHex, compressedPubKey, change
+    } = validatePaymentFields(params)
+    validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey)
+    const {
+        rbf, unconfirmed, attachPrevTx, compress, options
+    } = validatePolicyFields(params)
 
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,
