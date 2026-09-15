@@ -35,7 +35,9 @@ describe('TxSizeEstimator', () => {
       assert.strictEqual(TxSizeEstimator.estimateOpReturnOutput(data), 12)
     })
   })
+})
 
+describe('TxSizeEstimator', () => {
   describe('.estimateP2shOutput()', () => {
     it('always returns 32', () => {
       assert.strictEqual(TxSizeEstimator.estimateP2shOutput(), 32)
@@ -47,7 +49,9 @@ describe('TxSizeEstimator', () => {
       assert.strictEqual(TxSizeEstimator.estimateP2wshOutput(), 43)
     })
   })
+})
 
+describe('TxSizeEstimator', () => {
   // The P2SH/P2WSH funding tx has to pay the reveal's miner fee for
   // every reveal-side customOutput, so it needs those outputs' byte cost.
   describe('.estimateOutputSizeForAddress(address, network)', () => {
@@ -84,6 +88,16 @@ describe('TxSizeEstimator', () => {
         TxSizeEstimator.estimateOutputSizeForAddress(address, NET),
         TxSizeEstimator.estimateP2wshOutput())
     })
+  })
+})
+
+describe('TxSizeEstimator', () => {
+  describe('.estimateOutputSizeForAddress(address, network)', () => {
+    const NET = bitcoin.networks.regtest
+    const pk = Buffer.from(
+      '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+      'hex'
+    )
 
     it('falls back to the largest standard output (43) for an unparseable address', () => {
       assert.strictEqual(
@@ -105,7 +119,9 @@ describe('TxSizeEstimator', () => {
         TxSizeEstimator.estimateOutputSizeForAddress(mainnetAddress, NET), 43)
     })
   })
+})
 
+describe('TxSizeEstimator', () => {
   describe('.estimateMultisignOutput()', () => {
     it('returns 8 + 1 + the compiled 1-of-3 bare-multisig script length (114)', () => {
       // Derive the expected size from a real compiled p2ms script rather than a
@@ -122,7 +138,9 @@ describe('TxSizeEstimator', () => {
       assert.strictEqual(TxSizeEstimator.estimateMultisignOutput(), expected)
     })
   })
+})
 
+describe('TxSizeEstimator', () => {
   describe('.estimateP2shInputWithRedeem(redeemData)', () => {
     // Estimate breakdown:
     //   40 outpoint+sequence + scriptSig-varint + scriptSig
@@ -171,7 +189,9 @@ describe('TxSizeEstimator', () => {
       assert.strictEqual(TxSizeEstimator.estimateP2shInputWithRedeem(redeem), 40 + 3 + 253)
     })
   })
+})
 
+describe('TxSizeEstimator', () => {
   describe('.estimateInputSize(utxo)', () => {
 
     describe('SegWit inputs (witnessUtxo)', () => {
@@ -226,7 +246,11 @@ describe('TxSizeEstimator', () => {
         assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 350)
       })
     })
+  })
+})
 
+describe('TxSizeEstimator', () => {
+  describe('.estimateInputSize(utxo)', () => {
     describe('Legacy inputs (nonWitnessUtxo)', () => {
       it('returns 180 for P2PKH nonWitnessUtxo', () => {
         const tx = new bitcoin.Transaction()
@@ -266,7 +290,11 @@ describe('TxSizeEstimator', () => {
         assert.strictEqual(TxSizeEstimator.estimateInputSize(utxo), 289)
       })
     })
+  })
+})
 
+describe('TxSizeEstimator', () => {
+  describe('.estimateInputSize(utxo)', () => {
     describe('No witnessUtxo or nonWitnessUtxo', () => {
       it('returns 350 (conservative fallback)', () => {
         const utxo = {
