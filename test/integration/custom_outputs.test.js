@@ -28,6 +28,36 @@ const {
 const actions = require('./helpers/actionFactory')
 
 const NETWORK = 'dogecoin-regtest'
+// P2SH/P2WSH is a two-transaction flow. The funding (phase-1) tx creates the
+// P2SH data outputs; the reveal (phase-2) tx spends them and is the tx the
+// indexer reads as the action. customOutputs are therefore EMITTED on the
+// reveal only, with their total FOLDED into the first funding output so the
+// reveal can pay them. Asserting the custom output on the funding tx
+// contradicts that contract, and an assertion of that shape can only pass
+// against an encoder that lacks the fold.
+const CUSTOM_VALUE = 100000
+
+// Rebuilds the funding tx from the PSBT without a private key: the encoder
+// only reads p2shHex's outputs by index, and the unsigned serialization
+// already yields a stable txid for the reveal's input.
+function unsignedTxFrom (psbt) {
+  const tx = new bitcoin.Transaction()
+  for (const input of psbt.txInputs) tx.addInput(input.hash, input.index, input.sequence)
+  for (const output of psbt.txOutputs) tx.addOutput(output.script, output.value)
+  return tx
+}
+
+async function buildFunding (encoder, address, customOutputs) {
+  const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+  const action = actions.makeIssueFull('BIGTOKEN')
+  // Each probe respends the one fixture input on the same encoder.
+  encoder.clearReservations()
+  return await encoder.createTransaction(
+    [utxo], address, customOutputs && customOutputs.map(o => ({ ...o })),
+    action.data, null, 10000, false, null, address,
+    null, null, null, true, 0.00001
+  )
+}
 
 describe('Category E: Custom Outputs (COINPAY Integration)', () => {
 
@@ -59,6 +89,9 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.strictEqual(customValues.length, 2)
     })
   })
+})
+
+describe('Category E: Custom Outputs (COINPAY Integration)', () => {
 
   describe('E-2: Custom outputs affect change calculation', () => {
     it('custom output value is deducted from change', async () => {
@@ -94,6 +127,9 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
         'change should decrease by exactly the custom output value')
     })
   })
+})
+
+describe('Category E: Custom Outputs (COINPAY Integration)', () => {
 
   describe('E-3: Non-array customOutputs ignored', () => {
     it('object instead of array is silently skipped', async () => {
@@ -127,39 +163,11 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.strictEqual(result.psbt.txOutputs.length, 2)
     })
   })
+})
+
+describe('Category E: Custom Outputs (COINPAY Integration)', () => {
 
   describe('E-4: Custom outputs + P2SH ACTION payload', () => {
-    // P2SH/P2WSH is a two-transaction flow. The funding (phase-1) tx creates the
-    // P2SH data outputs; the reveal (phase-2) tx spends them and is the tx the
-    // indexer reads as the action. customOutputs are therefore EMITTED on the
-    // reveal only, with their total FOLDED into the first funding output so the
-    // reveal can pay them. Asserting the custom output on the funding tx (which
-    // this test used to do) contradicts that contract and only ever passed
-    // before the fold existed.
-    const CUSTOM_VALUE = 100000
-
-    // Rebuilds the funding tx from the PSBT without a private key: the encoder
-    // only reads p2shHex's outputs by index, and the unsigned serialization
-    // already yields a stable txid for the reveal's input.
-    function unsignedTxFrom (psbt) {
-      const tx = new bitcoin.Transaction()
-      for (const input of psbt.txInputs) tx.addInput(input.hash, input.index, input.sequence)
-      for (const output of psbt.txOutputs) tx.addOutput(output.script, output.value)
-      return tx
-    }
-
-    async function buildFunding (encoder, address, customOutputs) {
-      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
-      const action = actions.makeIssueFull('BIGTOKEN')
-      // Each probe respends the one fixture input on the same encoder.
-      encoder.clearReservations()
-      return await encoder.createTransaction(
-        [utxo], address, customOutputs && customOutputs.map(o => ({ ...o })),
-        action.data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
-      )
-    }
-
     it('funding tx carries the P2SH data outputs and folds the custom-output value in', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -182,6 +190,11 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.ok(fundedDelta >= CUSTOM_VALUE,
         `first funding output should carry >= ${CUSTOM_VALUE} extra, carried ${fundedDelta}`)
     })
+  })
+})
+
+describe('Category E: Custom Outputs (COINPAY Integration)', () => {
+  describe('E-4: Custom outputs + P2SH ACTION payload', () => {
 
     it('reveal tx emits the custom output alongside the ACTION data', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -212,6 +225,9 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.strictEqual(reveal.psbt.txOutputs.filter(o => o.value === CUSTOM_VALUE).length, 1)
     })
   })
+})
+
+describe('Category E: Custom Outputs (COINPAY Integration)', () => {
 
   describe('Empty customOutputs array', () => {
     it('empty array produces no extra outputs', async () => {
