@@ -70,6 +70,11 @@ describe('Fuzz: prepareData()', function () {
         assert.strictEqual(failures.length, 0,
             `OP_RETURN oversize guard violated in ${failures.length}/${ITERATIONS}: ${JSON.stringify(failures.slice(0, 5))}`)
     })
+})
+
+describe('Fuzz: prepareData()', function () {
+    this.timeout(120000)
+    const encoder = makeTestEncoder()
 
     it(`MULTISIGN chunks are full 64-byte magic-prefixed slots over ${ITERATIONS} payloads`, () => {
         const failures = []
