@@ -19,7 +19,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 const {
   TXID_A,
   TXID_B,
@@ -30,8 +30,8 @@ const {
   makeEncoder,
   getTestAddress,
   buildRawTxHex
-} = require('../integration/helpers/utxoFactory')
-const actions = require('../integration/helpers/actionFactory')
+} = require('../../integration/helpers/utxoFactory')
+const actions = require('../../integration/helpers/actionFactory')
 
 // BTC semantics: the change/fee assertions assume the supplied fee (10000) is
 // honored. DOGE floors sub-100000 fees, which would skew these. The dust-floor
@@ -40,8 +40,8 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('E2E-5: UTXO, Fee, and Change Integration', () => {
 
-  describe('E2E-5.1: Single UTXO covers all', () => {
-    it('1 input, OP_RETURN + change; change = input - fee', async () => {
+  describe('E2E-5.7: Fee floor enforcement', () => {
+    it('floors fee to dustAmount when computed fee is lower', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
@@ -49,18 +49,14 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
 
       const result = await encoder.createTransaction(
         [utxo], address, null,
-        action.data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+        action.data, null, null, false, null, address,
+        null, null, null, true, 0.0000001 // very low rate
       )
 
-      assert.strictEqual(result.psbt.data.inputs.length, 1)
-      assert.strictEqual(result.psbt.txOutputs.length, 2)
-
-      const opReturn = result.psbt.txOutputs.filter(o => o.value === 0)
-      const change = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(opReturn.length, 1)
-      assert.strictEqual(change.length, 1)
-      assert.strictEqual(change[0].value, 100000000 - 10000)
+      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
+      const impliedFee = 100000000 - changeOutput.value
+      assert.ok(impliedFee >= encoder.dustAmount,
+        `fee ${impliedFee} should be >= dustAmount ${encoder.dustAmount}`)
     })
   })
 })

@@ -19,7 +19,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 const {
   TXID_A,
   TXID_B,
@@ -32,8 +32,8 @@ const {
   makeEncoder,
   getTestAddress,
   buildRawTxHex
-} = require('./helpers/utxoFactory')
-const actions = require('./helpers/actionFactory')
+} = require('../helpers/utxoFactory')
+const actions = require('../helpers/actionFactory')
 
 // These integration cases encode BITCOIN fee semantics (explicit fees honored
 // verbatim, sub-estimate fees, 546 dust). The network was mislabeled
@@ -45,28 +45,45 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('Category D: UTXO & Fee Integration', () => {
 
-  describe('D-1: Single large UTXO covers everything', () => {
-    it('produces 1 input, 2 outputs (OP_RETURN + change)', async () => {
-      const encoder = makeEncoder(NETWORK)
+  describe('D-7: Fee capped by maxFeePerBytes', () => {
+    it('limits fee when maxFeeRateKb is set', async () => {
+      // Create encoder WITH fee cap
+      const capped = new XChainEncoder(
+        NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 1000 // 1000 sat/kB cap
+      )
+      capped.connector = {
+        getFeePerKilobyte: async () => 0.00001,
+        getTransactionHex: async () => ({ hex: buildRawTxHex(100000000, NETWORK) }),
+        isRegtest: async () => true
+      }
+      capped.utxoTrackerConnector = {
+        getUtxosFromAddress: async () => makeTrackerEnvelope([makeUtxo(NETWORK, TXID_A, 0, 100000000)])
+      }
+
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
-      const result = await encoder.createTransaction(
+      // Use a very high feePerKb that exceeds the cap
+      const result = await capped.createTransaction(
         [utxo], address, null,
-        action.data, null, 10000, false, null, address,
-        null, null, null, true, 0.00001
+        action.data, null, null, false, null, address,
+        null, null, null, true, 100000000 // very high: 1e8 sat/kB = 100000 sat/byte
       )
 
-      assert.strictEqual(result.psbt.data.inputs.length, 1)
-      assert.strictEqual(result.psbt.txOutputs.length, 2)
+      // Create uncapped encoder for comparison
+      const uncapped = makeEncoder(NETWORK)
+      const resultUncapped = await uncapped.createTransaction(
+        [utxo], address, null,
+        action.data, null, null, false, null, address,
+        null, null, null, true, 100000000
+      )
 
-      // One OP_RETURN (value=0), one change
-      const opReturn = result.psbt.txOutputs.filter(o => o.value === 0)
-      const change = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(opReturn.length, 1)
-      assert.strictEqual(change.length, 1)
-      assert.strictEqual(change[0].value, 100000000 - 10000)
+      // Capped encoder should produce lower fee (more change)
+      const cappedChange = result.psbt.txOutputs.find(o => o.value > 0)
+      const uncappedChange = resultUncapped.psbt.txOutputs.find(o => o.value > 0)
+      assert.ok(cappedChange.value > uncappedChange.value,
+        'capped fee should leave more change than uncapped')
     })
   })
 })

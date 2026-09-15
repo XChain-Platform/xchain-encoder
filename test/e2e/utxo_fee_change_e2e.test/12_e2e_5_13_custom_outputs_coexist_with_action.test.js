@@ -19,7 +19,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 const {
   TXID_A,
   TXID_B,
@@ -30,8 +30,8 @@ const {
   makeEncoder,
   getTestAddress,
   buildRawTxHex
-} = require('../integration/helpers/utxoFactory')
-const actions = require('../integration/helpers/actionFactory')
+} = require('../../integration/helpers/utxoFactory')
+const actions = require('../../integration/helpers/actionFactory')
 
 // BTC semantics: the change/fee assertions assume the supplied fee (10000) is
 // honored. DOGE floors sub-100000 fees, which would skew these. The dust-floor
@@ -40,27 +40,32 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('E2E-5: UTXO, Fee, and Change Integration', () => {
 
-  describe('E2E-5.1: Single UTXO covers all', () => {
-    it('1 input, OP_RETURN + change; change = input - fee', async () => {
+  describe('E2E-5.13: Custom outputs coexist with ACTION', () => {
+    it('custom output value deducted from change', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
+      const fee = 10000
 
-      const result = await encoder.createTransaction(
+      const resultNone = await encoder.createTransaction(
         [utxo], address, null,
-        action.data, null, 10000, false, null, address,
+        action.data, null, fee, false, null, address,
         null, null, null, true, 0.00001
       )
 
-      assert.strictEqual(result.psbt.data.inputs.length, 1)
-      assert.strictEqual(result.psbt.txOutputs.length, 2)
+      // Same input on purpose: this compares two builds of one spend, so release
+      // the first build's reservation rather than double-spend it.
+      encoder.clearReservations()
+      const resultCustom = await encoder.createTransaction(
+        [utxo], address, [{ address, value: '500000' }],
+        action.data, null, fee, false, null, address,
+        null, null, null, true, 0.00001
+      )
 
-      const opReturn = result.psbt.txOutputs.filter(o => o.value === 0)
-      const change = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(opReturn.length, 1)
-      assert.strictEqual(change.length, 1)
-      assert.strictEqual(change[0].value, 100000000 - 10000)
+      const changeNone = resultNone.psbt.txOutputs.reduce((m, o) => o.value > m ? o.value : m, 0)
+      const changeCustom = resultCustom.psbt.txOutputs.reduce((m, o) => o.value > m ? o.value : m, 0)
+      assert.strictEqual(changeNone - changeCustom, 500000)
     })
   })
 })

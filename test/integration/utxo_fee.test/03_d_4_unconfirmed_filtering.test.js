@@ -19,7 +19,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 const {
   TXID_A,
   TXID_B,
@@ -32,8 +32,8 @@ const {
   makeEncoder,
   getTestAddress,
   buildRawTxHex
-} = require('./helpers/utxoFactory')
-const actions = require('./helpers/actionFactory')
+} = require('../helpers/utxoFactory')
+const actions = require('../helpers/actionFactory')
 
 // These integration cases encode BITCOIN fee semantics (explicit fees honored
 // verbatim, sub-estimate fees, 546 dust). The network was mislabeled
@@ -45,28 +45,39 @@ const NETWORK = 'bitcoin-regtest'
 
 describe('Category D: UTXO & Fee Integration', () => {
 
-  describe('D-1: Single large UTXO covers everything', () => {
-    it('produces 1 input, 2 outputs (OP_RETURN + change)', async () => {
+  describe('D-4: Unconfirmed filtering with unconfirmed=false', () => {
+    it('excludes mempool UTXOs when unconfirmed=false', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
-      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
+      const confirmed = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+      confirmed.confirmations = 6
+      const mempool = makeMempoolUtxo(TXID_B, 0, 50000000)
+
       const result = await encoder.createTransaction(
-        [utxo], address, null,
+        [mempool, confirmed], address, null,
+        action.data, null, 10000, false, null, address,
+        null, null, null, false, 0.00001
+      )
+
+      assert.strictEqual(result.psbt.data.inputs.length, 1)
+    })
+
+    it('includes mempool UTXOs when unconfirmed=true', async () => {
+      const encoder = makeEncoder(NETWORK)
+      const address = getTestAddress(NETWORK)
+      const action = actions.makeSend()
+
+      const mempool = makeMempoolUtxo(TXID_A, 0, 100000000)
+
+      const result = await encoder.createTransaction(
+        [mempool], address, null,
         action.data, null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
 
       assert.strictEqual(result.psbt.data.inputs.length, 1)
-      assert.strictEqual(result.psbt.txOutputs.length, 2)
-
-      // One OP_RETURN (value=0), one change
-      const opReturn = result.psbt.txOutputs.filter(o => o.value === 0)
-      const change = result.psbt.txOutputs.filter(o => o.value > 0)
-      assert.strictEqual(opReturn.length, 1)
-      assert.strictEqual(change.length, 1)
-      assert.strictEqual(change[0].value, 100000000 - 10000)
     })
   })
 })
