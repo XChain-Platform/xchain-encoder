@@ -53,6 +53,11 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
     await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'),
       /chain state changed while paginating/)
   })
+})
+
+describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
 
   it('refuses when a later page reports the tracker halted', async function () {
     stubPages([
@@ -62,6 +67,11 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
     const tracker = new UtxoTracker('127.0.0.1', '1234')
     await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), /halted mid-fetch/)
   })
+})
+
+describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
 
   it('refuses when the reorg counter moves at an unchanged height', async function () {
     // A rewind that re-applies to the SAME height is invisible to a height check.
@@ -73,6 +83,11 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
     const tracker = new UtxoTracker('127.0.0.1', '1234')
     await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), /recorded a reorg mid-fetch/)
   })
+})
+
+describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
 
   it('merges pages that share one snapshot', async function () {
     stubPages([
@@ -84,6 +99,11 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
     assert.strictEqual(out.utxos.length, 2)
     assert.strictEqual(out.sync.tracker_height, 100)
   })
+})
+
+describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
 
   it('still merges for a tracker that publishes no per-page sync sibling', async function () {
     // Pre-ce16bdd trackers omit `sync` entirely. There is no snapshot identity to
@@ -98,6 +118,11 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
     const out = await tracker.getUtxosFromAddress('someaddr')
     assert.strictEqual(out.utxos.length, 2)
   })
+})
+
+describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
 
   it('leaves the single-page path untouched', async function () {
     stubPages([
