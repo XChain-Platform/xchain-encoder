@@ -47,7 +47,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
-
       const utxoSmall = makeUtxo(NETWORK, TXID_A, 0, 10000)
       const utxoLarge = makeUtxo(NETWORK, TXID_B, 0, 100000000)
 
@@ -56,7 +55,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
-
       // First input should be the larger UTXO (TXID_B)
       const firstInputHash = result.psbt.txInputs[0].hash.reverse().toString('hex')
       assert.strictEqual(firstInputHash, TXID_B)
@@ -66,7 +64,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
-
       const utxoLarge = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const utxoSmall = makeUtxo(NETWORK, TXID_B, 0, 1000)
 
@@ -79,7 +76,10 @@ describe('REG-03: Fee & UTXO Selection', function () {
       // Only 1 input needed since large UTXO covers everything
       assert.strictEqual(result.psbt.txInputs.length, 1)
     })
-
+  })
+})
+describe('REG-03: Fee & UTXO Selection', function () {
+  describe('REG-03.1: UTXO selection order', function () {
     it('adds UTXOs until inputs cover outputs + fee', async function () {
       const encoder = makeEncoder(NETWORK)
       // The oversized explicit fee forces multi-UTXO selection; it would trip
@@ -92,7 +92,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const utxo1 = makeUtxo(NETWORK, TXID_A, 0, 100000)
       const utxo2 = makeUtxo(NETWORK, TXID_B, 0, 100000)
       const utxo3 = makeUtxo(NETWORK, TXID_C, 0, 100000)
-
       // The burn backstop is 100x the NODE's fair fee, independent of both
       // maxFeeRateMultiplier and any caller feePerKb (a caller-inflated rate
       // must never lift it). Raise the node's own estimate so the backstop
@@ -109,13 +108,14 @@ describe('REG-03: Fee & UTXO Selection', function () {
       assert.ok(result.psbt.txInputs.length >= 2, 'should use multiple UTXOs')
     })
   })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
   describe('REG-03.2: Deduplication', function () {
     it('duplicate txid+vout entries collapsed to one input', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
-
       const utxo1 = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const utxo2 = makeUtxo(NETWORK, TXID_A, 0, 100000000) // duplicate
 
@@ -124,11 +124,12 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
-
       assert.strictEqual(result.psbt.txInputs.length, 1)
     })
   })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
   describe('REG-03.3: Unconfirmed filtering', function () {
     it('mempool UTXOs excluded when unconfirmed=false', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -137,7 +138,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
 
       const confirmedUtxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const mempoolUtxo = makeMempoolUtxo(TXID_B, 0, 200000000)
-
       const result = await encoder.createTransaction(
         [confirmedUtxo, mempoolUtxo], address, null,
         action.data, null, 10000, false, null, address,
@@ -149,7 +149,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const inputHash = result.psbt.txInputs[0].hash.reverse().toString('hex')
       assert.strictEqual(inputHash, TXID_A)
     })
-
     it('mempool UTXOs included when unconfirmed=true', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -163,13 +162,14 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
-
       // Largest UTXO (mempool) should be first input
       const firstHash = result.psbt.txInputs[0].hash.reverse().toString('hex')
       assert.strictEqual(firstHash, TXID_B)
     })
   })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
   describe('REG-03.4: Fee calculation', function () {
     it('explicit fee parameter is used verbatim', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -179,7 +179,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
-
       // The burn backstop is 100x the NODE's fair fee, independent of both
       // maxFeeRateMultiplier and any caller feePerKb (a caller-inflated rate
       // must never lift it). Raise the node's own estimate so the backstop
@@ -198,7 +197,11 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const impliedFee = 100000000 - totalOutput
       assert.strictEqual(impliedFee, 50000)
     })
+  })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
+  describe('REG-03.4: Fee calculation', function () {
     it('feePerKb parameter bypasses RPC getFeePerKilobyte call', async function () {
       const encoder = makeEncoder(NETWORK)
       // Override connector to throw if called
@@ -208,7 +211,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
-
       // Should NOT throw because feePerKb is provided
       const result = await encoder.createTransaction(
         [utxo], address, null,
@@ -218,7 +220,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
 
       assert.ok(result.psbt, 'should produce a PSBT without calling getFeePerKilobyte')
     })
-
     it('fee is floored to network dustAmount', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -231,14 +232,17 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, null, false, null, address,
         null, null, null, true, 0.0000001
       )
-
       const outputs = result.psbt.txOutputs
       const totalOutput = outputs.reduce((sum, o) => sum + o.value, 0)
       const impliedFee = 100000000 - totalOutput
       assert.ok(impliedFee >= encoder.dustAmount,
         `fee ${impliedFee} should be >= dust ${encoder.dustAmount}`)
     })
+  })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
+  describe('REG-03.4: Fee calculation', function () {
     it('maxFeeRateKb cap produces lower fee than uncapped encoder', async function () {
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
@@ -251,7 +255,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, null, false, null, address,
         null, null, null, true, 100000000 // 1e8 sat/kB = 100000 sat/byte (very high)
       )
-
       // Capped encoder (maxFeeRateKb = 1000 sat/kB)
       const capped = new XChainEncoder(
         NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 1000
@@ -267,7 +270,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, null, false, null, address,
         null, null, null, true, 100000000 // same high rate, but capped
       )
-
       const uncappedOut = resultUncapped.psbt.txOutputs.reduce((s, o) => s + o.value, 0)
       const cappedOut = resultCapped.psbt.txOutputs.reduce((s, o) => s + o.value, 0)
       // Capped should return more change (lower fee)
@@ -275,7 +277,9 @@ describe('REG-03: Fee & UTXO Selection', function () {
         `capped output ${cappedOut} should be > uncapped ${uncappedOut}`)
     })
   })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
   describe('REG-03.5: Change output', function () {
     it('change output value = input - outputs - fee', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -289,7 +293,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, explicitFee, false, null, address,
         null, null, null, true, 0.00001
       )
-
       const outputs = result.psbt.txOutputs
       const totalOutput = outputs.reduce((sum, o) => sum + o.value, 0)
       assert.strictEqual(100000000 - totalOutput, explicitFee)
@@ -300,7 +303,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
-
       await assert.rejects(
         () => encoder.createTransaction(
           [utxo], address, null,
@@ -311,7 +313,9 @@ describe('REG-03: Fee & UTXO Selection', function () {
       )
     })
   })
+})
 
+describe('REG-03: Fee & UTXO Selection', function () {
   describe('REG-03.6: UTXO tracker fallback', function () {
     it('calls tracker when utxos param is null', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -323,7 +327,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
         trackerCalled = true
         return { utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)] }
       }
-
       await encoder.createTransaction(
         null, address, null,
         action.data, null, 10000, false, null, address,
@@ -332,7 +335,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
 
       assert.ok(trackerCalled, 'utxoTracker should have been called')
     })
-
     it('throws when tracker returns empty list', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -352,7 +354,8 @@ describe('REG-03: Fee & UTXO Selection', function () {
       )
     })
   })
-
+})
+describe('REG-03: Fee & UTXO Selection', function () {
   describe('REG-03.7: Legacy UTXO handling', function () {
     it('fetches raw tx hex via connector for P2PKH UTXOs', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -364,7 +367,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
         getHexCalled = true
         return buildRawTxHex(100000000, NETWORK)
       }
-
       const utxo = makeLegacyUtxo(TXID_A, 0, 100000000)
 
       await encoder.createTransaction(
@@ -375,7 +377,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
 
       assert.ok(getHexCalled, 'getTransactionHex should be called for legacy UTXOs')
     })
-
     it('segwit UTXOs do NOT call getTransactionHex', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -384,7 +385,6 @@ describe('REG-03: Fee & UTXO Selection', function () {
       encoder.connector.getTransactionHex = async () => {
         throw new Error('getTransactionHex should not be called for segwit')
       }
-
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
       // Should NOT throw
