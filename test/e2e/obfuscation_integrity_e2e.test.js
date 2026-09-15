@@ -75,7 +75,9 @@ describe('E2E-4: Obfuscation Integrity', () => {
       )
     })
   })
+})
 
+describe('E2E-4: Obfuscation Integrity', () => {
   describe('E2E-4.2: MULTISIGN obfuscation round-trip', () => {
     it('fake pubkey data deobfuscates to original payload', async () => {
       const MS_DATA = 'A'.repeat(59)
@@ -96,7 +98,9 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), MS_DATA)
     })
   })
+})
 
+describe('E2E-4: Obfuscation Integrity', () => {
   describe('E2E-4.3: P2SH tx2 marker obfuscation round-trip', () => {
     it('tx2 OP_RETURN marker deobfuscates with tx1 ID to XCHNp2sh', async () => {
       const action = actions.makeIssueFull('OBFTEST')
@@ -136,7 +140,9 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.strictEqual(innerDecompiled[0].toString('utf8'), action.data)
     })
   })
+})
 
+describe('E2E-4: Obfuscation Integrity', () => {
   describe('E2E-4.4: TXID sensitivity', () => {
     it('same ACTION with different TXIDs produces different ciphertext', async () => {
       const action = actions.makeSend()
@@ -172,7 +178,9 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.strictEqual(decA, decB)
     })
   })
+})
 
+describe('E2E-4: Obfuscation Integrity', () => {
   describe('E2E-4.5: UTXO sorting preserves obfuscation key', () => {
     it('key derives from largest-value UTXO regardless of input order', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -194,7 +202,9 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
+})
 
+describe('E2E-4: Obfuscation Integrity', () => {
   describe('E2E-4.6: Wrong TXID detection (negative test)', () => {
     it('deobfuscation with wrong TXID does not produce XCHN magic', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -212,7 +222,9 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.notStrictEqual(payload.magic, MAGIC_WORD, 'wrong TXID should not yield valid magic')
     })
   })
+})
 
+describe('E2E-4: Obfuscation Integrity', () => {
   describe('E2E-4.7: Oversized OP_RETURN rejected', () => {
     it('forced OP_RETURN beyond a single output is rejected', async () => {
       // A transaction may carry at most one OP_RETURN output; Bitcoin Core
