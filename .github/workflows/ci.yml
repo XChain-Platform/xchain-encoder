@@ -56,10 +56,27 @@ jobs:
           ssh-key: ${{ secrets.XCHAIN_HUB_DEPLOY_KEY }}
           path: xchain-hub
 
+      - name: Check out the sibling xchain-decoder (envelope gate twin)
+        uses: actions/checkout@v4
+        with:
+          repository: XChain-Platform/xchain-decoder
+          ref: ${{ github.ref == 'refs/heads/master' && 'master' || 'develop' }}
+          path: xchain-decoder
+
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Install dependencies
+        working-directory: xchain-encoder
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Envelope recognition gate equals the decoder copy (hard)
+        working-directory: xchain-encoder
+        env:
+          XCHAIN_REQUIRE_SIBLINGS: "1"
+        run: npx mocha test/unit/xchain_encoder/envelope_recognition_gate.test.js --exit
 
       - name: Coin-registry byte-identity vs canonical
         run: xchain-hub/bin/sync-coins.sh --check --only xchain-encoder
