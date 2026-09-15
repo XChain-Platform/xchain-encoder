@@ -12,9 +12,9 @@
  *
  **********************************************************************
  * Drift guard: docs/openrpc.json must list exactly the methods exposed by
- * the jsonRpcController in src/api.js. If a method is added/removed/renamed,
- * regenerate the spec (node docs/openrpc.build.js); this fails until both
- * sides match.
+ * the controller built in src/api/json_rpc_methods.js. If a method is
+ * added/removed/renamed, regenerate the spec (node docs/openrpc.build.js);
+ * this fails until both sides match.
  */
 
 'use strict';
@@ -24,11 +24,12 @@ const path   = require('path');
 const assert = require('assert');
 
 {
-    const src  = fs.readFileSync(path.join(__dirname, '../../src/api.js'), 'utf8');
+    const src  = fs.readFileSync(path.join(__dirname, '../../src/api/json_rpc_methods.js'), 'utf8');
     const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '../../docs/openrpc.json'), 'utf8'));
 
-    // Method names inside the jsonRpcController object literal.
-    const block = src.slice(src.indexOf('jsonRpcController = {'), src.indexOf('jsonRouter('));
+    // Method names across the per-group builder literals, which is every
+    // method the factory composes into the controller.
+    const block = src.slice(0, src.indexOf('function createJsonRpcController'));
     const controllerMethods = [...block.matchAll(/^\s{4}async\s+([a-z][a-z0-9_]*)\s*\(/gm)].map((m) => m[1]);
 
 describe('openrpc.json method coverage', () => {
