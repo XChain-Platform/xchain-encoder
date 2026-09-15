@@ -65,6 +65,9 @@ describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
     // last satoshi shows up here as an off-by-one change value.
     assert.strictEqual(BigInt(change[0].value), BigInt(BIG_SATS) - 10000n)
   })
+})
+
+describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
 
   it('reaches the freshness gate, which a sync-less envelope failed open past', async () => {
     // Proof the envelope is actually consulted: the same record behind a view
@@ -90,6 +93,9 @@ describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
       /stale/i
     )
   })
+})
+
+describe('Category D: tracker-fetched UTXO above 2^53-1 satoshis', () => {
 
   it('serves the producer shape, not a simplified double', async () => {
     // Guard on the factory itself: if a record ever loses the exact-decimal
