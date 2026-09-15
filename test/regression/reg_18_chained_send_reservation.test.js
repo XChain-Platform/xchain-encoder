@@ -76,6 +76,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     assert.ok(encoder.outpointReservations.has(TXID_A + ':0'), 'the first build keeps its reservation')
     assert.ok(encoder.recentBuilds.has(firstTxid), 'the first build is on record')
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('three chained sends over a fresh view each produce three DISTINCT transactions', async () => {
     // The same guarantee at unit scale: chained sends whose views
@@ -88,6 +92,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     assert.strictEqual(txids.size, 3, 'three chained sends must be three distinct transactions')
     assert.strictEqual(encoder.outpointReservations.size, 3, 'each selected input stays reserved')
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('a stale view that still lists the spent input alongside the change selects the change', async () => {
     const encoder = makeEncoder(NETWORK)
@@ -100,6 +108,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     const ins = r2.psbt.txInputs.map(i => Buffer.from(i.hash).reverse().toString('hex'))
     assert.deepStrictEqual(ins, [TXID_B], 'the reserved input is skipped and the change is spent')
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('a different transaction over an unreserved input is not mistaken for a duplicate', async () => {
     const encoder = makeEncoder(NETWORK)
@@ -107,6 +119,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     const r2 = await build(encoder, [makeUtxo(NETWORK, TXID_B, 0, 100000000)], 'MINT|0|XCHAIN|5000')
     assert.ok(r2.psbt, 'a genuinely different transaction builds')
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('an identical rebuild is refused as DUPLICATE_TRANSACTION when the outpoint map was bypassed', async () => {
     // Defense in depth: clear only the outpoint map (as a lapsed reservation
@@ -128,6 +144,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     // not squat on the outpoint for a build that never happened.
     assert.strictEqual(encoder.outpointReservations.size, 0)
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('an RBF bump of the same input is a different transaction and passes the duplicate gate', async () => {
     const encoder = makeEncoder(NETWORK)
@@ -140,6 +160,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     const bump = await encoder.createTransaction([utxo()], address, null, MINT, null, 12000, true, null, address, null, null, null, true, 0.00001)
     assert.notStrictEqual(txidOf(bump), txidOf(first), 'a higher fee changes the outputs and the txid')
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('clearReservations releases both the outpoint map and the recent-build record', async () => {
     const encoder = makeEncoder(NETWORK)
@@ -150,6 +174,10 @@ describe('REG-18: chained sends reserve caller-supplied inputs @regression', fun
     const again = await build(encoder, [makeUtxo(NETWORK, TXID_A, 0, 100000000)])
     assert.ok(again.psbt)
   })
+})
+
+describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
+  this.timeout(10000)
 
   it('recent-build records expire with the reservation TTL', async () => {
     const encoder = makeEncoder(NETWORK)
