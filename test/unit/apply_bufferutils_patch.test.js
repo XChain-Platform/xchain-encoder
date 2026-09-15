@@ -51,6 +51,9 @@ describe('applyBufferutilsPatch', function () {
             assert.strictEqual(Number(dec), n, `varuint failed for ${n}`);
         }
     });
+});
+
+describe('applyBufferutilsPatch', function () {
 
     // The write-side contract this copy ships (and that the header documents):
     // readers narrow to a Number at or below 2^53-1 and return a BigInt above
@@ -102,6 +105,9 @@ describe('applyBufferutilsPatch', function () {
                 'a native BigInt conversion error escaped for ' + String(value));
         }
     });
+});
+
+describe('applyBufferutilsPatch', function () {
 
     // Fee-accounting wrapper: bitcoinjs-lib's stock cache getter tests __FEE /
     // __FEE_RATE for truthiness, so a primed 0 (zero fee, or any fee under
@@ -148,6 +154,9 @@ describe('applyBufferutilsPatch', function () {
             assert.ok(psbt.getFeeRate() > 0);
         });
     });
+});
+
+describe('applyBufferutilsPatch', function () {
 
     // Twin guard. This file is a fork of xchain-sdk/src/utils/apply_bufferutils_patch.js
     // and has drifted apart three times. Convergence runs SDK-ward, so pin the
