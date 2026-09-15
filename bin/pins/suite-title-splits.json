@@ -94,6 +94,99 @@
       "test/xchain_encoder.test/01_should_create_a_p2sh_tx.test.js",
       "test/xchain_encoder.test/02_should_create_a_multisign_tx.test.js",
       "test/xchain_encoder.test/03_should_create_a_p2wsh_tx.test.js"
+    ],
+    "test/boundary/encoding_chunk_boundaries.test.js": [
+      "test/boundary/encoding_chunk_boundaries.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/01_op_return_chunk_split_threshold_forced_encoding.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/02_p2sh_chunk_split_threshold.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/03_p2wsh_real_world_boundary_bitcoin_regtest_only.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/04_p2wsh_on_dogecoin_no_bech32_in_network_config.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/05_multisign_encoding_boundaries.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/06_data_to_pubkey_unit_boundaries.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/07_forced_encoding_override.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/08_single_op_return_policy_enforcement_always_fail_closed.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/09_p2sh_p2wsh_compiled_chunk_size_ceiling.test.js"
+    ],
+    "test/e2e/action_pipeline_e2e.test.js": [
+      "test/e2e/action_pipeline_e2e.test.js",
+      "test/e2e/action_pipeline_e2e.test/01_e2e_1_14_airdrop.test.js",
+      "test/e2e/action_pipeline_e2e.test/02_e2e_1_21_broadcast.test.js",
+      "test/e2e/action_pipeline_e2e.test/03_e2e_1_28_batch.test.js",
+      "test/e2e/action_pipeline_e2e.test/04_structural_invariants_across_all_action_types.test.js"
+    ],
+    "test/e2e/utxo_fee_change_e2e.test.js": [
+      "test/e2e/utxo_fee_change_e2e.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/01_e2e_5_2_multiple_utxos_aggregated.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/02_e2e_5_3_utxo_deduplication.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/03_e2e_5_4_unconfirmed_utxos_excluded.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/04_e2e_5_5_unconfirmed_utxos_included.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/05_e2e_5_6_utxo_tracker_fallback.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/06_e2e_5_7_fee_floor_enforcement.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/07_e2e_5_8_fee_cap_enforcement.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/08_e2e_5_9_no_change_address_error.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/09_e2e_5_10_legacy_utxo_handling.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/10_e2e_5_11_segwit_utxo_handling.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/11_e2e_5_12_rbf_sequence_flag.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/12_e2e_5_13_custom_outputs_coexist_with_action.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/13_e2e_5_14_explicit_fee_per_kb_bypasses_rpc.test.js",
+      "test/e2e/utxo_fee_change_e2e.test/14_e2e_5_15_null_fee_per_kb_triggers_rpc_call.test.js"
+    ],
+    "test/integration/utxo_fee.test.js": [
+      "test/integration/utxo_fee.test.js",
+      "test/integration/utxo_fee.test/01_d_2_multiple_utxos_needed.test.js",
+      "test/integration/utxo_fee.test/02_d_3_duplicate_utxo_deduplication.test.js",
+      "test/integration/utxo_fee.test/03_d_4_unconfirmed_filtering.test.js",
+      "test/integration/utxo_fee.test/04_d_5_utxo_tracker_fallback.test.js",
+      "test/integration/utxo_fee.test/05_d_6_no_utxos_available.test.js",
+      "test/integration/utxo_fee.test/06_d_7_fee_capped_by_max_fee_per_bytes.test.js",
+      "test/integration/utxo_fee.test/07_d_8_dust_floor_on_fee.test.js",
+      "test/integration/utxo_fee.test/08_d_9_no_change_address.test.js",
+      "test/integration/utxo_fee.test/09_d_10_legacy_non_segwit_utxo_handling.test.js",
+      "test/integration/utxo_fee.test/10_utxo_sorting_largest_first.test.js",
+      "test/integration/utxo_fee.test/11_replace_by_fee_sequence.test.js",
+      "test/integration/utxo_fee.test/12_fee_source_selection.test.js"
+    ],
+    "test/regression/reg_04_validator.test.js": [
+      "test/regression/reg_04_validator.test.js",
+      "test/regression/reg_04_validator.test/01_validate_utxo_entry.test.js",
+      "test/regression/reg_04_validator.test/02_validate_utxo_array.test.js",
+      "test/regression/reg_04_validator.test/03_validate_custom_outputs.test.js",
+      "test/regression/reg_04_validator.test/04_validate_p2sh_params.test.js",
+      "test/regression/reg_04_validator.test/05_validate_compressed_pub_key.test.js",
+      "test/regression/reg_04_validator.test/06_validate_change.test.js",
+      "test/regression/reg_04_validator.test/07_validate_all_integration.test.js"
+    ],
+    "test/security/concurrency_gate.test.js": [
+      "test/security/concurrency_gate.test.js",
+      "test/security/concurrency_gate.test/01_resolve_limit.test.js",
+      "test/security/concurrency_gate.test/02_api_js_wiring.test.js"
+    ],
+    "test/smoke/smoke.test.js": [
+      "test/smoke/smoke.test.js",
+      "test/smoke/smoke.test/01_tx_size_estimator.test.js",
+      "test/smoke/smoke.test/02_segwit_utxo_detection.test.js",
+      "test/smoke/smoke.test/03_data_to_pubkey.test.js",
+      "test/smoke/smoke.test/04_api_server_startup.test.js"
+    ],
+    "test/unit/validator.test.js": [
+      "test/unit/validator.test.js",
+      "test/unit/validator.test/01_validate_data_param.test.js",
+      "test/unit/validator.test/02_validate_action_name_encoder_action_name_gate.test.js",
+      "test/unit/validator.test/03_validate_combined_data_length.test.js",
+      "test/unit/validator.test/04_alias_expansion_at_the_compiled_ceiling.test.js",
+      "test/unit/validator.test/05_validate_encoding.test.js",
+      "test/unit/validator.test/06_max_fee_satoshis.test.js",
+      "test/unit/validator.test/07_validate_fee.test.js",
+      "test/unit/validator.test/08_validate_fee_per_kb.test.js",
+      "test/unit/validator.test/09_validate_dust.test.js",
+      "test/unit/validator.test/10_validate_utxo_array_validate_utxo_entry.test.js",
+      "test/unit/validator.test/11_validate_custom_outputs_validate_custom_output_via_wrapper.test.js",
+      "test/unit/validator.test/12_validate_p2sh_params.test.js",
+      "test/unit/validator.test/13_validate_raw_tx_hex.test.js",
+      "test/unit/validator.test/14_validate_compressed_pub_key.test.js",
+      "test/unit/validator.test/15_validate_change.test.js",
+      "test/unit/validator.test/16_validate_address.test.js",
+      "test/unit/validator.test/17_validate_all.test.js"
     ]
   }
 }
