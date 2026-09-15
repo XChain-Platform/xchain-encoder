@@ -149,7 +149,9 @@ describe('XChainEncoder reveal: p2shHash must be the id of p2shHex', () => {
       { name: 'TypeError', message: /does not match the txid of the supplied p2shHex/ }
     )
   })
+})
 
+describe('XChainEncoder reveal: p2shHash must be the id of p2shHex', () => {
   it('still builds a P2WSH reveal when p2shHash is the funding tx id', async () => {
     const encoder = makeEncoder('bitcoin-regtest')
     const funding = await buildFunding(encoder, 'P2WSH', BTC_REGTEST_ADDR)
