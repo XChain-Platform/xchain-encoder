@@ -185,7 +185,9 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     assert.ok(sweep, 'the surplus must return to the caller address')
     assert.ok(sweep.value >= DOGE_DUST, `sweep ${sweep && sweep.value} must be at least dust ${DOGE_DUST}`)
   })
+})
 
+describe('XChainEncoder P2SH reveal headroom', () => {
   it('funds floor-dominant legs with exactly one extra output floor of headroom (tiny fee rate)', async () => {
     const encoder = makeEncoder(DOGE)
     // 1 koinu/byte: every size-based estimate is far below the output floor, so the
@@ -236,7 +238,9 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     assert.strictEqual(reveal.outs[0].value, 0)
     assert.ok(reveal.outs[0].script.toString('hex').startsWith('6a'))
   })
+})
 
+describe('XChainEncoder P2SH reveal headroom', () => {
   // The DOGE pin spends a P2PKH input, the only output type that chain holds.
   // Byte-identity pins for the paths that already work today. The expected
   // hexes were generated with THIS harness against the pre-fix (git HEAD)
