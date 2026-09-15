@@ -51,7 +51,7 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateUtxoEntry({ ...goodUtxo(), scriptPubKey: '' }, 3), /scriptPubKey/);
         });
 
-        it('rejects vout values bare Number() would coerce to a plausible index', function () {
+        it('rejects vout values bare Number() would coerce to a plausible index (uuid:4555d78c)', function () {
             // null/''/false/[] all Number()-coerce to 0 and once validated as
             // vout 0 the encoder would spend a different outpoint (txid:0).
             for (const bad of [null, '', false, true, [], [7], '2.0', '0x2']) {
