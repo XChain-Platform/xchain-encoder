@@ -72,6 +72,9 @@ describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)'
       assert.strictEqual(validator.isMinimalOpSingleByte(Buffer.from('ab', 'utf8')), false)
     })
   })
+})
+
+describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)', () => {
 
   describe('validateActionPushDecodability (single-byte minimal-op drop)', () => {
     it('rejects a 1-byte minimal-op data-only action (0x05, 0x0f)', () => {
@@ -92,6 +95,9 @@ describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)'
       assert.doesNotThrow(() => validator.validateActionPushDecodability('{"op":"ISSUE"}', null))
     })
   })
+})
+
+describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)', () => {
 
   describe('empty-data shapes remain intentionally supported (flag-day scoped)', () => {
     it('does NOT reject empty data-only (payment-only / no-ACTION tx)', () => {
@@ -103,6 +109,9 @@ describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)'
       assert.doesNotThrow(() => validator.validateActionPushDecodability(null, 'orphan-raw'))
     })
   })
+})
+
+describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)', () => {
 
   describe('validateAll wires the guard', () => {
     const base = { pubkey: REGTEST_ADDRESS }
@@ -113,6 +122,9 @@ describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)'
       assert.doesNotThrow(() => validator.validateAll({ ...base, rawData: 'orphan-raw' }))
     })
   })
+})
+
+describe('minimal-op canonicalization guards (empty-data shape flag-day scoped)', () => {
 
   describe('prepareData rebalances a degenerate 1-byte final P2SH/P2WSH chunk', () => {
     const encoder = makeEncoder()
