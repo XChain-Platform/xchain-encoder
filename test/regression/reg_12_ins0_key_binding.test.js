@@ -100,6 +100,10 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
     assert.strictEqual(deobfuscate(obf, ins0Txid(result)).subarray(0, 4).toString('utf8'), MAGIC,
       'the action must decode with ins[0].txid, which is the key the decoder uses')
   })
+})
+
+describe('ins[0] / obfuscation-key binding @regression', function () {
+  this.timeout(10000)
 
   it('MULTISIGN: same invariant on the bare-multisig payload path', async function () {
     const encoder = twoUtxoEncoder()
@@ -135,6 +139,10 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
     assert.strictEqual(deobfuscate(payload, ins0Txid(result)).subarray(0, 4).toString('utf8'), MAGIC,
       'the MULTISIGN action must decode with ins[0].txid')
   })
+})
+
+describe('ins[0] / obfuscation-key binding @regression', function () {
+  this.timeout(10000)
 
   it('fails closed when no outpoint could be pre-reserved and a different one frees', async function () {
     const encoder = twoUtxoEncoder()
@@ -165,6 +173,10 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
       }
     )
   })
+})
+
+describe('ins[0] / obfuscation-key binding @regression', function () {
+  this.timeout(10000)
 
   it('does not double-add or double-reserve the spliced outpoint', async function () {
     const encoder = twoUtxoEncoder()
@@ -194,6 +206,10 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
     assert.ok(encoder.outpointReservations.size <= 2,
       `reservation map should not leak entries, saw ${encoder.outpointReservations.size}`)
   })
+})
+
+describe('ins[0] / obfuscation-key binding @regression', function () {
+  this.timeout(10000)
 
   it('caller-supplied UTXOs: the key binds to the first UNRESERVED input, which lands at ins[0]', async function () {
     const encoder = twoUtxoEncoder()
