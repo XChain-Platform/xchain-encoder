@@ -102,7 +102,11 @@ describe('REG-08: API Contract Regression', function () {
 
       assert.ok(result.psbt)
     })
+  })
+})
 
+describe('REG-08: API Contract Regression', function () {
+  describe('REG-08.1: validateAll → createTransaction parameter mapping', function () {
     it('fee=null flows through as null (auto-fee mode)', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
@@ -139,7 +143,9 @@ describe('REG-08: API Contract Regression', function () {
       assert.ok(result.psbt)
     })
   })
+})
 
+describe('REG-08: API Contract Regression', function () {
   describe('REG-08.2: Validation errors (code -32602 pattern)', function () {
     it('invalid encoding value produces TypeError', function () {
       assert.throws(
@@ -169,7 +175,9 @@ describe('REG-08: API Contract Regression', function () {
       )
     })
   })
+})
 
+describe('REG-08: API Contract Regression', function () {
   describe('REG-08.3: Encoder errors (code -32603 pattern)', function () {
     it('no UTXOs error is a plain Error', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -198,7 +206,9 @@ describe('REG-08: API Contract Regression', function () {
       )
     })
   })
+})
 
+describe('REG-08: API Contract Regression', function () {
   describe('REG-08.4: PSBT serialization', function () {
     it('result.psbt hex is non-empty and valid hex', async function () {
       const encoder = makeEncoder(NETWORK)
@@ -238,7 +248,11 @@ describe('REG-08: API Contract Regression', function () {
       assert.ok(parsed, 'should parse without error')
       assert.ok(parsed.txInputs.length > 0, 'parsed PSBT should have inputs')
     })
+  })
+})
 
+describe('REG-08: API Contract Regression', function () {
+  describe('REG-08.4: PSBT serialization', function () {
     it('encoding is one of the four valid encoding strings', async function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
