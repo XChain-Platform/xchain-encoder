@@ -42,6 +42,62 @@ function resolveLimit(rawValue, defaultLimit){
     return limit > 0 ? limit : 0;
 }
 
+// Record an admitted request's slot on `req` under the gate's SLOT key and
+// free it when the socket ends, unless a hold() wrapper has claimed it.
+function attachSlot(req, res, SLOT, release){
+    const slot = { release, claimed: false };
+    req[SLOT] = slot;
+
+    // 'finish' fires on a fully-sent response; 'close' on a client abort or
+    // a handler that never answers. Whichever lands first frees the slot,
+    // and the guard makes the pair idempotent (both fire on a normal
+    // response). Without the 'close' leg an aborted request would leak its
+    // slot permanently and the gate would ratchet shut on a live service.
+    //
+    // The socket lifetime is NOT the work lifetime, though. Express never
+    // awaits an async handler, so a client that hangs up mid-build frees its
+    // slot here while the create_tx behind it is still fanning out into node
+    // and tracker RPCs: abort-spam then admits work past the cap while
+    // in_flight reads zero, defeating the gate with the exact stampede shape
+    // it exists to shed. A handler wrapped in hold() claims its slot and
+    // answers for it itself, which leaves these legs as the anti-leak path
+    // for whatever nobody wrapped.
+    const releaseIfUnclaimed = () => { if(!slot.claimed) release(); };
+    res.on('finish', releaseIfUnclaimed);
+    res.on('close', releaseIfUnclaimed);
+}
+
+/**
+ * Bind a handler's slot to the WORK instead of to the socket.
+ *
+ * The wrapped handler owns its slot from entry until its promise settles, so
+ * an aborted request keeps counting against the cap for exactly as long as
+ * its upstream work is still running. A request with no slot (gate disabled
+ * by a cap <= 0, or exempted by `skip`) is passed straight through, so
+ * wrapping is safe on every route the gate may or may not have admitted.
+ *
+ * This changes only WHEN the counter is decremented. Nothing is cancelled:
+ * create_tx, broadcast_tx and the outpoint reservations they take are money
+ * paths where an aborted call could strand transaction state, so every
+ * request still runs to completion exactly as it did before.
+ *
+ * @param {symbol}   SLOT    The gate's per-request slot key.
+ * @param {function} handler Express handler or middleware.
+ * @returns {function} The handler, holding its slot until it settles.
+ */
+function holdSlot(SLOT, handler){
+    return async function heldHandler(req, res, next){
+        const slot = req[SLOT];
+        if(!slot) return handler(req, res, next);
+        slot.claimed = true;
+        try {
+            return await handler(req, res, next);
+        } finally {
+            slot.release();
+        }
+    };
+}
+
 /**
  * Build the gate middleware.
  *
@@ -84,57 +140,12 @@ function createConcurrencyGate(options){
             released = true;
             inFlight--;
         };
-        const slot = { release, claimed: false };
-        req[SLOT] = slot;
-
-        // 'finish' fires on a fully-sent response; 'close' on a client abort or
-        // a handler that never answers. Whichever lands first frees the slot,
-        // and the guard makes the pair idempotent (both fire on a normal
-        // response). Without the 'close' leg an aborted request would leak its
-        // slot permanently and the gate would ratchet shut on a live service.
-        //
-        // The socket lifetime is NOT the work lifetime, though. Express never
-        // awaits an async handler, so a client that hangs up mid-build frees its
-        // slot here while the create_tx behind it is still fanning out into node
-        // and tracker RPCs: abort-spam then admits work past the cap while
-        // in_flight reads zero, defeating the gate with the exact stampede shape
-        // it exists to shed. A handler wrapped in hold() claims its slot and
-        // answers for it itself, which leaves these legs as the anti-leak path
-        // for whatever nobody wrapped.
-        const releaseIfUnclaimed = () => { if(!slot.claimed) release(); };
-        res.on('finish', releaseIfUnclaimed);
-        res.on('close', releaseIfUnclaimed);
+        attachSlot(req, res, SLOT, release);
 
         next();
     };
 
-    /**
-     * Bind a handler's slot to the WORK instead of to the socket.
-     *
-     * The wrapped handler owns its slot from entry until its promise settles, so
-     * an aborted request keeps counting against the cap for exactly as long as
-     * its upstream work is still running. A request with no slot (gate disabled
-     * by a cap <= 0, or exempted by `skip`) is passed straight through, so
-     * wrapping is safe on every route the gate may or may not have admitted.
-     *
-     * This changes only WHEN the counter is decremented. Nothing is cancelled:
-     * create_tx, broadcast_tx and the outpoint reservations they take are money
-     * paths where an aborted call could strand transaction state, so every
-     * request still runs to completion exactly as it did before.
-     *
-     * @param {function} handler Express handler or middleware.
-     * @returns {function} The handler, holding its slot until it settles.
-     */
-    middleware.hold = (handler) => async function heldHandler(req, res, next){
-        const slot = req[SLOT];
-        if(!slot) return handler(req, res, next);
-        slot.claimed = true;
-        try {
-            return await handler(req, res, next);
-        } finally {
-            slot.release();
-        }
-    };
+    middleware.hold = (handler) => holdSlot(SLOT, handler);
 
     middleware.limit    = limit;
     // Operational surface: a climbing `shed` is the signal that a stampede is

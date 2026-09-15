@@ -37,6 +37,47 @@ function compactSizeLen(n) {
     return 9
 }
 
+// Input vSize by scriptPubKey pattern, once the script is in hand: the segwit
+// shapes first (only reachable from a witnessUtxo), then the legacy ones, and
+// the conservative 350 fallback for anything unrecognized.
+function inputSizeForScript(scriptPubKey, isSegwit) {
+    // Convert to hex string to detect patterns
+    const scriptHex = scriptPubKey.toString('hex')
+
+    if (isSegwit) {
+        if (scriptHex.startsWith('0014')) {
+            // P2WPKH: 0014{20-byte hash}
+            return 68
+        }
+        if (scriptHex.startsWith('0020')) {
+            // P2WSH: 0020{32-byte hash} - Assuming 2-3 Multisig
+            return 105
+        }
+        if (scriptHex.startsWith('5120')) {
+            // P2TR: 5120{32-byte x-only key}. Key-path spend = 1 Schnorr
+            // witness (~57.5 vbytes incl. prevout + sequence). Without this it
+            // fell through to the 350 fallback and wildly over-estimated fees.
+            return 58
+        }
+    }
+
+    // P2PKH (Legacy): 76a914{20-byte hash}88ac
+    if (scriptHex.startsWith('76a914') && scriptHex.endsWith('88ac')) {
+        return 180
+    }
+
+    // P2SH (Legacy): a914{20-byte hash}87
+    if (scriptHex.startsWith('a914') && scriptHex.endsWith('87')) {
+        // **Conservative Estimate for P2SH:**
+        // Assuming 2-3 Legacy Multisig (The most expensive option, ~289 bytes).
+        // If the input is a nested P2SH-P2WPKH, the transaction will be like segwit
+        // and this path cannot be taken, so if it gets here and it's a P2SH, most probably is it's Legacy.
+        return 289
+    }
+
+    return 350
+}
+
 class TxSizeEstimator {
     // OP_RETURN output = 8 (value) + script-length compactSize + scriptPubKey,
     // where scriptPubKey = OP_RETURN (1) + the compiled data push. Push framing
@@ -172,41 +213,7 @@ class TxSizeEstimator {
             return 350
         }
 
-        // Convert to hex string to detect patterns
-        const scriptHex = scriptPubKey.toString('hex')
-
-        if (isSegwit) {
-            if (scriptHex.startsWith('0014')) {
-                // P2WPKH: 0014{20-byte hash}
-                return 68
-            }
-            if (scriptHex.startsWith('0020')) {
-                // P2WSH: 0020{32-byte hash} - Assuming 2-3 Multisig
-                return 105
-            }
-            if (scriptHex.startsWith('5120')) {
-                // P2TR: 5120{32-byte x-only key}. Key-path spend = 1 Schnorr
-                // witness (~57.5 vbytes incl. prevout + sequence). Without this it
-                // fell through to the 350 fallback and wildly over-estimated fees.
-                return 58
-            }
-        }
-
-        // P2PKH (Legacy): 76a914{20-byte hash}88ac
-        if (scriptHex.startsWith('76a914') && scriptHex.endsWith('88ac')) {
-            return 180
-        }
-
-        // P2SH (Legacy): a914{20-byte hash}87
-        if (scriptHex.startsWith('a914') && scriptHex.endsWith('87')) {
-            // **Conservative Estimate for P2SH:**
-            // Assuming 2-3 Legacy Multisig (The most expensive option, ~289 bytes).
-            // If the input is a nested P2SH-P2WPKH, the transaction will be like segwit
-            // and this path cannot be taken, so if it gets here and it's a P2SH, most probably is it's Legacy.
-            return 289 
-        }
-
-        return 350
+        return inputSizeForScript(scriptPubKey, isSegwit)
     }
 }
 

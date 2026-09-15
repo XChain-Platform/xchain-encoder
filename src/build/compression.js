@@ -76,7 +76,7 @@ function isFileV0Action(actionString){
 }
 
 // Is this FILE token-gated? Load-bearing, see the carve-out in
-// compressPayloadForAction below.
+// guardCompressible below.
 function isGatedFileAction(actionString){
     if (!isFileV0Action(actionString)) return false
     const parts = actionString.split('|')
@@ -104,64 +104,10 @@ function withCompressionField(actionString, value){
     return parts.join('|')
 }
 
-// SIZE CEILINGS ARE NOT THIS PASS'S JOB (AML #5308). validator.js measures the
-// caller's PRE-compression bytes and refuses an oversize payload before this
-// runs, so compression never rescues one; it only shrinks what is already
-// admissible. Deliberate: xchain-sdk and xchain-wallet publish the same
-// pre-compression cap and cannot see whether a given encoder deployment has
-// compression on. Widening it is a three-repo change, not a carve-out here or
-// in validateCombinedDataLength.
-/**
- * Decide, and apply, transparent compression for one create_tx payload.
- *
- * @param {string|null} actionString - the caller's ACTION string.
- * @param {Buffer} rawDataBuffer - the caller's rawData bytes.
- * @param {object} [options]
- * @param {number} [options.maxRatio]
- * @param {number} [options.maxInputBytes]
- * @param {boolean} [options.explicit=true] - did the CALLER ask for compression,
- *   or is this the encoder's default pass? It decides what the guards below do
- *   when a payload cannot be compressed safely. An explicit request that cannot
- *   be honoured is an error the caller must see (they asked for something this
- *   payload cannot have). The DEFAULT pass runs over every action, most of which
- *   are not compressible FILEs at all, so the same conditions are ordinary facts
- *   about the payload and it rides raw. Getting this backwards would mean
- *   turning the default on breaks every SEND that carries rawData.
- * @returns {Promise<{data: string, rawData: Buffer, compressed: boolean,
- *                    rawLength: number, storedLength: number, reason: string|null}>}
- *   `data` and `rawData` are what the transaction must actually carry.
- * @throws TypeError when compression was explicitly requested but cannot be
- *   applied safely (see the guards below: they fail CLOSED, because emitting
- *   compressed bytes without a correct marker publishes permanently
- *   unreadable data, and the money is already spent by the time anyone finds
- *   out).
- */
-async function compressPayloadForAction(actionString, rawDataBuffer, options = {}){
-    const maxRatio = (options.maxRatio === undefined) ? COMPRESSION_MAX_RATIO : options.maxRatio
-    const maxInputBytes = (options.maxInputBytes === undefined) ? COMPRESSION_MAX_INPUT_BYTES : options.maxInputBytes
-    const explicit = (options.explicit === undefined) ? true : !!options.explicit
-
-    const unchanged = (reason) => ({
-        data: actionString,
-        rawData: rawDataBuffer,
-        compressed: false,
-        rawLength: rawDataBuffer ? rawDataBuffer.length : 0,
-        storedLength: rawDataBuffer ? rawDataBuffer.length : 0,
-        reason
-    })
-
-    // Nothing to compress. Not an error: a caller may set compress broadly and
-    // send payload-free actions through the same path.
-    if (!rawDataBuffer || rawDataBuffer.length === 0) return unchanged('no-payload')
-
-    // A guard that a caller must be told about, but that the default pass simply
-    // routes around. `reason` is what the encoder reports as why the payload
-    // rode raw, so a silent skip is still an observable one.
-    const refuse = (ErrorClass, reason, message) => {
-        if (explicit) throw new ErrorClass(message)
-        return unchanged(reason)
-    }
-
+// The four conditions under which the encoder must not compress a payload,
+// checked in order. Returns null when compression may proceed, otherwise the
+// caller's refusal (which throws or hands the payload back raw).
+function guardCompressible(actionString, rawDataBuffer, maxInputBytes, refuse){
     // GUARD 1: COMPRESSION is a FILE v0 field. Compressing another action's
     // payload would produce bytes no reader can reconstruct, because there is
     // nowhere to record that they were compressed.
@@ -204,6 +150,70 @@ async function compressPayloadForAction(actionString, rawDataBuffer, options = {
         return refuse(RangeError, 'over-input-cap',
             `Payload of ${rawDataBuffer.length} bytes exceeds the ` +
             `${maxInputBytes}-byte compression input cap.`)
+
+    return null
+}
+
+// SIZE CEILINGS ARE NOT THIS PASS'S JOB (AML #5308). validator.js measures the
+// caller's PRE-compression bytes and refuses an oversize payload before this
+// runs, so compression never rescues one; it only shrinks what is already
+// admissible. Deliberate: xchain-sdk and xchain-wallet publish the same
+// pre-compression cap and cannot see whether a given encoder deployment has
+// compression on. Widening it is a three-repo change, not a carve-out here or
+// in validateCombinedDataLength.
+/**
+ * Decide, and apply, transparent compression for one create_tx payload.
+ *
+ * @param {string|null} actionString - the caller's ACTION string.
+ * @param {Buffer} rawDataBuffer - the caller's rawData bytes.
+ * @param {object} [options]
+ * @param {number} [options.maxRatio]
+ * @param {number} [options.maxInputBytes]
+ * @param {boolean} [options.explicit=true] - did the CALLER ask for compression,
+ *   or is this the encoder's default pass? It decides what guardCompressible does
+ *   when a payload cannot be compressed safely. An explicit request that cannot
+ *   be honoured is an error the caller must see (they asked for something this
+ *   payload cannot have). The DEFAULT pass runs over every action, most of which
+ *   are not compressible FILEs at all, so the same conditions are ordinary facts
+ *   about the payload and it rides raw. Getting this backwards would mean
+ *   turning the default on breaks every SEND that carries rawData.
+ * @returns {Promise<{data: string, rawData: Buffer, compressed: boolean,
+ *                    rawLength: number, storedLength: number, reason: string|null}>}
+ *   `data` and `rawData` are what the transaction must actually carry.
+ * @throws TypeError when compression was explicitly requested but cannot be
+ *   applied safely (see guardCompressible: its guards fail CLOSED, because emitting
+ *   compressed bytes without a correct marker publishes permanently
+ *   unreadable data, and the money is already spent by the time anyone finds
+ *   out).
+ */
+async function compressPayloadForAction(actionString, rawDataBuffer, options = {}){
+    const maxRatio = (options.maxRatio === undefined) ? COMPRESSION_MAX_RATIO : options.maxRatio
+    const maxInputBytes = (options.maxInputBytes === undefined) ? COMPRESSION_MAX_INPUT_BYTES : options.maxInputBytes
+    const explicit = (options.explicit === undefined) ? true : !!options.explicit
+
+    const unchanged = (reason) => ({
+        data: actionString,
+        rawData: rawDataBuffer,
+        compressed: false,
+        rawLength: rawDataBuffer ? rawDataBuffer.length : 0,
+        storedLength: rawDataBuffer ? rawDataBuffer.length : 0,
+        reason
+    })
+
+    // Nothing to compress. Not an error: a caller may set compress broadly and
+    // send payload-free actions through the same path.
+    if (!rawDataBuffer || rawDataBuffer.length === 0) return unchanged('no-payload')
+
+    // A guard that a caller must be told about, but that the default pass simply
+    // routes around. `reason` is what the encoder reports as why the payload
+    // rode raw, so a silent skip is still an observable one.
+    const refuse = (ErrorClass, reason, message) => {
+        if (explicit) throw new ErrorClass(message)
+        return unchanged(reason)
+    }
+
+    const refused = guardCompressible(actionString, rawDataBuffer, maxInputBytes, refuse)
+    if (refused) return refused
 
     let deflated
     try {
