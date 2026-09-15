@@ -77,7 +77,9 @@ describe('Encoder input validator', function () {
         });
 
     });
+});
 
+describe('Encoder input validator', function () {
     describe('validateAll', function () {
         it('exercises validateFeeQuote validation paths through validateAll', function () {
             const base = { data: 'SEND', pubkey: '02ab' };

@@ -79,7 +79,9 @@ describe('Encoder input validator', function () {
         });
 
     });
+});
 
+describe('Encoder input validator', function () {
     describe('validateCombinedDataLength', function () {
         // An AUTO request can resolve to TAPROOT in selectEncoding, so the
         // pre-flight check must use the envelope ceiling for it; measuring AUTO
