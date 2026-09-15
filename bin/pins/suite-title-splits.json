@@ -1,6 +1,6 @@
 {
   "note": "The declared test-file splits, read by bin/suite-title-map.js --split-map against bin/pins/at1-suite-titles.json. splits maps each pinned test file that became several files to the full list of files its tests now live in, keyed by the path the compare sees after the rename map is applied. For every npm test script that pinned the old file, the titles those files collect together must equal the old file's titles exactly: none lost, none added, none carried by two parts, and none moved into a file the list does not name. A part may keep the old path; a single destination is a rename and belongs in the rename map. This repository's rename map is flat paths only, so a split carries its titles unchanged: a title that differs across a split is a regression, not a restructure, and a title change lands on its own.",
-  "date": "2026-09-14",
+  "date": "2026-09-15",
   "pin": "bin/pins/at1-suite-titles.json",
   "pin_before_sha256": "8aebbd8e81f86b6f62018c989896c15d9afdc0ea46593b7542b57fafc1875515",
   "compare": "node bin/suite-title-map.js --compare bin/pins/at1-suite-titles.json --rename-map bin/pins/test-rename-map.json --split-map bin/pins/suite-title-splits.json",
@@ -10,5 +10,90 @@
       "test/unit/big_suite/writes.test.js"
     ]
   },
-  "splits": {}
+  "splits": {
+    "test/unit/blockchain_connector.test.js": [
+      "test/unit/blockchain_connector.test.js",
+      "test/unit/blockchain_connector.test/01_get_network_info.test.js",
+      "test/unit/blockchain_connector.test/02_is_regtest.test.js",
+      "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js",
+      "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js",
+      "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js",
+      "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js",
+      "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js"
+    ],
+    "test/unit/compression.test.js": [
+      "test/unit/compression.test.js",
+      "test/unit/compression.test/01_action_string_helpers.test.js",
+      "test/unit/compression.test/02_create_transaction_integration.test.js",
+      "test/unit/compression.test/03_the_compression_report_carries_the_bytes_that_were_written.test.js",
+      "test/unit/compression.test/04_validator.test.js",
+      "test/unit/compression.test/05_constants_conformance.test.js"
+    ],
+    "test/unit/package_fee_sizing.test.js": [
+      "test/unit/package_fee_sizing.test.js",
+      "test/unit/package_fee_sizing.test/01_package_fee_uplift_satoshis.test.js",
+      "test/unit/package_fee_sizing.test/02_xchain_encoder_package_aware_fee_sizing.test.js",
+      "test/unit/package_fee_sizing.test/03_two_phase_reveal_package_prefund.test.js",
+      "test/unit/package_fee_sizing.test/04_p2sh_two_phase_package_prefund.test.js"
+    ],
+    "test/unit/single_instance_guard.test.js": [
+      "test/unit/single_instance_guard.test.js",
+      "test/unit/single_instance_guard.test/01_acquire_instance_lock.test.js",
+      "test/unit/single_instance_guard.test/02_is_pid_alive.test.js",
+      "test/unit/single_instance_guard.test/03_release_lock_on_signals.test.js"
+    ],
+    "test/unit/utxo_tracker.test.js": [
+      "test/unit/utxo_tracker.test.js",
+      "test/unit/utxo_tracker.test/01_get_sync_status.test.js",
+      "test/unit/utxo_tracker.test/02_get_utxos_from_address.test.js",
+      "test/unit/utxo_tracker.test/03_get_utxos_from_address_validation.test.js"
+    ],
+    "test/unit/xchain_encoder_create_transaction.test.js": [
+      "test/unit/xchain_encoder_create_transaction.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/01_utxo_deduplication.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/02_unconfirmed_filtering.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/03_utxo_sorting.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/04_replace_by_fee_sequence.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/05_fee_handling.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/06_custom_dust_parameter.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/07_change_output.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/08_no_utxos_available.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/09_custom_outputs.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/10_op_return_encoding_path.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/11_p2sh_encoding_funding.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/12_p2sh_encoding_spending.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/13_p2sh_native_fee_custom_outputs.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/14_multisign_encoding_path.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/15_return_value.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/16_estimate_spending_p2sh_tx.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/17_payment_only.test.js",
+      "test/unit/xchain_encoder_create_transaction.test/18_payload_guards.test.js"
+    ],
+    "test/unit/xchain_encoder_extra.test.js": [
+      "test/unit/xchain_encoder_extra.test.js",
+      "test/unit/xchain_encoder_extra.test/01_p2wsh_tx1_funding.test.js",
+      "test/unit/xchain_encoder_extra.test/02_p2wsh_tx2_spending.test.js",
+      "test/unit/xchain_encoder_extra.test/03_payload_size_guard.test.js",
+      "test/unit/xchain_encoder_extra.test/04_fee_quote_injection.test.js",
+      "test/unit/xchain_encoder_extra.test/05_max_fee_rate_kb_cap.test.js",
+      "test/unit/xchain_encoder_extra.test/06_change_edge_cases.test.js",
+      "test/unit/xchain_encoder_extra.test/07_invalid_fee.test.js",
+      "test/unit/xchain_encoder_extra.test/08_estimate_spending_p2wsh_tx.test.js",
+      "test/unit/xchain_encoder_extra.test/09_remaining_branch_coverage.test.js",
+      "test/unit/xchain_encoder_extra.test/10_raw_data_parameter.test.js"
+    ],
+    "test/unit/xchain_encoder_taproot_envelope.test.js": [
+      "test/unit/xchain_encoder_taproot_envelope.test.js",
+      "test/unit/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js",
+      "test/unit/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js",
+      "test/unit/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js",
+      "test/unit/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js"
+    ],
+    "test/xchain_encoder.test.js": [
+      "test/xchain_encoder.test.js",
+      "test/xchain_encoder.test/01_should_create_a_p2sh_tx.test.js",
+      "test/xchain_encoder.test/02_should_create_a_multisign_tx.test.js",
+      "test/xchain_encoder.test/03_should_create_a_p2wsh_tx.test.js"
+    ]
+  }
 }
