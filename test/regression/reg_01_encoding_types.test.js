@@ -72,7 +72,11 @@ describe('REG-01: Core Encoding Types', function () {
       assert.ok(opReturnOutput, 'should have an OP_RETURN output')
       assert.strictEqual(opReturnOutput.script[0], bitcoin.opcodes.OP_RETURN)
     })
+  })
+})
 
+describe('REG-01: Core Encoding Types', function () {
+  describe('REG-01.1: OP_RETURN', function () {
     it('deobfuscated payload starts with XCHN magic', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
@@ -105,7 +109,9 @@ describe('REG-01: Core Encoding Types', function () {
       assert.strictEqual(result.encoding, 'OP_RETURN')
     })
   })
+})
 
+describe('REG-01: Core Encoding Types', function () {
   describe('REG-01.2: P2SH', function () {
     it('large ISSUE payload auto-selects P2SH', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
@@ -144,7 +150,11 @@ describe('REG-01: Core Encoding Types', function () {
       assert.ok(Buffer.isBuffer(d[1]) && d[1].length === 20, 'hash should be 20 bytes')
       assert.strictEqual(d[2], bitcoin.opcodes.OP_EQUAL)
     })
+  })
+})
 
+describe('REG-01: Core Encoding Types', function () {
+  describe('REG-01.2: P2SH', function () {
     it('P2SH output value >= dustAmount', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
@@ -184,7 +194,9 @@ describe('REG-01: Core Encoding Types', function () {
       assert.strictEqual(result.encoding, 'P2SH')
     })
   })
+})
 
+describe('REG-01: Core Encoding Types', function () {
   describe('REG-01.3: P2WSH', function () {
     it('P2WSH encoding accepted on bitcoin-regtest', async function () {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -238,7 +250,9 @@ describe('REG-01: Core Encoding Types', function () {
       )
     })
   })
+})
 
+describe('REG-01: Core Encoding Types', function () {
   describe('REG-01.4: MULTISIGN', function () {
     it('MULTISIGN produces 1-of-3 multisig output', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
@@ -265,7 +279,11 @@ describe('REG-01: Core Encoding Types', function () {
       assert.strictEqual(d[4], bitcoin.opcodes.OP_3)
       assert.strictEqual(d[5], bitcoin.opcodes.OP_CHECKMULTISIG)
     })
+  })
+})
 
+describe('REG-01: Core Encoding Types', function () {
+  describe('REG-01.4: MULTISIGN', function () {
     it('third pubkey is the compressedPubKey argument', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
       const address = getTestAddress('dogecoin-regtest')
@@ -299,7 +317,9 @@ describe('REG-01: Core Encoding Types', function () {
       assert.strictEqual(payload.magic, MAGIC_WORD)
     })
   })
+})
 
+describe('REG-01: Core Encoding Types', function () {
   describe('REG-01.5: Return shape', function () {
     it('result is { psbt, encoding } with Psbt instance', async function () {
       const encoder = makeEncoder('dogecoin-regtest')
