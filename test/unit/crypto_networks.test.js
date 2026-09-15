@@ -40,6 +40,12 @@ describe('CryptoNetworks', () => {
         assert.strictEqual(result.dustThreshold, 546)
       })
     })
+  })
+})
+
+describe('CryptoNetworks', () => {
+
+  describe('.getBitcoinJsNetwork()', () => {
 
     describe('Dogecoin networks', () => {
       const dogeNetworks = ['dogecoin-mainnet', 'dogecoin-testnet', 'dogecoin-regtest']
@@ -71,6 +77,12 @@ describe('CryptoNetworks', () => {
         assert.strictEqual(reg.pubKeyHash, 0x6f)
       })
     })
+  })
+})
+
+describe('CryptoNetworks', () => {
+
+  describe('.getBitcoinJsNetwork()', () => {
 
     describe('Litecoin networks', () => {
       const ltcNetworks = ['litecoin-mainnet', 'litecoin-testnet', 'litecoin-regtest']
@@ -118,6 +130,9 @@ describe('CryptoNetworks', () => {
       })
     })
   })
+})
+
+describe('CryptoNetworks', () => {
 
   describe('.getFirstBlock()', () => {
     it('returns 950000 for bitcoin-mainnet', () => {
