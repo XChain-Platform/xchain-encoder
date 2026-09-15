@@ -93,7 +93,11 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             const later = JSON.stringify({ since: new Date(NOW + 3600 * 1000).toISOString(), until: in2h });
             assert.strictEqual(parseMaintenanceWindow(later, NOW), null);
         });
+    });
+});
 
+describe('maintenanceWindow: an operator-declared scheduled outage @regression', function () {
+    describe('parseMaintenanceWindow()', function () {
         it('resolves malformed, empty, non-object and oversized sentinels to no maintenance', function () {
             for (const bad of ['', 'not json', '[]', 'null', '"just a string"', '42']) {
                 assert.strictEqual(parseMaintenanceWindow(bad, NOW), null, `expected null for ${JSON.stringify(bad)}`);
@@ -131,7 +135,11 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             assert.strictEqual(parseMaintenanceWindow(opened, NOW + 60000), null, 'invalid just after it opens');
             assert.strictEqual(parseMaintenanceWindow(opened, NOW + thirtyDays - 3600 * 1000), null, 'still invalid an hour before expiry');
         });
+    });
+});
 
+describe('maintenanceWindow: an operator-declared scheduled outage @regression', function () {
+    describe('parseMaintenanceWindow()', function () {
         it('keeps a declared span of exactly the ceiling, and refuses one millisecond more', function () {
             const atCeiling = JSON.stringify({ since: NOW - (MAX_WINDOW_MS - 3600 * 1000), until: NOW + 3600 * 1000 });
             assert.ok(parseMaintenanceWindow(atCeiling, NOW), 'the ceiling itself is still a window');
@@ -165,7 +173,9 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             assert.strictEqual(w.since, null);
         });
     });
+});
 
+describe('maintenanceWindow: an operator-declared scheduled outage @regression', function () {
     describe('readMaintenanceWindow()', function () {
         let dir;
         beforeEach(function () { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xc-maint-')); });
@@ -208,7 +218,9 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             assert.strictEqual(await readMaintenanceWindow(NOW, p), null);
         });
     });
+});
 
+describe('maintenanceWindow: an operator-declared scheduled outage @regression', function () {
     describe('sentinelPath()', function () {
         // Default lives INSIDE the encoder container so xchain-node can write it
         // with a plain `docker exec tee` against an already-running encoder: no
@@ -229,34 +241,37 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
     });
 });
 
+const { jsonRpcController, encoder } = require('../../src/api');
+
+let dir, sentinel, origEnv;
+function setupApi() {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xc-maint-api-'));
+    sentinel = path.join(dir, 'window.json');
+    origEnv = process.env.ENCODER_MAINTENANCE_FILE;
+    process.env.ENCODER_MAINTENANCE_FILE = sentinel;
+}
+function cleanupApi() {
+    if (origEnv === undefined) delete process.env.ENCODER_MAINTENANCE_FILE;
+    else process.env.ENCODER_MAINTENANCE_FILE = origEnv;
+    fs.rmSync(dir, { recursive: true, force: true });
+}
+
+function stubSync(status) {
+    const orig = encoder.utxoTrackerConnector.getSyncStatus;
+    encoder.utxoTrackerConnector.getSyncStatus = async () => status;
+    return () => { encoder.utxoTrackerConnector.getSyncStatus = orig; };
+}
+function declare(minutesAhead) {
+    fs.writeFileSync(sentinel, JSON.stringify({
+        reason: 'utxo-tracker bootstrap publish',
+        since: new Date().toISOString(),
+        until: new Date(Date.now() + minutesAhead * 60000).toISOString()
+    }));
+}
+
 describe('health()/GET /status carry the window without bending readiness @regression', function () {
-    const { jsonRpcController, encoder } = require('../../src/api');
-
-    let dir, sentinel, origEnv;
-    beforeEach(function () {
-        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'xc-maint-api-'));
-        sentinel = path.join(dir, 'window.json');
-        origEnv = process.env.ENCODER_MAINTENANCE_FILE;
-        process.env.ENCODER_MAINTENANCE_FILE = sentinel;
-    });
-    afterEach(function () {
-        if (origEnv === undefined) delete process.env.ENCODER_MAINTENANCE_FILE;
-        else process.env.ENCODER_MAINTENANCE_FILE = origEnv;
-        fs.rmSync(dir, { recursive: true, force: true });
-    });
-
-    function stubSync(status) {
-        const orig = encoder.utxoTrackerConnector.getSyncStatus;
-        encoder.utxoTrackerConnector.getSyncStatus = async () => status;
-        return () => { encoder.utxoTrackerConnector.getSyncStatus = orig; };
-    }
-    function declare(minutesAhead) {
-        fs.writeFileSync(sentinel, JSON.stringify({
-            reason: 'utxo-tracker bootstrap publish',
-            since: new Date().toISOString(),
-            until: new Date(Date.now() + minutesAhead * 60000).toISOString()
-        }));
-    }
+    beforeEach(setupApi);
+    afterEach(cleanupApi);
 
     it('reports maintenance null when no window is declared', async function () {
         const restore = stubSync({ synced: true, lag: 0 });
@@ -281,6 +296,11 @@ describe('health()/GET /status carry the window without bending readiness @regre
             assert.strictEqual(h.maintenance.reason, 'utxo-tracker bootstrap publish');
         } finally { restore(); }
     });
+});
+
+describe('health()/GET /status carry the window without bending readiness @regression', function () {
+    beforeEach(setupApi);
+    afterEach(cleanupApi);
 
     it('a window does not make a lagging tracker read synced', async function () {
         const restore = stubSync({ synced: true, lag: encoder.maxUtxoTrackerLagBlocks + 5 });
