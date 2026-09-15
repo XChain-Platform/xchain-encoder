@@ -61,6 +61,9 @@ describe('Security: validateUtxoArray / validateUtxoEntry', () => {
         assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 1.5, value: 1, scriptPubKey: '00' }, 0), TypeError)
         assert.throws(() => V.validateUtxoEntry({ txid: HEX64, vout: 0, value: -100, scriptPubKey: '00' }, 0), RangeError)
     })
+})
+
+describe('Security: validateUtxoArray / validateUtxoEntry', () => {
 
     it('rejects a numeric-prefixed injection value outright (never coerces trailing garbage)', () => {
         // A money field must parse exactly: parseInt would truncate
