@@ -114,7 +114,9 @@ describe('size-aware encoding selection (§6)', function () {
             assert.strictEqual(doge.selectEncoding(60, PUBKEY_HEX, opts), 'OP_RETURN')
         })
     })
+})
 
+describe('size-aware encoding selection (§6)', function () {
     describe('through createTransaction', function () {
         it('AUTO returns the commit/reveal pair when it selects TAPROOT', async function () {
             const e = makeEncoder()
@@ -157,7 +159,11 @@ describe('size-aware encoding selection (§6)', function () {
                 (err) => err instanceof RangeError &&
                     new RegExp(`exceeds maximum ${validator.ENVELOPE_MAX_PAYLOAD}`).test(err.message))
         })
+    })
+})
 
+describe('size-aware encoding selection (§6)', function () {
+    describe('through createTransaction', function () {
         it('leaves the legacy no-encoding path exactly as shipped', async function () {
             // The whole point of the opt-in. A caller who passes no encoding
             // gets OP_RETURN or P2SH, never TAPROOT, and never a reveal PSBT to
@@ -183,7 +189,9 @@ describe('size-aware encoding selection (§6)', function () {
             assert.strictEqual(large.revealPsbt, undefined)
         })
     })
+})
 
+describe('size-aware encoding selection (§6)', function () {
     describe('validator', function () {
         function base(extra) {
             return Object.assign({
@@ -253,38 +261,11 @@ describe('compression ON by default (§5.2/§7)', function () {
             null, null, null, true, null, null, null, false, false)
         assert.strictEqual(result.compression, undefined)
     })
+})
 
-    describe('the default pass rides raw where an explicit request throws', function () {
-        const GATED = 'FILE|0|secret.enc|application/octet-stream|Secret||MYTOKEN|1|' + 'a'.repeat(64)
-        const cases = [
-            ['a non-FILE action', 'SEND|0|TOK|1|mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef|m', 'not-a-file-action'],
-            ['a token-gated FILE', GATED, 'gated-file'],
-            ['an action that already declares a codec', compression.withCompressionField(FILE_ACTION, '1'), 'codec-already-declared']
-        ]
+describe('compression ON by default (§5.2/§7)', function () {
 
-        for (const [label, action, reason] of cases) {
-            it(`${label}: the default pass builds and reports "${reason}"`, async function () {
-                const e = makeEncoder()
-                const network = e.network
-                const result = await e.createTransaction(
-                    [segwitUtxo(network)], callerAddress(network), null, action,
-                    compressibleText(3000), null, false, 'P2WSH', callerAddress(network))
-                assert.strictEqual(result.compression.compressed, false)
-                assert.strictEqual(result.compression.reason, reason)
-            })
-
-            it(`${label}: an explicit request still fails closed`, async function () {
-                const e = makeEncoder()
-                const network = e.network
-                await assert.rejects(
-                    e.createTransaction(
-                        [segwitUtxo(network)], callerAddress(network), null, action,
-                        compressibleText(3000), null, false, 'P2WSH', callerAddress(network),
-                        null, null, null, true, null, null, null, false, true),
-                    /Compression requested/)
-            })
-        }
-    })
+    afterEach(function () { delete process.env.XCHAIN_COMPRESSION_DEFAULT })
 
     it('compression can make a payload fit a lane it would otherwise overflow', async function () {
         // A real consequence of the flip, worth stating rather than discovering:
@@ -319,5 +300,42 @@ describe('compression ON by default (§5.2/§7)', function () {
             null, false, 'P2WSH', callerAddress(network))
         assert.ok(result.psbt, 'built normally')
         assert.strictEqual(result.compression.compressed, false)
+    })
+})
+
+describe('compression ON by default (§5.2/§7)', function () {
+
+    afterEach(function () { delete process.env.XCHAIN_COMPRESSION_DEFAULT })
+
+    describe('the default pass rides raw where an explicit request throws', function () {
+        const GATED = 'FILE|0|secret.enc|application/octet-stream|Secret||MYTOKEN|1|' + 'a'.repeat(64)
+        const cases = [
+            ['a non-FILE action', 'SEND|0|TOK|1|mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef|m', 'not-a-file-action'],
+            ['a token-gated FILE', GATED, 'gated-file'],
+            ['an action that already declares a codec', compression.withCompressionField(FILE_ACTION, '1'), 'codec-already-declared']
+        ]
+
+        for (const [label, action, reason] of cases) {
+            it(`${label}: the default pass builds and reports "${reason}"`, async function () {
+                const e = makeEncoder()
+                const network = e.network
+                const result = await e.createTransaction(
+                    [segwitUtxo(network)], callerAddress(network), null, action,
+                    compressibleText(3000), null, false, 'P2WSH', callerAddress(network))
+                assert.strictEqual(result.compression.compressed, false)
+                assert.strictEqual(result.compression.reason, reason)
+            })
+
+            it(`${label}: an explicit request still fails closed`, async function () {
+                const e = makeEncoder()
+                const network = e.network
+                await assert.rejects(
+                    e.createTransaction(
+                        [segwitUtxo(network)], callerAddress(network), null, action,
+                        compressibleText(3000), null, false, 'P2WSH', callerAddress(network),
+                        null, null, null, true, null, null, null, false, true),
+                    /Compression requested/)
+            })
+        }
     })
 })
