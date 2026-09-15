@@ -72,6 +72,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
       )
     })
   })
+})
 
   // Both cases fund the 500 UTXOs at 1000 sats and set the fee to exactly the
   // 500-UTXO total. They were written at 100 sats against a fee of 100000,
@@ -81,6 +82,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
   // guard rather than the 500-input build this category exists to stress. The
   // fee is chosen so the shortfall only closes on the last UTXO, which keeps
   // "all 500 consumed" true and lands the build exactly on MAX_UTXO_COUNT.
+describe('Chaos Category E: Resource Exhaustion', () => {
   describe('E-2: High UTXO count processing', () => {
     it('500 segwit UTXOs, all consumed, completes in <10s', async () => {
       const encoder = makeEncoder(DOGE)
