@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
@@ -88,7 +88,7 @@ function scriptHashPayload(data, encoding, pubKey){
     */
 
     chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
-    
+
     let pubkeyFromBase58 = resolveCallerHash160(pubKey)
 
     let p2shChunks = sliceScriptHashChunks(data, chunksSize)
@@ -149,14 +149,14 @@ function multisignPayload(data, encoding, magicWordBuffer){
     let dataBufferArray = []
     let i = 0
     let nextDataChunk = null
-    chunksSize = MULTISIGN_SIZE 
-        - magicWordBuffer.length 
+    chunksSize = MULTISIGN_SIZE
+        - magicWordBuffer.length
         - 1 //1 byte for the OP_CHECKMULTISIG
         - 1 //1 byte for the m signatures to pop
         - 1 //1 byte for the n addresses to pop
         - 1 //1 byte for the first address length
         - 1 //1 byte for the second address length
-    
+
     // Each MULTISIGN output carries its data across two 32-byte
     // pubkey halves (64 data bytes total). A full chunk is already
     // magic(4) + 60 = 64 bytes, but the final chunk is shorter.

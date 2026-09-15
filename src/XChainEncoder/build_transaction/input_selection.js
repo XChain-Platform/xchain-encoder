@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const TxSizeEstimator = require('../../build/tx_size_estimator')
@@ -38,7 +38,7 @@ function initSelection(build){
         // value, preserving the previous error contract.
         estimatedFee = parseSatoshiAmount(fee, 'fee')
     }
-    
+
     let selectedInputCount = 0
     // Txids of the SELECTED inputs that are still in the mempool. Their
     // ancestor package is what CPFP sizing below has to pay for; an entry

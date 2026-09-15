@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const { validateUtxoEntry } = require('../../common/validator')
@@ -26,7 +26,7 @@ const { classifyTrackerFreshness, resolveCallerAddress } = require('../request_r
 function initInputState(build){
     let { replacebyfee, p2shHash } = build
     let psbt = null
-    
+
     // 0xfffffffd, not 1. Any value below 0xfffffffe signals RBF (BIP125), but
     // bit 31 (0x80000000) is what DISABLES BIP68 relative locktime. nSequence=1
     // leaves that bit clear, so it also asserts "this input must be 1 block

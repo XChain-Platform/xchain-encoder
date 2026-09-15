@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const util = require('node:util');

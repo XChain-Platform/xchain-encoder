@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const util = require('node:util');
@@ -152,7 +152,7 @@ function applyFeeCapAndDustFloor(build){
         logger.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds the fee-rate cap, clamping to ${capFeePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
         feePerBytes = capFeePerBytes
     }
-    
+
     // A caller dust may raise the floor for this build, never lower it: a leg under the
     // relay floor strands the caller's own reveal behind an unrelayable funding tx.
     let finalDust = this.outputFloor

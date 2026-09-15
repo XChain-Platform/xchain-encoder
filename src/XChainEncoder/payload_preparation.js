@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
@@ -47,14 +47,14 @@ module.exports = {
 
     prepareData(data, encoding, pubKey, compressedPubKey){
         let magicWordBuffer = Buffer.from(MAGIC_WORD,'utf8')
-        
+
         if (!encoding){
             if (data.length + magicWordBuffer.length <= OP_RETURN_SIZE) {
                 encoding = Encoding.OP_RETURN
             } else {
                 encoding = Encoding.P2SH
             }
-        }       
+        }
         switch (encoding){
             case Encoding.OP_RETURN:
                 return opReturnPayload(data, encoding, magicWordBuffer)
@@ -74,7 +74,7 @@ module.exports = {
     async obfuscate(data, key){
         var cipherKey = key.substr(0,16)
         var iv = key.substr(16,16)
-        
+
         var cipher = crypto.createCipheriv('aes-128-ctr', cipherKey, iv);
         var encryptedData = cipher.update(data)
         encryptedData = Buffer.concat([encryptedData,cipher.final()])
@@ -89,7 +89,7 @@ module.exports = {
             bufferFill.fill("00", 0, bufferFill.length, "hex")
             bufferArray.push(bufferFill)
         }
-        
+
         return Buffer.concat(bufferArray)
     },
 

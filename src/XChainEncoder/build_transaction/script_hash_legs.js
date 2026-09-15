@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
@@ -51,7 +51,7 @@ function* spendP2shLeg(build, nextDataBuffer){
             ]),
             txidFirstInput
         )
-    
+
         psbt = new bitcoin.Psbt({ network: this.network })
         psbt.addOutput({
             script: bitcoin.payments.embed({
@@ -59,11 +59,11 @@ function* spendP2shLeg(build, nextDataBuffer){
             }).output,
             value: 0
         })
-        
+
         estimatedTxSize = estimatedTxSize
             + TxSizeEstimator.estimateOpReturnOutput(opReturnData)
     }
-    
+
     if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
         throw new RangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
@@ -113,7 +113,7 @@ function fundP2shLeg(build, nextDataBuffer){
     })
 
     outputSatoshis = outputSatoshis + BigInt(spendingP2shEstimatedFee)
-    
+
     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateP2shOutput()
     Object.assign(build, { revealCustomOutputsValue, revealCustomOutputsFee, outputSatoshis, estimatedTxSize })
 }
@@ -198,7 +198,7 @@ function* emitP2wshChunk(build, nextDataBuffer){
         assertRevealFundingTxMatches(p2shHash, txidFirstInput)
     }
     Object.assign(build, { p2shTx, txidFirstInput })
-    
+
     if (p2shHash){
         yield* spendP2wshLeg.call(this, build, nextDataBuffer)
     } else {
@@ -225,7 +225,7 @@ function* spendP2wshLeg(build, nextDataBuffer){
             value: 0
         })
     }
-    
+
     if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
         throw new RangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
@@ -240,9 +240,9 @@ function* spendP2wshLeg(build, nextDataBuffer){
         }
     }
     psbt.addInput(nextInput)
-    
+
     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-    voutPsbtIndex = voutPsbtIndex + 1                   
+    voutPsbtIndex = voutPsbtIndex + 1
     Object.assign(build, { psbt, estimatedTxSize, voutPsbtIndex })
 }
 

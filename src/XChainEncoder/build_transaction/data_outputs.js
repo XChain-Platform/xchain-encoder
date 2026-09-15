@@ -13,9 +13,9 @@
  **********************************************************************
  *
  * XChain Encoder - Encoder Class
- * 
+ *
  * This file handles starting the encoder and generating transactions
- * 
+ *
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
@@ -30,7 +30,7 @@ function prepareDataChunks(build){
     if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
         psbt = new bitcoin.Psbt({ network: this.network })
     }
-    
+
     // With no action payload there is nothing to encode, chunk or obfuscate,
     // so skip prepareData entirely and hand the emission loop an empty chunk
     // list: it then writes no nulldata output and the transaction is just its
@@ -131,7 +131,7 @@ function* emitDataOutputs(build){
     let { preparedData } = build
     for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
         let nextDataBuffer = preparedData["dataBufferArray"][nextDataBufferIndex]
-        
+
         switch (preparedData["encoding"]){
             case Encoding.OP_RETURN:
                 yield* emitOpReturnChunk.call(this, build, nextDataBuffer)
@@ -157,12 +157,12 @@ function* emitOpReturnChunk(build, nextDataBuffer){
     let { obfuscatedData, txidFirstInput, psbt, estimatedTxSize } = build
     obfuscatedData = (yield this.obfuscate(nextDataBuffer, txidFirstInput))
     let opReturnScript = bitcoin.payments.embed({ data: [obfuscatedData] })
-    
+
     psbt.addOutput({
         script: opReturnScript.output,
         value: 0
     })
-    
+
     // Oversize is handled upstream: prepareData rejects an OP_RETURN
     // payload larger than chunksSize (single-OP_RETURN policy throw),
     // so every obfuscatedData reaching here fits one standard nulldata
@@ -178,21 +178,21 @@ function* emitMultisignChunk(build, nextDataBuffer){
     let pubkey1 = yield this.dataToPubkey(obfuscatedData.slice(0, 32))
     let pubkey2 = yield this.dataToPubkey(obfuscatedData.slice(32, obfuscatedData.length))
     let pubkey3 = Buffer.from(compressedPubKey,"hex")
-    
+
     let pubkeys = [
         pubkey1,
         pubkey2,
         pubkey3
     ]
-    
+
     let multisignScript = bitcoin.payments.p2ms(
-        { 
+        {
             m:1, //We only need one signature
             pubkeys: pubkeys,
             network: this.network
         }
     )
-    
+
     // A bare multisig output is larger than a P2PKH, so the P2PKH
     // dust floor (this.dustAmount, read per network from the coin
     // bundle's dustThreshold: BTC 546, LTC 5460, DOGE 100000) is
