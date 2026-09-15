@@ -107,6 +107,14 @@ identity_pin_check() {
 }
 run_tier "identity pin (vendored coins, conformance fixture)" identity_pin_check
 
+# --- suite-title pin (this gate only; no ci.yml job runs it) -----------
+# Guards that every npm test script still collects the same test titles it
+# did at the pin, through the declared rename and split maps.
+run_tier "suite-title pin (at1)" node bin/suite-title-map.js \
+  --compare bin/pins/at1-suite-titles.json \
+  --rename-map bin/pins/test-rename-map.json \
+  --split-map bin/pins/suite-title-splits.json
+
 # --- job: coverage (needs: ci) ------------------------------------------
 # The workflow checks out every repo in .ci-siblings before this job so the
 # ratchet re-run measures coverage with the same cross-repo tests exercised
