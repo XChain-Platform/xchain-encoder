@@ -86,6 +86,9 @@ describe('Category C: Obfuscation Round-Trip', () => {
       )
     })
   })
+})
+
+describe('Category C: Obfuscation Round-Trip', () => {
 
   describe('C-2: MULTISIGN obfuscation round-trip', () => {
     const MS_DATA = 'A'.repeat(59)
@@ -110,6 +113,9 @@ describe('Category C: Obfuscation Round-Trip', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), MS_DATA)
     })
   })
+})
+
+describe('Category C: Obfuscation Round-Trip', () => {
 
   describe('C-3: P2SH marker obfuscation', () => {
     it('tx2 OP_RETURN marker deobfuscates to XCHNp2sh', async () => {
@@ -149,6 +155,9 @@ describe('Category C: Obfuscation Round-Trip', () => {
       assert.strictEqual(markerStr, 'XCHNp2sh')
     })
   })
+})
+
+describe('Category C: Obfuscation Round-Trip', () => {
 
   describe('C-4: TXID sensitivity', () => {
     it('same ACTION with different TXIDs produces different obfuscated output', async () => {
@@ -194,6 +203,9 @@ describe('Category C: Obfuscation Round-Trip', () => {
       assert.strictEqual(decompA[0].toString('utf8'), decompB[0].toString('utf8'))
     })
   })
+})
+
+describe('Category C: Obfuscation Round-Trip', () => {
 
   describe('C-5: UTXO sorting preserves obfuscation key derivation', () => {
     it('obfuscation uses largest UTXO txid regardless of input order', async () => {
