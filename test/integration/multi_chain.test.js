@@ -35,6 +35,36 @@ const CHAINS = [
   { name: 'dogecoin-regtest', dustThreshold: 100000 },
   { name: 'litecoin-regtest', dustThreshold: 5460 },
 ]
+const MS_DATA = 'A'.repeat(59)
+
+// A bare 1-of-3 multisig output is far larger than a P2PKH, so its relay dust
+// floor is Bitcoin Core's size formula (output_bytes + 148) * 3 sat/byte, not
+// the chain's flat P2PKH dustThreshold. The encoder takes the MAX of the two.
+// On Bitcoin the size formula wins (786 > 546); on Litecoin and Dogecoin the
+// chain threshold wins. Looking the multisig output up by
+// `value === encoder.dustAmount` silently fails to match on Bitcoin under
+// that max(), so such a lookup asserts nothing on either chain.
+function bareMultisigDust (scriptLength) {
+  return Math.ceil((8 + 1 + scriptLength + 148) * 3)
+}
+
+async function buildMultisign (networkName) {
+  const encoder = makeEncoder(networkName)
+  const address = getTestAddress(networkName)
+  const utxo = makeUtxo(networkName, TXID_MULTISIGN, 0, 100000000)
+  const result = await encoder.createTransaction(
+    [utxo], address, null,
+    MS_DATA, null, 10000, false, 'MULTISIGN', address,
+    null, null, PUBKEY_BUF.toString('hex'), true, 0.00001
+  )
+  assert.strictEqual(result.encoding, 'MULTISIGN')
+  // Identify the data output by SHAPE (bare multisig ends in OP_CHECKMULTISIG),
+  // never by a value that the dust policy is free to move.
+  const output = result.psbt.txOutputs.find(o =>
+    o.script[o.script.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG)
+  assert.ok(output, `${networkName} should have a MULTISIGN output`)
+  return { encoder, output }
+}
 
 describe('Category F: Multi-Chain Network Configs', () => {
 
@@ -87,39 +117,11 @@ describe('Category F: Multi-Chain Network Configs', () => {
       })
     })
   }
+})
+
+describe('Category F: Multi-Chain Network Configs', () => {
 
   describe('F-4: Litecoin higher dust threshold', () => {
-    const MS_DATA = 'A'.repeat(59)
-
-    // A bare 1-of-3 multisig output is far larger than a P2PKH, so its relay dust
-    // floor is Bitcoin Core's size formula (output_bytes + 148) * 3 sat/byte, not
-    // the chain's flat P2PKH dustThreshold. The encoder takes the MAX of the two.
-    // On Bitcoin the size formula wins (786 > 546); on Litecoin and Dogecoin the
-    // chain threshold wins. This test used to look the multisig output up by
-    // `value === encoder.dustAmount`, which silently stopped matching on Bitcoin
-    // once that max() landed, so it asserted nothing on either chain.
-    function bareMultisigDust (scriptLength) {
-      return Math.ceil((8 + 1 + scriptLength + 148) * 3)
-    }
-
-    async function buildMultisign (networkName) {
-      const encoder = makeEncoder(networkName)
-      const address = getTestAddress(networkName)
-      const utxo = makeUtxo(networkName, TXID_MULTISIGN, 0, 100000000)
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        MS_DATA, null, 10000, false, 'MULTISIGN', address,
-        null, null, PUBKEY_BUF.toString('hex'), true, 0.00001
-      )
-      assert.strictEqual(result.encoding, 'MULTISIGN')
-      // Identify the data output by SHAPE (bare multisig ends in OP_CHECKMULTISIG),
-      // never by a value that the dust policy is free to move.
-      const output = result.psbt.txOutputs.find(o =>
-        o.script[o.script.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG)
-      assert.ok(output, `${networkName} should have a MULTISIGN output`)
-      return { encoder, output }
-    }
-
     it('MULTISIGN output clears both the chain dust floor and the bare-multisig relay floor', async () => {
       for (const chain of CHAINS) {
         const { encoder, output } = await buildMultisign(chain.name)
@@ -144,6 +146,9 @@ describe('Category F: Multi-Chain Network Configs', () => {
         'Litecoin dust should be higher than Bitcoin')
     })
   })
+})
+
+describe('Category F: Multi-Chain Network Configs', () => {
 
   describe('F-5: Dogecoin address in P2SH redeem script', () => {
     it('P2SH output address uses Dogecoin network params', async () => {
@@ -176,6 +181,9 @@ describe('Category F: Multi-Chain Network Configs', () => {
       assert.strictEqual(decompiled[2], bitcoin.opcodes.OP_EQUAL)
     })
   })
+})
+
+describe('Category F: Multi-Chain Network Configs', () => {
 
   describe('CryptoNetworks completeness', () => {
     const ALL_NETWORKS = [
@@ -195,6 +203,9 @@ describe('Category F: Multi-Chain Network Configs', () => {
       })
     }
   })
+})
+
+describe('Category F: Multi-Chain Network Configs', () => {
 
   describe('Fee floor uses chain-specific dust threshold', () => {
     it('Litecoin fee floor is 5460, not 546', async () => {
