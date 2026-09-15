@@ -23,8 +23,8 @@ const assert = require('assert');
 const fs     = require('fs');
 const path   = require('path');
 
-const XChainEncoder  = require('../../src/XChainEncoder');
-const CryptoNetworks = require('../../src/build/crypto_networks');
+const XChainEncoder  = require('../../../src/XChainEncoder');
+const CryptoNetworks = require('../../../src/build/crypto_networks');
 
 // The gate reads only the resolved recognition height and connector.getBlockCount,
 // so a network KEY plus a stub connector is the whole surface; building a real
@@ -117,7 +117,7 @@ describe('assertEnvelopeRecognized()', function () {
 
 describe('encoder activation heights are byte-equal to the decoder consensus copy', function () {
     const DECODER = process.env.XCHAIN_DECODER_DIR ||
-        path.join(__dirname, '..', '..', '..', 'xchain-decoder');
+        path.join(__dirname, '../../../../xchain-decoder');
     const DECODER_CONSTANTS = path.join(DECODER, 'src', 'protocol', 'constants.js');
 
     before(function () {

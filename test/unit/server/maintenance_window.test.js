@@ -45,7 +45,7 @@ const {
     MAX_SENTINEL_BYTES,
     MAX_REASON_CHARS,
     MAX_WINDOW_MS
-} = require('../../src/server/maintenance_window');
+} = require('../../../src/server/maintenance_window');
 
 const NOW = Date.parse('2026-09-02T12:00:00.000Z');
 const in2h = new Date(NOW + 2 * 3600 * 1000).toISOString();
@@ -241,7 +241,7 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
     });
 });
 
-const { jsonRpcController, encoder } = require('../../src/api');
+const { jsonRpcController, encoder } = require('../../../src/api');
 
 let dir, sentinel, origEnv;
 function setupApi() {

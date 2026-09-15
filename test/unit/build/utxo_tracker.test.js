@@ -9,7 +9,7 @@
 // contact legal@dankest.llc.
 
 const assert = require('assert')
-const UtxoTracker = require('../../src/build/utxo_tracker')
+const UtxoTracker = require('../../../src/build/utxo_tracker')
 
 describe('UtxoTracker constructor', () => {
   it('builds the correct URL from host and port', () => {

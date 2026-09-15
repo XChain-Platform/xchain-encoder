@@ -32,7 +32,7 @@
 
 const assert = require('assert')
 
-const compression = require('../../../src/build/compression')
+const compression = require('../../../../src/build/compression')
 const { PUBLIC_FILE, GATED_FILE } = require('./helpers/fixtures')
 
 describe('encoder FILE payload compression (spec Part B)', function () {

@@ -18,7 +18,7 @@
  ********************************************************************/
 
 const assert = require('assert');
-const v = require('../../../src/common/validator.js');
+const v = require('../../../../../src/common/validator.js');
 const bitcoin = require('bitcoinjs-lib');
 
 describe('Encoder input validator', function () {

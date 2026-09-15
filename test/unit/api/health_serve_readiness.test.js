@@ -24,7 +24,7 @@
  ********************************************************************/
 
 const assert = require('assert');
-const { jsonRpcController, encoder } = require('../../src/api');
+const { jsonRpcController, encoder } = require('../../../src/api');
 const http = require('http');
 
 function stubSync(status) {
@@ -157,7 +157,7 @@ describe('health(): tracker_synced is serve-readiness (create_tx parity) @regres
  * /status only. The JSON-RPC health() shape is documented in docs/openrpc.json
  * and stays as it is. */
 describe('GET /status publishes the lag ceiling its readiness was gated on @regression', function () {
-    const { app, encoder } = require('../../src/api');
+    const { app, encoder } = require('../../../src/api');
 
     async function statusBody() {
         const server = await new Promise((resolve) => {

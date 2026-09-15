@@ -23,7 +23,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const ecc = require('tiny-secp256k1')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 
 bitcoin.initEccLib(ecc)
 

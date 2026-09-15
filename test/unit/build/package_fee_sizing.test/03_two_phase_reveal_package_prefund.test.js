@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 const ecc = require('tiny-secp256k1');
 
 const SATOSHI_UNIT = 100000000
@@ -30,7 +30,7 @@ bitcoin.initEccLib(ecc)
 const KEY = ECPairFactory(ecc).fromPrivateKey(Buffer.alloc(32, 7))
 const PUBKEY_HEX = Buffer.from(KEY.publicKey).toString('hex')
 
-const BTC_REGTEST = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('bitcoin-regtest')
+const BTC_REGTEST = require('../../../../src/build/crypto_networks').getBitcoinJsNetwork('bitcoin-regtest')
 const BTC_RATE_KB = 0.0001                                  // 10 sat/byte
 const BTC_TARGET_PER_BYTE = BTC_RATE_KB * SATOSHI_UNIT / 1000
 const COMMIT_INPUT_VALUE = 100000000

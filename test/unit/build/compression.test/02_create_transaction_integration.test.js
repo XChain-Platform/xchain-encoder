@@ -35,7 +35,7 @@ const crypto = require('crypto')
 const zlib = require('zlib')
 const bitcoin = require('bitcoinjs-lib')
 
-const compression = require('../../../src/build/compression')
+const compression = require('../../../../src/build/compression')
 const {
     PUBKEY,
     PUBLIC_FILE,

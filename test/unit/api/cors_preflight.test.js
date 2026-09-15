@@ -32,7 +32,7 @@
 
 const assert = require('assert')
 
-const API_PATH = require.resolve('../../src/api.js')
+const API_PATH = require.resolve('../../../src/api.js')
 const ORIGIN   = 'https://wallet.example'
 const API_KEY  = 'preflight-test-key'
 

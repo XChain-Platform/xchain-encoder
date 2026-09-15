@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const crypto = require('crypto')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 
 function makeEncoder () {
   return new XChainEncoder(

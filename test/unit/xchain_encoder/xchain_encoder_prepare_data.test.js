@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 
 const MAGIC_WORD = 'XCHN'
 const MAGIC_LEN = 4

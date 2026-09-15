@@ -1,6 +1,6 @@
 const assert = require('assert')
 
-const { releaseLockOnSignals } = require('../../../src/server/single_instance_guard')
+const { releaseLockOnSignals } = require('../../../../src/server/single_instance_guard')
 
 // The lock is released on the way out through a SIGNAL, because that is how
 // this process actually dies: `docker stop` and `docker restart`

@@ -9,7 +9,7 @@
 // contact legal@dankest.llc.
 
 const assert = require('assert')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 
 const SATOSHI_UNIT = 100000000
 

@@ -5,7 +5,7 @@
 // the (side-effecting) build script.
 
 const assert = require('assert');
-const doc = require('../../docs/openrpc.json');
+const doc = require('../../../docs/openrpc.json');
 
 describe('docs/openrpc.json', function () {
     it('declares an OpenRPC version and info block', function () {

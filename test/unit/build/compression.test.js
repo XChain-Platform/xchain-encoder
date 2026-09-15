@@ -34,7 +34,7 @@ const assert = require('assert')
 const crypto = require('crypto')
 const zlib = require('zlib')
 
-const compression = require('../../src/build/compression')
+const compression = require('../../../src/build/compression')
 const {
     PUBLIC_FILE,
     GATED_FILE,

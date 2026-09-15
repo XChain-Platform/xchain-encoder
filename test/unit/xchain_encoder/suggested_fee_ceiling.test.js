@@ -23,7 +23,7 @@
 'use strict';
 
 const assert         = require('assert');
-const XChainEncoder  = require('../../src/XChainEncoder');
+const XChainEncoder  = require('../../../src/XChainEncoder');
 
 const SATOSHI_UNIT = 100000000;
 const ceiling      = (net) => XChainEncoder.suggestedFeeCeilingPerByte(net, SATOSHI_UNIT);

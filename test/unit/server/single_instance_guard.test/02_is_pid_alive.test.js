@@ -1,6 +1,6 @@
 const assert = require('assert')
 
-const { isPidAlive } = require('../../../src/server/single_instance_guard')
+const { isPidAlive } = require('../../../../src/server/single_instance_guard')
 
 describe('singleInstanceGuard', function () {
     describe('isPidAlive', function () {

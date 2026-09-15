@@ -3,7 +3,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-const { acquireInstanceLock, isPidAlive } = require('../../../src/server/single_instance_guard')
+const { acquireInstanceLock, isPidAlive } = require('../../../../src/server/single_instance_guard')
 
 // The lock records { pid, cmd } so a later boot can tell the process that
 // took it from whatever holds that pid number now. A bare integer

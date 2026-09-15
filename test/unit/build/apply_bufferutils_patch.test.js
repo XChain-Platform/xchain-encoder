@@ -7,7 +7,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const bufferutils = require('../../src/build/apply_bufferutils_patch.js');
+const bufferutils = require('../../../src/build/apply_bufferutils_patch.js');
 
 // The two copies share one body and differ only in the licence/doc banner,
 // because each header names the other copy and its own read-side relationship.
@@ -163,9 +163,9 @@ describe('applyBufferutilsPatch', function () {
     // bodies byte-identical and let the fork be a deliberate, visible act
     // rather than a silent one.
     describe('twin guard against the SDK copy', function () {
-        const repoRoot = path.resolve(__dirname, '../../..');
+        const repoRoot = path.resolve(__dirname, '../../../..');
         const sdkRoot = path.join(repoRoot, 'xchain-sdk');
-        const mine = path.join(__dirname, '../../src/build/apply_bufferutils_patch.js');
+        const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
         // NOT renamed by THIS repo's codemod: this resolves into xchain-sdk,
         // which owns its own rename independently. A bare-literal rewrite
         // pass cannot tell this string from a same-repo reference and
@@ -189,7 +189,7 @@ describe('applyBufferutilsPatch', function () {
             // The patch reaches into bip174 internals. An undeclared dependency
             // resolves today only because bitcoinjs-lib happens to hoist it,
             // and vanishes on any transitive bump.
-            const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8'));
+            const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
             const source = fs.readFileSync(mine, 'utf8');
             const required = new Set();
             for (const m of source.matchAll(/require\('([^']+)'\)/g)) {

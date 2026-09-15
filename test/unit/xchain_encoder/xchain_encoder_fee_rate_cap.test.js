@@ -23,7 +23,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -31,7 +31,7 @@ const pubkeyBuf = Buffer.from(
 )
 const TXID_A = 'a'.repeat(64)
 
-const LTC_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: LTC_REGTEST

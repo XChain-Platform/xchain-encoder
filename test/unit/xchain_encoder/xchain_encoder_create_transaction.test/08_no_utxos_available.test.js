@@ -113,7 +113,7 @@ describe('XChainEncoder.createTransaction()', () => {
         return { utxos: [makeLegacyUtxo(TXID_A, 0, 100000000)] }
       }
 
-      const dogeNetwork = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
+      const dogeNetwork = require('../../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
       const dogeAddress = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: dogeNetwork }).address
       const rawPubkeyHex = pubkeyBuf.toString('hex')
       await encoder.createTransaction(

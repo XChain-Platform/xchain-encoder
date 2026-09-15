@@ -18,8 +18,8 @@
 
 const assert = require('assert');
 
-const coins        = require('../../src/coins');
-const XChainEncoder = require('../../src/XChainEncoder');
+const coins        = require('../../../src/coins');
+const XChainEncoder = require('../../../src/XChainEncoder');
 
 describe('XChainEncoder consensus-pin boot guard', function(){
     let original;

@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 
 const SATOSHI_UNIT = 100000000
 
@@ -19,7 +19,7 @@ const TXID_PARENT_B = 'b'.repeat(64)
 const TXID_SHARED   = 'c'.repeat(64)
 
 const pubkeyBuf = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex')
-const DOGE_REGTEST = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
+const DOGE_REGTEST = require('../../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: DOGE_REGTEST }).address
 const INPUT_VALUE = 100000000            // 1 DOGE in koinu
 const NODE_RATE_PER_KB = 0.01            // Dogecoin's block-inclusion floor

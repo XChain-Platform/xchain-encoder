@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 
-const { assertSingleInstance } = require('../../src/server/single_instance_guard')
+const { assertSingleInstance } = require('../../../src/server/single_instance_guard')
 
 describe('singleInstanceGuard', function () {
 

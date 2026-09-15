@@ -35,8 +35,8 @@ const crypto = require('crypto')
 const path = require('path')
 const fs = require('fs')
 
-const compression = require('../../../src/build/compression')
-const validator = require('../../../src/common/validator')
+const compression = require('../../../../src/build/compression')
+const validator = require('../../../../src/common/validator')
 const { PUBLIC_FILE, compressibleBytes } = require('./helpers/fixtures')
 
 describe('encoder FILE payload compression (spec Part B)', function () {
@@ -52,7 +52,7 @@ describe('encoder FILE payload compression (spec Part B)', function () {
 describe('encoder FILE payload compression (spec Part B)', function () {
     describe('constants conformance', function () {
         const DOCS = process.env.XCHAIN_DOCUMENTATION_DIR ||
-            path.join(__dirname, '..', '..', '..', '..', 'xchain-documentation')
+            path.join(__dirname, '../../../../../xchain-documentation')
         const DOCS_CONSTANTS = path.join(DOCS, 'protocol', 'constants.js')
 
         it('they equal the canonical declaration (skips without the docs sibling)', function () {
@@ -73,7 +73,7 @@ describe('encoder FILE payload compression (spec Part B)', function () {
         // raw, or vice versa.
         it('agrees with the SDK helper on every decision (skips without the sdk sibling)', async function () {
             const SDK = process.env.XCHAIN_SDK_DIR ||
-                path.join(__dirname, '..', '..', '..', '..', 'xchain-sdk')
+                path.join(__dirname, '../../../../../xchain-sdk')
             const SDK_COMPRESSION = path.join(SDK, 'src', 'protocol', 'compression.js')
             if (!fs.existsSync(SDK_COMPRESSION)) {
                 if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1')

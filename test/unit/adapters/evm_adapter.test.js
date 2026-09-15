@@ -14,9 +14,9 @@
 // undefined). They do NOT exercise any real EVM tx path (there is none yet).
 
 const assert = require('assert')
-const evmFinality = require('../../src/adapters/evm_finality')
-const { ChainAdapter, AdapterNotImplementedError } = require('../../src/adapters/chain_adapter')
-const { EvmAdapter } = require('../../src/adapters/evm_adapter')
+const evmFinality = require('../../../src/adapters/evm_finality')
+const { ChainAdapter, AdapterNotImplementedError } = require('../../../src/adapters/chain_adapter')
+const { EvmAdapter } = require('../../../src/adapters/evm_adapter')
 
 describe('EVM finality gate (evmFinality)', registerFinalityChoices)
 

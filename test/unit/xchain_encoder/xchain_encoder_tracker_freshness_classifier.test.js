@@ -38,14 +38,14 @@ process.env.NODE_USER = process.env.NODE_USER || 'test'
 process.env.NODE_PASSWORD = process.env.NODE_PASSWORD || 'test'
 
 const assert = require('assert')
-const XChainEncoder = require('../../src/XChainEncoder')
-const { jsonRpcController, encoder: apiEncoder } = require('../../src/api')
+const XChainEncoder = require('../../../src/XChainEncoder')
+const { jsonRpcController, encoder: apiEncoder } = require('../../../src/api')
 const {
     TXID_A,
     makeUtxo,
     makeEncoder,
     getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 
 const classify = XChainEncoder.classifyTrackerFreshness
 

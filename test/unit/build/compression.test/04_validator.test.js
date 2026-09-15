@@ -32,7 +32,7 @@
 
 const assert = require('assert')
 
-const validator = require('../../../src/common/validator')
+const validator = require('../../../../src/common/validator')
 const { TXID_A, PUBLIC_FILE } = require('./helpers/fixtures')
 
 describe('encoder FILE payload compression (spec Part B)', function () {

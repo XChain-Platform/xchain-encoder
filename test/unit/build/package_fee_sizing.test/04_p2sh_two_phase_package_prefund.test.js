@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 
 const SATOSHI_UNIT = 100000000
 
@@ -21,7 +21,7 @@ const TXID_PARENT_A = 'a'.repeat(64)
 // instead of sweeping it back to the caller.
 
 const DOGE = 'dogecoin-regtest'
-const DOGE_REGTEST_NET = require('../../../src/build/crypto_networks').getBitcoinJsNetwork(DOGE)
+const DOGE_REGTEST_NET = require('../../../../src/build/crypto_networks').getBitcoinJsNetwork(DOGE)
 const RATE_KB = 1000000                       // 1000 koinu/byte, the venue rate
 const TARGET_PER_BYTE = RATE_KB / 1000
 const pubkeyBuf = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex')

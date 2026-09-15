@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -51,7 +51,7 @@ function makeP2pkhUtxo (txid, vout, value) {
   return { txid, vout, value, confirmations: 6, scriptPubKey: script }
 }
 
-const DOGE_REGTEST = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
+const DOGE_REGTEST = require('../../../../src/build/crypto_networks').getBitcoinJsNetwork('dogecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({
   pubkey: pubkeyBuf,
   network: DOGE_REGTEST

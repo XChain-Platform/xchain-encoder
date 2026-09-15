@@ -10,7 +10,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const TxSizeEstimator = require('../../src/build/tx_size_estimator')
+const TxSizeEstimator = require('../../../src/build/tx_size_estimator')
 
 describe('TxSizeEstimator', () => {
 

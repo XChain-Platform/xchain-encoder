@@ -24,9 +24,9 @@
 const assert = require('assert');
 const fs   = require('fs');
 const path = require('path');
-const v = require('../../src/common/validator.js');
+const v = require('../../../../src/common/validator.js');
 
-const VENDORED = path.join(__dirname, '..', 'fixtures', 'action-manifest.json');
+const VENDORED = path.join(__dirname, '../../../fixtures/action-manifest.json');
 const MANIFEST = JSON.parse(fs.readFileSync(VENDORED, 'utf8'));
 
 function manifestSlice(flag) {
@@ -58,7 +58,7 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
     // sibling xchain-documentation is not checked out, matching the decoder's
     // own ActionManifestConformance convention).
     describe('byte-identity to canonical manifest', function () {
-        const DOCS = process.env.XCHAIN_DOCS_DIR || path.join(__dirname, '..', '..', '..', 'xchain-documentation');
+        const DOCS = process.env.XCHAIN_DOCS_DIR || path.join(__dirname, '../../../../../xchain-documentation');
         const CANON = path.join(DOCS, 'protocol', 'action-manifest.json');
         before(function () { if (!fs.existsSync(CANON)) { if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1') throw new Error('XCHAIN_REQUIRE_SIBLINGS=1 but canonical action-manifest.json not found at ' + CANON); this.skip(); } });
         it('vendored test/fixtures/action-manifest.json is byte-identical to canonical', function () {

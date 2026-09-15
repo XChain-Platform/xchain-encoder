@@ -10,7 +10,7 @@
 //
 
 const assert = require('assert')
-const TxSizeEstimator = require('../../../src/build/tx_size_estimator')
+const TxSizeEstimator = require('../../../../src/build/tx_size_estimator')
 
 describe('XChainEncoder TAPROOT envelope', function () {
   describe('TxSizeEstimator envelope sizing', function () {

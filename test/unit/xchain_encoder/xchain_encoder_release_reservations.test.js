@@ -20,7 +20,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../src/XChainEncoder')
+const XChainEncoder = require('../../../src/XChainEncoder')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -29,7 +29,7 @@ const pubkeyBuf = Buffer.from(
 const TXID_ONE = 'a'.repeat(64)
 const TXID_TWO = 'b'.repeat(64)
 
-const LTC_REGTEST = require('../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
+const LTC_REGTEST = require('../../../src/build/crypto_networks').getBitcoinJsNetwork('litecoin-regtest')
 const TEST_ADDRESS = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: LTC_REGTEST }).address
 const PUBKEY_HEX = pubkeyBuf.toString('hex')
 
@@ -207,7 +207,7 @@ describe('XChainEncoder reservation release', () => {
 })
 
 describe('release_inputs JSON-RPC method', () => {
-  const { jsonRpcController, encoder } = require('../../src/api')
+  const { jsonRpcController, encoder } = require('../../../src/api')
 
   afterEach(() => encoder.clearReservations())
 

@@ -35,7 +35,7 @@ const {
     makeMempoolUtxo,
     makeEncoder,
     getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 
 const NETWORK = 'bitcoin-regtest'
 

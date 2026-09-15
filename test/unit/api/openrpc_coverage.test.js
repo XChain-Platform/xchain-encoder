@@ -24,8 +24,8 @@ const path   = require('path');
 const assert = require('assert');
 
 {
-    const src  = fs.readFileSync(path.join(__dirname, '../../src/api/json_rpc_methods.js'), 'utf8');
-    const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '../../docs/openrpc.json'), 'utf8'));
+    const src  = fs.readFileSync(path.join(__dirname, '../../../src/api/json_rpc_methods.js'), 'utf8');
+    const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../docs/openrpc.json'), 'utf8'));
 
     // Method names across the per-group builder literals, which is every
     // method the factory composes into the controller.
@@ -58,7 +58,7 @@ describe('openrpc.json method coverage', () => {
     // regeneration would have deleted a shipped field's only documentation. The
     // generator is the source of truth; this asserts the artifact still equals it.
     it('docs/openrpc.json is exactly what docs/openrpc.build.js emits', () => {
-        const built = require('../../docs/openrpc.build.js').spec;
+        const built = require('../../../docs/openrpc.build.js').spec;
         assert.ok(Array.isArray(built.methods) && built.methods.length > 0,
             'generator export broken: no methods');
         assert.deepStrictEqual(spec, JSON.parse(JSON.stringify(built)),
@@ -70,7 +70,7 @@ describe('openrpc.json method coverage', () => {
     // is how create_tx came to validate and act on `attachPrevTx` while the published
     // contract never named it: the field was undiscoverable from the spec and every
     // generated client dropped it. Every params.<x> validateAll reads must be declared.
-    const validatorSrc = fs.readFileSync(path.join(__dirname, '../../src/common/validator.js'), 'utf8');
+    const validatorSrc = fs.readFileSync(path.join(__dirname, '../../../src/common/validator.js'), 'utf8');
     // Slice validateAll's body only. `params.pubkey` also appears in an unrelated
     // function earlier in the file, and including it would make this pass for the
     // wrong reason. The digit class is required: p2shHash, p2shHex, compressedPubKey.

@@ -24,14 +24,14 @@ for (const k of _envKeys) {
         process.env[k] = (k === 'NETWORK') ? 'bitcoin-regtest' : (k === 'NODE_PORT') ? '8333' : 'x'
     }
 }
-const { makeRpcBatchGuard } = require('../../src/api')
+const { makeRpcBatchGuard } = require('../../../src/api')
 for (const k of _envKeys) {
     if (_savedEnv[k] === undefined) delete process.env[k]
     else process.env[k] = _savedEnv[k]
 }
-const v = require('../../src/common/validator')
+const v = require('../../../src/common/validator')
 const axios = require('axios')
-const UtxoTracker = require('../../src/build/utxo_tracker')
+const UtxoTracker = require('../../../src/build/utxo_tracker')
 
 describe('encoder stress-sweep unit @regression', function () {
     this.timeout(10000)
