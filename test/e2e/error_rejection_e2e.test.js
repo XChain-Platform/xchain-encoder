@@ -70,7 +70,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.2: RPC fee estimation failure', () => {
     it('propagates RPC error when fee estimation fails', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -110,7 +112,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       assert.ok(result.psbt)
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.3: Legacy UTXO raw tx fetch failure', () => {
     it('propagates error when getTransactionHex fails for legacy UTXO', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -133,7 +137,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.4: UtxoTracker unreachable', () => {
     it('propagates ECONNREFUSED when tracker down and utxos=null', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -154,7 +160,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.5: Invalid network name', () => {
     it('throws TypeError during construction', () => {
       assert.throws(
@@ -165,7 +173,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.6: MULTISIGN without compressedPubKey', () => {
     it('throws when compressedPubKey is null', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -182,7 +192,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.7: Invalid address for P2SH', () => {
     it('throws on invalid base58 address', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -198,7 +210,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.8: No change address with surplus funds', () => {
     it('throws descriptive "burn satoshis" error', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -216,7 +230,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       )
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.9: Empty data string', () => {
     it('handles empty string without crashing', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -239,7 +255,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       }
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.10: Null data parameter', () => {
     it('handles null data gracefully', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -258,7 +276,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       }
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.11: Negative fee value', () => {
     it('does not produce negative-value outputs', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -283,7 +303,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       }
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('E2E-8.12: UTXO value insufficient for fee', () => {
     it('handles gracefully when total UTXO value barely covers fee', async () => {
       const encoder = makeEncoder(NETWORK)
@@ -308,7 +330,9 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       }
     })
   })
+})
 
+describe('E2E-8: Error Handling & Negative Tests', () => {
   describe('Return value shape validation', () => {
     it('returns { psbt: Psbt, encoding: string } with valid enum', async () => {
       const encoder = makeEncoder(NETWORK)
