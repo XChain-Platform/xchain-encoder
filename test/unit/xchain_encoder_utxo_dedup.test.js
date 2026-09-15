@@ -100,7 +100,9 @@ describe('_buildTransaction outpoint dedup / mempool filter', function () {
         await build(encoder, address, utxos, true)
         assert.strictEqual(utxos.length, 3, 'same txid, different vout, is not a duplicate')
     })
+})
 
+describe('_buildTransaction outpoint dedup / mempool filter', function () {
     it('drops every mempool entry when unconfirmed is false', async function () {
         const encoder = makeEncoder(NETWORK)
         const address = getTestAddress(NETWORK)
@@ -125,7 +127,9 @@ describe('_buildTransaction outpoint dedup / mempool filter', function () {
         await build(encoder, address, utxos, true)
         assert.deepStrictEqual(outpoints(utxos), [TXID_A + ':0', TXID_B + ':0'])
     })
+})
 
+describe('_buildTransaction outpoint dedup / mempool filter', function () {
     it('applies the mempool filter BEFORE dedup, so a confirmed twin survives', async function () {
         // The ordering is load-bearing. Dedup-first would let the unconfirmed entry
         // claim the outpoint's slot and then the mempool filter would delete it,
