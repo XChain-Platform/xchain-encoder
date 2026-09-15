@@ -26,11 +26,11 @@ function deobfuscate (data, key) {
   return Buffer.concat([decipher.update(data), decipher.final()])
 }
 
-describe('XChainEncoder.obfuscate()', () => {
-  let encoder
-  // A fake txid (64 hex chars) with all distinct first 32 chars
-  const TXID = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
+let encoder
+// A fake txid (64 hex chars) with all distinct first 32 chars
+const TXID = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
 
+describe('XChainEncoder.obfuscate()', () => {
   beforeEach(() => {
     encoder = makeEncoder()
   })
@@ -60,6 +60,12 @@ describe('XChainEncoder.obfuscate()', () => {
     const result2 = await encoder.obfuscate(data, TXID)
     assert.deepStrictEqual(result1, result2)
   })
+})
+
+describe('XChainEncoder.obfuscate()', () => {
+  beforeEach(() => {
+    encoder = makeEncoder()
+  })
 
   it('different keys produce different output', async () => {
     const data = Buffer.from('key sensitivity test')
@@ -80,6 +86,12 @@ describe('XChainEncoder.obfuscate()', () => {
 
     const actual = await encoder.obfuscate(data, TXID)
     assert.deepStrictEqual(actual, expected)
+  })
+})
+
+describe('XChainEncoder.obfuscate()', () => {
+  beforeEach(() => {
+    encoder = makeEncoder()
   })
 
   it('handles 1-byte data', async () => {
