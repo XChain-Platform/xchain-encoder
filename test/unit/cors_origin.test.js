@@ -89,6 +89,9 @@ describe('CORS_ORIGIN allowlist parsing', function () {
             assert.deepStrictEqual(parseCorsOrigin(`${IOS},,${WEB}`), [IOS, WEB])
         })
     })
+})
+
+describe('CORS_ORIGIN allowlist parsing', function () {
 
     describe('what a caller actually receives', function () {
 
@@ -116,6 +119,12 @@ describe('CORS_ORIGIN allowlist parsing', function () {
             assert.strictEqual(acao[IOS], WEB)
             assert.strictEqual(acao[HOSTILE], WEB)
         })
+    })
+})
+
+describe('CORS_ORIGIN allowlist parsing', function () {
+
+    describe('what a caller actually receives', function () {
 
         // The allowlist form is strictly stronger: an unlisted origin is refused at
         // the SERVER, without a header, rather than relying on the browser.
