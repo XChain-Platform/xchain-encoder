@@ -113,7 +113,9 @@ describe('XChainEncoder soft-dust floor on authored outputs', () => {
       assert.strictEqual(btc.outputFloor, 1000, 'BTC takes the operator floor above 546')
     })
   })
+})
 
+describe('XChainEncoder soft-dust floor on authored outputs', () => {
   describe('P2SH funding legs at the fee rate that stalled testnet', () => {
     it('is a discriminating rate: the per-chunk fee share alone sits under the soft limit', () => {
       // Guards the test itself: at 0.0112 DOGE/kB a chunk-sized reveal input
