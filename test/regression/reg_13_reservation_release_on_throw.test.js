@@ -96,6 +96,10 @@ describe('reservation release on throw @regression', function () {
     assert.strictEqual(ins0Txid(retry), TXID_B,
       'the retry must be able to select the released outpoint')
   })
+})
+
+describe('reservation release on throw @regression', function () {
+  this.timeout(10000)
 
   it('a foreign reservation survives another call throwing', async function () {
     const encoder = twoUtxoEncoder()
@@ -116,6 +120,10 @@ describe('reservation release on throw @regression', function () {
     assert.strictEqual(encoder.outpointReservations.get(TXID_A + ':0'), foreignExpiry,
       'a reservation held by another in-flight call must not be dropped')
   })
+})
+
+describe('reservation release on throw @regression', function () {
+  this.timeout(10000)
 
   it('an outpoint re-reserved by another call after ours lapsed is left alone', async function () {
     // Dust-sized UTXOs, so the build fails on the change math after selection.
@@ -142,6 +150,10 @@ describe('reservation release on throw @regression', function () {
     assert.strictEqual(encoder.outpointReservations.get(TXID_B + ':0'), foreignExpiry,
       'the re-reserved outpoint belongs to the other call now')
   })
+})
+
+describe('reservation release on throw @regression', function () {
+  this.timeout(10000)
 
   it('INSUFFICIENT_FUNDS on an under-funded build also releases its claims', async function () {
     // One dust-sized tracker UTXO: selection takes and reserves it, then the
@@ -158,6 +170,10 @@ describe('reservation release on throw @regression', function () {
     assert.strictEqual(encoder.outpointReservations.size, 0,
       'a failed build must not leave reservations behind')
   })
+})
+
+describe('reservation release on throw @regression', function () {
+  this.timeout(10000)
 
   it('a successful build keeps its reservations for the TTL', async function () {
     const encoder = twoUtxoEncoder()
