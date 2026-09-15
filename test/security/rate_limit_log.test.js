@@ -87,6 +87,12 @@ describe('Security: rate-limit refusal counter/logger', () => {
                 'Encoder rate limit [app-wide]: 1 request refused in the last 60 s (limit 60/60 s); raise ENCODER_RATE_LIMIT_RPM if this is legitimate traffic'
             )
         })
+    })
+})
+
+describe('Security: rate-limit refusal counter/logger', () => {
+
+    describe('limitedHandler', () => {
 
         it('logs nothing more for refusals inside the same window', () => {
             const lines = []
@@ -130,6 +136,9 @@ describe('Security: rate-limit refusal counter/logger', () => {
             assert.strictEqual(lines.length, 2)
         })
     })
+})
+
+describe('Security: rate-limit refusal counter/logger', () => {
 
     describe('wired into a real express-rate-limit instance', () => {
         let server
@@ -172,6 +181,9 @@ describe('Security: rate-limit refusal counter/logger', () => {
             assert.deepStrictEqual(body, MESSAGE)
         })
     })
+})
+
+describe('Security: rate-limit refusal counter/logger', () => {
 
     describe('src/api.js wiring', () => {
         it('routes the limiter through limitedHandler and carries no bare message: option', () => {
