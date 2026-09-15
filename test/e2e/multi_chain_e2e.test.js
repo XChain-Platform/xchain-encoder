@@ -73,7 +73,9 @@ describe('E2E-6: Multi-Chain Validation', () => {
       })
     })
   }
+})
 
+describe('E2E-6: Multi-Chain Validation', () => {
   for (const chain of CHAINS) {
     describe(`${chain.name} P2SH`, () => {
       it('creates P2SH with output value >= chain dust threshold', async () => {
@@ -101,7 +103,9 @@ describe('E2E-6: Multi-Chain Validation', () => {
       })
     })
   }
+})
 
+describe('E2E-6: Multi-Chain Validation', () => {
   describe('E2E-6.7: Bitcoin P2WSH', () => {
     it('creates P2WSH witness output on bitcoin-regtest', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -126,7 +130,9 @@ describe('E2E-6: Multi-Chain Validation', () => {
       assert.ok(p2wshOutput, 'should have P2WSH output')
     })
   })
+})
 
+describe('E2E-6: Multi-Chain Validation', () => {
   describe('E2E-6.8: Bitcoin MULTISIGN (dust=546)', () => {
     it('multisig output at 546 sats', async () => {
       const encoder = makeEncoder('bitcoin-regtest')
@@ -150,7 +156,9 @@ describe('E2E-6: Multi-Chain Validation', () => {
         'Bitcoin multisig output should clear the 546-sat dust floor')
     })
   })
+})
 
+describe('E2E-6: Multi-Chain Validation', () => {
   describe('E2E-6.9: Litecoin MULTISIGN (dust=5460)', () => {
     it('multisig output at 5460 sats', async () => {
       const encoder = makeEncoder('litecoin-regtest')
@@ -168,7 +176,9 @@ describe('E2E-6: Multi-Chain Validation', () => {
       assert.ok(msOutput, 'Litecoin multisig output should be 5460 sats')
     })
   })
+})
 
+describe('E2E-6: Multi-Chain Validation', () => {
   describe('E2E-6.10: All 9 network configs valid', () => {
     const ALL_NETWORKS = [
       'bitcoin-mainnet', 'bitcoin-testnet', 'bitcoin-regtest',
@@ -185,7 +195,9 @@ describe('E2E-6: Multi-Chain Validation', () => {
       })
     }
   })
+})
 
+describe('E2E-6: Multi-Chain Validation', () => {
   describe('Fee floor uses chain-specific dust', () => {
     it('Litecoin fee floor is 5460, not 546', async () => {
       const encoder = makeEncoder('litecoin-regtest')
