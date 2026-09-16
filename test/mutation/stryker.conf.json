@@ -2,9 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
   "mutate": [
     "src/XChainEncoder.js",
-    "src/validator.js",
-    "src/TxSizeEstimator.js",
-    "src/CryptoNetworks.js"
+    "src/common/validator.js",
+    "src/build/tx_size_estimator.js",
+    "src/build/crypto_networks.js"
   ],
   "testRunner": "mocha",
   "mochaOptions": {

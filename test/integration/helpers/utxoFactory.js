@@ -18,7 +18,7 @@
  */
 
 const bitcoin = require('bitcoinjs-lib')
-const CryptoNetworks = require('../../../src/CryptoNetworks')
+const CryptoNetworks = require('../../../src/build/crypto_networks')
 
 // Canonical test pubkey (secp256k1 generator point)
 const PUBKEY_BUF = Buffer.from(
@@ -27,7 +27,7 @@ const PUBKEY_BUF = Buffer.from(
 )
 
 // The producer contract these fixtures model, pinned byte-for-byte by
-// test/conformance/utxoRecordConformance.test.js. Read it rather than
+// test/conformance/utxo_record_conformance.test.js. Read it rather than
 // hand-copying the numbers, so the doubles and the conformance tier cannot
 // describe two different producers (the drift that suite's header names).
 const CONFORMANCE = require('../../fixtures/utxo-record-conformance.json')

@@ -1,0 +1,12 @@
+{
+  "measuredAt": "2026-09-13T21:58:40.000Z",
+  "scripts": {
+    "test:unit": {
+      "command": "npm run test:unit",
+      "wallSeconds": 3.97,
+      "passing": 903,
+      "pending": 3
+    }
+  },
+  "note": "test:unit is this repo's own unit-suite tier; well under the 5-minute drop-out threshold"
+}

@@ -7,7 +7,7 @@
  *
  * Generates docs/openrpc.json (OpenRPC 1.3.2) for the encoder's JSON-RPC API.
  * METHODS below mirrors the jsonRpcController in src/api.js; the unit test
- * test/unit/openrpc-coverage.test.js fails if the two drift apart.
+ * test/unit/api/openrpc_coverage.test.js fails if the two drift apart.
  *
  * Run: node docs/openrpc.build.js
  */
@@ -149,7 +149,7 @@ const spec = {
 
 // Writing is the SCRIPT's job, not the module's, so a test can require this file
 // for the spec it would emit and compare it against the checked-in artifact
-// without rewriting that artifact mid-run (see test/unit/openrpc-coverage.test.js).
+// without rewriting that artifact mid-run (see test/unit/api/openrpc_coverage.test.js).
 if (require.main === module) {
     const out = path.join(__dirname, 'openrpc.json');
     fs.writeFileSync(out, JSON.stringify(spec, null, 2) + '\n');

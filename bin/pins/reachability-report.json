@@ -1,0 +1,404 @@
+{
+  "summary": {
+    "sourceFiles": 29,
+    "runtimeEntryPoints": [
+      "src/api.js",
+      "test/performance/bench.js",
+      "test/performance/soak.js"
+    ],
+    "toolingEntryPoints": 4,
+    "testEntryPoints": 128,
+    "dynamicEdgesDeclared": 2,
+    "reachableFromIndexerRuntime": 25,
+    "notReachableFromIndexerRuntime": 4,
+    "testOnly": 3,
+    "unreferencedAcrossPlatform": 2,
+    "siblingRepos": []
+  },
+  "candidates": [
+    "src/adapters/ChainAdapter.js",
+    "src/adapters/EvmAdapter.js",
+    "src/adapters/evmFinality.js",
+    "src/index.js"
+  ],
+  "files": {
+    "src/BlockchainConnector.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/CryptoNetworks.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/TxSizeEstimator.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/UtxoTracker.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/XChainEncoder.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js",
+        "src/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/adapters/ChainAdapter.js": {
+      "reachableFromIndexerRuntime": false,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/adapters/EvmAdapter.js"
+      ],
+      "testOnly": true,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/adapters/EvmAdapter.js": {
+      "reachableFromIndexerRuntime": false,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [],
+      "testOnly": true,
+      "unreferencedAcrossPlatform": true
+    },
+    "src/adapters/evmFinality.js": {
+      "reachableFromIndexerRuntime": false,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/adapters/EvmAdapter.js"
+      ],
+      "testOnly": true,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/api.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/applyBufferutilsPatch.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/coins/BTC.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/coins/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/coins/DOGE.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/coins/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/coins/LTC.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/coins/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/coins/consensus_pin.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/coins/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/coins/index.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/CryptoNetworks.js",
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/compression.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/concurrencyGate.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/corsOrigin.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/crashHandlers.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/errorSanitize.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js",
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/errors.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/XChainEncoder.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/index.js": {
+      "reachableFromIndexerRuntime": false,
+      "reachableFromTooling": false,
+      "reachableFromTests": false,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": true
+    },
+    "src/maintenanceWindow.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/observability/index.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js",
+        "src/crashHandlers.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/observability/logShipper.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/observability/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/observability/metrics.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/observability/index.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/rateLimitLog.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/singleInstanceGuard.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/api.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    },
+    "src/validator.js": {
+      "reachableFromIndexerRuntime": true,
+      "reachableFromTooling": false,
+      "reachableFromTests": true,
+      "referencedBySiblings": [],
+      "siblingLoadCount": 0,
+      "twinCopies": [],
+      "requiredByInRepo": [
+        "src/TxSizeEstimator.js",
+        "src/XChainEncoder.js",
+        "src/api.js",
+        "src/compression.js"
+      ],
+      "testOnly": false,
+      "unreferencedAcrossPlatform": false
+    }
+  }
+}

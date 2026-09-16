@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
   "mutate": [
-    "src/validator.js"
+    "src/common/validator.js"
   ],
   "testRunner": "mocha",
   "mochaOptions": {
