@@ -93,19 +93,19 @@ run_tier "drift: coin consensus-pin conformance" node -e '
 '
 
 # --- identity pin (this gate only; no ci.yml job runs it) --------------
-# bin/pins/identity.json holds the sha256 of the vendored coin files and the
-# roundtrip conformance fixture. The tool compares only the entries the pin
+# bin/pins/at1-identity.json holds the sha256 of the vendored coin files and
+# every whole-file vendored twin. The tool compares only the entries the pin
 # names, so an emptied pin would read as holding: the tier first refuses a pin
-# with no coin or conformance entries, then fails on any moved or missing file.
+# with no coin or vendored-twin entries, then fails on any moved or missing file.
 identity_pin_check() {
   node -e '
-    const pin = require("./bin/pins/identity.json");
-    for (const group of ["coins", "conformance"]) {
+    const pin = require("./bin/pins/at1-identity.json");
+    for (const group of ["coins", "vendoredTwins"]) {
       if (!Object.keys(pin[group] || {}).length) throw new Error("identity pin names no " + group + " files");
     }
-  ' && node bin/pin-identity.js --compare bin/pins/identity.json
+  ' && node bin/pin-identity.js --compare bin/pins/at1-identity.json
 }
-run_tier "identity pin (vendored coins, conformance fixture)" identity_pin_check
+run_tier "identity pin (vendored coins, vendored twin files)" identity_pin_check
 
 # --- suite-title pin (this gate only; no ci.yml job runs it) -----------
 # Guards that every npm test script still collects the same test titles it
