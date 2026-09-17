@@ -10,5 +10,18 @@
       "test/unit/big_suite/writes.test.js"
     ]
   },
-  "splits": {}
+  "splits": {
+    "test/unit/crash_handlers.test.js": [
+      "test/unit/crash_handlers.test.js",
+      "test/unit/crash_handlers.test/01_signal_registration.test.js",
+      "test/unit/crash_handlers.test/02_exit_paths.test.js"
+    ],
+    "test/unit/observability.test.js": [
+      "test/unit/observability.test.js",
+      "test/unit/observability.test/01_metrics.test.js",
+      "test/unit/observability.test/02_log_shipper.test.js",
+      "test/unit/observability.test/03_routes.test.js",
+      "test/unit/observability.test/04_flush_and_health.test.js"
+    ]
+  }
 }
