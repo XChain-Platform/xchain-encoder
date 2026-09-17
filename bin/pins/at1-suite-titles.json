@@ -707,9 +707,6 @@
       "encoder FILE payload compression (spec Part B) constants conformance the local values are the pinned ones",
       "encoder FILE payload compression (spec Part B) constants conformance they equal the canonical declaration (skips without the docs sibling)"
     ],
-    "52004ee9ee184868": [
-      "api #create_tx should create a simple tx from api"
-    ],
     "52961e7b06b0e39f": [
       "BlockchainConnector constructor builds the correct URL from host and port",
       "BlockchainConnector constructor stores rpcUser and rpcPassword"
@@ -817,9 +814,6 @@
     ],
     "64da3d9aebea4a81": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.1: Single UTXO covers all 1 input, OP_RETURN + change; change = input - fee"
-    ],
-    "64e3f3fd5d6fd7e3": [
-      "XChainEncoder #createTransaction should create a simple OP_RETURN"
     ],
     "65825b2a5099ec3e": [
       "Fuzz: obfuscate() round-trips and preserves length over 2000 random (data, txid) pairs"
@@ -2140,14 +2134,6 @@
       "XChainEncoder.createTransaction() - invalid fee throws RangeError for a NaN fee string",
       "XChainEncoder.createTransaction() - invalid fee throws RangeError for a negative fee"
     ],
-    "fceac8d2d8f0bb07": [
-      "E2E-10: JSON-RPC API Layer E2E-10.1: create_tx with full params returns {psbt: hex, encoding: string}",
-      "E2E-10: JSON-RPC API Layer E2E-10.2: create_tx minimal params applies defaults for missing optional params",
-      "E2E-10: JSON-RPC API Layer E2E-10.3: PSBT hex validity returned hex can be parsed by Psbt.fromHex()",
-      "E2E-10: JSON-RPC API Layer E2E-10.4: Error response format invalid method returns JSON-RPC error",
-      "E2E-10: JSON-RPC API Layer E2E-10.5: CORS headers response includes Access-Control-Allow-Origin",
-      "E2E-10: JSON-RPC API Layer E2E-10.6: Concurrent requests multiple simultaneous requests do not interfere"
-    ],
     "fea0d5dcb2b90bb0": [
       "UtxoTracker.getSyncStatus() propagates transport errors",
       "UtxoTracker.getSyncStatus() returns the result object on success",
@@ -2396,11 +2382,7 @@
       }
     },
     "test:e2e:service": {
-      "fileCount": 1,
-      "titleCount": 6,
-      "files": {
-        "test/e2e-service/api_layer_e2e.test.js": "fceac8d2d8f0bb07"
-      }
+      "skipped": "requires a running encoder API service backed by a bitcoind regtest venue"
     },
     "test:fuzz": {
       "fileCount": 3,
@@ -2472,12 +2454,7 @@
       }
     },
     "test:regtest": {
-      "fileCount": 2,
-      "titleCount": 2,
-      "files": {
-        "test/api.test.js": "52004ee9ee184868",
-        "test/xchain_encoder.test.js": "64e3f3fd5d6fd7e3"
-      }
+      "skipped": "requires a local bitcoind regtest venue and resets its regtest data directory"
     },
     "test:security": {
       "fileCount": 7,

@@ -11,21 +11,13 @@
  *
  **********************************************************************
  *
- * The AT1 identity pin for xchain-encoder: sha256 of every file whose byte
- * identity a later milestone must not move by accident. Two populations:
- *
- *   coins        the five hub-vendored src/coins/ files, refreshed by
- *                sync-coins.sh and never edited here. A rename or a byte
- *                edit both move the hash, so this pin catches either.
- *   conformance  test/fixtures/roundtrip-conformance.json, whose canonical
- *                copy is THIS repo (decoder and sdk copy it outward). It is
- *                pinned here for the same reason: nothing here may move
- *                a byte in it, only its consumers may.
+ * The AT1 identity pin records sha256 for the five vendored coin-registry
+ * files and every whole-file twin carried by this repository.
  *
  * USAGE
- *   node bin/pin-identity.js --out bin/pins/identity.json    write the pin
- *   node bin/pin-identity.js --compare bin/pins/identity.json  re-read and
- *                                                             diff against it
+ *   node bin/pin-identity.js --out bin/pins/at1-identity.json
+ *   node bin/pin-identity.js --compare
+ *   node bin/pin-identity.js --compare <pin>
  *
  ********************************************************************/
 
@@ -36,6 +28,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
+const DEFAULT_PIN = path.join(REPO_ROOT, 'bin', 'pins', 'at1-identity.json');
 
 const COINS_FILES = [
     'src/coins/BTC.js',
@@ -45,29 +38,87 @@ const COINS_FILES = [
     'src/coins/consensus_pin.js',
 ];
 
-const CONFORMANCE_FILES = [
+const VENDORED_TWIN_FILES = [
+    '.github/workflows/verify-tag.yml',
+    'src/observability/README.md',
+    'src/observability/index.js',
+    'src/observability/logShipper.js',
+    'src/observability/metrics.js',
+    'test/fixtures/action-manifest.json',
     'test/fixtures/roundtrip-conformance.json',
+    'test/fixtures/utxo-record-conformance.json',
+    'tools/release/release-signing-fingerprint.txt',
+    'tools/release/release-signing-key.asc',
 ];
 
 function sha256(rel) {
     const abs = path.join(REPO_ROOT, rel);
-    const buf = fs.readFileSync(abs);
-    return crypto.createHash('sha256').update(buf).digest('hex');
+    return crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+}
+
+function hashExisting(files) {
+    const hashes = {};
+    for (const rel of files) {
+        if (!fs.existsSync(path.join(REPO_ROOT, rel))) {
+            throw new Error(`identity file is missing: ${rel}`);
+        }
+        hashes[rel] = sha256(rel);
+    }
+    return hashes;
 }
 
 function buildPin() {
-    const coins = {};
-    for (const rel of COINS_FILES) coins[rel] = sha256(rel);
-    const conformance = {};
-    for (const rel of CONFORMANCE_FILES) conformance[rel] = sha256(rel);
-    return { capturedAt: new Date().toISOString(), coins, conformance };
+    const coinsDirectory = path.join(REPO_ROOT, 'src', 'coins');
+    const coinsPresent = fs.existsSync(coinsDirectory);
+    const coins = coinsPresent ? hashExisting(COINS_FILES) : {};
+    const vendoredTwins = hashExisting(VENDORED_TWIN_FILES);
+    const pin = { capturedAt: new Date().toISOString(), coins, vendoredTwins };
+    if (!coinsPresent) pin.coinsNote = 'repo has no src/coins/ directory';
+    if (!VENDORED_TWIN_FILES.length) pin.vendoredTwinsNote = 'repo carries no vendored twin files';
+    return pin;
+}
+
+function comparable(pin) {
+    return {
+        coins: pin.coins || {},
+        coinsNote: pin.coinsNote || null,
+        vendoredTwins: pin.vendoredTwins || {},
+        vendoredTwinsNote: pin.vendoredTwinsNote || null,
+    };
+}
+
+function differences(prior, fresh) {
+    const diffs = [];
+    for (const group of ['coins', 'vendoredTwins']) {
+        const before = prior[group] || {};
+        const after = fresh[group] || {};
+        const files = new Set([...Object.keys(before), ...Object.keys(after)]);
+        for (const rel of [...files].sort()) {
+            if (!(rel in before)) diffs.push(`${group}:${rel}:added`);
+            else if (!(rel in after)) diffs.push(`${group}:${rel}:removed`);
+            else if (before[rel] !== after[rel]) diffs.push(`${group}:${rel}:hash`);
+        }
+    }
+    for (const field of ['coinsNote', 'vendoredTwinsNote']) {
+        if ((prior[field] || null) !== (fresh[field] || null)) diffs.push(`${field}:changed`);
+    }
+    return diffs;
 }
 
 function parseArgs(argv) {
     const opts = {};
     for (let i = 0; i < argv.length; i += 1) {
-        if (argv[i] === '--out') { opts.out = path.resolve(argv[i + 1]); i += 1; }
-        else if (argv[i] === '--compare') { opts.compare = path.resolve(argv[i + 1]); i += 1; }
+        if (argv[i] === '--out') {
+            if (!argv[i + 1]) throw new Error('--out requires a path');
+            opts.out = path.resolve(argv[i + 1]);
+            i += 1;
+        } else if (argv[i] === '--compare') {
+            const next = argv[i + 1];
+            opts.compare = next && !next.startsWith('--') ? path.resolve(next) : DEFAULT_PIN;
+            if (next && !next.startsWith('--')) i += 1;
+        } else {
+            throw new Error(`unknown argument: ${argv[i]}`);
+        }
     }
     return opts;
 }
@@ -77,19 +128,13 @@ function main() {
     const pin = buildPin();
     if (opts.compare) {
         const prior = JSON.parse(fs.readFileSync(opts.compare, 'utf8'));
-        const diffs = [];
-        for (const rel of Object.keys(prior.coins || {})) {
-            if (pin.coins[rel] !== prior.coins[rel]) diffs.push(`coins:${rel}`);
-        }
-        for (const rel of Object.keys(prior.conformance || {})) {
-            if (pin.conformance[rel] !== prior.conformance[rel]) diffs.push(`conformance:${rel}`);
-        }
+        const diffs = differences(comparable(prior), comparable(pin));
         if (diffs.length) {
             console.log(`${diffs.length} identity difference(s): ${diffs.join(', ')}`);
             process.exitCode = 1;
             return;
         }
-        console.log('identity pin holds: coins and conformance byte-identical');
+        console.log('identity pin holds: coins and vendored twins are byte-identical');
         return;
     }
     if (opts.out) {
@@ -103,4 +148,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { buildPin, COINS_FILES, CONFORMANCE_FILES };
+module.exports = { buildPin, comparable, differences, COINS_FILES, VENDORED_TWIN_FILES };
