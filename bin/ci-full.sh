@@ -112,7 +112,7 @@ run_tier "identity pin (vendored coins, conformance fixture)" identity_pin_check
 # did at the pin, through the declared rename and split maps.
 run_tier "suite-title pin (at1)" node bin/suite-title-map.js \
   --compare bin/pins/at1-suite-titles.json \
-  --rename-map bin/pins/test-rename-map.json \
+  --rename-map bin/pins/suite-title-renames.json \
   --split-map bin/pins/suite-title-splits.json
 
 # --- job: coverage (needs: ci) ------------------------------------------
