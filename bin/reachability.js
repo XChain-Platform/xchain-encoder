@@ -36,7 +36,7 @@
  *             so the two tools can never disagree about what a reference is.
  *
  * A file outside all four is unreferenced across the platform and is the only
- * shape a dead-code sweep deletes outright.
+ * shape a restructure deletes outright.
  *
  * THE SIBLING REACH INCLUDES THE PLATFORM TOOLING, and it has to. The map tool
  * sweeps the `xchain-*` siblings by default and treats the surrounding tree's
@@ -124,41 +124,37 @@ function toolingSweepDirs(siblingsRoot) {
  * Each entry names the site that builds the path and what it resolves to, so a
  * reader can check the claim instead of trusting the table.
  */
-const DYNAMIC_EDGES = [
-    {
-        from: 'src/consensus_rules_digest.js',
-        // loadGateValues requires './<module>.js' for every SHARED_GATES row, so
-        // the gate carriers are held by the digest and not by any literal. The
-        // list is read from the module rather than restated, because a restated
-        // copy is a second registry that drifts.
-        toList: () => {
-            const { SHARED_GATES } = require('../src/consensus_rules_digest.js');
-            return SHARED_GATES.map(([mod]) => `src/${mod}.js`);
-        },
-        why: 'the consensus-rules digest requires every SHARED_GATES module by computed path',
-    },
-    {
-        from: 'src/db/index.js',
-        // The mixin install loop calls require(file) over its MIXIN_FILES rows, so
-        // not one literal in the file names a mixin and all of src/db/ reads
-        // unreachable without this edge. The list is read out of the declaration
-        // rather than restated here, because a restated copy is a second registry
-        // that drifts away from the one the loop actually walks.
-        toList: () => {
-            const declared = fs.readFileSync(path.join(REPO_ROOT, 'src/db/index.js'), 'utf8');
-            const block = /const MIXIN_FILES = \[([\s\S]*?)\];/.exec(declared);
-            if (!block) {
-                throw new Error('src/db/index.js no longer declares MIXIN_FILES: the mixin edge cannot be read');
-            }
-            const rows = Array.from(block[1].matchAll(/(['"])([^'"]+)\1/g))
-                .map((m) => resolveRequire('src/db/index.js', m[2]))
-                .filter(Boolean);
-            if (!rows.length) throw new Error('MIXIN_FILES declares no resolvable mixin: the edge is stale');
-            return rows;
-        },
-        why: 'the Database mixin install loop requires every MIXIN_FILES row by computed path',
-    },
-];
+// Both entries below were copied out of xchain-indexer/bin/reachability.js by the
+// twin-copier and never adapted: this repo has neither src/consensus_rules_digest.js
+// (SHARED_GATES) nor a src/db/index.js that installs mixins from a MIXIN_FILES list
+// (confirmed by grep: no computed `require(...)` of any kind appears under this
+// repo's src/, only literal specifiers). Declaring edges from files this repo does
+// not have made the summary report `declared dynamic edges: 2` while the walk
+// applied them zero times (edgesFrom only fires when the CURRENT file is the
+// declared `from`, so a `from` outside fileSet is never visited), which is
+// confidence the tool had not earned. This repo has no computed require to
+// declare, so the list is empty; assertDynamicEdgesResolve below is what makes a
+// future stale or copy-pasted entry fail loudly instead of repeating this.
+const DYNAMIC_EDGES = [];
+
+/**
+ * A declared dynamic edge whose `from` file is not in this repo's tracked tree
+ * cannot ever fire (edgesFrom below only applies an edge while walking its exact
+ * `from` file), so the walk would silently treat it as zero edges applied while
+ * the summary still counted it as one of N declared. That is exactly how this file
+ * spent an unknown span reporting `declared dynamic edges: 2` for edges resolving
+ * nowhere. Checked eagerly, by name, so a stale or mis-copied declaration fails the
+ * run instead of passing as an unearned confidence figure.
+ */
+function assertDynamicEdgesResolve(fileSet) {
+    for (const edge of DYNAMIC_EDGES) {
+        if (!fileSet.has(edge.from)) {
+            throw new Error(`DYNAMIC_EDGES declares an edge from '${edge.from}', which is not in this `
+                + `repo's tracked tree, so it can never apply and would otherwise pass as one of `
+                + `${DYNAMIC_EDGES.length} declared edges. Fix or remove it in bin/reachability.js (${edge.why}).`);
+        }
+    }
+}
 
 const SOURCE_EXT = ['.js'];
 
@@ -324,6 +320,7 @@ function entriesUnder(prefixes, fileSet) {
 function analyse(opts) {
     const all = trackedFiles();
     const fileSet = new Set(all.filter((f) => f.endsWith('.js')));
+    assertDynamicEdgesResolve(fileSet);
     const sources = Array.from(fileSet).filter((f) => f.startsWith('src/')).sort();
 
     const runtimeEntryList = runtimeEntries(fileSet);
@@ -442,4 +439,6 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { analyse, closure, runtimeEntries, resolveRequire, toolingSweepDirs, DYNAMIC_EDGES };
+module.exports = {
+    analyse, closure, runtimeEntries, resolveRequire, toolingSweepDirs, DYNAMIC_EDGES, assertDynamicEdgesResolve,
+};
