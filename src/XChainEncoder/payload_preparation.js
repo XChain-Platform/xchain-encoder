@@ -96,14 +96,15 @@ module.exports = {
     /**
      * Refuse to build a Taproot envelope that decoders would ignore.
      *
-     * Envelope recognition activates at a per-network height. Below it every decoder
-     * treats the reveal as an ordinary P2TR spend, so the caller would pay a real
-     * miner fee, write a real payload on chain, and own an action that does not
-     * exist. That refusal is silent and correct by design and nothing downstream can
-     * detect the loss, which is exactly why the check has to live here. Fail-closed
-     * on an unknown height too: a node that cannot answer getblockcount leaves us
-     * unable to prove recognition is active, and guessing wrong costs the caller
-     * real money.
+     * Envelope recognition activates at a per-network height. Below it every
+     * decoder treats the reveal as an ordinary P2TR spend, so the caller would pay
+     * a real miner fee, write a real payload on chain, and own an action that does
+     * not exist. Nothing downstream can detect that: the decoder's refusal is
+     * silent and correct by design, which is exactly why the check has to live here.
+     *
+     * Fail closed on an unknown height. A node that cannot answer getblockcount
+     * leaves us unable to prove recognition is active, and the cost of guessing
+     * wrong is the caller's money, so we refuse rather than assume.
      *
      * `null` means the network never recognizes envelopes (DOGE: no segwit). That is
      * already refused by the supportsSegwit gate; this repeats it as a safety net for
