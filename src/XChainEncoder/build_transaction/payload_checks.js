@@ -83,25 +83,31 @@ function checkPayloadInput(build){
 
 function* compressPayload(build){
     let { compress, data, rawData } = build
-    // Transparent FILE payload compression, ON by default. Runs HERE, before
-    // the payload buffers are assembled, so everything downstream prices the
-    // bytes that will actually be written: the per-encoding ceiling check
-    // below, the size estimator, the fee quote and the encoding selection.
+    // Transparent FILE payload compression, ON by default.
     //
-    // `compress` is TRI-STATE: true/false are the caller's explicit choice,
-    // null/undefined take the deployment default. The distinction is not
-    // cosmetic. An EXPLICIT request that cannot be honoured throws, because
-    // the caller asked for something this payload cannot have; the DEFAULT
-    // pass runs over every action, most of which are not compressible FILEs,
-    // so the same conditions are ordinary facts and the payload rides raw
-    // (see compression.js's `explicit` option). Without that split, turning
-    // the default on would break every SEND carrying rawData.
+    // Runs HERE, before the payload buffers are assembled, so everything
+    // downstream sees the bytes that will actually be written: the per-encoding
+    // ceiling check below, the size estimator, the fee quote, and the encoding
+    // selection all price the compressed payload rather than the caller's
+    // original. The estimator must run after compression so quotes reflect real
+    // bytes.
     //
-    // ROLLOUT: compression is consensus-safe but client-coordinated, because
-    // an old reader serves a compressed FILE as deflated garbage. Reader
-    // support must be deployed everywhere BEFORE an encoder carrying this
-    // default, and XCHAIN_COMPRESSION_DEFAULT=0 is the deploy-time lever that
-    // lets the code release and the behaviour change land separately.
+    // The encoder always attempts compression of rawData and emits the compressed
+    // form only when smaller. `compress` is TRI-STATE: true/false are the caller's
+    // explicit choice, while null/undefined take the deployment default.
+    //
+    // The distinction is not cosmetic. An EXPLICIT request that cannot be
+    // honoured throws, because the caller asked for something this payload cannot
+    // have. The DEFAULT pass runs over every action, most of which are not
+    // compressible FILEs, so the same conditions are ordinary facts and the
+    // payload rides raw (see compression.js's `explicit` option). Without that
+    // split, turning the default on would break every SEND carrying rawData.
+    //
+    // ROLLOUT: compression is consensus-safe but client-coordinated. An old reader
+    // serves a compressed FILE as deflated garbage, so reader support must be
+    // deployed everywhere BEFORE an encoder carrying this default.
+    // XCHAIN_COMPRESSION_DEFAULT=0 is the deploy-time lever that lets the code
+    // release and the behaviour change land separately.
     const compressExplicit = (compress === true || compress === false)
     const compressEnabled = compressExplicit ? compress : defaultCompressionEnabled()
     let compressionResult = null
