@@ -3,6 +3,11 @@ version: '3'
 services:
   xchain_encoder:
     build: .
+    # tini as PID 1 so it, not node, reaps zombies left by healthcheck
+    # probes; node itself never reaps orphaned children. Dockerfile's
+    # exec-form node CMD stays PID 1's direct child and still gets SIGTERM
+    # straight from tini's forwarding, so that signal path is unchanged.
+    init: true
     # The image bakes no .env (Dockerfile); the README's .env is handed to the
     # container here instead.
     env_file: .env
