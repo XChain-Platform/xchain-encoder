@@ -298,6 +298,12 @@
     "171d238e570fea73": [
       "Category D: UTXO & Fee Integration D-3: Duplicate UTXO deduplication removes duplicate UTXOs with same txid+vout"
     ],
+    "19bbd52a62e424d4": [
+      "browser bundle entry (src/browser/index.js) attaches the encoder class to window as the very class module",
+      "browser bundle entry (src/browser/index.js) exports the same class it attaches, not a copy or wrapper",
+      "browser bundle entry (src/browser/index.js) is browser-only: requiring it with no window throws ReferenceError",
+      "browser bundle entry (src/browser/index.js) is the file both bundle scripts name as their browserify entry"
+    ],
     "1a362ab39ee459fd": [
       "Category E: Custom Outputs (COINPAY Integration) E-1: Custom outputs added with correct address and value includes both custom outputs in PSBT",
       "Category E: Custom Outputs (COINPAY Integration) E-2: Custom outputs affect change calculation custom output value is deducted from change",
@@ -2188,8 +2194,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 120,
-      "titleCount": 910,
+      "fileCount": 121,
+      "titleCount": 914,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
@@ -2205,6 +2211,7 @@
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
+        "test/unit/browser_entry.test.js": "19bbd52a62e424d4",
         "test/unit/build/apply_bufferutils_patch.test.js": "63c55285b6bac324",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
@@ -2470,8 +2477,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 120,
-      "titleCount": 910,
+      "fileCount": 121,
+      "titleCount": 914,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
@@ -2487,6 +2494,7 @@
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
+        "test/unit/browser_entry.test.js": "19bbd52a62e424d4",
         "test/unit/build/apply_bufferutils_patch.test.js": "63c55285b6bac324",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",

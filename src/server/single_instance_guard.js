@@ -14,19 +14,26 @@
  *
  * XChain Encoder - Single-instance deploy guard
  *
- * Three of the encoder's guards hold their whole state in-process: the UTXO
+ * Six pieces of the encoder's guard state live only in-process: the UTXO
  * outpoint-reservation store (XChainEncoder.js `outpointReservations`), the
  * recent-build duplicate refusal behind it (`recentBuilds`, enforced in
- * `refuseDuplicateBuild`), and the express-rate-limit MemoryStore. Running
- * more than one encoder replica behind one endpoint silently defeats all
- * three: two replicas can each build a PSBT spending the same tracker-fetched
- * UTXO (one tx is rejected at broadcast and the signer's fee work is wasted),
- * each replica keeps its own recent-build map so one byte-identical
- * transaction is built once per replica and journaled as two broadcast
- * successes, and per-IP rate limits multiply by the replica count. Until a
- * shared (e.g. Redis-backed) store exists for all three, single-instance is a
- * HARD deploy constraint; this module makes the constraint fail loudly at boot
- * instead of failing silently at broadcast time.
+ * `refuseDuplicateBuild`), the envelope-cancel owner set
+ * (`envelopeCancelClaims`), the reservation tickets behind `release_inputs`
+ * (`reservationTickets`), the express-rate-limit MemoryStore, and the
+ * concurrency-gate counters behind ENCODER_MAX_CONCURRENT_REQUESTS and
+ * ENCODER_MAX_CONCURRENT_PROBES. Running more than one encoder replica behind
+ * one endpoint silently defeats all six: two replicas can each build a PSBT
+ * spending the same tracker-fetched UTXO (one tx is rejected at broadcast and
+ * the signer's fee work is wasted), each replica keeps its own recent-build
+ * map so one byte-identical transaction is built once per replica and
+ * journaled as two broadcast successes, a cancel build's ownership of its
+ * commit outpoint is visible only to the replica that took it, a
+ * `release_inputs` reaching a replica that did not mint the ticket returns
+ * found:false and leaves the inputs held until the reservation lapses, and
+ * per-IP rate limits and concurrency caps multiply by the replica count.
+ * Until a shared (e.g. Redis-backed) store exists for all six, single-instance
+ * is a HARD deploy constraint; this module makes the constraint fail loudly at
+ * boot instead of failing silently at broadcast time.
  *
  ********************************************************************/
 
@@ -68,8 +75,8 @@ function sleepSync(ms) {
 
 // Refuses boot when the operator declares a horizontally scaled deploy.
 // ENCODER_REPLICAS is a deploy-manifest declaration (set it next to the
-// orchestrator's replica count); any value above 1 is rejected because the
-// reservation, recent-build and rate-limit stores are all still per-process.
+// orchestrator's replica count); any value above 1 is rejected because every
+// store the header lists is still per-process.
 // Unset/empty means the default single-replica deploy and passes.
 function assertSingleInstance(env = config) {
     const raw = env.ENCODER_REPLICAS
@@ -81,8 +88,10 @@ function assertSingleInstance(env = config) {
     if (replicas > 1) {
         throw new Error(
             'ENCODER_REPLICAS=' + replicas + ' is unsupported: the UTXO outpoint-reservation ' +
-            'double-spend guard, the recent-build duplicate refusal and the rate limiter are ' +
-            'all in-process (single-instance only). Horizontally scaling the encoder lets two ' +
+            'double-spend guard, the recent-build duplicate refusal, the envelope-cancel owner ' +
+            'set, the reservation tickets behind release_inputs, the rate limiter and the ' +
+            'concurrency-gate counters are all in-process (single-instance only). ' +
+            'Horizontally scaling the encoder lets two ' +
             'replicas build PSBTs spending the same UTXO, and lets one byte-identical ' +
             'transaction be built once per replica and journaled as two successes. Run exactly ' +
             'one replica per endpoint until a shared store (e.g. Redis-backed) is implemented.'
@@ -221,7 +230,8 @@ function refuseLiveEncoder(holder, file, describe) {
     if (!reused) {
         throw new Error(
             'Another xchain-encoder instance (pid ' + holderPid + ') holds the instance lock ' +
-            file + '. The outpoint-reservation and recent-build stores are in-process; ' +
+            file + '. The outpoint-reservation, recent-build, envelope-cancel owner and ' +
+            'reservation-ticket stores are in-process; ' +
             'running two encoder instances against one UTXO set risks conflicting ' +
             'double-spend PSBTs, and lets one transaction be built twice and journaled ' +
             'as two successes. Stop the other instance, or set ENCODER_INSTANCE_LOCK_FILE ' +
@@ -247,8 +257,9 @@ function breakStaleLock(file, pass) {
     if (pass >= BREAK_PASSES) {
         throw new Error(
             'Another xchain-encoder instance keeps re-taking the instance lock ' + file +
-            ' faster than this one can. The outpoint-reservation and recent-build stores ' +
-            'are in-process; running two encoder instances against one UTXO set risks ' +
+            ' faster than this one can. The outpoint-reservation, recent-build, ' +
+            'envelope-cancel owner and reservation-ticket stores are in-process; ' +
+            'running two encoder instances against one UTXO set risks ' +
             'conflicting double-spend PSBTs. Stop the other instance, or set ' +
             'ENCODER_INSTANCE_LOCK_FILE to isolate intentionally separate deployments.'
         )
@@ -273,8 +284,8 @@ function lockReleaser(file, token) {
 
 // Same-host duplicate-process guard: takes an exclusive PID lockfile so two
 // encoder processes accidentally started on one host (each with its own
-// reservation and recent-build Maps) fail fast instead of racing UTXO
-// selections and rebuilding one transaction twice. Stale locks
+// reservation, recent-build, cancel-owner and ticket Maps) fail fast instead
+// of racing UTXO selections and rebuilding one transaction twice. Stale locks
 // (dead PID, unreadable contents, or a REUSED pid, see below) are broken and
 // re-taken. This cannot see replicas on OTHER hosts or in sibling containers;
 // ENCODER_REPLICAS above is the cross-host declaration. Returns a release
