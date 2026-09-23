@@ -89,4 +89,4 @@ function jsonSafeSat(v) {
     return v <= MAX_SAFE_SATOSHI_BIG ? Number(v) : v.toString()
 }
 
-module.exports = { softDustFloorFor, compactSizeLen, compactSizeBuffer, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSafeSat }
+module.exports = { softDustFloorFor, compactSizeLen, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSafeSat }
