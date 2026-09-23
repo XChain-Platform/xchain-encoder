@@ -1,4 +1,4 @@
-// Unit coverage for src/applyBufferutilsPatch.js. The encoder patches
+// Unit coverage for src/build/apply_bufferutils_patch.js. The encoder patches
 // bitcoinjs bufferutils so 64-bit amount fields round-trip through a
 // BigInt-safe path (values above 2^53 would otherwise silently corrupt).
 // This exercises the patched read/write and varint helpers the PSBT builder

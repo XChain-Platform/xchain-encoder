@@ -141,7 +141,7 @@ app.use(helmet());
 // CORS configuration (default: disabled; `*` allows all; a comma-separated list
 // is an ALLOWLIST matched per-origin). parseCorsOrigin is what makes the list
 // case work: handing `cors` the raw string would echo it verbatim to everyone
-// and be accepted by no browser. See src/corsOrigin.js.
+// and be accepted by no browser. See src/server/cors_origin.js.
 //
 // Mounted above the API-key gate and the shedding layers, and the position is
 // load-bearing: a preflight is an OPTIONS carrying no x-api-key (that header is
@@ -186,7 +186,7 @@ const limiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     // Counts refusals instead of logging one line per request; see
-    // src/rateLimitLog.js.
+    // src/server/rate_limit_log.js.
     handler: limitedHandler({
         service: 'Encoder',
         name: 'app-wide',
@@ -327,10 +327,12 @@ app.use(requestGate.hold(jsonRouter({methods: jsonRpcController})))
 // test the controller and app are exported without binding a port.
 if (require.main === module) {
   // HARD deploy constraint: the outpoint-reservation double-spend guard, the
-  // recent-build duplicate refusal and the rate limiter are in-process, so
-  // exactly ONE encoder instance may serve an endpoint. Fail at boot if the
-  // deploy declares replicas > 1 (ENCODER_REPLICAS) or another encoder process
-  // on this host already holds the instance lock. See src/singleInstanceGuard.js.
+  // recent-build duplicate refusal, the envelope-cancel owner set, the
+  // reservation tickets, the rate limiter and the concurrency-gate counters are
+  // in-process, so exactly ONE encoder instance may serve an endpoint. Fail at
+  // boot if the deploy declares replicas > 1 (ENCODER_REPLICAS) or another
+  // encoder process on this host already holds the instance lock. See
+  // src/server/single_instance_guard.js.
   // Before the instance guard, so a throw inside it is still a CRASH record
   // rather than node's bare stderr dump.
   installCrashHandlers()

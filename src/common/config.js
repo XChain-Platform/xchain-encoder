@@ -41,9 +41,9 @@ const config = {
     get NODE_RPC_TIMEOUT() { return process.env.NODE_RPC_TIMEOUT; },
     get FEE_NO_ESTIMATE_RELAY_MULTIPLIER() { return process.env.FEE_NO_ESTIMATE_RELAY_MULTIPLIER; },
     get FEE_ESTIMATE_SANITY_CEILING() { return process.env.FEE_ESTIMATE_SANITY_CEILING; },
-    // Deploy-manifest replica declaration; see src/single_instance_guard.js.
+    // Deploy-manifest replica declaration; see src/server/single_instance_guard.js.
     get ENCODER_REPLICAS() { return process.env.ENCODER_REPLICAS; },
-    // single_instance_guard.js's real-environment defaults (its `env`
+    // src/server/single_instance_guard.js's real-environment defaults (its `env`
     // parameter defaults to this object; tests still inject their own).
     get ENCODER_INSTANCE_LOCK_FILE() { return process.env.ENCODER_INSTANCE_LOCK_FILE; },
     get ENCODER_API_PORT() { return process.env.ENCODER_API_PORT; },
