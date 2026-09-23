@@ -40,4 +40,16 @@ describe('coverage ratchet floors', () => {
   it('fails the job on a shortfall rather than only reporting it', () => {
     assert.match(pkg.scripts['coverage:check'], /--check-coverage/);
   });
+
+  it('measures files that the unit suite does not load', () => {
+    for (const name of ['coverage', 'coverage:check']) {
+      assert.match(pkg.scripts[name], /(?:^|\s)--all(?:\s|$)/, `${name} must run c8 with --all`);
+    }
+  });
+
+  it('carries no undocumented source exclusions', () => {
+    for (const name of ['coverage', 'coverage:check']) {
+      assert.doesNotMatch(pkg.scripts[name], /(?:^|\s)--exclude(?:=|\s)/);
+    }
+  });
 });
