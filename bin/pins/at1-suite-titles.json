@@ -415,6 +415,11 @@
       "XChainEncoder TAPROOT envelope createTransaction pair construction (\u00a73.5/\u00a76) refuses the p2shHash reveal flow for TAPROOT",
       "XChainEncoder TAPROOT envelope createTransaction pair construction (\u00a73.5/\u00a76) returns {commit psbt, revealPsbt, envelope} with the commit output at vout 0"
     ],
+    "2842761e884c6f3b": [
+      "BlockchainConnector.getFeePerKilobyte() node RPC error detail carries the error body of an HTTP 200 answer into the thrown message",
+      "BlockchainConnector.getFeePerKilobyte() node RPC error detail carries the error body of an HTTP 500 answer into the thrown message",
+      "BlockchainConnector.getFeePerKilobyte() node RPC error detail rethrows a bodiless transport failure as the original error object"
+    ],
     "2a1c91a7aceda8eb": [
       "_buildTransaction outpoint dedup / mempool filter applies the mempool filter BEFORE dedup, so a confirmed twin survives",
       "_buildTransaction outpoint dedup / mempool filter collapses a set that is nothing but copies of one outpoint",
@@ -623,6 +628,31 @@
       "Custom Output Boundaries non-integer custom output values are rejected \"1.5\" value is rejected, not truncated to 1",
       "Custom Output Boundaries non-integer custom output values are rejected \"999999.9\" is rejected, not truncated to 999999",
       "Custom Output Boundaries non-integer custom output values are rejected a clean integer custom output value still builds correctly"
+    ],
+    "46251d813cd6068d": [
+      "classifyTrackerFreshness(): the halt reason is tracker-authored bounds a long halt reason and keeps an absent one null",
+      "classifyTrackerFreshness(): the halt reason is tracker-authored collapses a halt reason carrying an endpoint in both the message and the details",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict does not mutate the sync object it is handed",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict fails open on every field it is not explicitly told is bad",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict names the halt, not the staleness, when a halted tracker is ALSO stale",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a halted tracker even at lag 0, and carries the halt reason",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a lag above the supplied ceiling and names the ceiling it used",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker that de-asserts synced, whatever the lag",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker whose mempool has not reconverged",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses an orphaned view (tracker committed above the node) and says so",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict reports no refusal, and present:false, for a tracker with no freshness surface",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict separates the tracker's positive synced claim from the refusal verdict",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict serves at exactly the ceiling (lag == max is not \"above\")",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict takes the ceiling from its argument, not from a baked-in constant",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict treats a non-numeric lag as unknown rather than comparing it",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: halted",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: healthy",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag at the ceiling",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag one over the ceiling",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: mempool not reconverged",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: orphaned view",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: tracker de-asserts synced",
+      "create_tx and health() reach the same verdict on the same tracker @regression reports the halt and the mempool state alongside the verdict"
     ],
     "471e523a3c7464b3": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.11: SegWit UTXO handling P2WPKH UTXO uses witnessUtxo, no raw tx fetch"
@@ -989,13 +1019,13 @@
       "Encoding Chunk Boundaries: Full Pipeline singleOpReturnPolicy enforcement (always fail-closed) throws RangeError for an oversized OP_RETURN even when singleOpReturnPolicy is explicitly false",
       "Encoding Chunk Boundaries: Full Pipeline singleOpReturnPolicy enforcement (always fail-closed) throws RangeError for an oversized OP_RETURN when the flag is absent"
     ],
-    "7fabeeeb5816e16e": [
+    "7a532b0a3c0c3c0a": [
       "BlockchainConnector.getTransactionHex() includes the txid in the \"not found\" error message",
-      "BlockchainConnector.getTransactionHex() passes hexFormat=false when requested",
+      "BlockchainConnector.getTransactionHex() requests the verbose form even when a caller passes a second argument",
       "BlockchainConnector.getTransactionHex() rethrows transport errors directly",
       "BlockchainConnector.getTransactionHex() returns the hex string on success",
       "BlockchainConnector.getTransactionHex() sends auth credentials",
-      "BlockchainConnector.getTransactionHex() sends getrawtransaction with correct txid and hexFormat=true",
+      "BlockchainConnector.getTransactionHex() sends getrawtransaction with correct txid and verbose=true",
       "BlockchainConnector.getTransactionHex() throws \"not found\" message when error.code is -5",
       "BlockchainConnector.getTransactionHex() throws generic error when result is missing and error is not -5"
     ],
@@ -1091,17 +1121,6 @@
       "XChainEncoder package-aware fee sizing @regression @tier1 lifts the fee so a cheap ancestor package clears the target rate",
       "XChainEncoder package-aware fee sizing @regression @tier1 never spends more than the inputs hold",
       "XChainEncoder package-aware fee sizing @regression @tier1 never throws when the ancestor lookup itself throws"
-    ],
-    "8c8c02bad5e89e5b": [
-      "errorSanitize.upstreamErrorMessage collapses a credentialed RPC URL that arrives with no transport code",
-      "errorSanitize.upstreamErrorMessage collapses bare topology: a dotted quad, a host:port, and a scheme",
-      "errorSanitize.upstreamErrorMessage falls back when the error has no message",
-      "errorSanitize.upstreamErrorMessage forwards a bad-txns rejection reason",
-      "errorSanitize.upstreamErrorMessage forwards a genuine coin-node rejection reason (safe + useful)",
-      "errorSanitize.upstreamErrorMessage genericizes an ECONNREFUSED transport error that leaks host:port",
-      "errorSanitize.upstreamErrorMessage genericizes an axios transport failure with no response",
-      "errorSanitize.upstreamErrorMessage isTransportError matches network errnos but not application errors",
-      "errorSanitize.upstreamErrorMessage still forwards node reasons the wallet classifies on"
     ],
     "8f0e3d8435a01701": [
       "Category D: UTXO & Fee Integration D-7: Fee capped by maxFeePerBytes limits fee when maxFeeRateKb is set"
@@ -1228,6 +1247,11 @@
       "health(): tracker_synced is serve-readiness (create_tx parity) @regression null/absent lag fails open, matching create_tx overLag gate",
       "health(): tracker_synced is serve-readiness (create_tx parity) @regression reports tracker_halted false for a running tracker",
       "health(): tracker_synced is serve-readiness (create_tx parity) @regression tracker verdict synced:false stays not synced regardless of lag"
+    ],
+    "9a05dc7d05139e84": [
+      "Security: probe variants Express routes to the probe handlers answers every variant from the probe reserve while the main gate sheds",
+      "Security: probe variants Express routes to the probe handlers classifies HEAD, trailing-slash and any-case probes, and nothing else",
+      "Security: probe variants Express routes to the probe handlers holds the probe-reserve slot of an aborted HEAD /status until its handler settles"
     ],
     "9ad3745dcc03e270": [
       "singleInstanceGuard isPidAlive reports our own pid alive"
@@ -1381,6 +1405,22 @@
       "encoder crash handlers an uncaught exception emits one CRASH record and exits non-zero",
       "encoder crash handlers an unhandled rejection emits CRASH and lets the process continue",
       "encoder crash handlers api.js installs them from the entry-point guard, not at module scope"
+    ],
+    "aec434dabffb9884": [
+      "errorSanitize.safeUpstreamReason caps length and strips control characters",
+      "errorSanitize.safeUpstreamReason collapses a reason carrying an endpoint, address or URL to null",
+      "errorSanitize.safeUpstreamReason leak-checks the whole string before capping, so a cut cannot hide an endpoint",
+      "errorSanitize.safeUpstreamReason passes a plain reason through verbatim",
+      "errorSanitize.safeUpstreamReason returns null for an oversized, empty, blank or non-string reason",
+      "errorSanitize.upstreamErrorMessage collapses a credentialed RPC URL that arrives with no transport code",
+      "errorSanitize.upstreamErrorMessage collapses bare topology: a dotted quad, a host:port, and a scheme",
+      "errorSanitize.upstreamErrorMessage falls back when the error has no message",
+      "errorSanitize.upstreamErrorMessage forwards a bad-txns rejection reason",
+      "errorSanitize.upstreamErrorMessage forwards a genuine coin-node rejection reason (safe + useful)",
+      "errorSanitize.upstreamErrorMessage genericizes an ECONNREFUSED transport error that leaks host:port",
+      "errorSanitize.upstreamErrorMessage genericizes an axios transport failure with no response",
+      "errorSanitize.upstreamErrorMessage isTransportError matches network errnos but not application errors",
+      "errorSanitize.upstreamErrorMessage still forwards node reasons the wallet classifies on"
     ],
     "b08835d106268b2a": [
       "UTXO Value Boundaries UTXO sorting with mixed values largest UTXO is always used as first input (txidFirstInput)",
@@ -1735,6 +1775,13 @@
       "E2E-1: Full ACTION-to-PSBT Pipeline Structural invariants across all ACTION types SWEEP: produces valid Psbt with >= 1 input and >= 2 outputs",
       "E2E-1: Full ACTION-to-PSBT Pipeline Structural invariants across all ACTION types TICK by ID: produces valid Psbt with >= 1 input and >= 2 outputs"
     ],
+    "cc7754caab01c0b9": [
+      "JSON body parser sits above the concurrency gates @regression holds no gate slot while a request body is still uploading",
+      "JSON body parser sits below the key gate and the limiter @regression answers a wrong key 401 before parsing an unparseable body",
+      "JSON body parser sits below the key gate and the limiter @regression answers a wrong key 401 on an over-limit body, readable and with CORS headers",
+      "JSON body parser sits below the key gate and the limiter @regression refuses a rate-limited request 429 before parsing its body",
+      "JSON body parser sits below the key gate and the limiter @regression still parses a correctly keyed body and hands it to the JSON-RPC router"
+    ],
     "ccc87ed9c55081d5": [
       "XChainEncoder.dataToPubkey() always returns exactly 33 bytes",
       "XChainEncoder.dataToPubkey() data bytes are preserved starting at offset 1",
@@ -1961,29 +2008,6 @@
       "Data/Payload Boundaries rawData parameter interactions small data + small rawData stays within OP_RETURN",
       "Data/Payload Boundaries very large payload 1000-byte data forced to OP_RETURN is rejected (exceeds single output)"
     ],
-    "e9e98dbc28c54a4f": [
-      "classifyTrackerFreshness(): the single tracker-freshness verdict does not mutate the sync object it is handed",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict fails open on every field it is not explicitly told is bad",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict names the halt, not the staleness, when a halted tracker is ALSO stale",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a halted tracker even at lag 0, and carries the halt reason",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a lag above the supplied ceiling and names the ceiling it used",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker that de-asserts synced, whatever the lag",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker whose mempool has not reconverged",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses an orphaned view (tracker committed above the node) and says so",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict reports no refusal, and present:false, for a tracker with no freshness surface",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict separates the tracker's positive synced claim from the refusal verdict",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict serves at exactly the ceiling (lag == max is not \"above\")",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict takes the ceiling from its argument, not from a baked-in constant",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict treats a non-numeric lag as unknown rather than comparing it",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: halted",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: healthy",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag at the ceiling",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag one over the ceiling",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: mempool not reconverged",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: orphaned view",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: tracker de-asserts synced",
-      "create_tx and health() reach the same verdict on the same tracker @regression reports the halt and the mempool state alongside the verdict"
-    ],
     "ea49e69971727d3a": [
       "Encoder input validator validateP2shParams both-omitted yields nulls; mismatch throws",
       "Encoder input validator validateP2shParams enforces hex shape and the raw-tx length cap on p2shHex",
@@ -2194,23 +2218,25 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 121,
-      "titleCount": 914,
+      "fileCount": 123,
+      "titleCount": 929,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
+        "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/blockchain_connector.test.js": "52961e7b06b0e39f",
         "test/unit/blockchain_connector.test/01_get_network_info.test.js": "e1423a6af229c1b4",
         "test/unit/blockchain_connector.test/02_is_regtest.test.js": "995c5c346314f418",
-        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "7fabeeeb5816e16e",
+        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "7a532b0a3c0c3c0a",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
+        "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
         "test/unit/browser_entry.test.js": "19bbd52a62e424d4",
         "test/unit/build/apply_bufferutils_patch.test.js": "63c55285b6bac324",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
@@ -2232,7 +2258,7 @@
         "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "27d7bba206f363af",
         "test/unit/coins/coins_conformance.test.js": "2442df610ebb6911",
         "test/unit/coins/xchain_encoder_consensus_pin_boot.test.js": "6a874601dbd714de",
-        "test/unit/common/error_sanitize.test.js": "8c8c02bad5e89e5b",
+        "test/unit/common/error_sanitize.test.js": "aec434dabffb9884",
         "test/unit/common/validator/action_manifest_conformance.test.js": "babd2db450e2e6a1",
         "test/unit/common/validator/large_satoshi_amounts.test.js": "c512e0cbe2bc163a",
         "test/unit/common/validator/validator.test.js": "bae2f2e4bfcbbd48",
@@ -2316,7 +2342,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "e1c1badc45b5ec79",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "44230034b18955bb",
-        "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "e9e98dbc28c54a4f",
+        "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }
     },
@@ -2464,12 +2490,13 @@
       "skipped": "requires a local bitcoind regtest venue and resets its regtest data directory"
     },
     "test:security": {
-      "fileCount": 7,
-      "titleCount": 67,
+      "fileCount": 8,
+      "titleCount": 70,
       "files": {
         "test/security/concurrency_gate.test.js": "5c149d2d20812d9a",
         "test/security/concurrency_gate.test/01_resolve_limit.test.js": "5140a8874ea32fb0",
         "test/security/concurrency_gate.test/02_api_js_wiring.test.js": "9856f6ee77509f9c",
+        "test/security/concurrency_gate.test/03_probe_variants.test.js": "9a05dc7d05139e84",
         "test/security/input_validation.test.js": "ff07b944e5210e36",
         "test/security/obfuscation_key.test.js": "7fbd6025650718a6",
         "test/security/payload_size.test.js": "f1872a85a8671d97",
@@ -2477,23 +2504,25 @@
       }
     },
     "test:unit": {
-      "fileCount": 121,
-      "titleCount": 914,
+      "fileCount": 123,
+      "titleCount": 929,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
+        "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/blockchain_connector.test.js": "52961e7b06b0e39f",
         "test/unit/blockchain_connector.test/01_get_network_info.test.js": "e1423a6af229c1b4",
         "test/unit/blockchain_connector.test/02_is_regtest.test.js": "995c5c346314f418",
-        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "7fabeeeb5816e16e",
+        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "7a532b0a3c0c3c0a",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
+        "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
         "test/unit/browser_entry.test.js": "19bbd52a62e424d4",
         "test/unit/build/apply_bufferutils_patch.test.js": "63c55285b6bac324",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
@@ -2515,7 +2544,7 @@
         "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "27d7bba206f363af",
         "test/unit/coins/coins_conformance.test.js": "2442df610ebb6911",
         "test/unit/coins/xchain_encoder_consensus_pin_boot.test.js": "6a874601dbd714de",
-        "test/unit/common/error_sanitize.test.js": "8c8c02bad5e89e5b",
+        "test/unit/common/error_sanitize.test.js": "aec434dabffb9884",
         "test/unit/common/validator/action_manifest_conformance.test.js": "babd2db450e2e6a1",
         "test/unit/common/validator/large_satoshi_amounts.test.js": "c512e0cbe2bc163a",
         "test/unit/common/validator/validator.test.js": "bae2f2e4bfcbbd48",
@@ -2599,7 +2628,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "e1c1badc45b5ec79",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "44230034b18955bb",
-        "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "e9e98dbc28c54a4f",
+        "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }
     }

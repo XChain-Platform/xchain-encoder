@@ -20,6 +20,7 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const config = require('../common/config');
+const { safeUpstreamReason } = require('../common/error_sanitize');
 
 // THE tracker-freshness classifier. Pure: it reads a `sync` object and a lag
 // ceiling and returns a verdict; it never throws, logs, or touches a connector.
@@ -86,10 +87,13 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
         code: null, message: null, details: null
     }
     if (halted){
+        // The reason is tracker-authored, so it is gated before it reaches the
+        // forwarded message (src/build/errors.js forwards encoder-authored text only).
+        const haltReason = safeUpstreamReason(sync.halt_reason)
         verdict.code = 'UTXO_TRACKER_HALTED'
-        verdict.message = `utxo-tracker is halted (${sync.halt_reason || 'unrecoverable reorg'}); ` +
+        verdict.message = `utxo-tracker is halted (${haltReason || 'unrecoverable reorg'}); ` +
             'refusing to select utxos from it'
-        verdict.details = Object.assign({}, heights, { halt_reason: sync.halt_reason || null })
+        verdict.details = Object.assign({}, heights, { halt_reason: haltReason })
         return verdict
     }
     if (sync.synced === false || overLag || behindNode){

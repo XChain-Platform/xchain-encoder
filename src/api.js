@@ -43,6 +43,7 @@ const { limitedHandler } = require('./server/rate_limit_log.js')
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 const concurrencyGate = require('./server/concurrency_gate.js')
+const { isProbe } = require('./server/probe_request.js')
 
 // Express middleware that rejects an over-cap JSON-RPC batch array before dispatch, so one
 // HTTP request cannot amplify into thousands of backend RPCs (the rate limiter counts a batch
@@ -153,15 +154,6 @@ app.use(helmet());
 // Ordering pinned by test/unit/api/cors_preflight.test.js.
 app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
 
-// 3mb (was 1mb): the TAPROOT envelope raises the largest legitimate request
-// well past 1mb. A create_tx may carry ~400 KB of rawData
-// that arrives base64/hex-encoded (~0.5-0.8 MB) or, worst case, as
-// JSON-escaped Latin-1 (up to 6 bytes per payload byte); a broadcast_tx of a
-// signed reveal is ~810,000 hex chars on its own. The per-method validators
-// (ENVELOPE_MAX_PAYLOAD, MAX_BROADCAST_TX_HEX_LENGTH) remain the precise
-// gates; this outer bound just has to stop shedding legal requests.
-app.use(bodyParser.json({ limit: '3mb' }));
-
 // API key authentication (only enforced when API_KEY is configured).
 if (API_KEY) {
     app.use((req, res, next) => {
@@ -198,6 +190,21 @@ const limiter = rateLimit({
 })
 app.use(limiter)
 
+// The 3mb bound fits the TAPROOT envelope: a create_tx may carry ~400 KB of
+// rawData that arrives base64/hex-encoded (~0.5-0.8 MB) or, worst case, as
+// JSON-escaped Latin-1 (up to 6 bytes per payload byte); a broadcast_tx of a
+// signed reveal is ~810,000 hex chars on its own. The per-method validators
+// (ENVELOPE_MAX_PAYLOAD, MAX_BROADCAST_TX_HEX_LENGTH) remain the precise
+// gates; this outer bound just has to stop shedding legal requests.
+//
+// Mounted below the API-key gate and the limiter so a request they refuse never
+// pays a synchronous multi-megabyte parse, and above the concurrency gates so a
+// slow upload cannot sit on a gate slot while its body trickles in (a few dozen
+// trickling uploads would otherwise 429 every real caller). The batch guard
+// below reads the parsed body. Ordering pinned by
+// test/unit/api/middleware_order.test.js.
+app.use(bodyParser.json({ limit: '3mb' }));
+
 // Global in-flight concurrency cap. The limiter above keys on the
 // client IP, so a stampede spread across thousands of distinct IPs never trips
 // it while every create_tx still fans out into coin-node and utxo-tracker RPCs
@@ -208,7 +215,8 @@ app.use(limiter)
 // many requests fan out at once. Override with ENCODER_MAX_CONCURRENT_REQUESTS;
 // 0 disables the cap.
 //
-// GET /status and GET /openrpc.json stay answerable while the main gate sheds:
+// /status and /openrpc.json (GET or HEAD, any case, trailing slash allowed; see
+// src/server/probe_request.js) stay answerable while the main gate sheds:
 // the first is the readiness probe the status board and monitors poll (an
 // encoder that 429s its own healthcheck gets restarted instead of being allowed
 // to shed), the second is a cached file read. They get a small private reserve
@@ -216,7 +224,6 @@ app.use(limiter)
 // the utxo-tracker on every call and an uncapped exempt route is just where the
 // stampede would move next.
 const BUSY_BODY = { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Server busy, retry shortly' } }
-const isProbe = (req) => req.method === 'GET' && (req.path === '/status' || req.path === '/openrpc.json')
 
 const probeGate = concurrencyGate.createConcurrencyGate({
     limit:      concurrencyGate.resolveLimit(process.env.ENCODER_MAX_CONCURRENT_PROBES, 16),

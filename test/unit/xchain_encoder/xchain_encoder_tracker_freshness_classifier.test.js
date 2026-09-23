@@ -96,6 +96,25 @@ describe('classifyTrackerFreshness(): the single tracker-freshness verdict', fun
     })
 })
 
+describe('classifyTrackerFreshness(): the halt reason is tracker-authored', function () {
+    const halted = (reason) => classify({ lag: 0, synced: true, halted: true, halt_reason: reason }, 2)
+
+    it('collapses a halt reason carrying an endpoint in both the message and the details', function () {
+        const v = halted('reorg read failed: connect ECONNREFUSED 10.0.0.5:8332')
+        assert.strictEqual(v.code, 'UTXO_TRACKER_HALTED')
+        assert.ok(v.message.includes('(unrecoverable reorg)'), v.message)
+        assert.ok(!/10\.0\.0\.5|8332/.test(v.message), v.message)
+        assert.strictEqual(v.details.halt_reason, null)
+    })
+
+    it('bounds a long halt reason and keeps an absent one null', function () {
+        const v = halted('r'.repeat(1000))
+        assert.ok(v.details.halt_reason.length <= 120)
+        assert.ok(v.message.length < 200, v.message)
+        assert.strictEqual(halted(undefined).details.halt_reason, null)
+    })
+})
+
 describe('classifyTrackerFreshness(): the single tracker-freshness verdict', function () {
     it('serves at exactly the ceiling (lag == max is not "above")', function () {
         const v = classify({ lag: 2, synced: true }, 2)

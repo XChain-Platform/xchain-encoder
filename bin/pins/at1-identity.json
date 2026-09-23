@@ -13,7 +13,7 @@
     "src/observability/index.js": "6d29637dc3a815d896076642823393866e4f74a68b59dc363ff1cd828aff422a",
     "src/observability/logShipper.js": "7ee07789936ff2d769fe417b265007e4c2ea9a5d16b89a5d393cca2767298dd7",
     "src/observability/metrics.js": "b29a0f2855e0dc4d8d97dde22c36daa6ab0408391945eda1b47b47398c0cd261",
-    "test/fixtures/action-manifest.json": "93ac85b4d76f078951a2e95eb3ca303f39fb9f18d0fb91b1ae16693716bef72f",
+    "test/fixtures/action-manifest.json": "05813d667976ec49bdeb001fc7f5aea41fce4f343a37576a2716d176b334a823",
     "test/fixtures/roundtrip-conformance.json": "d9963ac7c35bdcfab99595fec040d7791d73119cb62fef20db136f8ea56236ed",
     "test/fixtures/utxo-record-conformance.json": "ca9051b2dcacbcdded68d53089eea4b6a2ba0d498d1ee14eb95342ab0f7da5ff",
     "tools/release/release-signing-fingerprint.txt": "a216bc460bc978da7011d8ed0a0e203d87f97d3bd14ef6c79283a05bb263d1db",

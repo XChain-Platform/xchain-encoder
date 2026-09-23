@@ -21,6 +21,7 @@ const {
     noEstimateRelayMultiplier,
     feeEstimateSanityCeiling,
     sanitizeRpcError,
+    rpcErrorDetail,
 } = require('./rpc_helpers');
 
 function uniqueTxids(txids) {
@@ -152,16 +153,20 @@ function usableSmartFee(responseData) {
 // fallback is a multiple of the node's min-relay floor, not the bare floor,
 // because older nodes can classify a floor-rate transaction as free. Mainnet
 // keeps throwing because a missing estimate there indicates an unhealthy node.
-async function requireNoEstimateFallback(connector) {
+async function requireNoEstimateFallback(connector, responseData) {
     const fallback = await connector.noEstimateRelayFallback();
     if (fallback !== null) return fallback;
-    throw new Error('Error getting smart fee from node');
+    // Keep the node's reason from an HTTP 200 error body (BTC v28's shape).
+    throw new Error('Error getting smart fee from node' + rpcErrorDetail(responseData));
 }
 
 // RPC implementations may report missing estimate data as an error body. Run
 // the same non-mainnet fallback for that shape while preserving the original
 // error when the chain or fallback query also fails.
 async function recoverFeeEstimate(connector, error) {
+    // Read the node's reason before sanitizeRpcError scrubs error.response:
+    // LTC/DOGE answer HTTP 500, which otherwise reads as a bare status code.
+    const detail = rpcErrorDetail(error && error.response && error.response.data);
     try {
         if (await connector.isRegtest()) return await regtestFee(connector)
         const fallback = await connector.noEstimateRelayFallback();
@@ -169,8 +174,11 @@ async function recoverFeeEstimate(connector, error) {
     } catch (_) {
         // The chain query or fallback RPC failed; rethrow the original error.
     }
-    logger.error(util.format('Error:', sanitizeRpcError(error)));
-    throw error;
+    const message = sanitizeRpcError(error);
+    logger.error(util.format('Error:', message + detail));
+    // No RPC body: a transport failure keeps its original error object.
+    if (!detail) throw error;
+    throw new Error(message + detail);
 }
 
 module.exports = {
@@ -226,7 +234,7 @@ module.exports = {
             const responseData = await requestSmartFee(this, blocksNumber)
             const feerate = usableSmartFee(responseData)
             if (feerate !== null) return feerate
-            return await requireNoEstimateFallback(this)
+            return await requireNoEstimateFallback(this, responseData)
         } catch (error) {
             return await recoverFeeEstimate(this, error)
         }
