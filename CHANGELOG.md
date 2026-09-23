@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-09-23
+
+### Fixed
+- Rejected oversized request bodies before parsing, preserved node error responses, and ran the API under an init process that reaps child processes.
+
+
 ## [0.20.0] - 2026-09-17
 
 ### Fixed
