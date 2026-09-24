@@ -136,10 +136,6 @@
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.6: UtxoTracker fallback calls UtxoTracker when utxos is empty array",
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.6: UtxoTracker fallback calls UtxoTracker when utxos is null"
     ],
-    "0e4bd255929ec3b3": [
-      "Category D: UTXO & Fee Integration D-5: UtxoTracker fallback calls UtxoTracker when utxos param is empty array",
-      "Category D: UTXO & Fee Integration D-5: UtxoTracker fallback calls UtxoTracker when utxos param is null"
-    ],
     "0e58538e3d6aa84b": [
       "Encoder input validator validateDust null/false pass; coerces; rejects NaN and negative"
     ],
@@ -295,9 +291,6 @@
       "Chaos Category F: API Layer Failures F-3: psbt.toHex() callability (api.js line 124 exposure) P2SH result: psbt.toHex() succeeds",
       "Chaos Category F: API Layer Failures F-3b: psbt.toHex() monkey-patch (documents api.js exposure) toHex failure after successful createTransaction \u2192 unhandled in api.js"
     ],
-    "171d238e570fea73": [
-      "Category D: UTXO & Fee Integration D-3: Duplicate UTXO deduplication removes duplicate UTXOs with same txid+vout"
-    ],
     "19bbd52a62e424d4": [
       "browser bundle entry (src/browser/index.js) attaches the encoder class to window as the very class module",
       "browser bundle entry (src/browser/index.js) exports the same class it attaches, not a copy or wrapper",
@@ -382,9 +375,6 @@
       "coin-registry conformance (vendored copy) @regression pin == consensusHash over the vendored files LTC/regtest vendored pin matches the vendored consensusHash",
       "coin-registry conformance (vendored copy) @regression pin == consensusHash over the vendored files LTC/testnet vendored pin matches the vendored consensusHash",
       "coin-registry conformance (vendored copy) @regression pin == consensusHash over the vendored files verifyConsensusPin passes for every network on the vendored bundle"
-    ],
-    "271d27a1e5622be1": [
-      "Category D: UTXO & Fee Integration D-9: No change address throws when change > dust throws error about burning satoshis"
     ],
     "27d7bba206f363af": [
       "UtxoTracker.getUtxosFromAddress() accepts an empty utxos array",
@@ -546,10 +536,6 @@
       "REG-07: Action Pipeline Regression REG-07.8: data + rawData dual field both data and rawData present in decompiled output",
       "REG-07: Action Pipeline Regression REG-07.9: Special characters in payload TICK name with special chars preserved",
       "REG-07: Action Pipeline Regression REG-07.9: Special characters in payload TICK_ID caret prefix preserved"
-    ],
-    "3b83f98eb236d6d9": [
-      "Category D: UTXO & Fee Integration Fee source selection calls connector.getFeePerKilobyte when feePerKb is null",
-      "Category D: UTXO & Fee Integration Fee source selection uses feePerKb parameter without RPC call"
     ],
     "3d0c3f469f5a49b0": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.4: Unconfirmed UTXOs excluded filters mempool UTXOs when unconfirmed=false"
@@ -946,9 +932,6 @@
       "P2SH two-phase package prefund @regression @tier1 funds the package rate into the leg when the commit pays under target",
       "P2SH two-phase package prefund @regression @tier1 the reveal keeps the package money as fee instead of sweeping it back"
     ],
-    "70440ad9037c909f": [
-      "Category D: UTXO & Fee Integration D-1: Single large UTXO covers everything produces 1 input, 2 outputs (OP_RETURN + change)"
-    ],
     "71168814d61ac771": [
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 74-char data (compiled=75) \u2192 OP_RETURN (75+4=79 < 80)",
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 75-char data (compiled=76) \u2192 OP_RETURN (exactly fits 76+4=80)",
@@ -1121,9 +1104,6 @@
       "XChainEncoder package-aware fee sizing @regression @tier1 lifts the fee so a cheap ancestor package clears the target rate",
       "XChainEncoder package-aware fee sizing @regression @tier1 never spends more than the inputs hold",
       "XChainEncoder package-aware fee sizing @regression @tier1 never throws when the ancestor lookup itself throws"
-    ],
-    "8f0e3d8435a01701": [
-      "Category D: UTXO & Fee Integration D-7: Fee capped by maxFeePerBytes limits fee when maxFeeRateKb is set"
     ],
     "8f324f20d5abfee5": [
       "XChainEncoder.createTransaction() - change edge cases does not add change output when changeSatoshis is 0",
@@ -1318,10 +1298,6 @@
     "a58c0275055cc988": [
       "Encoder input validator validateChange null passes; rejects empty and over-long"
     ],
-    "a5c9e585e49afb1a": [
-      "Category D: UTXO & Fee Integration Replace-by-fee sequence sets sequence to 0xfffffffd when rbf=true (RBF armed, BIP68 disabled)",
-      "Category D: UTXO & Fee Integration Replace-by-fee sequence sets sequence to 0xffffffff when rbf=false"
-    ],
     "a6d0a7d54f8fdf52": [
       "health()/GET /status carry the window without bending readiness @regression a window does not make a lagging tracker read synced",
       "health()/GET /status carry the window without bending readiness @regression an expired sentinel reads as no maintenance",
@@ -1396,9 +1372,6 @@
       "E2E-6: Multi-Chain Validation dogecoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
       "E2E-6: Multi-Chain Validation litecoin-regtest P2SH creates P2SH with output value >= chain dust threshold"
     ],
-    "ab3024540b6f92b9": [
-      "Category D: UTXO & Fee Integration D-8: Dust floor on fee floors fee to dustAmount when computed fee is lower"
-    ],
     "ab75df16ddef33d7": [
       "encoder crash handlers a broken logger cannot swallow the exit",
       "encoder crash handlers a non-Error rejection reason still yields a readable record",
@@ -1447,10 +1420,6 @@
       "TxSizeEstimator Boundaries estimateOpReturnOutput framing boundaries stays exact just past the varint inflection (253-byte data)",
       "TxSizeEstimator Boundaries estimateP2shInputWithRedeem returns 629 for 476-byte redeem script (max P2SH chunk)",
       "TxSizeEstimator Boundaries estimateP2shInputWithRedeem returns overhead (149) for 0-byte redeem script"
-    ],
-    "b32e58f0542ec761": [
-      "Category D: UTXO & Fee Integration D-10: Legacy (non-segwit) UTXO handling fetches raw tx hex for nonWitnessUtxo via connector",
-      "Category D: UTXO & Fee Integration D-10: Legacy (non-segwit) UTXO handling segwit UTXOs do NOT call getTransactionHex"
     ],
     "b35bd4199facec7a": [
       "XChainEncoder.isSegwitUTXO() returns false for P2PKH",
@@ -1674,9 +1643,6 @@
       "XChainEncoder.createTransaction() custom outputs skips custom outputs when customOutputs is not an array",
       "XChainEncoder.createTransaction() custom outputs skips custom outputs when customOutputs is null"
     ],
-    "ca5016508c9204fa": [
-      "Category D: UTXO & Fee Integration UTXO sorting (largest first) uses largest UTXO first, needing fewer inputs"
-    ],
     "ca8fa416b5e8a763": [
       "observability/installObservability buckets an unmatched path by first segment so URLs cannot explode cardinality",
       "observability/installObservability gates the endpoint behind METRICS_TOKEN when one is configured",
@@ -1857,10 +1823,6 @@
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() throws TypeError for non-string",
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() throws TypeError for wrong length (too short)"
     ],
-    "d650883504da9b2d": [
-      "Category D: UTXO & Fee Integration D-4: Unconfirmed filtering with unconfirmed=false excludes mempool UTXOs when unconfirmed=false",
-      "Category D: UTXO & Fee Integration D-4: Unconfirmed filtering with unconfirmed=false includes mempool UTXOs when unconfirmed=true"
-    ],
     "d683ae27a964eb5b": [
       "XChainEncoder.createTransaction() - rawData parameter accepts rawData and includes it in the compiled payload",
       "XChainEncoder.createTransaction() - rawData parameter rawData does not affect result when null (false branch of rawData != null)"
@@ -1908,9 +1870,6 @@
       "REG-04: Validator Functions REG-04.14: validateAll() integration throws TypeError for string params",
       "REG-04: Validator Functions REG-04.14: validateAll() integration throws a SHAPE error for positional array params, not a missing-field one",
       "REG-04: Validator Functions REG-04.14: validateAll() integration validates P2SH pair atomically (rejects partial pair)"
-    ],
-    "df667f23a4c0ba6d": [
-      "Category D: UTXO & Fee Integration D-2: Multiple UTXOs needed adds UTXOs until inputs cover outputs + fee"
     ],
     "dfdfc61603d906bd": [
       "encoder FILE payload compression (spec Part B) validator accepts compress as an optional boolean; absent means \"use the deployment default\""
@@ -2012,10 +1971,6 @@
       "Encoder input validator validateP2shParams both-omitted yields nulls; mismatch throws",
       "Encoder input validator validateP2shParams enforces hex shape and the raw-tx length cap on p2shHex",
       "Encoder input validator validateP2shParams validates hash hex and non-empty hex; returns the pair"
-    ],
-    "ee1005d70e3a9b6a": [
-      "Category D: UTXO & Fee Integration D-6: No UTXOs available throws when utxos empty and tracker returns empty",
-      "Category D: UTXO & Fee Integration D-6: No UTXOs available throws when utxos null and tracker returns null"
     ],
     "ef8432a4a1ba859e": [
       "REG-09: 2026-07-03 deepdive encoder fixes FIX K: get_utxos validates the address param before the tracker call rejects an object-valued address with code -32602",
@@ -2427,8 +2382,8 @@
       }
     },
     "test:integration": {
-      "fileCount": 21,
-      "titleCount": 115,
+      "fileCount": 8,
+      "titleCount": 96,
       "files": {
         "test/integration/action_encoding.test.js": "9adb839d3209d4b9",
         "test/integration/custom_outputs.test.js": "1a362ab39ee459fd",
@@ -2437,20 +2392,7 @@
         "test/integration/error_handling.test.js": "06a3215a6e86ed2d",
         "test/integration/large_satoshi_tracker.test.js": "6b03cb1158d948c7",
         "test/integration/multi_chain.test.js": "e4c3435f9bc2b0af",
-        "test/integration/obfuscation_roundtrip.test.js": "d101790f46691c56",
-        "test/integration/utxo_fee.test.js": "70440ad9037c909f",
-        "test/integration/utxo_fee.test/01_d_2_multiple_utxos_needed.test.js": "df667f23a4c0ba6d",
-        "test/integration/utxo_fee.test/02_d_3_duplicate_utxo_deduplication.test.js": "171d238e570fea73",
-        "test/integration/utxo_fee.test/03_d_4_unconfirmed_filtering.test.js": "d650883504da9b2d",
-        "test/integration/utxo_fee.test/04_d_5_utxo_tracker_fallback.test.js": "0e4bd255929ec3b3",
-        "test/integration/utxo_fee.test/05_d_6_no_utxos_available.test.js": "ee1005d70e3a9b6a",
-        "test/integration/utxo_fee.test/06_d_7_fee_capped_by_max_fee_per_bytes.test.js": "8f0e3d8435a01701",
-        "test/integration/utxo_fee.test/07_d_8_dust_floor_on_fee.test.js": "ab3024540b6f92b9",
-        "test/integration/utxo_fee.test/08_d_9_no_change_address.test.js": "271d27a1e5622be1",
-        "test/integration/utxo_fee.test/09_d_10_legacy_non_segwit_utxo_handling.test.js": "b32e58f0542ec761",
-        "test/integration/utxo_fee.test/10_utxo_sorting_largest_first.test.js": "ca5016508c9204fa",
-        "test/integration/utxo_fee.test/11_replace_by_fee_sequence.test.js": "a5c9e585e49afb1a",
-        "test/integration/utxo_fee.test/12_fee_source_selection.test.js": "3b83f98eb236d6d9"
+        "test/integration/obfuscation_roundtrip.test.js": "d101790f46691c56"
       }
     },
     "test:regression": {
