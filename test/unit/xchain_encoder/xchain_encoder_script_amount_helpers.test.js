@@ -13,24 +13,25 @@
 'use strict';
 
 const assert = require('assert');
-const bitcoin = require('bitcoinjs-lib');
+const fs = require('fs');
+const Module = require('module');
+const path = require('path');
+
+const helpersPath = require.resolve('../../../src/XChainEncoder/script_amount_helpers.js');
+const helpersModule = new Module(helpersPath, module);
+helpersModule.filename = helpersPath;
+helpersModule.paths = Module._nodeModulePaths(path.dirname(helpersPath));
+helpersModule._compile(
+    `${fs.readFileSync(helpersPath, 'utf8')}\nmodule.exports.compactSizeBuffer = compactSizeBuffer;\n`,
+    helpersPath
+);
+
 const {
     asSatValue,
+    compactSizeBuffer,
     compactSizeLen,
-    envelopeTapLeafHash,
     softDustFloorFor,
-} = require('../../../src/XChainEncoder/script_amount_helpers.js');
-
-function compactSizePrefixFor(length) {
-    const taggedHash = bitcoin.crypto.taggedHash;
-    bitcoin.crypto.taggedHash = (tag, payload) => payload;
-    try {
-        const payload = envelopeTapLeafHash(Buffer.alloc(length));
-        return payload.subarray(1, payload.length - length);
-    } finally {
-        bitcoin.crypto.taggedHash = taggedHash;
-    }
-}
+} = helpersModule.exports;
 
 describe('script amount helpers', function () {
     it('reports compactSize widths at the one-byte, uint16, and uint32 boundaries', function () {
@@ -41,8 +42,8 @@ describe('script amount helpers', function () {
     });
 
     it('serializes compactSize values in little-endian wire form', function () {
-        assert.deepStrictEqual(compactSizePrefixFor(253), Buffer.from([0xfd, 0xfd, 0x00]));
-        assert.deepStrictEqual(compactSizePrefixFor(0x10000), Buffer.from([0xfe, 0x00, 0x00, 0x01, 0x00]));
+        assert.deepStrictEqual(compactSizeBuffer(253), Buffer.from([0xfd, 0xfd, 0x00]));
+        assert.deepStrictEqual(compactSizeBuffer(0x10000), Buffer.from([0xfe, 0x00, 0x00, 0x01, 0x00]));
     });
 
     it('narrows safe BigInt satoshi values while preserving larger values', function () {
