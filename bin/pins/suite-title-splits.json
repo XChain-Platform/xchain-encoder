@@ -3,12 +3,25 @@
   "date": "2026-09-15",
   "pin": "bin/pins/at1-suite-titles.json",
   "pin_before_sha256": "8aebbd8e81f86b6f62018c989896c15d9afdc0ea46593b7542b57fafc1875515",
-  "compare": "node bin/suite-title-map.js --compare bin/pins/at1-suite-titles.json --rename-map bin/pins/test-rename-map.json --split-map bin/pins/suite-title-splits.json",
+  "compare": "node bin/suite-title-map.js --compare bin/pins/at1-suite-titles.json --rename-map bin/pins/suite-title-renames.json --split-map bin/pins/suite-title-splits.json",
   "example": {
     "test/unit/big_suite.test.js": [
       "test/unit/big_suite/reads.test.js",
       "test/unit/big_suite/writes.test.js"
     ]
   },
-  "splits": {}
+  "splits": {
+    "test/unit/crash_handlers.test.js": [
+      "test/unit/crash_handlers.test.js",
+      "test/unit/crash_handlers.test/01_signal_registration.test.js",
+      "test/unit/crash_handlers.test/02_exit_paths.test.js"
+    ],
+    "test/unit/observability.test.js": [
+      "test/unit/observability.test.js",
+      "test/unit/observability.test/01_metrics.test.js",
+      "test/unit/observability.test/02_log_shipper.test.js",
+      "test/unit/observability.test/03_routes.test.js",
+      "test/unit/observability.test/04_flush_and_health.test.js"
+    ]
+  }
 }

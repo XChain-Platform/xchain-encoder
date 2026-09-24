@@ -29,7 +29,7 @@ jobs:
       # touch neither the guard nor the file it reads. Empty everywhere
       # else, which keeps the existing behaviour. Same expression as
       # xchain-indexer and xchain-explorer.
-      siblings-ref: ${{ (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/')) && github.head_ref || '' }}
+      siblings-ref: ${{ (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/')) && github.head_ref || github.base_ref || '' }}
     # Override the Node version for a repo if ever needed:
     # with:
     #   node-version: "20"
@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: XChain-Platform/xchain-hub
-          ref: ${{ github.ref == 'refs/heads/master' && 'master' || 'develop' }}
+          ref: ${{ github.base_ref || (github.ref == 'refs/heads/master' && 'master' || 'develop') }}
           ssh-key: ${{ secrets.XCHAIN_HUB_DEPLOY_KEY }}
           path: xchain-hub
 
@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: XChain-Platform/xchain-decoder
-          ref: ${{ github.ref == 'refs/heads/master' && 'master' || 'develop' }}
+          ref: ${{ github.base_ref || (github.ref == 'refs/heads/master' && 'master' || 'develop') }}
           path: xchain-decoder
 
       - name: Use Node.js 22
@@ -93,22 +93,23 @@ jobs:
             console.log("consensus pin conformance OK (testnet, regtest)");
           '
 
-      # Identity pin: bin/pins/identity.json records the sha256 of the vendored
-      # coin files and the roundtrip conformance fixture. The tool compares only
-      # the entries the pin names, so an emptied pin would read as holding: first
-      # refuse a pin with no coin or conformance entries, then fail on any moved
-      # or missing file, so a stale pin cannot reach develop or master green
-      # through a direct push or a release pull request. bin/ci-full.sh runs the
-      # same commands before a push; both use only node builtins, so no install.
-      - name: Identity pin (vendored coins, conformance fixture)
+      # Identity pin: bin/pins/at1-identity.json records the sha256 of the
+      # vendored coin files and every whole-file vendored twin. The tool
+      # compares only the entries the pin names, so an emptied pin would read
+      # as holding: first refuse a pin with no coin or vendored-twin entries,
+      # then fail on any moved or missing file, so a stale pin cannot reach
+      # develop or master green through a direct push or a release pull
+      # request. bin/ci-full.sh runs the same commands before a push; both
+      # use only node builtins, so no install.
+      - name: Identity pin (vendored coins, vendored twin files)
         working-directory: xchain-encoder
         run: |
           node -e '
-            const pin = require("./bin/pins/identity.json");
-            for (const group of ["coins", "conformance"]) {
+            const pin = require("./bin/pins/at1-identity.json");
+            for (const group of ["coins", "vendoredTwins"]) {
               if (!Object.keys(pin[group] || {}).length) throw new Error("identity pin names no " + group + " files");
             }
-          ' && node bin/pin-identity.js --compare bin/pins/identity.json
+          ' && node bin/pin-identity.js --compare bin/pins/at1-identity.json
 
   # Coverage ratchet: re-run the unit suite under c8 and fail if line or
   # branch coverage drops below this repo's floor in bin/coverage-thresholds.json
@@ -134,7 +135,7 @@ jobs:
         # whose cross-repo guards disagree with the gate for a reason that exists
         # nowhere but in CI.
         with:
-          ref: ${{ (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/')) && github.head_ref || '' }}
+          ref: ${{ (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/')) && github.head_ref || github.base_ref || '' }}
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4

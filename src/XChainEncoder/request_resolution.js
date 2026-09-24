@@ -20,6 +20,7 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const config = require('../common/config');
+const { safeUpstreamReason } = require('../common/error_sanitize');
 
 // THE tracker-freshness classifier. Pure: it reads a `sync` object and a lag
 // ceiling and returns a verdict; it never throws, logs, or touches a connector.
@@ -86,10 +87,13 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
         code: null, message: null, details: null
     }
     if (halted){
+        // The reason is tracker-authored, so it is gated before it reaches the
+        // forwarded message (src/build/errors.js forwards encoder-authored text only).
+        const haltReason = safeUpstreamReason(sync.halt_reason)
         verdict.code = 'UTXO_TRACKER_HALTED'
-        verdict.message = `utxo-tracker is halted (${sync.halt_reason || 'unrecoverable reorg'}); ` +
+        verdict.message = `utxo-tracker is halted (${haltReason || 'unrecoverable reorg'}); ` +
             'refusing to select utxos from it'
-        verdict.details = Object.assign({}, heights, { halt_reason: sync.halt_reason || null })
+        verdict.details = Object.assign({}, heights, { halt_reason: haltReason })
         return verdict
     }
     if (sync.synced === false || overLag || behindNode){
@@ -112,16 +116,20 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
 }
 
 // Resolve the 20-byte caller HASH160 that gates a P2SH/P2WSH chunk-lane reveal,
-// from ANY caller identity form, not just a base58 legacy address. The reveal tx
-// that spends a chunk output must satisfy an ordinary P2PKH gate (OP_DUP
-// OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG) with the SOURCE key, so the
-// returned hash MUST equal HASH160(that pubkey). It is the same 20 bytes whether
-// the caller sends a base58 address, a raw pubkey hex, or a v0 bech32 P2WPKH
-// address (whose witness program already IS that HASH160). The decoder reads
-// ONLY the leading data chunk (redeemScript[0]) and never this trailer hash, so
-// this is compose-side only with NO consensus/wire surface. Base58-only parsing
-// would throw "Non-base58 character" here, which breaks every wallet flow (they
-// send a raw compressed pubkey) and every bech32-only source.
+// from ANY caller identity a client passes, not just a base58 legacy address.
+// The reveal tx that spends a chunk output must satisfy an ordinary P2PKH gate
+// (OP_DUP OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG) with the SOURCE key,
+// so the returned hash MUST equal HASH160(that pubkey). It is the same 20 bytes
+// whichever identity form the caller sends:
+//   - base58 P2PKH/P2SH address -> fromBase58Check().hash (legacy, unchanged)
+//   - raw compressed/uncompressed pubkey hex -> crypto.hash160(pubkey)
+//   - v0 bech32 P2WPKH address -> the witness program IS HASH160(pubkey)
+// The decoder reads ONLY the leading data chunk (redeemScript[0]) and never this
+// trailer hash, so this is compose-side only with NO consensus/wire surface.
+// Before all three forms were supported, wallet flows that send a raw compressed
+// pubkey and bech32 sources threw "Non-base58 character" here. That prevented
+// large FILE, contract DEPLOY, validator UNSTAKE/claim, and cross-chain SWAP
+// broadcasts from bech32-only venues.
 function resolveCallerHash160(pubKey) {
     // Raw compressed (02/03 + 64 hex) or uncompressed (04 + 128 hex) pubkey first:
     // a base58 address can never match this shape (base58 excludes 0/O/I/l and
@@ -145,16 +153,19 @@ function resolveCallerHash160(pubKey) {
 
 // Sibling of resolveCallerHash160, same "any identity in" contract, but for
 // call sites that need an address STRING rather than a HASH160 (the UTXO
-// tracker's getUtxosFromAddress, and the dust-padding fallback below). Wallet
-// flows send their source as a raw compressed pubkey hex in this `pubkey`
-// param, which is neither base58 nor bech32, so handing it straight to
-// address.toOutputScript threw "<hex> has no matching Script" and failed every
-// compose that did not pre-supply `utxos`.
+// tracker's getUtxosFromAddress, and the dust-padding fallback below). Every
+// wallet flow sends its source as a raw compressed pubkey hex in this `pubkey`
+// param. Only a legacy caller or a pre-resolved value sends an address directly.
+// Before this resolution step, getUtxosFromAddress(pubkey) handed
+// address.toOutputScript a raw pubkey hex, which is not valid base58 or bech32,
+// so it threw "<hex> has no matching Script" and every UTXO-tracker-backed
+// compose, meaning every compose that did not pre-supply `utxos`, failed.
 // Address-type choice for a bare pubkey: this network's default (P2WPKH when
 // segwit-capable, else legacy P2PKH), matching the wallet's own default address
-// type per coin. A caller spending from a different address type (P2SH-P2WPKH,
-// taproot) must pre-supply `utxos` or pass an explicit address, because a bare
-// pubkey is inherently address-type-ambiguous.
+// type for each coin. A caller who actually spends from a different address type
+// (P2SH-P2WPKH, taproot) must keep pre-supplying `utxos` or pass an explicit
+// address. A bare pubkey is inherently address-type-ambiguous, and the network
+// default is the best a single guess can do.
 function resolveCallerAddress(pubKey, network) {
     if (typeof pubKey !== 'string' || pubKey.length === 0) return pubKey
     // Already a valid address on this network: pass through unchanged.

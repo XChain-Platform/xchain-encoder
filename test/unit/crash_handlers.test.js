@@ -23,6 +23,9 @@ const path = require('path')
 const crash = require('../../src/server/crash_handlers')
 const observability = require('../../src/observability')
 
+const registerSignalTests = require('./crash_handlers.test/01_signal_registration.test.js')
+const registerExitPathTests = require('./crash_handlers.test/02_exit_paths.test.js')
+
 describe('encoder crash handlers', function () {
   let sink
 
@@ -56,54 +59,6 @@ describe('encoder crash handlers', function () {
     crash.resetCrashCounters()
   })
 
-  it('an uncaught exception emits one CRASH record and exits non-zero', function () {
-    const proc = fakeProc()
-    crash.installCrashHandlers({ proc })
-
-    proc.emit('uncaughtException', new Error('probe-uncaught-encoder'))
-
-    assert.strictEqual(lines().length, 1)
-    assert.ok(lines()[0].includes('kind=uncaughtException'), lines()[0])
-    assert.ok(lines()[0].includes('probe-uncaught-encoder'), lines()[0])
-    assert.ok(lines()[0].includes('[xchain-encoder]'), lines()[0])
-    assert.deepStrictEqual(proc.exits, [1])
-    assert.strictEqual(crashCount('uncaughtException'), 1)
-  })
-
-  it('an unhandled rejection emits CRASH and lets the process continue', function () {
-    const proc = fakeProc()
-    crash.installCrashHandlers({ proc })
-
-    proc.emit('unhandledRejection', new Error('probe-rejection-encoder'))
-
-    assert.strictEqual(lines().length, 1)
-    assert.ok(lines()[0].includes('kind=unhandledRejection'), lines()[0])
-    assert.deepStrictEqual(proc.exits, [], 'a stray promise does not by itself corrupt shared state')
-    assert.strictEqual(crashCount('unhandledRejection'), 1)
-  })
-
-  it('a non-Error rejection reason still yields a readable record', function () {
-    const proc = fakeProc()
-    crash.installCrashHandlers({ proc })
-    proc.emit('unhandledRejection', 'plain string reason')
-    assert.ok(lines()[0].includes('plain string reason'), lines()[0])
-  })
-
-  it('a broken logger cannot swallow the exit', function () {
-    const proc = fakeProc()
-    crash.installCrashHandlers({ proc })
-    observability._resetObservability()
-    proc.emit('uncaughtException', new Error('probe-no-sink'))
-    assert.deepStrictEqual(proc.exits, [1])
-  })
-
-  // The handlers are worth nothing unless the entry point installs them, and
-  // requiring api.js here would bind a port, so the wiring is read off the file.
-  it('api.js installs them from the entry-point guard, not at module scope', function () {
-    const src = fs.readFileSync(path.join(__dirname, '../../src/api.js'), 'utf8')
-    const guard = src.indexOf('require.main === module')
-    const install = src.indexOf('installCrashHandlers()')
-    assert.ok(guard > 0, 'entry-point guard present')
-    assert.ok(install > guard, 'installCrashHandlers() is called inside the entry-point guard')
-  })
+  registerSignalTests({ assert, crash, fakeProc, lines, crashCount })
+  registerExitPathTests({ assert, crash, observability, fakeProc, fs, path, __dirname })
 })

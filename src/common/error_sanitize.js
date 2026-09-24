@@ -84,4 +84,19 @@ function upstreamErrorMessage(err, fallback) {
     return message
 }
 
-module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail }
+// Longest upstream reason forwarded, and the longest one worth leak-checking at all.
+const MAX_UPSTREAM_REASON_CHARS = 120
+const MAX_CHECKED_REASON_CHARS = 4096
+
+// Return an upstream-authored reason string safe to echo in a public error, or
+// null. The whole string is leak-checked before it is cut, so a cap cannot
+// halve an endpoint into something the patterns miss; a leaking or oversized
+// reason collapses whole, as upstreamErrorMessage does.
+function safeUpstreamReason(value) {
+    if (typeof value !== 'string' || value.length > MAX_CHECKED_REASON_CHARS) return null
+    if (leaksInternalDetail(value)) return null
+    const printable = value.replace(/[^\x20-\x7e]/g, ' ').trim().slice(0, MAX_UPSTREAM_REASON_CHARS).trim()
+    return printable === '' ? null : printable
+}
+
+module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS }

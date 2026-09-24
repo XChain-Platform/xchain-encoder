@@ -39,7 +39,7 @@ const HEX = '0100000001' + '0'.repeat(100)
 
 describe('BlockchainConnector.getTransactionHex()', () => {
   registerAxiosHooks()
-  it('sends getrawtransaction with correct txid and hexFormat=true', async () => {
+  it('sends getrawtransaction with correct txid and verbose=true', async () => {
     let capturedPayload
     axios.post = async (url, data) => {
       capturedPayload = data
@@ -51,15 +51,16 @@ describe('BlockchainConnector.getTransactionHex()', () => {
     assert.deepStrictEqual(capturedPayload.params, [TXID, true])
   })
 
-  it('passes hexFormat=false when requested', async () => {
+  it('requests the verbose form even when a caller passes a second argument', async () => {
     let capturedPayload
     axios.post = async (url, data) => {
       capturedPayload = data
       return { data: { result: { hex: HEX } } }
     }
     const c = makeConnector()
-    await c.getTransactionHex(TXID, false)
-    assert.deepStrictEqual(capturedPayload.params, [TXID, false])
+    const result = await c.getTransactionHex(TXID, false)
+    assert.deepStrictEqual(capturedPayload.params, [TXID, true])
+    assert.strictEqual(result, HEX)
   })
 
   it('returns the hex string on success', async () => {

@@ -43,6 +43,9 @@ describe('Security: global in-flight concurrency cap', function () {
         it('mounts a bounded reserve for the exempt readiness probes', function () {
             assert.ok(apiSource.includes('ENCODER_MAX_CONCURRENT_PROBES'))
             assert.ok(/app\.use\(probeGate\)/.test(apiSource))
+            // The security suite drives this module's predicate; an inline copy here would escape it.
+            assert.ok(apiSource.includes("const { isProbe } = require('./server/probe_request.js')"))
+            assert.ok(!/const isProbe\s*=/.test(apiSource), 'api.js must not redefine the probe predicate')
         })
 
         it('reports the gate stats so a stampede is visible to operators', function () {

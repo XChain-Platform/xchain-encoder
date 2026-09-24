@@ -1,8 +1,9 @@
 /*
  * Unit tests for the single-instance deploy guard.
  *
- * The outpoint-reservation store, the recent-build duplicate refusal behind it
- * and the rate-limiter store are all in-process; these tests pin the boot-time
+ * The outpoint-reservation store, the recent-build duplicate refusal behind it,
+ * the envelope-cancel owner set, the reservation tickets, the rate-limiter store
+ * and the concurrency-gate counters are all in-process; these tests pin the boot-time
  * guards that keep horizontally scaled or duplicate-process deploys from
  * silently racing UTXO selections, and pin that both refusal messages name
  * every in-process store a shared-store migration has to move.
@@ -40,7 +41,8 @@ describe('singleInstanceGuard', function () {
         it('names every in-process store in the replica refusal', function () {
             let message = ''
             try { assertSingleInstance({ ENCODER_REPLICAS: '2' }) } catch (err) { message = err.message }
-            for (const store of [/outpoint-reservation/, /recent-build/, /rate limiter/]) {
+            for (const store of [/outpoint-reservation/, /recent-build/, /envelope-cancel owner/,
+                /reservation tickets/, /rate limiter/, /concurrency-gate counters/]) {
                 assert.match(message, store, 'replica refusal must name ' + store)
             }
         })

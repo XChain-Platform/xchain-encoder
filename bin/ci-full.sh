@@ -50,7 +50,35 @@ SELF="$(pwd)"
 SIB="$(cd .. && pwd)"
 
 FAILED=""
+# >>> ci-tier (generated block; re-run the tier wirer to update) >>>
+# Tier classes. A push grades the FAST tier only: the unit job, the pin and
+# drift guards, and the structure and hygiene checks the hook runs before it
+# dispatches. The tiers named below (coverage re-runs, perf scenarios) are
+# skipped when the gate sets CI_TIER=fast, and each skip is recorded so the
+# closing verdict can never claim a green it did not earn. Nothing stops
+# being graded: a scheduled sweep re-runs this same script with CI_TIER=full
+# on every repo every three hours and before any release or deploy, and a
+# red there is tracked down and fixed first. CI_TIER is unset for a hand
+# run, so a bare `npm run ci:full` still runs every tier as it always did.
+CI_TIER_FULL_ONLY=(
+  "coverage ratchet (coverage:check)"
+)
+DEFERRED=""
+ci_tier_deferred() {
+  [ "${CI_TIER:-full}" = "fast" ] || return 1
+  local t
+  for t in ${CI_TIER_FULL_ONLY[@]+"${CI_TIER_FULL_ONLY[@]}"}; do
+    if [ "$t" = "$1" ]; then
+      DEFERRED="$DEFERRED [$1]"
+      echo; echo "ci:full ===== $1 DEFERRED (CI_TIER=fast, runs in the full sweep) ====="
+      return 0
+    fi
+  done
+  return 1
+}
+# <<< ci-tier <<<
 run_tier() {
+  ci_tier_deferred "$1" && return 0  # ci-tier guard (generated)
   local name="$1"; shift
   echo; echo "ci:full ===== $name ====="
   if "$@"; then
@@ -93,26 +121,26 @@ run_tier "drift: coin consensus-pin conformance" node -e '
 '
 
 # --- identity pin (this gate only; no ci.yml job runs it) --------------
-# bin/pins/identity.json holds the sha256 of the vendored coin files and the
-# roundtrip conformance fixture. The tool compares only the entries the pin
+# bin/pins/at1-identity.json holds the sha256 of the vendored coin files and
+# every whole-file vendored twin. The tool compares only the entries the pin
 # names, so an emptied pin would read as holding: the tier first refuses a pin
-# with no coin or conformance entries, then fails on any moved or missing file.
+# with no coin or vendored-twin entries, then fails on any moved or missing file.
 identity_pin_check() {
   node -e '
-    const pin = require("./bin/pins/identity.json");
-    for (const group of ["coins", "conformance"]) {
+    const pin = require("./bin/pins/at1-identity.json");
+    for (const group of ["coins", "vendoredTwins"]) {
       if (!Object.keys(pin[group] || {}).length) throw new Error("identity pin names no " + group + " files");
     }
-  ' && node bin/pin-identity.js --compare bin/pins/identity.json
+  ' && node bin/pin-identity.js --compare bin/pins/at1-identity.json
 }
-run_tier "identity pin (vendored coins, conformance fixture)" identity_pin_check
+run_tier "identity pin (vendored coins, vendored twin files)" identity_pin_check
 
 # --- suite-title pin (this gate only; no ci.yml job runs it) -----------
 # Guards that every npm test script still collects the same test titles it
 # did at the pin, through the declared rename and split maps.
 run_tier "suite-title pin (at1)" node bin/suite-title-map.js \
   --compare bin/pins/at1-suite-titles.json \
-  --rename-map bin/pins/test-rename-map.json \
+  --rename-map bin/pins/suite-title-renames.json \
   --split-map bin/pins/suite-title-splits.json
 
 # --- job: coverage (needs: ci) ------------------------------------------
@@ -122,8 +150,20 @@ run_tier "suite-title pin (at1)" node bin/suite-title-map.js \
 run_tier "coverage ratchet (coverage:check)" npm run coverage:check
 
 echo
+# >>> ci-tier summary (generated) >>>
+echo "ci:full: tier class ${CI_TIER:-full}"
+if [ -n "${DEFERRED:-}" ]; then
+  echo "ci:full: DEFERRED to the full sweep:$DEFERRED"
+fi
+# <<< ci-tier summary <<<
 if [ -n "$FAILED" ]; then
   echo "ci:full: RED tiers:$FAILED"
   exit 1
 fi
-echo "ci:full: all tiers green (same set GitHub CI runs)"
+# >>> ci-tier verdict (generated) >>>
+if [ "${CI_TIER:-full}" = "fast" ]; then
+  echo "ci:full: all FAST tiers green; the DEFERRED tiers above were NOT graded here"
+else
+  echo "ci:full: all tiers green (same set GitHub CI runs)"
+fi
+# <<< ci-tier verdict <<<

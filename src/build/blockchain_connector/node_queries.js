@@ -111,12 +111,14 @@ module.exports = {
         }
     },
 
-    async getTransactionHex(txid, hexFormat = true) {
+    async getTransactionHex(txid) {
         try {
+            // The second param is the node's verbose flag: true answers an object
+            // carrying .hex (read below), false a bare hex string.
             const data = {
                 jsonrpc: '2.0',
                 method: 'getrawtransaction',
-                params: [txid, hexFormat],
+                params: [txid, true],
                 id: 1,
             };
 

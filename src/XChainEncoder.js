@@ -31,8 +31,6 @@ const BlockchainConnector = require('./build/blockchain_connector')
 const CryptoNetworks = require('./build/crypto_networks')
 const UtxoTracker = require('./build/utxo_tracker')
 const TxSizeEstimator = require("./build/tx_size_estimator")
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, MAX_UTXO_COUNT, validateUtxoEntry, parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateDataParam, validateActionPushDecodability, unknownActionName } = require('./common/validator')
-const { compressPayloadForAction } = require('./build/compression')
 const { OperationalError } = require('./build/errors')
 const { upstreamErrorMessage } = require('./common/error_sanitize')
 const util = require('node:util');
@@ -206,6 +204,22 @@ class XChainEncoder {
 
 }
 
+// A P2SH reveal that emits no value output spends every leg satoshi as fee, and
+// the signer then refuses it as a full burn. That is a leg funded without
+// reveal headroom (a commit from an encoder that predates the headroom top-up).
+// The outputless reveal stays byte-identical so the stranded commit can still be
+// recovered by a caller that supplies its own outputs; the log names the leg.
+function noteUndersizedRevealLeg(build, outputsBeforeSweep){
+    const { p2shHash, preparedData, phaseLegInputSatoshis, outputSatoshis, customOutputs, psbt } = build
+    if (!p2shHash || preparedData["encoding"] !== Encoding.P2SH || !(phaseLegInputSatoshis > 0n)) return
+    if (Array.isArray(customOutputs) && customOutputs.length > 0) return
+    if (psbt.txOutputs.length > outputsBeforeSweep) return
+    const legSatoshis = phaseLegInputSatoshis - outputSatoshis
+    logger.warn(`P2SH_LEG_UNDERSIZED: the phase-1 leg holds ${legSatoshis} base units after the data outputs, too little to pay the reveal fee ` +
+        `and leave a change output of at least ${this.outputFloor}. The commit was funded without reveal headroom (an encoder that ` +
+        `predates the leg-headroom fix), so this reveal has no value output and the signer will refuse it as a full burn.`)
+}
+
 // The build's steps in the order the checks and emissions depend on. A step
 // that reads the node, the tracker or a payload promise is a generator
 // delegated to with yield*, which adds no suspension of its own; every other
@@ -237,7 +251,9 @@ function* buildSteps(build){
     prefundRevealPackage.call(this, build)
     computeChange.call(this, build)
     emitChangeAndPad.call(this, build)
+    const outputsBeforeSweep = build.psbt.txOutputs.length
     yield* sweepP2shReveal.call(this, build)
+    noteUndersizedRevealLeg.call(this, build, outputsBeforeSweep)
     buildEnvelopeReveal.call(this, build)
     return finishBuild.call(this, build)
 }
@@ -248,6 +264,9 @@ Object.assign(XChainEncoder.prototype, require('./XChainEncoder/outpoint_reserva
 // The suggested-rate ceiling is exported so the estimate_fee endpoint quotes the
 // same rate createTx would charge; a quote the builder then ignores is worse than
 // no quote, because a wallet shows the user a fee that never applies.
+// Present only on an encoder that funds the phase-1 P2SH leg with reveal
+// headroom; a venue-health check treats its absence as a stale encoder.
+XChainEncoder.P2SH_LEG_HEADROOM = true
 XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
 // Exported so api.js's readiness probe classifies a tracker with the exact same
 // rules create_tx refuses one with; see classifyTrackerFreshness.

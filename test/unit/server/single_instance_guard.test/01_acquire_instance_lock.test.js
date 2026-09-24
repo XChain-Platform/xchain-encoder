@@ -100,7 +100,7 @@ describe('singleInstanceGuard', function () {
             try {
                 acquireInstanceLock(file, {}, { describePid: () => 'node /XChainEncoder/src/api.js' })
             } catch (err) { message = err.message }
-            for (const store of [/outpoint-reservation/, /recent-build/]) {
+            for (const store of [/outpoint-reservation/, /recent-build/, /envelope-cancel owner/, /reservation-ticket/]) {
                 assert.match(message, store, 'lock-conflict refusal must name ' + store)
             }
         })

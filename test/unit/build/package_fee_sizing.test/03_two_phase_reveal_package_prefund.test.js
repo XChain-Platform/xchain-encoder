@@ -11,6 +11,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../../../src/XChainEncoder')
+const { logger } = require('../../../../src/XChainEncoder/constants')
 const ecc = require('tiny-secp256k1');
 
 const SATOSHI_UNIT = 100000000
@@ -163,14 +164,14 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
       }
       return encoder
     }
-    const originalWarn = console.warn
-    console.warn = () => {}
+    const originalWarn = logger.warn
+    logger.warn = () => {}
     let withAncestors, withoutAncestors
     try {
       withAncestors = await buildEnvelope(capped({ size: 2000, fees: 0 }), { confirmations: 0 })
       withoutAncestors = await buildEnvelope(capped({ size: 0, fees: 0 }), { confirmations: 0 })
     } finally {
-      console.warn = originalWarn
+      logger.warn = originalWarn
     }
     assert.ok(withAncestors.envelope.revealFee > withoutAncestors.envelope.revealFee,
       `unpaid ancestors must raise the prefund (${withAncestors.envelope.revealFee} vs ${withoutAncestors.envelope.revealFee})`)
@@ -201,13 +202,13 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
 
     process.env.MAX_CPFP_UPLIFT_SAT = '11'
     const warnings = []
-    const originalWarn = console.warn
-    console.warn = (...args) => warnings.push(args.join(' '))
+    const originalWarn = logger.warn
+    logger.warn = (...args) => warnings.push(args.join(' '))
     let clamped
     try {
       clamped = await buildEnvelope(envelopeEncoder(), { commitFee: UNDER_TARGET_COMMIT_FEE })
     } finally {
-      console.warn = originalWarn
+      logger.warn = originalWarn
     }
     assert.strictEqual(clamped.envelope.revealFee, disabled.envelope.revealFee + 11,
       'the prefund stops at exactly the configured bound')
@@ -228,4 +229,3 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
   })
 
 })
-

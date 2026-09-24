@@ -4,7 +4,7 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.20.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.20.1-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-1%2C787%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
@@ -31,7 +31,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Browser bundle**: Browserify build for client-side PSBT generation without a server
-- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard, the recent-build duplicate refusal and the rate limiter are in-process only until a shared store exists
+- **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard, the recent-build duplicate refusal, the envelope-cancel owner set, the `release_inputs` reservation tickets, the rate limiter and the concurrency-gate counters are in-process only until a shared store exists
 - **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
 
 ## Documentation
@@ -88,11 +88,12 @@ npm run api
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
 | `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors (funding legs, data outputs, change). Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
 | `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |
-| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until the in-process reservation, recent-build and rate-limit stores are shared |
+| `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until the in-process reservation, recent-build, envelope-cancel owner, reservation-ticket, rate-limit and concurrency-gate state is shared |
+| `ENCODER_INSTANCE_LOCK_FILE` | No | `<os tmpdir>/xchain-encoder-<ENCODER_API_PORT>.lock` (`default` in place of the port when `ENCODER_API_PORT` is unset) | Same-host PID lockfile taken exclusively at boot, so a second encoder process started on one host fails fast instead of racing UTXO selections. Point intentionally separate deployments (different coins or networks) on one host at different files. It cannot see replicas on other hosts or containers; `ENCODER_REPLICAS` is that declaration |
 | `API_KEY` | No | Disabled | API key for `x-api-key` header authentication |
 | `ENCODER_RATE_LIMIT_RPM` | No | `60` | Maximum requests per minute per IP |
 | `ENCODER_MAX_RPC_BATCH` | No | `20` | Maximum JSON-RPC batch array length per request |
-| `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `GET /status` and `GET /openrpc.json` are exempt; `0` disables |
+| `ENCODER_MAX_CONCURRENT_REQUESTS` | No | `50` | Global cap on requests served at once across all client IPs; excess gets an immediate 429 + `Retry-After` instead of queueing. `/status` and `/openrpc.json` are exempt, over `GET` or `HEAD`, in any letter case and with or without a trailing slash; `0` disables |
 | `ENCODER_MAX_CONCURRENT_PROBES` | No | `16` | Private concurrency reserve for the two exempt probe routes, so healthchecks stay answerable while the cap above sheds without becoming an uncapped bypass; `0` disables |
 | `ENCODER_TRUST_PROXY` | No | `loopback, uniquelocal` | Express `trust proxy` setting; controls which hop the per-IP rate limiter keys the client IP on. `false`, a hop count, or an address/CIDR list per the Express docs |
 | `ENCODER_MAINTENANCE_FILE` | No | `/tmp/xchain-encoder-maintenance.json` | Where the encoder looks for an operator-declared scheduled-maintenance window. `health` and `GET /status` report it as `maintenance` beside the readiness fields, so a status board can tell a planned outage from a fault; it never changes a readiness field or the 503. See [Scheduled maintenance](#scheduled-maintenance) |

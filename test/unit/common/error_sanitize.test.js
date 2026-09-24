@@ -13,7 +13,7 @@
  *********************************************************************/
 
 const assert = require('assert')
-const { upstreamErrorMessage, isTransportError, leaksInternalDetail } = require('../../../src/common/error_sanitize')
+const { upstreamErrorMessage, isTransportError, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS } = require('../../../src/common/error_sanitize')
 
 // Guards the encoder's outbound error sanitization: useful upstream RPC reasons
 // pass through, transport-level failures (which leak the internal node host:port)
@@ -95,6 +95,39 @@ describe('errorSanitize.upstreamErrorMessage', () => {
         ]) {
             assert.strictEqual(upstreamErrorMessage(new Error(reason), FALLBACK), reason, reason)
             assert.strictEqual(leaksInternalDetail(reason), false, reason)
+        }
+    })
+})
+
+describe('errorSanitize.safeUpstreamReason', () => {
+    it('passes a plain reason through verbatim', () => {
+        const reason = 'rolled back past the recovery window'
+        assert.strictEqual(safeUpstreamReason(reason), reason)
+    })
+
+    it('collapses a reason carrying an endpoint, address or URL to null', () => {
+        for (const reason of [
+            'connect ECONNREFUSED 10.0.0.5:8332',
+            'postgres://user:pass@db.internal:5432/utxo',
+            'reorg below tip while reading from node.internal:8332'
+        ]) {
+            assert.strictEqual(safeUpstreamReason(reason), null, reason)
+        }
+    })
+
+    it('leak-checks the whole string before capping, so a cut cannot hide an endpoint', () => {
+        const reason = 'x'.repeat(MAX_UPSTREAM_REASON_CHARS - 4) + ' 10.0.0.5:8332'
+        assert.strictEqual(safeUpstreamReason(reason), null)
+    })
+
+    it('caps length and strips control characters', () => {
+        assert.strictEqual(safeUpstreamReason('a'.repeat(1000)).length, MAX_UPSTREAM_REASON_CHARS)
+        assert.strictEqual(safeUpstreamReason('line one\nline\u0000two'), 'line one line two')
+    })
+
+    it('returns null for an oversized, empty, blank or non-string reason', () => {
+        for (const value of ['a'.repeat(5000), '', '   ', '\n\t', undefined, null, 42, {}]) {
+            assert.strictEqual(safeUpstreamReason(value), null, JSON.stringify(value))
         }
     })
 })

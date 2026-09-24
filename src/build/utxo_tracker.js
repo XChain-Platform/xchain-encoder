@@ -21,6 +21,7 @@
 const axios = require('axios')
 const util = require('node:util');
 const { getLogger } = require('../observability');
+const { safeUpstreamReason } = require('../common/error_sanitize');
 const logger = getLogger();
 
 // How long to wait on the tracker before giving up on a request.
@@ -51,7 +52,7 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 // Returns a reason string when the pages disagree, null when they are one snapshot.
 function snapshotDivergence(first, later){
     if (!first || !later) return null
-    if (later.halted === true) return 'the tracker halted mid-fetch (' + (later.halt_reason || 'unrecoverable reorg') + ')'
+    if (later.halted === true) return 'the tracker halted mid-fetch (' + (safeUpstreamReason(later.halt_reason) || 'unrecoverable reorg') + ')'
     if (later.synced === false) return 'the tracker stopped reporting synced mid-fetch'
     if (typeof later.lag === 'number' && later.lag < 0) return 'the tracker went ' + (-later.lag) + ' blocks ahead of the node mid-fetch'
     if (typeof first.tracker_height === 'number' && typeof later.tracker_height === 'number' &&
@@ -82,7 +83,7 @@ async function assertTrackerReady(tracker){
         // possibly mid-rollback. A frozen height whose lag still looked acceptable
         // sailed past both checks below, so gate on it first.
         if (syncStatus.halted === true) {
-            throw new Error(`utxo-tracker is halted (${syncStatus.halt_reason || 'unrecoverable reorg'}); refusing to fetch UTXOs`)
+            throw new Error(`utxo-tracker is halted (${safeUpstreamReason(syncStatus.halt_reason) || 'unrecoverable reorg'}); refusing to fetch UTXOs`)
         }
         // A negative lag means our committed tip is ABOVE the node's, i.e. the node
         // reset or reindexed below us and those outputs sit in blocks it no longer

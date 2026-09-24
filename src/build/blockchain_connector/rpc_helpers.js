@@ -112,7 +112,6 @@ module.exports = {
     feeEstimateSanityCeiling,
     sanitizeRpcError,
     rpcErrorDetail,
-    readNumeric,
     entrySize,
     entryFee,
 }

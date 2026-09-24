@@ -69,6 +69,12 @@ const { loadSplits, compareWithSplits } = require('./suite_title_map/split_map.j
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const MOCHA_BIN = path.join(REPO_ROOT, 'node_modules', '.bin', 'mocha');
+const SIBLING_RESOLVER = path.join(__dirname, 'suite_title_map', 'sibling_resolver.js');
+
+const NOT_RUN = {
+    'test:e2e:service': 'requires a running encoder API service backed by a bitcoind regtest venue',
+    'test:regtest': 'requires a local bitcoind regtest venue and resets its regtest data directory',
+};
 
 /**
  * A shell-ish split that keeps quoted globs whole. The scripts are plain
@@ -154,7 +160,11 @@ function collect(scriptName, script) {
 
     const res = spawnSync(MOCHA_BIN, ['--dry-run', '--reporter', 'json', ...parsed.args], {
         cwd: REPO_ROOT,
-        env: { ...process.env, ...parsed.env },
+        env: {
+            ...process.env,
+            ...parsed.env,
+            NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require=${SIBLING_RESOLVER}`.trim(),
+        },
         maxBuffer: 256 * 1024 * 1024,
         encoding: 'utf8',
     });
@@ -197,7 +207,7 @@ function buildMap(only) {
     const scripts = {};
     for (const name of names) {
         if (only && name !== only) continue;
-        const result = collect(name, pkg.scripts[name]);
+        const result = NOT_RUN[name] ? { skipped: NOT_RUN[name] } : collect(name, pkg.scripts[name]);
         if (result.files) {
             const files = {};
             for (const rel of Object.keys(result.files)) {
@@ -330,4 +340,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { buildMap, collect, mochaArgsFor, splitCommand, compare, expand };
+module.exports = { buildMap, collect, mochaArgsFor, splitCommand, compare, expand, NOT_RUN };
