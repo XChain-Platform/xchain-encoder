@@ -63,8 +63,8 @@ function envelopeTapLeafHash(script) {
 
 // bitcoinjs-lib refuses any P2TR construction until an ECC backend is
 // registered. Registered lazily on the first envelope build rather than at
-// module load so the non-envelope lanes (and the browserify bundle) never pay
-// for the wasm-backed tiny-secp256k1 at startup.
+// module load so non-envelope paths do not load the wasm-backed
+// tiny-secp256k1 dependency at startup.
 let eccLibReady = false
 function ensureEccLib() {
     if (eccLibReady) return
