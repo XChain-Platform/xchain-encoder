@@ -4,8 +4,8 @@ xchain-encoder dead-code sweep, 2026-09-13
 Tool: bin/reachability.js --no-siblings --json (repo-local runtime, tooling
 and test closures; sibling detection skipped because the ported
 sibling-reference-map.js is indexer-name-hardcoded, so the
-falsification step is command grep -r by hand instead). 29 tracked
-src/*.js files, 4 candidates: not reached from api.js (the runtime
+falsification step is command grep -r by hand instead). 28 tracked
+src/*.js files, 3 candidates: not reached from api.js (the runtime
 entry), bin/scripts/tools, or nothing at all.
 
 Candidates and their falsification, each by `command grep -r` (never the
@@ -16,21 +16,9 @@ xchain-hub, xchain-indexer, xchain-node, xchain-regtest-miner, xchain-sdk,
 xchain-sync, xchain-utxo-tracker, xchain-vm, xchain-wallet, xchain-websites),
 plus the platform's internal docs (1 hit, counted below):
 
-1. src/index.js
-   reachability.js verdict: NOT reachable from runtime/tooling/tests,
-   unreferencedAcrossPlatform.
-   FALSIFIED, NOT DEAD: it is the browserify entry point named literally by
-   package.json's `build` and `build:dev` scripts
-   (`npx browserify src/index.js ... -o dist/xchain_encoder.min.js`), and
-   xchain-documentation/components/encoder/README.md:119-120 documents that
-   exact build product for consumers. reachability.js's runtimeEntries()
-   only recognises `node <file>.js` invocations in package.json scripts, so
-   a browserify entry is a blind spot in the ported tool, not a dead file.
-   VERDICT: KEEP. Not deleted.
-
-2. src/adapters/ChainAdapter.js
-3. src/adapters/EvmAdapter.js
-4. src/adapters/evmFinality.js
+1. src/adapters/ChainAdapter.js
+2. src/adapters/EvmAdapter.js
+3. src/adapters/evmFinality.js
    reachability.js verdict: testOnly (reached only from
    test/unit/evmAdapter.test.js), EvmAdapter.js additionally
    unreferencedAcrossPlatform.
