@@ -103,6 +103,10 @@ need_sib() {
 
 need_sib xchain-hub xchain-documentation xchain-decoder xchain-sdk
 
+# Hold every tier below to the same guarantee need_sib just confirmed: an
+# unusable sibling must fail the tier that needs it, not skip it quietly.
+export XCHAIN_REQUIRE_SIBLINGS=1
+
 # --- job: ci (XChain-Platform/.github ci-reusable.yml -> npm run ci) -------
 run_tier "ci" npm run ci
 
