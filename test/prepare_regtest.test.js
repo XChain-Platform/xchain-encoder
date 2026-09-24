@@ -12,72 +12,77 @@
  *
  ********************************************************************/
 
-const { execSync } = require('child_process');
+'use strict'
+
+process.env.DOTENV_CONFIG_PATH = '/dev/null'
+
+const { execFileSync } = require('child_process')
+const { rmSync } = require('fs')
+const { homedir } = require('os')
+const path = require('path')
 const nodeHelper = require('./helpers/node_helper')
 const { waitFor } = require('./helpers/timing')
 
-// Función para ejecutar comandos del sistema
-function executeCommand(comando) {
-  let options = {stdio : 'pipe' };
-  return execSync(comando, options);
+const RESET_OPT_IN = 'XCHAIN_RESET_REGTEST'
+
+function executeCommand (command, args) {
+  return execFileSync(command, args, { stdio: 'pipe' })
 }
 
-function checkNode(){
+function checkNode () {
   try {
-    // Obtener la información de la red utilizando bitcoin-cli
-    const networkInfo = executeCommand('bitcoin-cli -regtest getnetworkinfo');
-
-	// Analizar la salida para verificar si el nodo regtest está en ejecución
-    const parsedNetworkInfo = JSON.parse(networkInfo);
-    return parsedNetworkInfo.networkactive === true;
+    const networkInfo = executeCommand('bitcoin-cli', ['-regtest', 'getnetworkinfo'])
+    return JSON.parse(networkInfo).networkactive === true
   } catch (error) {
-    // Manejar errores si es necesario
-	return false
+    return false
   }
 }
 
 exports.mochaHooks = {
-   async beforeAll(){
-	 if (checkNode()){
-	   // Stop regtest node
-       console.log("Stopping node")
-       executeCommand('bitcoin-cli -regtest stop');
-	 } else {
-	   console.log("The node is not working, continuing execution")
-	   //Assuming regtest node is not executing
-	 }
+  async beforeAll () {
+    if (process.env[RESET_OPT_IN] !== '1') {
+      console.log(`Skipping regtest reset; set ${RESET_OPT_IN}=1 to opt in`)
+      return
+    }
 
-     // Limpiar la cadena de bloques y los datos del nodo regtest (opcional)
-	 console.log("Cleaning node")
-     executeCommand('rm -rf ~/.bitcoin/regtest');
+    if (checkNode()) {
+      console.log('Stopping node')
+      executeCommand('bitcoin-cli', ['-regtest', 'stop'])
+    } else {
+      console.log('The node is not working, continuing execution')
+    }
 
-     // Inicializar el nodo regtest
-     console.log("Restarting node")
-     executeCommand('bitcoind -regtest -daemon -fallbackfee=1.0 -maxtxfee=1.1');
+    console.log('Cleaning node')
+    rmSync(path.join(homedir(), '.bitcoin', 'regtest'), {
+      force: true,
+      recursive: true
+    })
 
-     console.log("Checking node")
-     // Condition-wait on daemon readiness instead of a fixed sleep loop:
-     // returns as soon as getnetworkinfo succeeds, and throws (failing the
-     // run loudly) if the node never comes up within the deadline.
-     await waitFor(() => checkNode(), {
-       timeout: 60000,
-       interval: 1000,
-       message: 'regtest bitcoind did not become ready'
-     })
+    console.log('Restarting node')
+    executeCommand('bitcoind', [
+      '-regtest',
+      '-daemon',
+      '-fallbackfee=1.0',
+      '-maxtxfee=1.1'
+    ])
 
-    // Puedes realizar más acciones después de reiniciar el nodo si es necesario
-    console.log('Nodo regtest reset and ready.');
-	
-	console.log("Creating the wallet 'test-wallet'")
-	nodeClientTest = await nodeHelper.getWalletConnection('test-wallet') 
-	
-	console.log("Obtaining an address")
-	global.mainTestAddress = await nodeClientTest.getNewAddress()
-	console.log("The address obtained is "+mainTestAddress+". Generating blocks.")
-	await nodeClientTest.generateToAddress(101, mainTestAddress)
-	console.log("Obtaining balance")
-	let balance = await nodeClientTest.getBalance()
-	console.log("The address "+mainTestAddress+" has "+balance+" BTC")
-	
+    console.log('Checking node')
+    await waitFor(() => checkNode(), {
+      timeout: 60000,
+      interval: 1000,
+      message: 'regtest bitcoind did not become ready'
+    })
+
+    console.log('Regtest node reset and ready')
+    console.log("Creating the wallet 'test-wallet'")
+    const nodeClientTest = await nodeHelper.getWalletConnection('test-wallet')
+
+    console.log('Obtaining an address')
+    global.mainTestAddress = await nodeClientTest.getNewAddress()
+    console.log(`The address obtained is ${global.mainTestAddress}. Generating blocks.`)
+    await nodeClientTest.generateToAddress(101, global.mainTestAddress)
+    console.log('Obtaining balance')
+    const balance = await nodeClientTest.getBalance()
+    console.log(`The address ${global.mainTestAddress} has ${balance} BTC`)
   }
 }
