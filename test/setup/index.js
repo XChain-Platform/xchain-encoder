@@ -26,3 +26,6 @@
 'use strict';
 
 process.env.XCHAIN_LOG_PATCH = '0';
+
+// Keep the developer .env out of every suite that loads src/api.js.
+process.env.DOTENV_CONFIG_PATH = '/dev/null';

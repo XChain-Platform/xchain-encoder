@@ -18,8 +18,7 @@
  *
  ********************************************************************/
 
-const dotenv = require('dotenv')
-dotenv.config()
+require('dotenv/config')
 
 // Before anything else logs. The API_KEY notice and env-validation lines
 // immediately below are exactly the ones an operator needs levelled and

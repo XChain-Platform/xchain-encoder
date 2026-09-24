@@ -20,8 +20,8 @@ const { execFileSync } = require('child_process')
 const { rmSync } = require('fs')
 const { homedir } = require('os')
 const path = require('path')
-const nodeHelper = require('./helpers/node_helper')
-const { waitFor } = require('./helpers/timing')
+const nodeHelper = require('../helpers/node_helper')
+const { waitFor } = require('../helpers/timing')
 
 const RESET_OPT_IN = 'XCHAIN_RESET_REGTEST'
 
