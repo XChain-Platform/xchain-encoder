@@ -106,11 +106,11 @@ describe('XChainEncoder.createTransaction()', () => {
 
       // A large dust value with a tiny fee is the exact condition that exposes
       // the bug: when the data-output value exceeds the fee, omitting it from
-      // the output total over-credits change past the input total. fee=100,
+      // the output total over-credits change past the input total. fee=10000,
       // dust=50000.
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, null,
-        MS_DATA, null, 100, false, 'MULTISIGN', TEST_ADDRESS,
+        MS_DATA, null, 10000, false, 'MULTISIGN', TEST_ADDRESS,
         null, null, compressedPubKey, true, 0.00001, 50000
       )
 

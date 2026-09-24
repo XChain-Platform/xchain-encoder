@@ -22,13 +22,15 @@ const util = require('node:util');
 const { logger, SATOSHI_UNIT } = require('../constants.js')
 const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte } = require('../fee_policy.js')
 
-// The per-byte rate this build charges, the node rate the drain caps anchor
-// to, the effective cap, and the dust floor, settled in that order.
+// The relay floor, per-byte rate this build charges, node rate the drain caps
+// anchor to, effective cap, and dust floor, settled in that order.
 function* resolveFeeRates(build){
     let { feePerKb } = build
     let feePerBytes = null
     let nodeFeePerBytes = null
-    Object.assign(build, { feePerBytes, nodeFeePerBytes })
+    let relayFeePerKb = null
+    Object.assign(build, { feePerBytes, nodeFeePerBytes, relayFeePerKb })
+    yield* resolveRelayFeeRate.call(this, build)
     if (feePerKb){
         yield* useCallerFeeRate.call(this, build)
     } else {
@@ -36,6 +38,15 @@ function* resolveFeeRates(build){
     }
     yield* anchorRelayFeeRate.call(this, build)
     applyFeeCapAndDustFloor.call(this, build)
+}
+
+function* resolveRelayFeeRate(build){
+    const info = yield this.connector.getNetworkInfo()
+    const relayFeePerKb = Number(info && info.relayfee)
+    if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0){
+        throw new RangeError('Node did not report a positive relayfee; transaction fee safety cannot be verified')
+    }
+    Object.assign(build, { relayFeePerKb })
 }
 
 function* useCallerFeeRate(build){
@@ -71,7 +82,7 @@ function* useCallerFeeRate(build){
 }
 
 function* useNodeFeeRate(build){
-    let { feePerBytes, nodeFeePerBytes } = build
+    let { feePerBytes, nodeFeePerBytes, relayFeePerKb } = build
     feePerBytes = (yield this.connector.getFeePerKilobyte(1))/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
     nodeFeePerBytes = feePerBytes
     // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
@@ -79,16 +90,8 @@ function* useNodeFeeRate(build){
     // below still anchor to what the node actually reported.
     let suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
     if (suggestedCap != null && feePerBytes > suggestedCap){
-        // Never clamp below what the node will relay (see
-        // suggestedFeeCeilingFloorPerByte); the floor is coin-correct
-        // because it comes from the node, where the ceiling constant is not.
-        try {
-            const info = yield this.connector.getNetworkInfo()
-            const floor = suggestedFeeCeilingFloorPerByte(info && info.relayfee)
-            if (floor != null && floor > suggestedCap) suggestedCap = floor
-        } catch (err) {
-            logger.warn(util.format('Suggested-fee ceiling relayfee floor unavailable; using the configured ceiling:', err.message))
-        }
+        const floor = suggestedFeeCeilingFloorPerByte(relayFeePerKb)
+        if (floor != null && floor > suggestedCap) suggestedCap = floor
     }
     // Compare with a relative epsilon. Both sides are coin-per-byte floats
     // derived by dividing by 1000 and by SATOSHI_UNIT, so a ceiling that
@@ -109,7 +112,7 @@ function* useNodeFeeRate(build){
 }
 
 function* anchorRelayFeeRate(build){
-    let { nodeFeePerBytes } = build
+    let { nodeFeePerBytes, relayFeePerKb } = build
     // Relative-cap anchor fallback. On non-regtest chains getFeePerKilobyte
     // THROWS when estimatesmartfee has no data (fresh node, warming mempool,
     // low activity), so the caller-supplied feePerKb path above leaves
@@ -124,15 +127,7 @@ function* anchorRelayFeeRate(build){
     // Deliberately NOT gated on maxFeeRateMultiplier: the absolute burn
     // backstop further down needs a caller-independent reference rate even
     // when the operator disables the relative cap (multiplier 0).
-    if (nodeFeePerBytes == null){
-        try {
-            const info = yield this.connector.getNetworkInfo();
-            const relayfee = Number(info && info.relayfee);
-            if (relayfee > 0) nodeFeePerBytes = relayfee / 1000;
-        } catch (err) {
-            logger.warn(util.format('Fee cap relayfee-anchor fallback failed; feePerKb cap disabled this build:', err.message));
-        }
-    }
+    if (nodeFeePerBytes == null) nodeFeePerBytes = relayFeePerKb / 1000
     Object.assign(build, { nodeFeePerBytes })
 }
 

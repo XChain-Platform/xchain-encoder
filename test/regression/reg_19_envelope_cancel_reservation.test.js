@@ -50,6 +50,7 @@ function makeEncoder () {
   const encoder = new XChainEncoder(NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => { throw new Error('unit test: no node') }
   }
   encoder.utxoTrackerConnector = {

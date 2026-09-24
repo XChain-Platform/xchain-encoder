@@ -312,7 +312,7 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
         [utxo], address, null,
         action.data, null, null, false, null, address,
         null, null, null,
-        true, 0.0000001, 100 // custom dust = 100
+        true, null, 100 // custom dust = 100
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)

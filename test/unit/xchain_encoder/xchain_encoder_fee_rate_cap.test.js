@@ -60,7 +60,8 @@ function makeEncoder (maxFeeRateKb = null, maxFeeRateMultiplier = undefined) {
     ? new XChainEncoder('litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', maxFeeRateKb)
     : new XChainEncoder('litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', maxFeeRateKb, maxFeeRateMultiplier)
   encoder.connector = {
-    getFeePerKilobyte: async () => 0.00001
+    getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 })
   }
   // The network dust floor sits above the sub-dust fees these rate-cap probes
   // produce (a ~131-byte tx capped at ~100 sat/byte pays ~13100). The floor has
@@ -141,18 +142,16 @@ describe('XChainEncoder fee-rate cap', () => {
       `fee ${paidFee(result)} should have been clamped via the relayfee anchor, not honored`)
   })
 
-  it('honors feePerKb only when neither estimatesmartfee nor relayfee is available', async () => {
+  it('refuses to build when relayfee cannot be resolved', async () => {
     const encoder = makeEncoder()
-    // Last-resort degradation: the node can produce no estimate AND no relayfee
-    // (getNetworkInfo also fails), so there is genuinely no anchor and no
-    // MAX_FEE_RATE_KB; the caller's rate is honored rather than blocking builds.
     encoder.connector = {
       getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
       getNetworkInfo: async () => { throw new Error('getnetworkinfo unavailable') }
     }
-    const result = await create(encoder, { feePerKb: 1000000 })
-    assert.ok(paidFee(result) >= 100000,
-      `fee ${paidFee(result)} should reflect the unclamped 1000 sat/byte rate`)
+    await assert.rejects(
+      create(encoder, { feePerKb: 1000000 }),
+      /getnetworkinfo unavailable/
+    )
   })
 
   it('applies the absolute MAX_FEE_RATE_KB cap when it is tighter than the relative cap', async () => {
@@ -165,7 +164,8 @@ describe('XChainEncoder fee-rate cap', () => {
   it('caps the absolute fee against MAX_FEE_RATE_KB even without a node estimate', async () => {
     const encoder = makeEncoder(50000)
     encoder.connector = {
-      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') }
+      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
+      getNetworkInfo: async () => ({ relayfee: 0.00001 })
     }
     await assert.rejects(
       create(encoder, { fee: INPUT_VALUE, feePerKb: 1000000 }),

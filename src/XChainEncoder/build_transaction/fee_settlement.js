@@ -66,6 +66,27 @@ function refuseExcessiveFee(build){
     }
 }
 
+function refuseInsufficientRelayFee(build){
+    const { fee, feePerKb, feePerBytes, p2shHash, estimatedTxSize, estimatedFee, relayFeePerKb } = build
+    const hasExplicitFee = fee != null && fee !== false
+    const hasCallerRate = feePerKb != null && feePerKb !== false
+    if (!hasExplicitFee && !hasCallerRate) return
+
+    const suppliedFee = hasExplicitFee
+        ? estimatedFee
+        : p2shHash
+            ? Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
+            : estimatedFee
+    const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
+    const minimumRelayFee = Math.ceil(estimatedTxSize * relayFeeBaseUnitsPerKb / 1000)
+    if (suppliedFee >= minimumRelayFee) return
+
+    if (hasExplicitFee){
+        throw new RangeError(`fee ${suppliedFee} is below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+    }
+    throw new RangeError(`feePerKb ${feePerKb} base units/kB produces fee ${suppliedFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+}
+
 function* upliftForAncestors(build){
     let { unconfirmedInputTxids, feePerBytes, estimatedFee, estimatedTxSize } = build
     // CPFP-aware package sizing.
@@ -309,4 +330,4 @@ function computeChange(build){
     Object.assign(build, { changeSatoshis })
 }
 
-module.exports = { refuseExcessiveFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange }
+module.exports = { refuseExcessiveFee, refuseInsufficientRelayFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange }

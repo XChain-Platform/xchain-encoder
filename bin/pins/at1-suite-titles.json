@@ -189,6 +189,14 @@
       "Security: remediated dependency advisories @regression @tier4 ADV-4: brace-expansion survives the CVE-2026-14257 unbounded-length input",
       "Security: remediated dependency advisories @regression @tier4 ADV-5: the installed axios reports a patched runtime version"
     ],
+    "0fdda5be04dda426": [
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) accepts the x-only internal key form",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) applies the create_tx fee guards to feePerKb and replacebyfee",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) builds, signs and extracts a sweep using only the recovery record",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) fails closed when the sweep would land under dust",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) rejects a caller fee rate below the size-adjusted relay minimum",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) validates the recovery-record fields"
+    ],
     "11a13e37d91017bf": [
       "XChainEncoder.obfuscate() different keys produce different output",
       "XChainEncoder.obfuscate() handles 1-byte data",
@@ -276,6 +284,11 @@
       "Chaos Category C: Library & Crypto Failures C-5: Non-base58 caller identity for P2SH encoding an identity that is no address and no pubkey is refused by name",
       "Chaos Category C: Library & Crypto Failures C-5: Non-base58 caller identity for P2SH encoding bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey"
     ],
+    "16b6105b0a4d877e": [
+      "XChainEncoder TAPROOT envelope key-path cancel suspension count a below-dust cancel is refused and hands its claim back four turns after the call",
+      "XChainEncoder TAPROOT envelope key-path cancel suspension count the caller fee-rate path settles four turns after the call",
+      "XChainEncoder TAPROOT envelope key-path cancel suspension count the node fee-rate path settles four turns after the call"
+    ],
     "16caf10d6b0f828b": [
       "Chaos Category F: API Layer Failures F-1: Validator with malformed params create_envelope_cancel_tx rejects positional array params at the gate",
       "Chaos Category F: API Layer Failures F-1: Validator with malformed params data exceeding 65536 bytes \u2192 RangeError",
@@ -290,6 +303,20 @@
       "Chaos Category F: API Layer Failures F-3: psbt.toHex() callability (api.js line 124 exposure) OP_RETURN result: psbt.toHex() succeeds",
       "Chaos Category F: API Layer Failures F-3: psbt.toHex() callability (api.js line 124 exposure) P2SH result: psbt.toHex() succeeds",
       "Chaos Category F: API Layer Failures F-3b: psbt.toHex() monkey-patch (documents api.js exposure) toHex failure after successful createTransaction \u2192 unhandled in api.js"
+    ],
+    "181d8e207d19511b": [
+      "XChainEncoder fee-rate cap accepts a generous but plausible absolute fee (priority/RBF headroom)",
+      "XChainEncoder fee-rate cap applies the absolute MAX_FEE_RATE_KB cap when it is tighter than the relative cap",
+      "XChainEncoder fee-rate cap burn backstop anchors on the relayfee when the smart-fee estimate is unavailable (cap disabled)",
+      "XChainEncoder fee-rate cap burn backstop ceiling is anchored to the node rate, not a caller-inflated feePerKb (cap disabled)",
+      "XChainEncoder fee-rate cap caps the absolute fee against MAX_FEE_RATE_KB even without a node estimate",
+      "XChainEncoder fee-rate cap clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable",
+      "XChainEncoder fee-rate cap clamps an over-cap feePerKb to the relative cap instead of draining inputs",
+      "XChainEncoder fee-rate cap converts a caller sat/kB rate to the same units as the cap and fee formula",
+      "XChainEncoder fee-rate cap default-path node estimate is never clamped by its own cap",
+      "XChainEncoder fee-rate cap multiplier 0 disables the relative cap, but the fixed 100x burn backstop still applies",
+      "XChainEncoder fee-rate cap refuses to build when relayfee cannot be resolved",
+      "XChainEncoder fee-rate cap rejects a drain-shaped absolute fee with a RangeError"
     ],
     "19bbd52a62e424d4": [
       "browser bundle entry (src/browser/index.js) attaches the encoder class to window as the very class module",
@@ -472,6 +499,9 @@
     "2dd7e128b3fa1284": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.13: Custom outputs coexist with ACTION custom output value deducted from change"
     ],
+    "2f6d87eaf711d8a0": [
+      "broadcast_tx rejection logging logs the locally derived txid without logging raw transaction hex"
+    ],
     "3200c672043a4ec4": [
       "Encoding Chunk Boundaries: Full Pipeline MULTISIGN encoding boundaries 59-char data (compiled=60): valid 1-MULTISIGN output",
       "Encoding Chunk Boundaries: Full Pipeline MULTISIGN encoding boundaries 60-char data (compiled=61): produces exactly 2 MULTISIGN outputs",
@@ -594,11 +624,6 @@
       "coverage ratchet floors enforces every declared floor, at the declared value",
       "coverage ratchet floors fails the job on a shortfall rather than only reporting it",
       "coverage ratchet floors ships the coverage:check script the CI coverage job invokes"
-    ],
-    "44230034b18955bb": [
-      "XChainEncoder TAPROOT envelope key-path cancel suspension count a below-dust cancel is refused and hands its claim back three turns after the call",
-      "XChainEncoder TAPROOT envelope key-path cancel suspension count the caller fee-rate path settles three turns after the call",
-      "XChainEncoder TAPROOT envelope key-path cancel suspension count the node fee-rate path settles three turns after the call"
     ],
     "447682ee980135d8": [
       "XChainEncoder.createTransaction() - feeQuote injection adds feeQuote as an extra output when address and amount > 0",
@@ -771,20 +796,6 @@
       "REG-04: Validator Functions REG-04.8: validateUtxoEntry() throws TypeError for txid that is not 64-char hex",
       "REG-04: Validator Functions REG-04.8: validateUtxoEntry() throws TypeError for txid with non-hex chars",
       "REG-04: Validator Functions REG-04.8: validateUtxoEntry() validates a complete valid entry and coerces value/vout"
-    ],
-    "5ada45b5f0f336ef": [
-      "XChainEncoder fee-rate cap accepts a generous but plausible absolute fee (priority/RBF headroom)",
-      "XChainEncoder fee-rate cap applies the absolute MAX_FEE_RATE_KB cap when it is tighter than the relative cap",
-      "XChainEncoder fee-rate cap burn backstop anchors on the relayfee when the smart-fee estimate is unavailable (cap disabled)",
-      "XChainEncoder fee-rate cap burn backstop ceiling is anchored to the node rate, not a caller-inflated feePerKb (cap disabled)",
-      "XChainEncoder fee-rate cap caps the absolute fee against MAX_FEE_RATE_KB even without a node estimate",
-      "XChainEncoder fee-rate cap clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable",
-      "XChainEncoder fee-rate cap clamps an over-cap feePerKb to the relative cap instead of draining inputs",
-      "XChainEncoder fee-rate cap converts a caller sat/kB rate to the same units as the cap and fee formula",
-      "XChainEncoder fee-rate cap default-path node estimate is never clamped by its own cap",
-      "XChainEncoder fee-rate cap honors feePerKb only when neither estimatesmartfee nor relayfee is available",
-      "XChainEncoder fee-rate cap multiplier 0 disables the relative cap, but the fixed 100x burn backstop still applies",
-      "XChainEncoder fee-rate cap rejects a drain-shaped absolute fee with a RangeError"
     ],
     "5c149d2d20812d9a": [
       "Security: global in-flight concurrency cap api.js mounts the JSON-RPC router and /status inside hold()",
@@ -1136,6 +1147,15 @@
       "release_inputs JSON-RPC method maps a malformed or missing reservationId to invalid params",
       "release_inputs JSON-RPC method releases the claims the presented ticket owns"
     ],
+    "9255e3590e78f11d": [
+      "XChainEncoder.createTransaction() Dogecoin relay fee floor rejects an explicit fee below the size-adjusted relay minimum",
+      "XChainEncoder.createTransaction() Dogecoin relay fee floor rejects caller feePerKb below the size-adjusted relay minimum",
+      "XChainEncoder.createTransaction() fee handling calls connector.getFeePerKilobyte when feePerKb is null",
+      "XChainEncoder.createTransaction() fee handling floors a node-derived fee to dustAmount when computed fee is lower",
+      "XChainEncoder.createTransaction() fee handling resolves relayfee when feePerKb is provided",
+      "XChainEncoder.createTransaction() fee handling throws RangeError when the custom fee exceeds 100x the fair-fee estimate (burn backstop)",
+      "XChainEncoder.createTransaction() fee handling uses custom fee when provided"
+    ],
     "926d15e7ddd15fee": [
       "uppercase-hex txid / obfuscation-key binding @regression MULTISIGN: same, on the bare-multisig payload path",
       "uppercase-hex txid / obfuscation-key binding @regression OP_RETURN: an uppercase caller txid builds and decodes under the ins[0] key",
@@ -1469,13 +1489,6 @@
     ],
     "b7598b5920b35f20": [
       "Encoder input validator validateAddress accepts a valid string (incl. exactly 100 chars); rejects empty, non-string, and over-length"
-    ],
-    "b77f94d358245fae": [
-      "XChainEncoder.createTransaction() fee handling calls connector.getFeePerKilobyte when feePerKb is null",
-      "XChainEncoder.createTransaction() fee handling floors fee to dustAmount when computed fee is lower",
-      "XChainEncoder.createTransaction() fee handling throws RangeError when the custom fee exceeds 100x the fair-fee estimate (burn backstop)",
-      "XChainEncoder.createTransaction() fee handling uses custom fee when provided",
-      "XChainEncoder.createTransaction() fee handling uses feePerKb parameter when provided (no RPC call)"
     ],
     "b9beb9ad608568f2": [
       "REG-04: Validator Functions REG-04.10: validateCustomOutputs() returns null for null input",
@@ -1887,13 +1900,6 @@
       "BlockchainConnector.getNetworkInfo() throws when result is missing from response",
       "BlockchainConnector.getNetworkInfo() wraps axios transport errors"
     ],
-    "e1c1badc45b5ec79": [
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) accepts the x-only internal key form",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) applies the create_tx fee guards to feePerKb and replacebyfee",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) builds, signs and extracts a sweep using only the recovery record",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) fails closed when the sweep would land under dust",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) validates the recovery-record fields"
-    ],
     "e349cec537f9beb2": [
       "assertEnvelopeRecognized() FAIL-CLOSES when the tip is unknowable, rather than assuming",
       "assertEnvelopeRecognized() REFUSES below the activation height, naming the shortfall",
@@ -2173,10 +2179,11 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 123,
-      "titleCount": 929,
+      "fileCount": 124,
+      "titleCount": 933,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
+        "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
@@ -2254,7 +2261,7 @@
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/02_unconfirmed_filtering.test.js": "01301310489a6d18",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/03_utxo_sorting.test.js": "61c7893f33172ff0",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/04_replace_by_fee_sequence.test.js": "779e7e9a758ea87d",
-        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "b77f94d358245fae",
+        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "9255e3590e78f11d",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/06_custom_dust_parameter.test.js": "68626fb6051d2aba",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/07_change_output.test.js": "dbe9aa0a839fb823",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/08_no_utxos_available.test.js": "c08315d45c994876",
@@ -2282,7 +2289,7 @@
         "test/unit/xchain_encoder/xchain_encoder_extra.test/08_estimate_spending_p2wsh_tx.test.js": "59ae18cc4c09d4bd",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/09_remaining_branch_coverage.test.js": "630b933b3e1320d0",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/10_raw_data_parameter.test.js": "d683ae27a964eb5b",
-        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "5ada45b5f0f336ef",
+        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "181d8e207d19511b",
         "test/unit/xchain_encoder/xchain_encoder_is_segwit_u_t_x_o.test.js": "b35bd4199facec7a",
         "test/unit/xchain_encoder/xchain_encoder_obfuscate.test.js": "11a13e37d91017bf",
         "test/unit/xchain_encoder/xchain_encoder_p2sh_reveal_headroom.test.js": "e3e957d2c34ec853",
@@ -2294,9 +2301,9 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js": "27e24996d31ce20e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js": "880c961e264c0519",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "e1c1badc45b5ec79",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "0fdda5be04dda426",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "44230034b18955bb",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }
@@ -2446,10 +2453,11 @@
       }
     },
     "test:unit": {
-      "fileCount": 123,
-      "titleCount": 929,
+      "fileCount": 124,
+      "titleCount": 933,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
+        "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
@@ -2527,7 +2535,7 @@
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/02_unconfirmed_filtering.test.js": "01301310489a6d18",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/03_utxo_sorting.test.js": "61c7893f33172ff0",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/04_replace_by_fee_sequence.test.js": "779e7e9a758ea87d",
-        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "b77f94d358245fae",
+        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "9255e3590e78f11d",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/06_custom_dust_parameter.test.js": "68626fb6051d2aba",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/07_change_output.test.js": "dbe9aa0a839fb823",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/08_no_utxos_available.test.js": "c08315d45c994876",
@@ -2555,7 +2563,7 @@
         "test/unit/xchain_encoder/xchain_encoder_extra.test/08_estimate_spending_p2wsh_tx.test.js": "59ae18cc4c09d4bd",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/09_remaining_branch_coverage.test.js": "630b933b3e1320d0",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/10_raw_data_parameter.test.js": "d683ae27a964eb5b",
-        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "5ada45b5f0f336ef",
+        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "181d8e207d19511b",
         "test/unit/xchain_encoder/xchain_encoder_is_segwit_u_t_x_o.test.js": "b35bd4199facec7a",
         "test/unit/xchain_encoder/xchain_encoder_obfuscate.test.js": "11a13e37d91017bf",
         "test/unit/xchain_encoder/xchain_encoder_p2sh_reveal_headroom.test.js": "e3e957d2c34ec853",
@@ -2567,9 +2575,9 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js": "27e24996d31ce20e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js": "880c961e264c0519",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "e1c1badc45b5ec79",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "0fdda5be04dda426",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "44230034b18955bb",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }

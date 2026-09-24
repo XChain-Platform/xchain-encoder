@@ -72,6 +72,7 @@ function makeEncoder (network) {
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => RAW_TX_HEX
   }
   const trackerUtxo = encoder.network.supportsSegwit === false ? makeP2pkhUtxo : makeSegwitUtxo

@@ -77,6 +77,7 @@ function makeEncoder (networkName = 'litecoin-regtest') {
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     // Returns a bare hex STRING, which is what BlockchainConnector.getTransactionHex
     // actually resolves with (`responseData.result.hex`). An `{ hex }` answer
     // models a shape the real class has never returned. The segwit path requires

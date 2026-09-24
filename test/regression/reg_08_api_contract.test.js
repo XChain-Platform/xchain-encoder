@@ -118,7 +118,7 @@ describe('REG-08: API Contract Regression', function () {
         utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         fee: null,
         change: address,
-        feePerKb: 0.00001
+        feePerKb: null
       }, encoder)
 
       assert.ok(result.psbt)
@@ -137,7 +137,7 @@ describe('REG-08: API Contract Regression', function () {
         pubkey: address,
         utxos: [makeUtxo(NETWORK, TXID_A, 0, 100000000)],
         change: address,
-        feePerKb: 0.00001
+        feePerKb: 2000
       }, encoder)
 
       assert.ok(result.psbt)

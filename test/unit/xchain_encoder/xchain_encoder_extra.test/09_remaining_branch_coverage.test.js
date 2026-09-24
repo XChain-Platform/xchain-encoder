@@ -69,6 +69,7 @@ function makeEncoder (network) {
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => RAW_TX_HEX
   }
   // Serve the fixture type the chain can actually hold: a witness-program UTXO

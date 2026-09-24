@@ -20,6 +20,7 @@
  ********************************************************************/
 
 const util = require('util')
+const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
 const { upstreamErrorMessage } = require('../common/error_sanitize')
@@ -292,8 +293,10 @@ return {
         // Shed malformed/oversized payloads before the node round-trip; the
         // node would reject them anyway, this just answers with a precise
         // invalid-params reason instead of a node-side parse error.
+        let localTxid
         try {
             validator.validateRawTxHex(tx_hex)
+            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
         } catch (err) {
             const e = new Error(err.message)
             e.code = -32602
@@ -304,7 +307,7 @@ return {
             let txid = await encoder.connector.sendRawTransaction(tx_hex)
             return { txid: txid }
         } catch (err) {
-            logger.error(util.format('Broadcast error:', err))
+            logger.error(util.format(`Broadcast error for txid ${localTxid}:`, err))
             const e = new Error(upstreamErrorMessage(err, 'Transaction broadcast failed'))
             e.code = -32603
             throw e

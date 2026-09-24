@@ -180,6 +180,7 @@ function makeEncoder (networkName = 'dogecoin-regtest') {
   const rawTxHex = buildRawTxHex(100000000, networkName)
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => rawTxHex,
     isRegtest: async () => true
   }

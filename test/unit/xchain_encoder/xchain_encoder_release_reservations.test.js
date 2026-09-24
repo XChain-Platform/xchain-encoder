@@ -44,6 +44,7 @@ function makeEncoder () {
   const encoder = new XChainEncoder('litecoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => { throw new Error('no non-segwit input expected in this suite') }
   }
   encoder.utxoTrackerConnector = {

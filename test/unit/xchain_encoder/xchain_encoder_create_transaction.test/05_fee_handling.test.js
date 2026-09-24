@@ -12,8 +12,11 @@ const {
   assert,
   TXID_A,
   makeSegwitUtxo,
+  makeLegacyUtxo,
   makeEncoder,
-  TEST_ADDRESS
+  TEST_ADDRESS,
+  bitcoin,
+  pubkeyBuf
 } = require('./fixtures/transaction')
 
 describe('XChainEncoder.createTransaction()', () => {
@@ -69,14 +72,13 @@ describe('XChainEncoder.createTransaction()', () => {
 
 describe('XChainEncoder.createTransaction()', () => {
   describe('fee handling', () => {
-    it('floors fee to dustAmount when computed fee is lower', async () => {
+    it('floors a node-derived fee to dustAmount when computed fee is lower', async () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
-      // Very low feePerKb should produce a fee below dust
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, null,
         'test', null, null, false, null, TEST_ADDRESS,
-        null, null, null, true, 0.0000001 // very low fee rate
+        null, null, null, true, null
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
@@ -85,20 +87,25 @@ describe('XChainEncoder.createTransaction()', () => {
         `fee ${impliedFee} should be >= dustAmount ${encoder.dustAmount}`)
     })
 
-    it('uses feePerKb parameter when provided (no RPC call)', async () => {
+    it('resolves relayfee when feePerKb is provided', async () => {
       const encoder = makeEncoder()
-      // Make the RPC mock throw to prove it's not called
+      let networkInfoCalled = false
+      encoder.connector.getNetworkInfo = async () => {
+        networkInfoCalled = true
+        return { relayfee: 0.00001 }
+      }
       encoder.connector.getFeePerKilobyte = async () => {
-        throw new Error('should not be called')
+        throw new Error('estimate unavailable')
       }
       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
       const result = await encoder.createTransaction(
         [utxo], TEST_ADDRESS, null,
         'test', null, null, false, null, TEST_ADDRESS,
-        null, null, null, true, 0.00001
+        null, null, null, true, 2000
       )
       assert.ok(result.psbt)
+      assert.strictEqual(networkInfoCalled, true)
     })
 
     it('calls connector.getFeePerKilobyte when feePerKb is null', async () => {
@@ -116,6 +123,45 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, true, null
       )
       assert.strictEqual(called, true)
+    })
+  })
+})
+
+describe('XChainEncoder.createTransaction()', () => {
+  describe('Dogecoin relay fee floor', () => {
+    function dogecoinBuild () {
+      const encoder = makeEncoder('dogecoin-testnet')
+      encoder.connector.getNetworkInfo = async () => ({ relayfee: 0.001 })
+      encoder.connector.getFeePerKilobyte = async () => 0.1
+      const address = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: encoder.network }).address
+      const utxo = makeLegacyUtxo(TXID_A, 0, 1000000000)
+      return { encoder, address, utxo }
+    }
+
+    it('rejects caller feePerKb below the size-adjusted relay minimum', async () => {
+      const { encoder, address, utxo } = dogecoinBuild()
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], address, null,
+          'test', null, null, false, null, address,
+          null, null, null, true, 1
+        ),
+        (err) => err instanceof RangeError &&
+          /feePerKb 1 base units\/kB produces fee \d+, below the node relay minimum \d+ base units/.test(err.message)
+      )
+    })
+
+    it('rejects an explicit fee below the size-adjusted relay minimum', async () => {
+      const { encoder, address, utxo } = dogecoinBuild()
+      await assert.rejects(
+        encoder.createTransaction(
+          [utxo], address, null,
+          'test', null, 1, false, null, address,
+          null, null, null, true, null
+        ),
+        (err) => err instanceof RangeError &&
+          /fee 1 is below the node relay minimum \d+ base units/.test(err.message)
+      )
     })
   })
 })

@@ -57,6 +57,7 @@ function makeDogeEncoder (feePerKb, dustAmount) {
   const network = encoder.network
   encoder.connector = {
     getFeePerKilobyte: async () => feePerKb,
+    getNetworkInfo: async () => ({ relayfee: 0.001 }),
     getTransactionHex: async () => buildRawP2pkhTxHex(network, 100000000000)
   }
   encoder.utxoTrackerConnector = {
@@ -71,6 +72,7 @@ function makeDogeEncoder (feePerKb, dustAmount) {
 // funding legs, the same shape as the stalled testnet wires.
 const PRICE_SIZED_PAYLOAD = 'PRICE|' + 'x'.repeat(2000)
 const LIVE_STALL_FEE_PER_KB = 0.0112
+const LIVE_STALL_CALLER_RATE_KB = LIVE_STALL_FEE_PER_KB * 100000000
 
 async function buildDogeFunding (encoder, dust) {
   const network = encoder.network
@@ -79,7 +81,7 @@ async function buildDogeFunding (encoder, dust) {
   return encoder.createTransaction(
     [utxo], address, null,
     PRICE_SIZED_PAYLOAD, null, null, false, 'P2SH', address,
-    null, null, null, true, LIVE_STALL_FEE_PER_KB, dust, null, false, false
+    null, null, null, true, LIVE_STALL_CALLER_RATE_KB, dust, null, false, false
   )
 }
 

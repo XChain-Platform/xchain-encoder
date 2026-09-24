@@ -305,13 +305,13 @@ async function buildSingleChunkReveal (network, compiledTarget) {
 
   const tx1 = await encoder.createTransaction(
     [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
-    null, null, null, true, 0.00001)
+    null, null, null, true, 2000)
   const tx1Hex = tx1.psbt.__CACHE.__TX.toHex()
   const tx1Id = tx1.psbt.__CACHE.__TX.getId()
 
   const tx2 = await encoder.createTransaction(
     [utxo], address, null, action.data, action.rawData, null, false, 'P2WSH', address,
-    tx1Id, tx1Hex, null, true, 0.00001)
+    tx1Id, tx1Hex, null, true, 2000)
 
   // A single compiled chunk must produce exactly one P2WSH reveal input.
   assert.strictEqual(tx2.psbt.txInputs.length, 1,

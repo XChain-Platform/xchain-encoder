@@ -107,7 +107,7 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.00001 // explicit feePerKb
+        null, null, null, true, 2000 // explicit feePerKb
       )
       assert.ok(result.psbt)
     })

@@ -104,7 +104,12 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
         'bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', null, undefined, 5
       )
       const address = getTestAddress('bitcoin-regtest')
-      encoder.connector = { getFeePerKilobyte: async () => 0.00001, getTransactionHex: async () => null, isRegtest: async () => true }
+      encoder.connector = {
+        getFeePerKilobyte: async () => 0.00001,
+        getNetworkInfo: async () => ({ relayfee: 0.00001 }),
+        getTransactionHex: async () => null,
+        isRegtest: async () => true
+      }
       encoder.utxoTrackerConnector = {
         getUtxosFromAddress: async () => ({
           utxos: [makeUtxo('bitcoin-regtest', TXID_A, 0, 100000000)],
