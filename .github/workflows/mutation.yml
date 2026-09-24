@@ -1,0 +1,54 @@
+# Scheduled Stryker mutation-testing run. Mutant runs are too slow for the
+# push gate, so this rides its own cadence against test/mutation/stryker.conf.json
+# (the XChainEncoder facade plus its post-split src/XChainEncoder/** modules)
+# and archives the report as a build artifact.
+name: mutation
+
+# Least privilege for the default GITHUB_TOKEN: every job here only reads the repo.
+permissions:
+  contents: read
+
+on:
+  schedule:
+    # Sundays 09:00 UTC, off audit.yml's Monday slot so the two scheduled
+    # workflows do not contend for the same runner minute.
+    - cron: "0 9 * * 0"
+  # Re-run on demand.
+  workflow_dispatch:
+
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Run Stryker mutation testing
+        run: npm run mutate
+
+      - name: Fail if the mutation report is empty
+        run: |
+          test -s reports/mutation/report.json || {
+            echo "reports/mutation/report.json is missing or empty" >&2
+            exit 1
+          }
+
+      # Runs even if the score gate above failed, so a red run still leaves
+      # the report behind to triage.
+      - name: Archive mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 30
+          if-no-files-found: error
