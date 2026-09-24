@@ -252,6 +252,8 @@ class UtxoTracker {
     }
 
     async getTxBlock(txid) {
+        await assertTrackerReady(this)
+
         const data = {
             jsonrpc: '2.0',
             method: 'get_tx_block',

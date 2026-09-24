@@ -12,6 +12,7 @@ const { createJsonRpcController } = require('../../../src/api/json_rpc_methods')
 
 const TXID = 'a'.repeat(64)
 const BLOCK_HASH = 'b'.repeat(64)
+const HEALTHY_SYNC = { lag: 0, synced: true, mempool_ready: true }
 
 function makeController () {
   const tracker = new UtxoTracker('127.0.0.1', 18420)
@@ -19,6 +20,16 @@ function makeController () {
     encoder: { utxoTrackerConnector: tracker },
     NETWORK: 'dogecoin-testnet'
   })
+}
+
+function stubHealthyThenResult (result, requests) {
+  axios.post = async (url, data, options) => {
+    if (requests) requests.push({ url, data, options })
+    if (data.method === 'get_sync_status') {
+      return { data: { jsonrpc: '2.0', id: 1, result: HEALTHY_SYNC } }
+    }
+    return { data: { jsonrpc: '2.0', id: 1, result } }
+  }
 }
 
 describe('get_tx_block tracker proxy', function () {
@@ -38,24 +49,25 @@ describe('get_tx_block tracker proxy', function () {
       block_height: 123,
       sync: { committed_height: 125, committed_hash: 'c'.repeat(64) }
     }
-    let request
-    axios.post = async (url, data, options) => {
-      request = { url, data, options }
-      return { data: { jsonrpc: '2.0', id: 1, result: expected } }
-    }
+    const requests = []
+    stubHealthyThenResult(expected, requests)
 
     const result = await makeController().get_tx_block({ txid: TXID })
 
     assert.strictEqual(result, expected)
-    assert.strictEqual(request.url, 'http://127.0.0.1:18420')
-    assert.deepStrictEqual(request.data, {
+    assert.strictEqual(requests.length, 2)
+    assert.deepStrictEqual(requests[0].data, {
+      jsonrpc: '2.0', method: 'get_sync_status', params: {}, id: 1
+    })
+    assert.strictEqual(requests[1].url, 'http://127.0.0.1:18420')
+    assert.deepStrictEqual(requests[1].data, {
       jsonrpc: '2.0', method: 'get_tx_block', params: { txid: TXID }, id: 1
     })
-    assert.ok(request.options.timeout > 0)
+    assert.ok(requests[1].options.timeout > 0)
   })
 
   it('passes a null miss through unchanged', async function () {
-    axios.post = async () => ({ data: { jsonrpc: '2.0', id: 1, result: null } })
+    stubHealthyThenResult(null)
 
     const result = await makeController().get_tx_block({ txid: TXID })
 
@@ -68,7 +80,7 @@ describe('get_tx_block tracker proxy', function () {
       block_height: 80,
       sync: { committed_height: 81, committed_hash: 'd'.repeat(64) }
     }
-    axios.post = async () => ({ data: { jsonrpc: '2.0', id: 1, result: stale } })
+    stubHealthyThenResult(stale)
 
     const result = await makeController().get_tx_block({ txid: TXID })
 
@@ -79,7 +91,12 @@ describe('get_tx_block tracker proxy', function () {
   it('maps an unhealthy tracker transport failure to the existing internal error type', async function () {
     const transportError = new Error('connect ECONNREFUSED 127.0.0.1:18420')
     transportError.code = 'ECONNREFUSED'
-    axios.post = async () => { throw transportError }
+    axios.post = async (_url, data) => {
+      if (data.method === 'get_sync_status') {
+        return { data: { jsonrpc: '2.0', id: 1, result: HEALTHY_SYNC } }
+      }
+      throw transportError
+    }
     const originalError = console.error
     console.error = () => {}
 
@@ -93,6 +110,30 @@ describe('get_tx_block tracker proxy', function () {
           return true
         }
       )
+    } finally {
+      console.error = originalError
+    }
+  })
+
+  it('refuses an unhealthy tracker before requesting the transaction block', async function () {
+    const methods = []
+    axios.post = async (_url, data) => {
+      methods.push(data.method)
+      return { data: { jsonrpc: '2.0', id: 1, result: { lag: 10, synced: false } } }
+    }
+    const originalError = console.error
+    console.error = () => {}
+
+    try {
+      await assert.rejects(
+        () => makeController().get_tx_block({ txid: TXID }),
+        (err) => {
+          assert.strictEqual(err.code, -32603)
+          assert.match(err.message, /lagging by 10 blocks/)
+          return true
+        }
+      )
+      assert.deepStrictEqual(methods, ['get_sync_status'])
     } finally {
       console.error = originalError
     }
