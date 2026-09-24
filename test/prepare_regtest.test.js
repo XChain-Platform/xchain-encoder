@@ -29,6 +29,13 @@ function executeCommand (command, args) {
   return execFileSync(command, args, { stdio: 'pipe' })
 }
 
+/**
+ * The readiness probe verifies that the daemon accepts commands before the
+ * hook decides whether a clean shutdown is possible. A failed probe is safe
+ * because the state directory is replaced before the new node starts. The
+ * result therefore answers both whether shutdown is useful and whether the
+ * replacement still needs to be awaited before wallet setup can continue.
+ */
 function checkNode () {
   try {
     const networkInfo = executeCommand('bitcoin-cli', ['-regtest', 'getnetworkinfo'])
@@ -41,16 +48,11 @@ function checkNode () {
 /**
  * Resetting regtest deletes the local chain state, so ordinary test runs must
  * remain inert unless the caller explicitly opts in through the reset flag.
- * The readiness probe also verifies that the daemon accepts commands before
- * the hook decides whether a clean shutdown is possible. A failed probe is
- * safe here because the state directory is removed before a replacement node
- * starts. The replacement uses permissive regtest fee limits required by the
- * transaction fixtures. Waiting for readiness prevents wallet creation from
+ * The replacement uses permissive regtest fee limits required by transaction
+ * fixtures. Waiting for readiness prevents wallet creation from
  * racing daemon startup. The freshly created wallet receives a new address
  * and enough generated blocks to mature its coinbase balance. Tests consuming
  * this root hook can then share the funded address without repeating setup.
- * Keeping the destructive phase behind one explicit flag makes local unit
- * runs and title discovery safe while preserving the dedicated regtest flow.
  */
 exports.mochaHooks = {
   async beforeAll () {
