@@ -1,5 +1,5 @@
 {
-  "comment": "Coverage floors for the CI coverage job (regression floors, ~1-1.5 points below measured, not tier targets; raise as coverage climbs). Mirrored into the coverage:check npm script in package.json and guarded by test/unit/repo/coverage_thresholds_sync.test.js. Re-measured 2026-09-23 with --all and the declared siblings checked out: 96.45 lines/statements, 88.50 branches, 95.48 functions over 927 passing unit tests. No source files are excluded: all files under src, including process entry points and locally owned vendored code, remain in the measurement.",
+  "comment": "Coverage floors for the CI coverage job (regression floors, ~1-1.5 points below measured, not tier targets; raise as coverage climbs). Mirrored into the coverage:check npm script in package.json and guarded by test/unit/repo/coverage_thresholds_sync.test.js. Re-measured 2026-09-24 with --all and the declared siblings checked out: 96.45 lines/statements, 88.50 branches, 95.48 functions over 925 passing and 4 pending unit tests. No source files are excluded: all files under src, including process entry points and locally owned vendored code, remain in the measurement.",
   "lines": 95.1,
   "statements": 95.1,
   "branches": 87.1,
