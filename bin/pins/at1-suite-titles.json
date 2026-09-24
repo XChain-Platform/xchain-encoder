@@ -510,6 +510,12 @@
     "325536fb1b16a149": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.15: Null feePerKb triggers RPC call calls getFeePerKilobyte when feePerKb is null"
     ],
+    "3376d17691451cd0": [
+      "script amount helpers applies the Dogecoin soft dust floor only to recognized Dogecoin networks",
+      "script amount helpers narrows safe BigInt satoshi values while preserving larger values",
+      "script amount helpers reports compactSize widths at the one-byte, uint16, and uint32 boundaries",
+      "script amount helpers serializes compactSize values in little-endian wire form"
+    ],
     "34a2845bc2d97b6c": [
       "XChainEncoder.createTransaction() - maxFeeRateKb cap caps the fee rate when connector returns a rate above maxFeeRateKb"
     ],
@@ -2179,8 +2185,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 124,
-      "titleCount": 933,
+      "fileCount": 125,
+      "titleCount": 937,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2296,6 +2302,7 @@
         "test/unit/xchain_encoder/xchain_encoder_prepare_data.test.js": "4a88b66dc7f07157",
         "test/unit/xchain_encoder/xchain_encoder_release_reservations.test.js": "923b72fe3989bb3c",
         "test/unit/xchain_encoder/xchain_encoder_reveal_funding_binding.test.js": "990dee7527465c8e",
+        "test/unit/xchain_encoder/xchain_encoder_script_amount_helpers.test.js": "3376d17691451cd0",
         "test/unit/xchain_encoder/xchain_encoder_segwit_input_guard.test.js": "2aa020357e5b268b",
         "test/unit/xchain_encoder/xchain_encoder_soft_dust_floor.test.js": "ef95d11a5f979b57",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
@@ -2453,8 +2460,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 124,
-      "titleCount": 933,
+      "fileCount": 125,
+      "titleCount": 937,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2570,6 +2577,7 @@
         "test/unit/xchain_encoder/xchain_encoder_prepare_data.test.js": "4a88b66dc7f07157",
         "test/unit/xchain_encoder/xchain_encoder_release_reservations.test.js": "923b72fe3989bb3c",
         "test/unit/xchain_encoder/xchain_encoder_reveal_funding_binding.test.js": "990dee7527465c8e",
+        "test/unit/xchain_encoder/xchain_encoder_script_amount_helpers.test.js": "3376d17691451cd0",
         "test/unit/xchain_encoder/xchain_encoder_segwit_input_guard.test.js": "2aa020357e5b268b",
         "test/unit/xchain_encoder/xchain_encoder_soft_dust_floor.test.js": "ef95d11a5f979b57",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
