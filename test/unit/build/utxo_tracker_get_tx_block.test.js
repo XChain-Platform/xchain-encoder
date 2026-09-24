@@ -32,7 +32,7 @@ function stubHealthyThenResult (result, requests) {
   }
 }
 
-describe('get_tx_block tracker proxy', function () {
+function restoreAxiosPostAfterEachTest () {
   let originalPost
 
   beforeEach(function () {
@@ -42,6 +42,10 @@ describe('get_tx_block tracker proxy', function () {
   afterEach(function () {
     axios.post = originalPost
   })
+}
+
+describe('get_tx_block tracker proxy results', function () {
+  restoreAxiosPostAfterEachTest()
 
   it('returns a tracker hit and sends the exact lookup request', async function () {
     const expected = {
@@ -52,9 +56,12 @@ describe('get_tx_block tracker proxy', function () {
     const requests = []
     stubHealthyThenResult(expected, requests)
 
-    const result = await makeController().get_tx_block({ txid: TXID })
+    const controller = makeController()
+    const result = await controller.get_tx_block({ txid: TXID })
 
     assert.strictEqual(result, expected)
+    assert.strictEqual(Object.hasOwn(controller, 'get_tx_block'), true)
+    assert.strictEqual(Object.keys(controller).includes('get_tx_block'), false)
     assert.strictEqual(requests.length, 2)
     assert.deepStrictEqual(requests[0].data, {
       jsonrpc: '2.0', method: 'get_sync_status', params: {}, id: 1
@@ -87,11 +94,16 @@ describe('get_tx_block tracker proxy', function () {
     assert.strictEqual(result, stale)
     assert.strictEqual(result.sync, stale.sync)
   })
+})
+
+describe('get_tx_block tracker proxy transport errors', function () {
+  restoreAxiosPostAfterEachTest()
 
   it('maps an unhealthy tracker transport failure to the existing internal error type', async function () {
     const transportError = new Error('connect ECONNREFUSED 127.0.0.1:18420')
     transportError.code = 'ECONNREFUSED'
-    axios.post = async (_url, data) => {
+    axios.post = async (url, data) => {
+      assert.strictEqual(url, 'http://127.0.0.1:18420')
       if (data.method === 'get_sync_status') {
         return { data: { jsonrpc: '2.0', id: 1, result: HEALTHY_SYNC } }
       }
@@ -114,10 +126,15 @@ describe('get_tx_block tracker proxy', function () {
       console.error = originalError
     }
   })
+})
+
+describe('get_tx_block tracker proxy request errors', function () {
+  restoreAxiosPostAfterEachTest()
 
   it('refuses an unhealthy tracker before requesting the transaction block', async function () {
     const methods = []
-    axios.post = async (_url, data) => {
+    axios.post = async (url, data) => {
+      assert.strictEqual(url, 'http://127.0.0.1:18420')
       methods.push(data.method)
       return { data: { jsonrpc: '2.0', id: 1, result: { lag: 10, synced: false } } }
     }

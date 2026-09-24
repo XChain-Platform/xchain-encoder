@@ -316,10 +316,8 @@ return {
 }
 }
 
-// Tracker-facing lookups; upstream error text is sanitized before it leaves.
-function buildUtxoMethods({ encoder }) {
-return {
-    async get_tx_block(rawParams) {
+function buildGetTxBlockMethod({ encoder }) {
+    return async function getTxBlock(rawParams) {
         const txid = rawParams && rawParams.txid
         if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
             const e = new Error('txid must be a 64-hex-character string')
@@ -335,7 +333,12 @@ return {
             e.code = -32603
             throw e
         }
-    },
+    }
+}
+
+// Tracker-facing lookups; upstream error text is sanitized before it leaves.
+function buildUtxoMethods({ encoder }) {
+return {
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
         if (!address) {
@@ -370,7 +373,7 @@ return {
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
 function createJsonRpcController({ encoder, NETWORK }) {
-    return Object.assign(
+    const controller = Object.assign(
         buildReadinessMethods({ encoder }),
         buildFeeMethods({ encoder, NETWORK }),
         buildTransactionMethods({ encoder }),
@@ -379,6 +382,13 @@ function createJsonRpcController({ encoder, NETWORK }) {
         buildBroadcastMethods({ encoder }),
         buildUtxoMethods({ encoder })
     )
+    Object.defineProperty(controller, 'get_tx_block', {
+        configurable: true,
+        enumerable: false,
+        value: buildGetTxBlockMethod({ encoder }),
+        writable: true
+    })
+    return controller
 }
 
 module.exports = { createJsonRpcController }
