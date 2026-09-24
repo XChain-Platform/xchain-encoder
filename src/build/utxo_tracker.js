@@ -251,6 +251,28 @@ class UtxoTracker {
         }
     }
 
+    async getTxBlock(txid) {
+        const data = {
+            jsonrpc: '2.0',
+            method: 'get_tx_block',
+            params: { txid },
+            id: 1
+        };
+
+        const response = await axios.post(this.url, data, {
+            timeout: TRACKER_TIMEOUT
+        });
+        const responseData = response.data;
+
+        if (responseData && Object.prototype.hasOwnProperty.call(responseData, 'result')) {
+            const result = responseData.result
+            if (result === null || (typeof result === 'object' && !Array.isArray(result))) {
+                return result
+            }
+        }
+        throw new Error('Error getting transaction block: empty result')
+    }
+
     async getUtxosFromAddress(address) {
         await assertTrackerReady(this)
 

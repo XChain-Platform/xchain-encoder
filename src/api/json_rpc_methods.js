@@ -316,9 +316,26 @@ return {
 }
 }
 
-// Tracker-facing UTXO lookup; upstream error text is sanitized before it leaves.
+// Tracker-facing lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
 return {
+    async get_tx_block(rawParams) {
+        const txid = rawParams && rawParams.txid
+        if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
+            const e = new Error('txid must be a 64-hex-character string')
+            e.code = -32602
+            throw e
+        }
+
+        try {
+            return await encoder.utxoTrackerConnector.getTxBlock(txid)
+        } catch (err) {
+            logger.error(util.format('Transaction block lookup error:', err))
+            const e = new Error(upstreamErrorMessage(err, 'Transaction block lookup failed'))
+            e.code = -32603
+            throw e
+        }
+    },
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
         if (!address) {
