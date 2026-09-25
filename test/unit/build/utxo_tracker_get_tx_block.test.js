@@ -61,7 +61,7 @@ describe('get_tx_block tracker proxy results', function () {
 
     assert.strictEqual(result, expected)
     assert.strictEqual(Object.hasOwn(controller, 'get_tx_block'), true)
-    assert.strictEqual(Object.keys(controller).includes('get_tx_block'), false)
+    assert.strictEqual(Object.keys(controller).includes('get_tx_block'), true)
     assert.strictEqual(requests.length, 2)
     assert.deepStrictEqual(requests[0].data, {
       jsonrpc: '2.0', method: 'get_sync_status', params: {}, id: 1

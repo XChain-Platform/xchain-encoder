@@ -370,7 +370,7 @@ return {
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
 function createJsonRpcController({ encoder, NETWORK }) {
-    const controller = Object.assign(
+    return Object.assign(
         buildReadinessMethods({ encoder }),
         buildFeeMethods({ encoder, NETWORK }),
         buildTransactionMethods({ encoder }),
@@ -379,13 +379,6 @@ function createJsonRpcController({ encoder, NETWORK }) {
         buildBroadcastMethods({ encoder }),
         buildUtxoMethods({ encoder })
     )
-    Object.defineProperty(controller, 'get_tx_block', {
-        configurable: true,
-        enumerable: false,
-        value: controller.get_tx_block,
-        writable: true
-    })
-    return controller
 }
 
 module.exports = { createJsonRpcController }
