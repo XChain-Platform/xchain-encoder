@@ -316,8 +316,10 @@ return {
 }
 }
 
-function buildGetTxBlockMethod({ encoder }) {
-    return async function getTxBlock(rawParams) {
+// Tracker-facing lookups; upstream error text is sanitized before it leaves.
+function buildUtxoMethods({ encoder }) {
+return {
+    async get_tx_block(rawParams) {
         const txid = rawParams && rawParams.txid
         if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
             const e = new Error('txid must be a 64-hex-character string')
@@ -333,12 +335,7 @@ function buildGetTxBlockMethod({ encoder }) {
             e.code = -32603
             throw e
         }
-    }
-}
-
-// Tracker-facing lookups; upstream error text is sanitized before it leaves.
-function buildUtxoMethods({ encoder }) {
-return {
+    },
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
         if (!address) {
@@ -385,7 +382,7 @@ function createJsonRpcController({ encoder, NETWORK }) {
     Object.defineProperty(controller, 'get_tx_block', {
         configurable: true,
         enumerable: false,
-        value: buildGetTxBlockMethod({ encoder }),
+        value: controller.get_tx_block,
         writable: true
     })
     return controller

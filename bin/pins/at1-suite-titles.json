@@ -1630,6 +1630,14 @@
       "Encoder input validator validateUtxoArray / validateUtxoEntry rejects each malformed field",
       "Encoder input validator validateUtxoArray / validateUtxoEntry rejects vout values bare Number() would coerce to a plausible index (uuid:4555d78c)"
     ],
+    "c67fd5ac2d0b5ff4": [
+      "get_tx_block tracker proxy request errors refuses an unhealthy tracker before requesting the transaction block",
+      "get_tx_block tracker proxy request errors rejects a malformed txid with the existing invalid-params error type",
+      "get_tx_block tracker proxy results passes a null miss through unchanged",
+      "get_tx_block tracker proxy results passes stale sync metadata through unchanged",
+      "get_tx_block tracker proxy results returns a tracker hit and sends the exact lookup request",
+      "get_tx_block tracker proxy transport errors maps an unhealthy tracker transport failure to the existing internal error type"
+    ],
     "c77bdfff70e2f687": [
       "XChainEncoder.createTransaction() P2SH native-fee customOutputs phase 1 (funding) does NOT emit the fee-destination output",
       "XChainEncoder.createTransaction() P2SH native-fee customOutputs phase 1 (funding) over-funds the P2SH output by the fee value plus its byte cost",
@@ -2185,8 +2193,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 125,
-      "titleCount": 937,
+      "fileCount": 126,
+      "titleCount": 943,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2224,6 +2232,7 @@
         "test/unit/build/utxo_tracker.test/01_get_sync_status.test.js": "fea0d5dcb2b90bb0",
         "test/unit/build/utxo_tracker.test/02_get_utxos_from_address.test.js": "149a2b69c0c72f7f",
         "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "27d7bba206f363af",
+        "test/unit/build/utxo_tracker_get_tx_block.test.js": "c67fd5ac2d0b5ff4",
         "test/unit/coins/coins_conformance.test.js": "2442df610ebb6911",
         "test/unit/coins/xchain_encoder_consensus_pin_boot.test.js": "6a874601dbd714de",
         "test/unit/common/error_sanitize.test.js": "aec434dabffb9884",
@@ -2460,8 +2469,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 125,
-      "titleCount": 937,
+      "fileCount": 126,
+      "titleCount": 943,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2499,6 +2508,7 @@
         "test/unit/build/utxo_tracker.test/01_get_sync_status.test.js": "fea0d5dcb2b90bb0",
         "test/unit/build/utxo_tracker.test/02_get_utxos_from_address.test.js": "149a2b69c0c72f7f",
         "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "27d7bba206f363af",
+        "test/unit/build/utxo_tracker_get_tx_block.test.js": "c67fd5ac2d0b5ff4",
         "test/unit/coins/coins_conformance.test.js": "2442df610ebb6911",
         "test/unit/coins/xchain_encoder_consensus_pin_boot.test.js": "6a874601dbd714de",
         "test/unit/common/error_sanitize.test.js": "aec434dabffb9884",
