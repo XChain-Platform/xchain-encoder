@@ -948,6 +948,9 @@
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 75-char data (compiled=76) \u2192 OP_RETURN (exactly fits 76+4=80)",
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 76-char data (compiled=78) \u2192 P2SH (78+4=82 > 80)"
     ],
+    "7174ac9d6bdce059": [
+      "real JSON-RPC app HTTP dispatch routes each public handler through src/api.js and the production router"
+    ],
     "72c9c5f2d2749796": [
       "BlockchainConnector RPC-credential log sanitization does not leak the RPC password when an axios call fails"
     ],
@@ -2187,14 +2190,15 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 125,
-      "titleCount": 939,
+      "fileCount": 126,
+      "titleCount": 940,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
+        "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
         "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
@@ -2462,14 +2466,15 @@
       }
     },
     "test:unit": {
-      "fileCount": 125,
-      "titleCount": 939,
+      "fileCount": 126,
+      "titleCount": 940,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
+        "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
         "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
