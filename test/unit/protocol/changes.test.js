@@ -14,6 +14,7 @@ const CryptoNetworks = require('../../../src/build/crypto_networks')
 
 describe('protocol changes', () => {
   it('is the same activation map re-exported by CryptoNetworks', () => {
+    assert.notStrictEqual(ENVELOPE_RECOGNITION_ACTIVATION, undefined)
     assert.strictEqual(
       ENVELOPE_RECOGNITION_ACTIVATION,
       CryptoNetworks.ENVELOPE_RECOGNITION_ACTIVATION
