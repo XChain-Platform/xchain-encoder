@@ -2026,6 +2026,9 @@
       "Security: compiled payload-size ceiling does not reject a small payload at the size guard",
       "Security: compiled payload-size ceiling rejects a payload whose compiled push exceeds the on-chain ceiling"
     ],
+    "f23a5e117558dc06": [
+      "protocol changes is the same activation map re-exported by CryptoNetworks"
+    ],
     "f2625b374d260d4b": [
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.10: DESTROY burn amount preserved",
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.11: CALLBACK minimal callback payload preserved",
@@ -2187,8 +2190,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 125,
-      "titleCount": 939,
+      "fileCount": 126,
+      "titleCount": 940,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2251,6 +2254,7 @@
         "test/unit/common/validator/validator.test/17_validate_all.test.js": "b4c7bf0a08619cca",
         "test/unit/crash_handlers.test.js": "ab75df16ddef33d7",
         "test/unit/observability.test.js": "ca8fa416b5e8a763",
+        "test/unit/protocol/changes.test.js": "f23a5e117558dc06",
         "test/unit/repo/coverage_thresholds_sync.test.js": "4405034a199528ec",
         "test/unit/repo/docs_openrpc.test.js": "65be62f0e174b504",
         "test/unit/repo/sibling_coverage.test.js": "d8d1e52267ea606f",
@@ -2462,8 +2466,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 125,
-      "titleCount": 939,
+      "fileCount": 126,
+      "titleCount": 940,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2526,6 +2530,7 @@
         "test/unit/common/validator/validator.test/17_validate_all.test.js": "b4c7bf0a08619cca",
         "test/unit/crash_handlers.test.js": "ab75df16ddef33d7",
         "test/unit/observability.test.js": "ca8fa416b5e8a763",
+        "test/unit/protocol/changes.test.js": "f23a5e117558dc06",
         "test/unit/repo/coverage_thresholds_sync.test.js": "4405034a199528ec",
         "test/unit/repo/docs_openrpc.test.js": "65be62f0e174b504",
         "test/unit/repo/sibling_coverage.test.js": "d8d1e52267ea606f",

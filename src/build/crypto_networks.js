@@ -23,6 +23,7 @@
  ********************************************************************/
 
 const coins = require('../coins');
+const { ENVELOPE_RECOGNITION_ACTIVATION } = require('../protocol/changes');
 
 const SUPPORTED = 'bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, ' +
     'dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest';
@@ -80,17 +81,6 @@ class CryptoNetworks {
         return row ? row[p.net] : undefined;
     }
 }
-
-// Vendored byte-equal from xchain-documentation/protocol/constants.js.
-// MAINNET HEIGHTS PULLED IN 2026-08-02 (operator decision): BTC 961000 ->
-// 960850, LTC 3160000 -> 3153500, both ~6 hours out from a measured tip rather
-// than 2 and 12 days. Pre-launch features do not wait on dates; the fleet
-// already runs this code, so only the constant moves.
-const ENVELOPE_RECOGNITION_ACTIVATION = {
-    BTC:  { mainnet: 960850, testnet: 0, regtest: 0 },
-    LTC:  { mainnet: 3153500, testnet: 0, regtest: 0 },
-    DOGE: { mainnet: null, testnet: null, regtest: null },
-};
 
 CryptoNetworks.ENVELOPE_RECOGNITION_ACTIVATION = ENVELOPE_RECOGNITION_ACTIVATION;
 
