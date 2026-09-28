@@ -16,9 +16,10 @@ const { ENVELOPE_RECOGNITION_ACTIVATION } = require('../../../src/protocol/chang
 const { siblingCheckout, skipOrFail } = require('../../helpers/sibling_checkout.js');
 
 describe('protocol changes parity with documentation canonical', function () {
-    const DOCS = process.env.XCHAIN_DOCS_DIR ||
-        path.join(__dirname, '../../../../xchain-documentation');
-    const CANON = path.join(DOCS, 'protocol', 'constants.js');
+    const CANON = path.join(
+        __dirname,
+        '../../../../xchain-documentation/protocol/constants.js'
+    );
 
     before(function () {
         const docs = siblingCheckout(__dirname, CANON);
