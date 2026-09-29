@@ -17,6 +17,7 @@ const {
   RAW_TX_HEX,
   makeSegwitUtxo,
   makeEncoder,
+  attachPrevTxs,
   LTC_REGTEST,
   TEST_ADDRESS
 } = require('./xchain_encoder_create_transaction.test/fixtures/transaction')
@@ -68,6 +69,7 @@ describe('XChainEncoder.createTransaction()', () => {
           pubkey: pubkeyBuf, network: LTC_REGTEST
         }).output.toString('hex')
       }
+      attachPrevTxs(encoder, [legacyUtxo])
       const result = await encoder.createTransaction(
         [legacyUtxo], TEST_ADDRESS, null,
         'test', null, 10000, false, null, TEST_ADDRESS,

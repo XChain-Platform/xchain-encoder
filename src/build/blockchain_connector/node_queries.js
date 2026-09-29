@@ -104,8 +104,14 @@ module.exports = {
                 auth: { username: this.rpcUser, password: this.rpcPassword },
                 timeout: RPC_TIMEOUT
             });
-            const height = response && response.data && response.data.result;
-            return Number.isFinite(Number(height)) ? Number(height) : null;
+            const body = response && response.data;
+            // Treat an error body, an empty body or a missing result as unknown.
+            if (!body || typeof body !== 'object') return null;
+            if (body.error !== undefined && body.error !== null) return null;
+            // Type before coercion: Number(null), Number('') and Number(false) are a
+            // finite 0, which the envelope gate would read as a real tip at genesis.
+            const height = body.result;
+            return (Number.isSafeInteger(height) && height >= 0) ? height : null;
         } catch (error) {
             return null;
         }
@@ -139,7 +145,8 @@ module.exports = {
                 // transactions this typically means the coin node lacks txindex.
                 throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
             } else {
-                throw new Error('Error getting transaction hex');
+                // Keep the node's reason from an HTTP 200 error body (BTC v28's shape).
+                throw new Error('Error getting transaction hex' + rpcErrorDetail(responseData));
             }
         } catch (error) {
             // LTC/DOGE return HTTP 500 for RPC-level errors so axios throws before
@@ -150,8 +157,14 @@ module.exports = {
             if (body && body.error?.code === -5) {
                 throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
             }
-            logger.error(util.format('Error:', sanitizeRpcError(error)));
-            throw error;
+            // Read any other node reason (-28 warming up, -8) before the scrub
+            // drops error.response, so it is not flattened to "status code 500".
+            const detail = rpcErrorDetail(body);
+            const message = sanitizeRpcError(error);
+            logger.error(util.format('Error:', message + detail));
+            // No RPC body: a transport failure keeps its original error object.
+            if (!detail) throw error;
+            throw new Error(`Error getting transaction hex: ${message}${detail}`);
         }
     },
 }

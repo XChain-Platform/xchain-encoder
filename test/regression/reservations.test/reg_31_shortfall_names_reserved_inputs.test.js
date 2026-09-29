@@ -29,7 +29,7 @@
 const assert = require('assert')
 const {
   makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B, TXID_C
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 
 const NETWORK = 'bitcoin-regtest'
 const SEND = 'SEND|0|XCHAIN|1|' + getTestAddress(NETWORK)

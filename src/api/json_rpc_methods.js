@@ -178,12 +178,15 @@ return {
             // our own validation. Everything else is an unexpected internal and is
             // collapsed to a generic message to prevent leaking internals
             // (host:port, stack, RPC credentials).
+            // Map a validation error to -32602 (fix the params, do not retry) and
+            // everything else to -32603 (retry with backoff). Node and tracker faults
+            // inside the build throw plain Error so they stay on the retryable side.
             const isKnown = err instanceof TypeError || err instanceof RangeError
             if (!isKnown) {
                 logger.error(util.format('Encoder error:', err))
             }
             const e = new Error(isKnown ? err.message : 'Internal encoder error')
-            e.code = -32603
+            e.code = isKnown ? -32602 : -32603
             throw e
         }
 

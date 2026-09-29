@@ -102,8 +102,13 @@ function mountRoutes(app, gates, options){
     // pass-through, and that IS the pre-fix gate, so the held-slot assertions
     // below get a negative control instead of a second flavour of one route.
     let heldEntered = 0
+    // Count the socket closes each handler sees: the sync point for abort tests.
+    // One 'close' emit runs every listener synchronously, and the gate's was added
+    // in middleware before the abort, so a moved count means the gate has handled it.
+    let heldClosed = 0
     const wrap = options.stubHold ? (fn) => fn : gate.hold
     app.get('/held', wrap(async (req, res) => {
+        res.on('close', () => { heldClosed++ })
         heldEntered++
         await held
         res.json({ ok: true, ip: req.ip })
@@ -113,8 +118,10 @@ function mountRoutes(app, gates, options){
     // be made to park exactly like an expensive route; opts in per test. It is
     // wrapped in probeGate.hold() the way api.js mounts it.
     let probeEntered = 0
+    let probeClosed = 0
     const wrapProbe = options.stubHold ? (fn) => fn : probeGate.hold
     app.get('/status', wrapProbe(async (req, res) => {
+        res.on('close', () => { probeClosed++ })
         probeEntered++
         if(options.parkProbes) await heldProbe
         res.json({ status: 'healthy' })
@@ -124,6 +131,7 @@ function mountRoutes(app, gates, options){
     return {
         arrivals: () => expensiveArrivals, enteredHeld: () => heldEntered,
         enteredProbe: () => probeEntered,
+        closedHeld: () => heldClosed, closedProbe: () => probeClosed,
         release: () => releaseHeld(), releaseProbe: () => releaseProbe() }
 }
 

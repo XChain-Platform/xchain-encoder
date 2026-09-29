@@ -60,7 +60,7 @@ describe('Encoder input validator', function () {
         });
         // Explicit encoding:"OP_RETURN" gets the tighter 76-byte ceiling
         // pre-compile, so an oversize request is rejected as invalid-params before
-        // any UTXO reservation instead of failing post-compile as -32603 internal.
+        // any UTXO reservation instead of failing post-compile after that work.
         it('rejects an explicit OP_RETURN payload above the 76-byte ceiling', function () {
             // 200 raw bytes compile to 200 + 2 (OP_PUSHDATA1) = 202 > 76.
             const data = 'x'.repeat(200);
@@ -104,7 +104,7 @@ describe('Encoder input validator', function () {
         // pinned byte-for-byte against the decoder's copy. Only the envelope
         // ceiling reaches that band, and _buildTransaction refuses on the REAL
         // compiled buffer, so under-counting here by 2 per large push moved the
-        // boundary payload from this -32602 pre-check to a -32603 builder error.
+        // boundary payload from this pre-check to a post-reservation builder error.
         it('counts the OP_PUSHDATA4 band on a push past 65,535 bytes', function () {
             // The widest rawData whose real compiled size is exactly the ceiling:
             // OP_0 (1 byte, the empty data push) + rawLen + 5.

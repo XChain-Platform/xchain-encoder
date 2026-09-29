@@ -21,7 +21,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A, TXID_B, TXID_C,
-  makeUtxo, makeEncoder, getTestAddress
+  makeUtxo, makeEncoder, getTestAddress, attachPrevTxs
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -51,6 +51,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     it('1-sat UTXO + 10000-sat fee → INSUFFICIENT_FUNDS, no PSBT', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 1)
+      attachPrevTxs(encoder, [utxo], NETWORK)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -68,14 +69,16 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
 
     it('3x 100-sat UTXOs with 10000-sat fee → INSUFFICIENT_FUNDS on the whole set', async () => {
       const encoder = makeEncoder(NETWORK)
+      const utxos = [
+        makeUtxo(NETWORK, TXID_A, 0, 100),
+        makeUtxo(NETWORK, TXID_B, 0, 100),
+        makeUtxo(NETWORK, TXID_C, 0, 100)
+      ]
+      attachPrevTxs(encoder, utxos, NETWORK)
 
       await assert.rejects(
         () => encoder.createTransaction(
-          [
-            makeUtxo(NETWORK, TXID_A, 0, 100),
-            makeUtxo(NETWORK, TXID_B, 0, 100),
-            makeUtxo(NETWORK, TXID_C, 0, 100)
-          ],
+          utxos,
           ADDRESS, null,
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
           null, null, null, true, 0.00001
@@ -98,13 +101,15 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
       const encoder = makeEncoder(NETWORK)
 
       // 3 UTXOs of 100 sats = 300 total. Fee = 10000. Need 10000+.
+      const utxos = [
+        makeUtxo(NETWORK, TXID_A, 0, 100),
+        makeUtxo(NETWORK, TXID_B, 0, 100),
+        makeUtxo(NETWORK, TXID_A, 1, 100)
+      ]
+      attachPrevTxs(encoder, utxos, NETWORK)
       await assert.rejects(
         () => encoder.createTransaction(
-          [
-            makeUtxo(NETWORK, TXID_A, 0, 100),
-            makeUtxo(NETWORK, TXID_B, 0, 100),
-            makeUtxo(NETWORK, TXID_A, 1, 100)
-          ],
+          utxos,
           ADDRESS, null,
           actions.makeSend().data, null, 10000, false, null, ADDRESS,
           null, null, null, true, 0.00001
@@ -116,6 +121,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
     it('a single dust UTXO is refused rather than serialized', async () => {
       const encoder = makeEncoder(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100)
+      attachPrevTxs(encoder, [utxo], NETWORK)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -171,6 +177,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
         makeUtxo(NETWORK, TXID_A, 0, 100000000),
         makeUtxo(NETWORK, TXID_B, 0, 50000000)
       ]
+      attachPrevTxs(encoder, sharedUtxos, NETWORK)
 
       // Both calls share the same array reference. JavaScript is
       // single-threaded so no true race, but the array is mutated.
@@ -202,6 +209,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
         makeUtxo(NETWORK, TXID_A, 0, 100000000),  // large
         makeUtxo(NETWORK, TXID_B, 0, 50000000)    // medium
       ]
+      attachPrevTxs(encoder, utxos, NETWORK)
       const orderBefore = utxos.map(u => u.txid)
 
       // First call
@@ -223,6 +231,7 @@ describe('Chaos Category D: Arithmetic & State Corruption', () => {
         makeUtxo(NETWORK, TXID_A, 0, 100000000),
         makeUtxo(NETWORK, TXID_B, 0, 50000000)
       ]
+      attachPrevTxs(encoder, utxos, NETWORK)
 
       await encoder.createTransaction(
         utxos, ADDRESS, null,

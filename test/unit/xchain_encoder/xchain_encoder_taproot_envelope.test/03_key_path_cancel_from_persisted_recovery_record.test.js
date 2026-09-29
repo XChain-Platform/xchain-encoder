@@ -133,6 +133,12 @@ describe('XChainEncoder TAPROOT envelope', function () {
         Object.assign({}, base, { commitTxid: 'xyz' })), /commitTxid/)
       await assert.rejects(encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { commitVout: -1 })), /commitVout/)
+      // A commitVout above the uint32 wire width is a TypeError, which the API maps to -32602.
+      for (const bad of [4294967296, 1e300]) {
+        await assert.rejects(encoder.createEnvelopeCancelTransaction(
+          Object.assign({}, base, { commitVout: bad })),
+          (err) => err instanceof TypeError && /commitVout/.test(err.message))
+      }
       await assert.rejects(encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { internalPubkey: '04' + 'a'.repeat(128) })), /internalPubkey/)
       await assert.rejects(encoder.createEnvelopeCancelTransaction(

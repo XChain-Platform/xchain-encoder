@@ -43,8 +43,10 @@ function* resolveFeeRates(build){
 function* resolveRelayFeeRate(build){
     const info = yield this.connector.getNetworkInfo()
     const relayFeePerKb = Number(info && info.relayfee)
+    // Refuse a node that reports no usable relay floor. A plain Error, not a
+    // RangeError: this is the node's fault, so the API answers retryable -32603.
     if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0){
-        throw new RangeError('Node did not report a positive relayfee; transaction fee safety cannot be verified')
+        throw new Error('Node did not report a positive relayfee; transaction fee safety cannot be verified')
     }
     Object.assign(build, { relayFeePerKb })
 }

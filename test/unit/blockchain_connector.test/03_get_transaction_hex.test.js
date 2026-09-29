@@ -121,3 +121,73 @@ describe('BlockchainConnector.getTransactionHex()', () => {
     assert.strictEqual(capturedOptions.auth.password, 'rpcpass')
   })
 })
+
+// LTC/DOGE answer RPC-level errors as HTTP 500 with a JSON-RPC body, so axios
+// throws; build that error the way axios does, credentials attached.
+function http500 (code, message) {
+  const err = new Error('Request failed with status code 500')
+  err.code = 'ERR_BAD_RESPONSE'
+  err.config = { auth: { username: 'rpcuser', password: 'FAKEPASS_must_never_be_logged_03' } }
+  err.response = { status: 500, data: { error: { code, message } } }
+  return err
+}
+
+describe('BlockchainConnector.getTransactionHex() node RPC error detail', () => {
+  registerAxiosHooks()
+  const { upstreamErrorMessage } = require('../../../src/common/error_sanitize')
+
+  it('keeps the code and message of an HTTP 500 -28 answer', async () => {
+    stubAxiosPostThrow(http500(-28, 'Loading block index...'))
+    const c = makeConnector()
+    let thrown
+    try { await c.getTransactionHex(TXID) } catch (e) { thrown = e }
+    assert.ok(thrown, 'should reject')
+    assert.match(thrown.message, /status code 500 \(RPC error -28: Loading block index\.\.\.\)/)
+    assert.ok(!thrown.message.includes('FAKEPASS'), 'no credential in the message')
+    assert.strictEqual(thrown.code, undefined, 'a plain Error, not the axios ERR_BAD_RESPONSE')
+    assert.notStrictEqual(upstreamErrorMessage(thrown, 'FALLBACK'), 'FALLBACK')
+  })
+
+  it('keeps the code and message of an HTTP 500 -8 answer', async () => {
+    stubAxiosPostThrow(http500(-8, 'parameter 1 must be hexadecimal string'))
+    const c = makeConnector()
+    await assert.rejects(() => c.getTransactionHex(TXID),
+      /\(RPC error -8: parameter 1 must be hexadecimal string\)/)
+  })
+
+  it('still gives the txindex hint for an HTTP 500 -5 answer', async () => {
+    stubAxiosPostThrow(http500(-5, 'No such mempool or blockchain transaction'))
+    const c = makeConnector()
+    await assert.rejects(() => c.getTransactionHex(TXID), /not found.*txindex/)
+  })
+
+  it('keeps the code and message of an HTTP 200 error body', async () => {
+    stubAxiosPost({ data: { result: null, error: { code: -28, message: 'Loading block index...' } } })
+    const c = makeConnector()
+    await assert.rejects(() => c.getTransactionHex(TXID),
+      /Error getting transaction hex \(RPC error -28: Loading block index\.\.\.\)/)
+  })
+
+  it('logs the node reason rather than a bare status code', async () => {
+    stubAxiosPostThrow(http500(-28, 'Loading block index...'))
+    const c = makeConnector()
+    const originalError = console.error
+    const logs = []
+    console.error = (...args) => { logs.push(args.join(' ')) }
+    try {
+      await c.getTransactionHex(TXID).catch(() => {})
+    } finally {
+      console.error = originalError
+    }
+    const combined = logs.join('\n')
+    assert.ok(combined.includes('RPC error -28: Loading block index...'), 'log should carry the node reason (got: ' + combined + ')')
+    assert.ok(!combined.includes('FAKEPASS'), 'no credential in the log')
+  })
+
+  it('rethrows a bodiless transport failure as the original error object', async () => {
+    const original = new Error('socket hang up')
+    stubAxiosPostThrow(original)
+    const c = makeConnector()
+    await assert.rejects(() => c.getTransactionHex(TXID), (err) => err === original)
+  })
+})

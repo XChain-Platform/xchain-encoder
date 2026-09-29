@@ -141,12 +141,14 @@ async function fetchUtxoPage(tracker, address, limit, cursor){
 }
 
 // Unwrap one page's result, or throw the error the tracker sent in its place.
+// A malformed tracker reply is the tracker's fault, never the caller's, so every
+// shape refusal in this file is a plain Error, never the TypeError the API reads as bad params.
 function readUtxoResult(responseData){
     // Verify structure or surface the tracker's structured error.
     if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
         const result = responseData.result
         if (!Array.isArray(result.utxos)) {
-            throw new TypeError('UTXO tracker result missing utxos array')
+            throw new Error('UTXO tracker result missing utxos array')
         }
         return result
     }
@@ -173,7 +175,8 @@ function assertSameSnapshot(firstPageSync, pageSync, address){
     }
 }
 
-// Validate one page's rows and append them to the running set.
+// Validate one page's rows and append them to the running set (plain Error on a
+// bad row, as in readUtxoResult above: a malformed row is the tracker's fault).
 function appendPageUtxos(utxos, allUtxos){
     // pageOffset is the count before this page so globalIdx
     // across pages matches what a single-page caller would see.
@@ -185,13 +188,13 @@ function appendPageUtxos(utxos, allUtxos){
             typeof u.txid !== 'string' ||
             typeof u.vout === 'undefined' ||
             typeof u.value === 'undefined') {
-            throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}`)
+            throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}`)
         }
         if (!HEX_64_RE.test(u.txid)) {
-            throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: txid must be a 64-character hex string`)
+            throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: txid must be a 64-character hex string`)
         }
         if (typeof u.scriptPubKey !== 'string' || u.scriptPubKey.length === 0) {
-            throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: scriptPubKey must be a non-empty string`)
+            throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: scriptPubKey must be a non-empty string`)
         }
         if (u.confirmations == null) {
             u.confirmations = 0
@@ -201,7 +204,7 @@ function appendPageUtxos(utxos, allUtxos){
             // coerce and range-check tracker-supplied values too.
             const confirmations = Number(u.confirmations)
             if (!Number.isInteger(confirmations) || confirmations < 0) {
-                throw new TypeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: confirmations must be a non-negative integer`)
+                throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: confirmations must be a non-negative integer`)
             }
             u.confirmations = confirmations
         }

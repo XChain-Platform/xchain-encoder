@@ -65,7 +65,7 @@ const SIBLINGS = [
       guards: 'action-manifest conformance, taproot-envelope golden vectors, and the compression-parameter reference' },
     { repo: 'xchain-decoder', envs: ['XCHAIN_DECODER_DIR'],
       marker: 'src',
-      guards: 'the envelope-recognition gate against the authoritative decoder' },
+      guards: 'the envelope-recognition gate against the authoritative decoder, and sanitizeRpcError scrub parity' },
     { repo: 'xchain-sdk', envs: ['XCHAIN_SDK_DIR'],
       marker: 'src',
       guards: 'compression-parameter twin parity' },

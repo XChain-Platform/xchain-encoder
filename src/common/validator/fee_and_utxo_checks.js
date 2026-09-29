@@ -138,8 +138,10 @@ function validateUtxoOutpoint(entry, index) {
     // outpoint than intended. This matches the value field's exact-integer rigor
     // and rejects values that Number() would silently coerce to zero.
     const vout = toExactInt(entry.vout)
-    if (!Number.isInteger(vout) || vout < 0) {
-        throw new TypeError(`utxos[${index}].vout must be a non-negative integer`)
+    // Cap vout at the uint32 wire width, so an oversized index is a -32602 here
+    // and never an opaque bitcoinjs typeforce error inside psbt.addInput.
+    if (!Number.isInteger(vout) || vout < 0 || vout > 0xffffffff) {
+        throw new TypeError(`utxos[${index}].vout must be a non-negative integer no greater than 4294967295`)
     }
     entry.vout = vout
 }

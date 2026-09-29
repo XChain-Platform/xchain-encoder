@@ -41,10 +41,11 @@ function makeUtxo (txid, confirmations) {
 }
 
 // The whole previous transaction, which a legacy input carries as nonWitnessUtxo.
-function prevTxHex () {
+// Its output pays `value`, which must equal the UTXO's stated value.
+function prevTxHex (value = INPUT_VALUE) {
   const tx = new bitcoin.Transaction()
   tx.addInput(Buffer.alloc(32, 0x11), 0)
-  tx.addOutput(P2PKH_SCRIPT, INPUT_VALUE)
+  tx.addOutput(P2PKH_SCRIPT, value)
   return tx.toHex()
 }
 
@@ -249,6 +250,7 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
     const encoder = makeEncoder({ size: 2000, fees: 0 })
     const utxo = makeUtxo(TXID_PARENT_A, 0)
     utxo.value = 400000
+    encoder.connector.getTransactionHex = async () => prevTxHex(400000)
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null, 'test', null, null, false, null, TEST_ADDRESS,
       null, null, null, true, null

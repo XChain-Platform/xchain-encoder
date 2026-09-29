@@ -50,7 +50,9 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
     )
   })
 
-  it('throws TypeError when utxos is not an array', async () => {
+  // Pin the class, not only the text: a malformed tracker reply is a server
+  // fault, and a TypeError here would read as "fix your params" at the API.
+  it('throws a plain Error when utxos is not an array', async () => {
     let callCount = 0
     axios.post = async () => {
       callCount++
@@ -60,7 +62,7 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /UTXO tracker result missing utxos array/ }
+      { name: 'Error', message: /UTXO tracker result missing utxos array/ }
     )
   })
 })
@@ -68,44 +70,44 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
 describe('UtxoTracker.getUtxosFromAddress()', () => {
   installAxiosHooks()
 
-  it('throws TypeError for malformed UTXO (missing txid)', async () => {
+  it('throws a plain Error for malformed UTXO (missing txid)', async () => {
     const badUtxo = makeUtxo()
     delete badUtxo.txid
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /malformed utxo at index 0/ }
+      { name: 'Error', message: /malformed utxo at index 0/ }
     )
   })
 
-  it('throws TypeError for malformed UTXO (txid not a string)', async () => {
+  it('throws a plain Error for malformed UTXO (txid not a string)', async () => {
     const badUtxo = makeUtxo({ txid: 12345 })
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /malformed utxo at index 0/ }
+      { name: 'Error', message: /malformed utxo at index 0/ }
     )
   })
 
-  it('throws TypeError when txid is not a 64-char hex string (too short)', async () => {
+  it('throws a plain Error when txid is not a 64-char hex string (too short)', async () => {
     const badUtxo = makeUtxo({ txid: 'abc123' })
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /64-character hex string/ }
+      { name: 'Error', message: /64-character hex string/ }
     )
   })
 
-  it('throws TypeError when txid is 64 chars but not hex', async () => {
+  it('throws a plain Error when txid is 64 chars but not hex', async () => {
     const badUtxo = makeUtxo({ txid: 'z'.repeat(64) })
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /64-character hex string/ }
+      { name: 'Error', message: /64-character hex string/ }
     )
   })
 })
@@ -113,36 +115,36 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
 describe('UtxoTracker.getUtxosFromAddress()', () => {
   installAxiosHooks()
 
-  it('throws TypeError for malformed UTXO (missing vout)', async () => {
+  it('throws a plain Error for malformed UTXO (missing vout)', async () => {
     const badUtxo = makeUtxo()
     delete badUtxo.vout
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /malformed utxo at index 0/ }
+      { name: 'Error', message: /malformed utxo at index 0/ }
     )
   })
 
-  it('throws TypeError for malformed UTXO (missing value)', async () => {
+  it('throws a plain Error for malformed UTXO (missing value)', async () => {
     const badUtxo = makeUtxo()
     delete badUtxo.value
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /malformed utxo at index 0/ }
+      { name: 'Error', message: /malformed utxo at index 0/ }
     )
   })
 
-  it('throws TypeError when scriptPubKey is missing', async () => {
+  it('throws a plain Error when scriptPubKey is missing', async () => {
     const badUtxo = makeUtxo()
     delete badUtxo.scriptPubKey
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /scriptPubKey must be a non-empty string/ }
+      { name: 'Error', message: /scriptPubKey must be a non-empty string/ }
     )
   })
 })
@@ -150,22 +152,22 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
 describe('UtxoTracker.getUtxosFromAddress()', () => {
   installAxiosHooks()
 
-  it('throws TypeError when scriptPubKey is an empty string', async () => {
+  it('throws a plain Error when scriptPubKey is an empty string', async () => {
     const badUtxo = makeUtxo({ scriptPubKey: '' })
     stubSyncedThenUtxos([badUtxo])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /scriptPubKey must be a non-empty string/ }
+      { name: 'Error', message: /scriptPubKey must be a non-empty string/ }
     )
   })
 
-  it('throws TypeError when a UTXO element is null', async () => {
+  it('throws a plain Error when a UTXO element is null', async () => {
     stubSyncedThenUtxos([null])
     const t = makeTracker()
     await assert.rejects(
       () => t.getUtxosFromAddress(ADDRESS),
-      { name: 'TypeError', message: /malformed utxo at index 0/ }
+      { name: 'Error', message: /malformed utxo at index 0/ }
     )
   })
 

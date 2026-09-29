@@ -44,7 +44,10 @@ function feeEstimateSanityCeiling(){
 // the encoder logs (util.inspect walks error.config.auth). Scrub the credential
 // fields in place so neither this logger nor any upstream handler leaks them, and
 // return a compact, credential-free string (error.message never carries auth).
-// Kept in sync with xchain-decoder/src/chain/blockchain_connector.js sanitizeRpcError.
+// The credential scrub is kept in sync with sanitizeRpcError in
+// xchain-decoder/src/chain/blockchain_connector/rpc_helpers.js. Unlike that twin,
+// this copy does not capture the node's RPC code and message, so callers read
+// rpcErrorDetail below first.
 function sanitizeRpcError(error){
     try {
         if (error && error.config) {
@@ -60,11 +63,6 @@ function sanitizeRpcError(error){
     return (error && error.message) ? error.message : String(error)
 }
 
-// Size and fee off one getmempoolentry-shaped record, across both field layouts
-// the fleet's nodes use: Core 0.14 (Dogecoin 1.14) reports flat `size` and `fee`,
-// while modern Core reports `vsize` and nests the fee under `fees.base`. Either
-// reader returns null on a value it cannot price, which the caller treats as an
-// unusable package rather than as a zero-fee ancestor.
 // The node's own JSON-RPC error as a compact suffix, off either response shape
 // the fleet produces: BTC v28 answers HTTP 200 with an error body, while
 // LTC/DOGE answer HTTP 500 and axios hangs the body off error.response. Returns
@@ -95,6 +93,11 @@ function readNumeric(raw){
     return null
 }
 
+// Size and fee off one getmempoolentry-shaped record, across both field layouts
+// the fleet's nodes use: Core 0.14 (Dogecoin 1.14) reports flat `size` and `fee`,
+// while modern Core reports `vsize` and nests the fee under `fees.base`. Either
+// reader returns null on a value it cannot price, which the caller treats as an
+// unusable package rather than as a zero-fee ancestor.
 function entrySize(entry){
     const raw = entry && (entry.vsize !== undefined ? entry.vsize : entry.size)
     const size = readNumeric(raw)

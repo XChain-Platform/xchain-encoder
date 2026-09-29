@@ -168,7 +168,14 @@ function acceptTrackerUtxos(build, fetched){
     //UTXOs would otherwise be unable to build any transaction). The
     //SELECTED input count is bounded after selection instead.
     for (let vi = 0; vi < utxos.length; vi++){
-        validateUtxoEntry(utxos[vi], vi)
+        try {
+            validateUtxoEntry(utxos[vi], vi)
+        } catch (err) {
+            // Name a bad tracker row as a tracker error: the validator's TypeError or
+            // RangeError would otherwise tell the caller to fix params they never sent.
+            throw new OperationalError('UTXO_TRACKER_ERROR',
+                `utxo-tracker returned a malformed utxo: ${upstreamErrorMessage(err, `unreadable entry at index ${vi}`)}`)
+        }
     }
     Object.assign(build, { utxos, fetchedFromTracker })
 }

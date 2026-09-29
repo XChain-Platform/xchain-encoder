@@ -215,8 +215,10 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
         mutate(entry)
         stubTrackerServing([entry], fixture.sync)
         const tracker = new UtxoTracker('127.0.0.1', 18420)
+        // Match the gate's own refusal text, and require a plain Error: a malformed
+        // tracker row is a server fault, and a TypeError would read as bad params.
         await assert.rejects(() => tracker.getUtxosFromAddress(fixture.address),
-          (err) => err instanceof TypeError,
+          (err) => !(err instanceof TypeError) && /UTXO tracker returned malformed utxo at index 0/.test(err.message),
           `the shape gate accepted a record whose ${why}`)
       })
     })

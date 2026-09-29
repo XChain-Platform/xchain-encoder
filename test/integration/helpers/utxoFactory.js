@@ -94,6 +94,62 @@ function buildRawTxHex (value, networkName) {
   return tx.toHex()
 }
 
+// Value the padding outputs below a fixture's vout carry. Never read by input
+// selection; it only keeps outs[vout] at the index the UTXO names.
+const FILLER_VALUE = 546
+
+/**
+ * Build one previous transaction per txid whose outs[vout] pays exactly what
+ * each listed UTXO states, so input selection's prev-out value check agrees.
+ * Returns a Map of txid to raw hex; lower vouts are padded with filler outputs
+ * and several vouts of one txid share a transaction.
+ */
+function buildPrevTxHexByTxid (utxos, networkName) {
+  const network = networkName
+    ? CryptoNetworks.getBitcoinJsNetwork(networkName)
+    : bitcoin.networks.regtest
+  const script = bitcoin.payments.p2pkh({ pubkey: PUBKEY_BUF, network }).output
+  const valuesByTxid = new Map()
+  for (const utxo of utxos) {
+    const values = valuesByTxid.get(utxo.txid) || new Map()
+    const stated = BigInt(toSatoshiString(utxo.value))
+    if (values.has(utxo.vout) && values.get(utxo.vout) !== stated) {
+      throw new Error(`fixture lists ${utxo.txid}:${utxo.vout} twice with different values`)
+    }
+    values.set(utxo.vout, stated)
+    valuesByTxid.set(utxo.txid, values)
+  }
+  const hexByTxid = new Map()
+  let seed = 0
+  for (const [txid, values] of valuesByTxid) {
+    const tx = new bitcoin.Transaction()
+    // Vary the spent outpoint so each fixture txid decodes to a distinct tx.
+    tx.addInput(Buffer.alloc(32, 0x11), seed++)
+    const lastVout = Math.max(...values.keys())
+    for (let vout = 0; vout <= lastVout; vout++) {
+      const big = values.has(vout) ? values.get(vout) : BigInt(FILLER_VALUE)
+      // The bufferutils patch writes a BigInt only above 2^53-1; keep Numbers below it.
+      tx.addOutput(script, big <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(big) : big)
+    }
+    hexByTxid.set(txid, tx.toHex())
+  }
+  return hexByTxid
+}
+
+/**
+ * Point encoder.connector.getTransactionHex at per-txid previous transactions
+ * built from `utxos`, and return the lookup map. An unlisted txid rejects, so a
+ * fixture that forgets a UTXO fails loudly instead of reading a stranger's tx.
+ */
+function attachPrevTxs (encoder, utxos, networkName) {
+  const hexByTxid = buildPrevTxHexByTxid(utxos, networkName)
+  encoder.connector.getTransactionHex = async (txid) => {
+    if (!hexByTxid.has(txid)) throw new Error(`no previous-tx fixture for txid ${txid}`)
+    return hexByTxid.get(txid)
+  }
+  return hexByTxid
+}
+
 /**
  * Create a SegWit (P2WPKH) UTXO fixture.
  */
@@ -197,6 +253,8 @@ module.exports = {
   TXID_C,
   TXID_MULTISIGN,
   buildRawTxHex,
+  buildPrevTxHexByTxid,
+  attachPrevTxs,
   makeSegwitUtxo,
   makeLegacyUtxo,
   makeUtxo,

@@ -14,6 +14,7 @@ const {
   makeSegwitUtxo,
   makeLegacyUtxo,
   makeEncoder,
+  attachPrevTxs,
   TEST_ADDRESS,
   bitcoin,
   pubkeyBuf
@@ -135,6 +136,7 @@ describe('XChainEncoder.createTransaction()', () => {
       encoder.connector.getFeePerKilobyte = async () => 0.1
       const address = bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network: encoder.network }).address
       const utxo = makeLegacyUtxo(TXID_A, 0, 1000000000)
+      attachPrevTxs(encoder, [utxo], 'dogecoin-testnet')
       return { encoder, address, utxo }
     }
 

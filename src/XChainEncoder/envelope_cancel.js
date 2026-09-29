@@ -33,8 +33,9 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     if (typeof commitTxid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(commitTxid)) {
         throw new TypeError('commitTxid must be a 64-character hex string')
     }
-    if (!Number.isInteger(commitVout) || commitVout < 0) {
-        throw new TypeError('commitVout must be a non-negative integer')
+    // Cap commitVout at the uint32 wire width before it becomes a reservation key.
+    if (!Number.isInteger(commitVout) || commitVout < 0 || commitVout > 0xffffffff) {
+        throw new TypeError('commitVout must be a non-negative integer no greater than 4294967295')
     }
     const value = parseSatoshiAmount(commitValue, 'commitValue')
     // Accept the 33-byte compressed form (what create_tx took) or the
@@ -132,8 +133,10 @@ function* cancelFeeRate(feeRatePerKb){
     // and fee rate, so an unbounded rate here is a real burn surface.
     const info = yield this.connector.getNetworkInfo()
     const relayFeePerKb = Number(info && info.relayfee)
+    // Refuse a node that reports no usable relay floor. A plain Error, not a
+    // RangeError: this is the node's fault, so the API answers retryable -32603.
     if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0){
-        throw new RangeError('Node did not report a positive relayfee; transaction fee safety cannot be verified')
+        throw new Error('Node did not report a positive relayfee; transaction fee safety cannot be verified')
     }
     let feePerBytes
     let nodeFeePerBytes = null

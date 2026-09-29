@@ -288,8 +288,10 @@ function computeChange(build){
     let { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change } = build
     // Validate the fee BEFORE the BigInt conversion below: BigInt(estimatedFee)
     // throws an opaque error on a NaN/Infinity fee, where this check names the cause.
+    // A plain Error (API -32603): the validator already bounds every caller fee
+    // input, so a non-integer here comes from node-derived rates or a build bug.
     if (!Number.isFinite(estimatedFee) || !Number.isInteger(estimatedFee)) {
-        throw new RangeError('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
+        throw new Error('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
     }
 
     // Exact change math in BigInt: with a >2^53-1-sat input, Number

@@ -31,7 +31,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib');
 const {
   makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B, TXID_C
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 
 const NETWORK = 'bitcoin-regtest'
 const MINT = 'MINT|0|XCHAIN|10000'

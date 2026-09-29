@@ -11,6 +11,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../../../src/XChainEncoder')
+const { attachPrevTxs } = require('../../../integration/helpers/utxoFactory')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -96,6 +97,7 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
     // smaller than the dust floor, so the floor wins the max()). Keep the
     // UTXO and fee at that ceiling so the fee is not rejected or floored up.
     const utxo = makeP2pkhUtxo(TXID_A, 0, 100000)
+    attachPrevTxs(encoder, [utxo])
     const fee = 100000
 
     const result = await encoder.createTransaction(
@@ -118,6 +120,7 @@ describe('XChainEncoder.createTransaction() - change edge cases', () => {
     // slightly larger UTXO so change lands under dogecoin-regtest's
     // 100000-koinu dust floor.
     const utxo = makeP2pkhUtxo(TXID_A, 0, 150000)
+    attachPrevTxs(encoder, [utxo])
     const fee = 100000 // leaves 50000 sats change, below the 100000 dust floor
 
     // Should not throw; change below dust with no change address is fine (burned as fee)

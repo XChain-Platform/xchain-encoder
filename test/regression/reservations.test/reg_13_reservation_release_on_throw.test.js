@@ -21,9 +21,9 @@
 
 const assert = require('assert')
 const {
-  makeEncoder, makeUtxo, getTestAddress, TXID_A, TXID_B
-} = require('../integration/helpers/utxoFactory')
-const actions = require('../integration/helpers/actionFactory')
+  makeEncoder, makeUtxo, getTestAddress, attachPrevTxs, TXID_A, TXID_B
+} = require('../../integration/helpers/utxoFactory')
+const actions = require('../../integration/helpers/actionFactory')
 
 const NETWORK = 'dogecoin-regtest'
 const FIVE_MINUTES = 5 * 60 * 1000
@@ -36,11 +36,11 @@ function ins0Txid (result) {
 // TXID_A is the earlier-sorted candidate and TXID_B the later one.
 function twoUtxoEncoder (value = 100000000) {
   const encoder = makeEncoder(NETWORK)
+  const utxos = () => [makeUtxo(NETWORK, TXID_A, 0, value), makeUtxo(NETWORK, TXID_B, 0, value)]
   encoder.utxoTrackerConnector = {
-    getUtxosFromAddress: async () => ({
-      utxos: [makeUtxo(NETWORK, TXID_A, 0, value), makeUtxo(NETWORK, TXID_B, 0, value)]
-    })
+    getUtxosFromAddress: async () => ({ utxos: utxos() })
   }
+  attachPrevTxs(encoder, utxos(), NETWORK)
   return encoder
 }
 

@@ -39,7 +39,7 @@ const OP_RETURN_PUSH_OVERHEAD = 3
 // which stays the arbiter/backstop; measured pre-compile here only when the caller
 // explicitly requests encoding:"OP_RETURN" so an oversize request is rejected as
 // -32602 invalid-params before any UTXO reservation, instead of failing post-compile
-// as a -32603 internal error. The compiled value this is compared against is
+// after that reservation work. The compiled value this is compared against is
 // exactly finalDataBuffer.length in createTransaction (same compiledPushSize sum).
 const OP_RETURN_OUTPUT_SIZE = 80
 const OP_RETURN_MAGIC_WORD_LENGTH = 4

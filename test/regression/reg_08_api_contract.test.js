@@ -25,7 +25,8 @@ const {
   TXID_A,
   makeUtxo,
   makeEncoder,
-  getTestAddress
+  getTestAddress,
+  attachPrevTxs
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -34,7 +35,8 @@ const NETWORK = 'dogecoin-regtest'
 /**
  * Simulate the api.js create_tx handler flow:
  * 1. validateAll(rawParams): may throw TypeError/RangeError (→ -32602)
- * 2. encoder.createTransaction(validated): may throw Error (→ -32603)
+ * 2. encoder.createTransaction(validated): may throw TypeError/RangeError
+ *    (→ -32602), an operational error (→ -32010) or plain Error (→ -32603)
  * 3. return { psbt: psbt.toHex(), encoding }
  */
 async function simulateCreateTx (rawParams, encoder) {
@@ -87,14 +89,16 @@ describe('REG-08: API Contract Regression', function () {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const action = actions.makeSend()
+      const utxos = [
+        makeUtxo(NETWORK, TXID_A, 0, 50000000),
+        makeUtxo(NETWORK, TXID_A, 1, 50000000)
+      ]
+      attachPrevTxs(encoder, utxos, NETWORK)
 
       const result = await simulateCreateTx({
         data: action.data,
         pubkey: address,
-        utxos: [
-          makeUtxo(NETWORK, TXID_A, 0, 50000000),
-          makeUtxo(NETWORK, TXID_A, 1, 50000000)
-        ],
+        utxos,
         fee: '10000',
         change: address,
         feePerKb: 0.00001
