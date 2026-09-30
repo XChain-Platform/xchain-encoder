@@ -66,6 +66,27 @@ function refuseExcessiveFee(build){
     }
 }
 
+function refuseInsufficientRelayFee(build){
+    const { fee, feePerKb, feePerBytes, p2shHash, estimatedTxSize, estimatedFee, relayFeePerKb } = build
+    const hasExplicitFee = fee != null && fee !== false
+    const hasCallerRate = feePerKb != null && feePerKb !== false
+    if (!hasExplicitFee && !hasCallerRate) return
+
+    const suppliedFee = hasExplicitFee
+        ? estimatedFee
+        : p2shHash
+            ? Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
+            : estimatedFee
+    const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
+    const minimumRelayFee = Math.ceil(estimatedTxSize * relayFeeBaseUnitsPerKb / 1000)
+    if (suppliedFee >= minimumRelayFee) return
+
+    if (hasExplicitFee){
+        throw new RangeError(`fee ${suppliedFee} is below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+    }
+    throw new RangeError(`feePerKb ${feePerKb} base units/kB produces fee ${suppliedFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+}
+
 function* upliftForAncestors(build){
     let { unconfirmedInputTxids, feePerBytes, estimatedFee, estimatedTxSize } = build
     // CPFP-aware package sizing.
@@ -267,8 +288,10 @@ function computeChange(build){
     let { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change } = build
     // Validate the fee BEFORE the BigInt conversion below: BigInt(estimatedFee)
     // throws an opaque error on a NaN/Infinity fee, where this check names the cause.
+    // A plain Error (API -32603): the validator already bounds every caller fee
+    // input, so a non-integer here comes from node-derived rates or a build bug.
     if (!Number.isFinite(estimatedFee) || !Number.isInteger(estimatedFee)) {
-        throw new RangeError('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
+        throw new Error('Fee calculation produced invalid result. Check that all UTXO values and fees are valid integers.')
     }
 
     // Exact change math in BigInt: with a >2^53-1-sat input, Number
@@ -309,4 +332,4 @@ function computeChange(build){
     Object.assign(build, { changeSatoshis })
 }
 
-module.exports = { refuseExcessiveFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange }
+module.exports = { refuseExcessiveFee, refuseInsufficientRelayFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange }

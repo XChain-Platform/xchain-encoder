@@ -18,6 +18,7 @@
  *
  ********************************************************************/
 
+const bitcoin = require('bitcoinjs-lib')
 const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { MAX_UTXO_COUNT, parseSatoshiAmount } = require('../../common/validator')
 const { OperationalError } = require('../../build/errors')
@@ -84,7 +85,7 @@ function* selectInputs(build){
 
         nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
 
-        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis)
+        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker)
         estimatedTxSize = added.estimatedTxSize
         inputSatoshis = added.inputSatoshis
 
@@ -173,7 +174,31 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
     return false
 }
 
-function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis){
+// Refuses a UTXO whose stated value differs from its output in the fetched previous tx.
+// A legacy sighash does not commit to input amounts, so an understated value would sign
+// and the hidden difference would go to miners, past fee guards that read the same figure.
+function assertPrevOutValueMatches(prevTxHex, utxo, fetchedFromTracker){
+    const outpoint = `${utxo.txid}:${utxo.vout}`
+    let prevOut = null
+    try {
+        prevOut = bitcoin.Transaction.fromHex(prevTxHex).outs[utxo.vout]
+    } catch (err) {
+        prevOut = null
+    }
+    let problem = null
+    if (!prevOut){
+        problem = `previous transaction for utxo ${outpoint} has no output at index ${utxo.vout}`
+    } else if (BigInt(prevOut.value) !== BigInt(utxo.value)){
+        problem = `utxo ${outpoint} states value ${BigInt(utxo.value).toString()} but the previous transaction ` +
+            `pays ${BigInt(prevOut.value).toString()} to that output`
+    }
+    if (problem === null) return
+    // Name who supplied the bad figure: a tracker row is not a caller parameter.
+    if (fetchedFromTracker) throw new OperationalError('UTXO_TRACKER_ERROR', `utxo-tracker returned a wrong utxo: ${problem}`)
+    throw new RangeError(problem)
+}
+
+function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker){
     if (this.isSegwitUTXO(nextUtxo)){
         let nextInput = {
             hash: nextUtxo.txid,
@@ -197,6 +222,8 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
         // byte-identity guarantee the confirm surface rests on.
         if (attachPrevTx) {
             const prevTxHex = yield this.connector.getTransactionHex(nextUtxo.txid)
+            // Check the amount too: a hardware signer reads it from these bytes.
+            assertPrevOutValueMatches(prevTxHex, nextUtxo, fetchedFromTracker)
             nextInput.nonWitnessUtxo = Buffer.from(prevTxHex, 'hex')
         }
         psbt.addInput(nextInput)
@@ -204,6 +231,8 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
         inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
     } else {
         let wholeUtxoHex = yield this.connector.getTransactionHex(nextUtxo.txid)
+        // Check the stated amount against the node's copy before it enters the fee math.
+        assertPrevOutValueMatches(wholeUtxoHex, nextUtxo, fetchedFromTracker)
         let nextInput = {
             hash: nextUtxo.txid,
             index: nextUtxo.vout,

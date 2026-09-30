@@ -33,8 +33,9 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     if (typeof commitTxid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(commitTxid)) {
         throw new TypeError('commitTxid must be a 64-character hex string')
     }
-    if (!Number.isInteger(commitVout) || commitVout < 0) {
-        throw new TypeError('commitVout must be a non-negative integer')
+    // Cap commitVout at the uint32 wire width before it becomes a reservation key.
+    if (!Number.isInteger(commitVout) || commitVout < 0 || commitVout > 0xffffffff) {
+        throw new TypeError('commitVout must be a non-negative integer no greater than 4294967295')
     }
     const value = parseSatoshiAmount(commitValue, 'commitValue')
     // Accept the 33-byte compressed form (what create_tx took) or the
@@ -130,6 +131,13 @@ function* cancelFeeRate(feeRatePerKb){
     // absolute MAX_FEE_RATE_KB cap and the relative multiplier x the node's
     // own estimate. A cancel sweeps a prefund that scales with payload size
     // and fee rate, so an unbounded rate here is a real burn surface.
+    const info = yield this.connector.getNetworkInfo()
+    const relayFeePerKb = Number(info && info.relayfee)
+    // Refuse a node that reports no usable relay floor. A plain Error, not a
+    // RangeError: this is the node's fault, so the API answers retryable -32603.
+    if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0){
+        throw new Error('Node did not report a positive relayfee; transaction fee safety cannot be verified')
+    }
     let feePerBytes
     let nodeFeePerBytes = null
     if (feeRatePerKb){
@@ -151,11 +159,11 @@ function* cancelFeeRate(feeRatePerKb){
     if (capFeePerBytes != null && feePerBytes > capFeePerBytes){
         feePerBytes = capFeePerBytes
     }
-    return feePerBytes
+    return { feePerBytes, relayFeePerKb }
 }
 
 // The cancel's fee at the chain's stripped-size floor, and the sweep that remains.
-function sizeCancelSweep(destination, value, feePerBytes){
+function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerFeePerKb){
     // vsize: 10 tx overhead + 58 key-path input (41 stripped + witness) +
     // destination output + 2 rounding slack; padded to the chain's
     // stripped-size relay floor exactly like the reveal (the key-path
@@ -169,6 +177,13 @@ function sizeCancelSweep(destination, value, feePerBytes){
     }
     const cancelVsize = strippedBytes + Math.ceil((2 + 1 + 1 + 65) / 4) + 2
     let cancelFee = Math.trunc(cancelVsize * feePerBytes * SATOSHI_UNIT)
+    if (callerFeePerKb != null){
+        const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
+        const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
+        if (cancelFee < minimumRelayFee){
+            throw new RangeError(`feePerKb ${callerFeePerKb} base units/kB produces fee ${cancelFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
+        }
+    }
     if (cancelFee < this.dustAmount){
         cancelFee = this.dustAmount
     }
@@ -237,7 +252,7 @@ module.exports = {
             }
             next = feeRate.next(settled)
         }
-        const feePerBytes = next.value
+        const { feePerBytes, relayFeePerKb } = next.value
 
         const p2trPayment = bitcoin.payments.p2tr({
             internalPubkey: internalKeyBuf,
@@ -245,7 +260,8 @@ module.exports = {
             network: this.network
         })
 
-        const { padNeeded, cancelFee, sweepValue } = sizeCancelSweep.call(this, destination, value, feePerBytes)
+        const { padNeeded, cancelFee, sweepValue } = sizeCancelSweep.call(
+            this, destination, value, feePerBytes, relayFeePerKb, feeRatePerKb)
 
         const psbt = new bitcoin.Psbt({ network: this.network })
         psbt.addInput({

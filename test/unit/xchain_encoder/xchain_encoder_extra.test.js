@@ -22,6 +22,7 @@
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../../src/XChainEncoder')
+const { attachPrevTxs } = require('../../integration/helpers/utxoFactory')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -81,6 +82,7 @@ function makeEncoder (network) {
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => RAW_TX_HEX
   }
   // Serve the fixture type the chain can actually hold: a witness-program UTXO
@@ -144,7 +146,7 @@ describe('XChainEncoder.createTransaction(): non-segwit UTXO path', () => {
     // picks up utxo1 too (combined = 130000 > 90000).
     const utxo1 = makeP2pkhUtxo(TXID_A, 0, 50000)
     const utxo2 = makeP2pkhUtxo(TXID_B, 1, 80000)
-
+    attachPrevTxs(encoder, [utxo1, utxo2])
     const result = await encoder.createTransaction(
       [utxo1, utxo2], TEST_ADDRESS, null,
       'test', null, 90000, false, null, TEST_ADDRESS,

@@ -4,7 +4,7 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.20.1-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/tests-1%2C787%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
@@ -30,7 +30,6 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Custom outputs**: arbitrary address/value outputs (e.g., COINPay native coin payments)
 - **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
-- **Browser bundle**: Browserify build for client-side PSBT generation without a server
 - **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard, the recent-build duplicate refusal, the envelope-cancel owner set, the `release_inputs` reservation tickets, the rate limiter and the concurrency-gate counters are in-process only until a shared store exists
 - **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
 
@@ -163,8 +162,6 @@ neither source sets one, so these defaults hold on an unconfigured box:
 | Command | Description |
 |---|---|
 | `npm run api` | Start the JSON-RPC API server |
-| `npm run build` | Production browser bundle (minified) -> `dist/xchain_encoder.min.js` |
-| `npm run build:dev` | Development browser bundle (unminified) |
 | `npm run smoke-test` | Smoke tests (~52 tests, <1s) |
 | `npm run test:unit` | Unit tests (910 tests) |
 | `npm run test:integration` | Integration tests (115 tests) |

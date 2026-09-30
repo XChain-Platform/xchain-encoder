@@ -20,6 +20,7 @@
  ********************************************************************/
 
 const util = require('util')
+const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
 const { upstreamErrorMessage } = require('../common/error_sanitize')
@@ -177,12 +178,15 @@ return {
             // our own validation. Everything else is an unexpected internal and is
             // collapsed to a generic message to prevent leaking internals
             // (host:port, stack, RPC credentials).
+            // Map a validation error to -32602 (fix the params, do not retry) and
+            // everything else to -32603 (retry with backoff). Node and tracker faults
+            // inside the build throw plain Error so they stay on the retryable side.
             const isKnown = err instanceof TypeError || err instanceof RangeError
             if (!isKnown) {
                 logger.error(util.format('Encoder error:', err))
             }
             const e = new Error(isKnown ? err.message : 'Internal encoder error')
-            e.code = -32603
+            e.code = isKnown ? -32602 : -32603
             throw e
         }
 
@@ -292,8 +296,10 @@ return {
         // Shed malformed/oversized payloads before the node round-trip; the
         // node would reject them anyway, this just answers with a precise
         // invalid-params reason instead of a node-side parse error.
+        let localTxid
         try {
             validator.validateRawTxHex(tx_hex)
+            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
         } catch (err) {
             const e = new Error(err.message)
             e.code = -32602
@@ -304,7 +310,7 @@ return {
             let txid = await encoder.connector.sendRawTransaction(tx_hex)
             return { txid: txid }
         } catch (err) {
-            logger.error(util.format('Broadcast error:', err))
+            logger.error(util.format(`Broadcast error for txid ${localTxid}:`, err))
             const e = new Error(upstreamErrorMessage(err, 'Transaction broadcast failed'))
             e.code = -32603
             throw e
@@ -313,9 +319,26 @@ return {
 }
 }
 
-// Tracker-facing UTXO lookup; upstream error text is sanitized before it leaves.
+// Tracker-facing lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
 return {
+    async get_tx_block(rawParams) {
+        const txid = rawParams && rawParams.txid
+        if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
+            const e = new Error('txid must be a 64-hex-character string')
+            e.code = -32602
+            throw e
+        }
+
+        try {
+            return await encoder.utxoTrackerConnector.getTxBlock(txid)
+        } catch (err) {
+            logger.error(util.format('Transaction block lookup error:', err))
+            const e = new Error(upstreamErrorMessage(err, 'Transaction block lookup failed'))
+            e.code = -32603
+            throw e
+        }
+    },
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
         if (!address) {

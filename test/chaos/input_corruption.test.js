@@ -22,7 +22,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A, TXID_B, PUBKEY_BUF,
-  makeUtxo, makeMempoolUtxo, makeEncoder, getTestAddress, buildRawTxHex
+  makeUtxo, makeMempoolUtxo, makeEncoder, getTestAddress, buildRawTxHex, attachPrevTxs
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -39,6 +39,7 @@ function defineArithmeticLimitCases () {
     it('value=0 → INSUFFICIENT_FUNDS, available reported as 0', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeUtxo(DOGE, TXID_A, 0, 0)
+      attachPrevTxs(encoder, [utxo], DOGE)
 
       await assert.rejects(
         () => encoder.createTransaction(
@@ -57,6 +58,7 @@ function defineArithmeticLimitCases () {
     it('value=1 → INSUFFICIENT_FUNDS rather than negative change', async () => {
       const encoder = makeEncoder(DOGE)
       const utxo = makeUtxo(DOGE, TXID_A, 0, 1)
+      attachPrevTxs(encoder, [utxo], DOGE)
 
       await assert.rejects(
         () => encoder.createTransaction(

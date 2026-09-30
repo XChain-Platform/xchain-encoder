@@ -54,7 +54,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.00001
+        null, null, null, true, 2000
       )
       assert.ok(result.psbt)
     })

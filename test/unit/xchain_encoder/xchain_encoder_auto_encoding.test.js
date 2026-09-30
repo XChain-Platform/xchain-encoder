@@ -45,6 +45,7 @@ function makeEncoder(network = 'bitcoin-regtest') {
     const encoder = new XChainEncoder(network, '127.0.0.1', '0', 'x', 'x', '', '')
     encoder.connector = {
         getFeePerKilobyte: async () => 0.00002,
+        getNetworkInfo: async () => ({ relayfee: 0.00001 }),
         getTransactionHex: async () => { throw new Error('not needed') }
     }
     encoder.utxoTrackerConnector = {

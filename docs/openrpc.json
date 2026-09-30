@@ -595,6 +595,54 @@
           }
         }
       }
+    },
+    {
+      "name": "get_tx_block",
+      "summary": "Locate the confirmed block containing a transaction (proxied from xchain-utxo-tracker).",
+      "description": "Returns null when the well-formed txid is unknown, unindexed, or was rolled back. The sync fields identify the tracker tip that served the lookup.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "txid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "transaction id (64-character hexadecimal string)"
+          }
+        }
+      ],
+      "result": {
+        "name": "block",
+        "schema": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "block_hash": {
+              "type": "string",
+              "description": "hash of the confirmed block"
+            },
+            "block_height": {
+              "type": "integer",
+              "description": "height of the confirmed block"
+            },
+            "sync": {
+              "type": "object",
+              "properties": {
+                "committed_height": {
+                  "type": "integer",
+                  "description": "tracker committed tip height"
+                },
+                "committed_hash": {
+                  "type": "string",
+                  "description": "tracker committed tip hash"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

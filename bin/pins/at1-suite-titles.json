@@ -136,10 +136,6 @@
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.6: UtxoTracker fallback calls UtxoTracker when utxos is empty array",
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.6: UtxoTracker fallback calls UtxoTracker when utxos is null"
     ],
-    "0e4bd255929ec3b3": [
-      "Category D: UTXO & Fee Integration D-5: UtxoTracker fallback calls UtxoTracker when utxos param is empty array",
-      "Category D: UTXO & Fee Integration D-5: UtxoTracker fallback calls UtxoTracker when utxos param is null"
-    ],
     "0e58538e3d6aa84b": [
       "Encoder input validator validateDust null/false pass; coerces; rejects NaN and negative"
     ],
@@ -192,6 +188,14 @@
       "Security: remediated dependency advisories @regression @tier4 ADV-3: minimatch can still brace-expand through the overridden brace-expansion",
       "Security: remediated dependency advisories @regression @tier4 ADV-4: brace-expansion survives the CVE-2026-14257 unbounded-length input",
       "Security: remediated dependency advisories @regression @tier4 ADV-5: the installed axios reports a patched runtime version"
+    ],
+    "0fdda5be04dda426": [
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) accepts the x-only internal key form",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) applies the create_tx fee guards to feePerKb and replacebyfee",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) builds, signs and extracts a sweep using only the recovery record",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) fails closed when the sweep would land under dust",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) rejects a caller fee rate below the size-adjusted relay minimum",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) validates the recovery-record fields"
     ],
     "11a13e37d91017bf": [
       "XChainEncoder.obfuscate() different keys produce different output",
@@ -280,6 +284,11 @@
       "Chaos Category C: Library & Crypto Failures C-5: Non-base58 caller identity for P2SH encoding an identity that is no address and no pubkey is refused by name",
       "Chaos Category C: Library & Crypto Failures C-5: Non-base58 caller identity for P2SH encoding bech32 P2WPKH caller resolves to the same HASH160 as the raw pubkey"
     ],
+    "16b6105b0a4d877e": [
+      "XChainEncoder TAPROOT envelope key-path cancel suspension count a below-dust cancel is refused and hands its claim back four turns after the call",
+      "XChainEncoder TAPROOT envelope key-path cancel suspension count the caller fee-rate path settles four turns after the call",
+      "XChainEncoder TAPROOT envelope key-path cancel suspension count the node fee-rate path settles four turns after the call"
+    ],
     "16caf10d6b0f828b": [
       "Chaos Category F: API Layer Failures F-1: Validator with malformed params create_envelope_cancel_tx rejects positional array params at the gate",
       "Chaos Category F: API Layer Failures F-1: Validator with malformed params data exceeding 65536 bytes \u2192 RangeError",
@@ -295,14 +304,19 @@
       "Chaos Category F: API Layer Failures F-3: psbt.toHex() callability (api.js line 124 exposure) P2SH result: psbt.toHex() succeeds",
       "Chaos Category F: API Layer Failures F-3b: psbt.toHex() monkey-patch (documents api.js exposure) toHex failure after successful createTransaction \u2192 unhandled in api.js"
     ],
-    "171d238e570fea73": [
-      "Category D: UTXO & Fee Integration D-3: Duplicate UTXO deduplication removes duplicate UTXOs with same txid+vout"
-    ],
-    "19bbd52a62e424d4": [
-      "browser bundle entry (src/browser/index.js) attaches the encoder class to window as the very class module",
-      "browser bundle entry (src/browser/index.js) exports the same class it attaches, not a copy or wrapper",
-      "browser bundle entry (src/browser/index.js) is browser-only: requiring it with no window throws ReferenceError",
-      "browser bundle entry (src/browser/index.js) is the file both bundle scripts name as their browserify entry"
+    "181d8e207d19511b": [
+      "XChainEncoder fee-rate cap accepts a generous but plausible absolute fee (priority/RBF headroom)",
+      "XChainEncoder fee-rate cap applies the absolute MAX_FEE_RATE_KB cap when it is tighter than the relative cap",
+      "XChainEncoder fee-rate cap burn backstop anchors on the relayfee when the smart-fee estimate is unavailable (cap disabled)",
+      "XChainEncoder fee-rate cap burn backstop ceiling is anchored to the node rate, not a caller-inflated feePerKb (cap disabled)",
+      "XChainEncoder fee-rate cap caps the absolute fee against MAX_FEE_RATE_KB even without a node estimate",
+      "XChainEncoder fee-rate cap clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable",
+      "XChainEncoder fee-rate cap clamps an over-cap feePerKb to the relative cap instead of draining inputs",
+      "XChainEncoder fee-rate cap converts a caller sat/kB rate to the same units as the cap and fee formula",
+      "XChainEncoder fee-rate cap default-path node estimate is never clamped by its own cap",
+      "XChainEncoder fee-rate cap multiplier 0 disables the relative cap, but the fixed 100x burn backstop still applies",
+      "XChainEncoder fee-rate cap refuses to build when relayfee cannot be resolved",
+      "XChainEncoder fee-rate cap rejects a drain-shaped absolute fee with a RangeError"
     ],
     "1a362ab39ee459fd": [
       "Category E: Custom Outputs (COINPAY Integration) E-1: Custom outputs added with correct address and value includes both custom outputs in PSBT",
@@ -383,27 +397,6 @@
       "coin-registry conformance (vendored copy) @regression pin == consensusHash over the vendored files LTC/testnet vendored pin matches the vendored consensusHash",
       "coin-registry conformance (vendored copy) @regression pin == consensusHash over the vendored files verifyConsensusPin passes for every network on the vendored bundle"
     ],
-    "271d27a1e5622be1": [
-      "Category D: UTXO & Fee Integration D-9: No change address throws when change > dust throws error about burning satoshis"
-    ],
-    "27d7bba206f363af": [
-      "UtxoTracker.getUtxosFromAddress() accepts an empty utxos array",
-      "UtxoTracker.getUtxosFromAddress() handles multiple valid UTXOs correctly",
-      "UtxoTracker.getUtxosFromAddress() reports the correct index in malformed UTXO error for second item",
-      "UtxoTracker.getUtxosFromAddress() rethrows get_utxos transport errors",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError for malformed UTXO (missing txid)",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError for malformed UTXO (missing value)",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError for malformed UTXO (missing vout)",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError for malformed UTXO (txid not a string)",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError when a UTXO element is null",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError when scriptPubKey is an empty string",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError when scriptPubKey is missing",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError when txid is 64 chars but not hex",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError when txid is not a 64-char hex string (too short)",
-      "UtxoTracker.getUtxosFromAddress() throws TypeError when utxos is not an array",
-      "UtxoTracker.getUtxosFromAddress() throws when UTXO result is missing",
-      "UtxoTracker.getUtxosFromAddress() throws when UTXO result is not an object"
-    ],
     "27e24996d31ce20e": [
       "XChainEncoder TAPROOT envelope createTransaction pair construction (\u00a73.5/\u00a76) a payload at exactly the ceiling builds a reveal within MAX_STANDARD_TX_WEIGHT (\u00a74)",
       "XChainEncoder TAPROOT envelope createTransaction pair construction (\u00a73.5/\u00a76) applies the per-encoding \u00a74 ceiling: over ENVELOPE_MAX_PAYLOAD rejects, over 8192 passes",
@@ -419,6 +412,18 @@
       "BlockchainConnector.getFeePerKilobyte() node RPC error detail carries the error body of an HTTP 200 answer into the thrown message",
       "BlockchainConnector.getFeePerKilobyte() node RPC error detail carries the error body of an HTTP 500 answer into the thrown message",
       "BlockchainConnector.getFeePerKilobyte() node RPC error detail rethrows a bodiless transport failure as the original error object"
+    ],
+    "2883f0e9d248552e": [
+      "sanitizeRpcError() credential scrub scrubs HTTP 401 with a string body",
+      "sanitizeRpcError() credential scrub scrubs HTTP 500 with a -28 JSON-RPC body",
+      "sanitizeRpcError() credential scrub scrubs HTTP 500 with a code-only JSON-RPC body",
+      "sanitizeRpcError() credential scrub scrubs a response with no status",
+      "sanitizeRpcError() credential scrub scrubs a transport failure with no response",
+      "sanitizeRpcError() parity with the xchain-decoder twin scrubs the same fields and reads the same text for HTTP 401 with a string body",
+      "sanitizeRpcError() parity with the xchain-decoder twin scrubs the same fields and reads the same text for HTTP 500 with a -28 JSON-RPC body",
+      "sanitizeRpcError() parity with the xchain-decoder twin scrubs the same fields and reads the same text for HTTP 500 with a code-only JSON-RPC body",
+      "sanitizeRpcError() parity with the xchain-decoder twin scrubs the same fields and reads the same text for a response with no status",
+      "sanitizeRpcError() parity with the xchain-decoder twin scrubs the same fields and reads the same text for a transport failure with no response"
     ],
     "2a1c91a7aceda8eb": [
       "_buildTransaction outpoint dedup / mempool filter applies the mempool filter BEFORE dedup, so a confirmed twin survives",
@@ -482,6 +487,9 @@
     "2dd7e128b3fa1284": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.13: Custom outputs coexist with ACTION custom output value deducted from change"
     ],
+    "2f6d87eaf711d8a0": [
+      "broadcast_tx rejection logging logs the locally derived txid without logging raw transaction hex"
+    ],
     "3200c672043a4ec4": [
       "Encoding Chunk Boundaries: Full Pipeline MULTISIGN encoding boundaries 59-char data (compiled=60): valid 1-MULTISIGN output",
       "Encoding Chunk Boundaries: Full Pipeline MULTISIGN encoding boundaries 60-char data (compiled=61): produces exactly 2 MULTISIGN outputs",
@@ -489,6 +497,12 @@
     ],
     "325536fb1b16a149": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.15: Null feePerKb triggers RPC call calls getFeePerKilobyte when feePerKb is null"
+    ],
+    "3376d17691451cd0": [
+      "script amount helpers applies the Dogecoin soft dust floor only to recognized Dogecoin networks",
+      "script amount helpers narrows safe BigInt satoshi values while preserving larger values",
+      "script amount helpers reports compactSize widths at the one-byte, uint16, and uint32 boundaries",
+      "script amount helpers serializes compactSize values in little-endian wire form"
     ],
     "34a2845bc2d97b6c": [
       "XChainEncoder.createTransaction() - maxFeeRateKb cap caps the fee rate when connector returns a rate above maxFeeRateKb"
@@ -547,12 +561,25 @@
       "REG-07: Action Pipeline Regression REG-07.9: Special characters in payload TICK name with special chars preserved",
       "REG-07: Action Pipeline Regression REG-07.9: Special characters in payload TICK_ID caret prefix preserved"
     ],
-    "3b83f98eb236d6d9": [
-      "Category D: UTXO & Fee Integration Fee source selection calls connector.getFeePerKilobyte when feePerKb is null",
-      "Category D: UTXO & Fee Integration Fee source selection uses feePerKb parameter without RPC call"
-    ],
     "3d0c3f469f5a49b0": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.4: Unconfirmed UTXOs excluded filters mempool UTXOs when unconfirmed=false"
+    ],
+    "3eb6eaeabe786d34": [
+      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) returns 0 for a zero-fee PSBT with BigInt values instead of re-throwing",
+      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) returns a 0 fee rate for a sub-1-sat/vbyte fee instead of re-throwing",
+      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) still computes a non-zero fee and fee rate across the BigInt path",
+      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) the all-Number fast path is unchanged",
+      "applyBufferutilsPatch caps a Number at 2^53-1 on every writer while a BigInt passes",
+      "applyBufferutilsPatch exposes the patched bufferutils surface",
+      "applyBufferutilsPatch module-level helpers accept the full u64 range and reject one past it",
+      "applyBufferutilsPatch narrows a representable value to Number and keeps a BigInt only above 2^53-1",
+      "applyBufferutilsPatch refuses a PSBT witnessUtxo Number value past 2^53-1 and serializes its BigInt form",
+      "applyBufferutilsPatch rejects every invalid value with the stock verifuint string",
+      "applyBufferutilsPatch round-trips a small 64-bit LE value",
+      "applyBufferutilsPatch round-trips a value above 2^53 without precision loss",
+      "applyBufferutilsPatch twin guard against the SDK copy declares every package it deep-requires",
+      "applyBufferutilsPatch twin guard against the SDK copy is byte-identical to the SDK copy below the banner",
+      "applyBufferutilsPatch varuint encode/decode round-trips across size classes"
     ],
     "3f015c065bb424cc": [
       "CryptoNetworks .getBitcoinJsNetwork() Bitcoin networks returns bitcoin mainnet config with dustThreshold for \"bitcoin-mainnet\"",
@@ -608,11 +635,6 @@
       "coverage ratchet floors enforces every declared floor, at the declared value",
       "coverage ratchet floors fails the job on a shortfall rather than only reporting it",
       "coverage ratchet floors ships the coverage:check script the CI coverage job invokes"
-    ],
-    "44230034b18955bb": [
-      "XChainEncoder TAPROOT envelope key-path cancel suspension count a below-dust cancel is refused and hands its claim back three turns after the call",
-      "XChainEncoder TAPROOT envelope key-path cancel suspension count the caller fee-rate path settles three turns after the call",
-      "XChainEncoder TAPROOT envelope key-path cancel suspension count the node fee-rate path settles three turns after the call"
     ],
     "447682ee980135d8": [
       "XChainEncoder.createTransaction() - feeQuote injection adds feeQuote as an extra output when address and amount > 0",
@@ -786,20 +808,6 @@
       "REG-04: Validator Functions REG-04.8: validateUtxoEntry() throws TypeError for txid with non-hex chars",
       "REG-04: Validator Functions REG-04.8: validateUtxoEntry() validates a complete valid entry and coerces value/vout"
     ],
-    "5ada45b5f0f336ef": [
-      "XChainEncoder fee-rate cap accepts a generous but plausible absolute fee (priority/RBF headroom)",
-      "XChainEncoder fee-rate cap applies the absolute MAX_FEE_RATE_KB cap when it is tighter than the relative cap",
-      "XChainEncoder fee-rate cap burn backstop anchors on the relayfee when the smart-fee estimate is unavailable (cap disabled)",
-      "XChainEncoder fee-rate cap burn backstop ceiling is anchored to the node rate, not a caller-inflated feePerKb (cap disabled)",
-      "XChainEncoder fee-rate cap caps the absolute fee against MAX_FEE_RATE_KB even without a node estimate",
-      "XChainEncoder fee-rate cap clamps a hostile feePerKb via the relayfee anchor when estimatesmartfee is unavailable",
-      "XChainEncoder fee-rate cap clamps an over-cap feePerKb to the relative cap instead of draining inputs",
-      "XChainEncoder fee-rate cap converts a caller sat/kB rate to the same units as the cap and fee formula",
-      "XChainEncoder fee-rate cap default-path node estimate is never clamped by its own cap",
-      "XChainEncoder fee-rate cap honors feePerKb only when neither estimatesmartfee nor relayfee is available",
-      "XChainEncoder fee-rate cap multiplier 0 disables the relative cap, but the fixed 100x burn backstop still applies",
-      "XChainEncoder fee-rate cap rejects a drain-shaped absolute fee with a RangeError"
-    ],
     "5c149d2d20812d9a": [
       "Security: global in-flight concurrency cap api.js mounts the JSON-RPC router and /status inside hold()",
       "Security: global in-flight concurrency cap bounds the probe reserve too, so /status is not an uncapped bypass",
@@ -832,21 +840,6 @@
       "XChainEncoder.createTransaction() - remaining branch coverage throws RangeError when customOutputs[i].value is negative",
       "XChainEncoder.createTransaction() - remaining branch coverage throws RangeError when customOutputs[i].value is not a valid satoshi amount",
       "XChainEncoder.createTransaction() - remaining branch coverage throws when unconfirmed=false strips all UTXOs (line 325 path)"
-    ],
-    "63c55285b6bac324": [
-      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) returns 0 for a zero-fee PSBT with BigInt values instead of re-throwing",
-      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) returns a 0 fee rate for a sub-1-sat/vbyte fee instead of re-throwing",
-      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) still computes a non-zero fee and fee rate across the BigInt path",
-      "applyBufferutilsPatch BigInt fee accounting (getFee / getFeeRate / extractTransaction) the all-Number fast path is unchanged",
-      "applyBufferutilsPatch exposes the patched bufferutils surface",
-      "applyBufferutilsPatch module-level helpers accept the full u64 range and reject one past it",
-      "applyBufferutilsPatch narrows a representable value to Number and keeps a BigInt only above 2^53-1",
-      "applyBufferutilsPatch rejects every invalid value with the stock verifuint string",
-      "applyBufferutilsPatch round-trips a small 64-bit LE value",
-      "applyBufferutilsPatch round-trips a value above 2^53 without precision loss",
-      "applyBufferutilsPatch twin guard against the SDK copy declares every package it deep-requires",
-      "applyBufferutilsPatch twin guard against the SDK copy is byte-identical to the SDK copy below the banner",
-      "applyBufferutilsPatch varuint encode/decode round-trips across size classes"
     ],
     "64da3d9aebea4a81": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.1: Single UTXO covers all 1 input, OP_RETURN + change; change = input - fee"
@@ -946,13 +939,13 @@
       "P2SH two-phase package prefund @regression @tier1 funds the package rate into the leg when the commit pays under target",
       "P2SH two-phase package prefund @regression @tier1 the reveal keeps the package money as fee instead of sweeping it back"
     ],
-    "70440ad9037c909f": [
-      "Category D: UTXO & Fee Integration D-1: Single large UTXO covers everything produces 1 input, 2 outputs (OP_RETURN + change)"
-    ],
     "71168814d61ac771": [
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 74-char data (compiled=75) \u2192 OP_RETURN (75+4=79 < 80)",
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 75-char data (compiled=76) \u2192 OP_RETURN (exactly fits 76+4=80)",
       "Encoding Chunk Boundaries: Full Pipeline OP_RETURN auto-select threshold (75/76 chars) 76-char data (compiled=78) \u2192 P2SH (78+4=82 > 80)"
+    ],
+    "7174ac9d6bdce059": [
+      "real JSON-RPC app HTTP dispatch routes each public handler through src/api.js and the production router"
     ],
     "72c9c5f2d2749796": [
       "BlockchainConnector RPC-credential log sanitization does not leak the RPC password when an axios call fails"
@@ -1014,20 +1007,14 @@
     "78ea596173e06da0": [
       "XChainEncoder.createTransaction() P2SH encoding path (tx2: spending) creates tx2 with P2SH input and OP_RETURN marker"
     ],
+    "79ddb3d5c7dba3f0": [
+      "prev-out value check: tracker-fetched and reservations a mismatch releases the outpoint, so a corrected retry succeeds at once",
+      "prev-out value check: tracker-fetched and reservations refuses a tracker mismatch as UTXO_TRACKER_ERROR, not a caller RangeError"
+    ],
     "7a323908028c1835": [
       "Encoding Chunk Boundaries: Full Pipeline singleOpReturnPolicy enforcement (always fail-closed) a max-size single-chunk payload still encodes as exactly one OP_RETURN output regardless of the flag",
       "Encoding Chunk Boundaries: Full Pipeline singleOpReturnPolicy enforcement (always fail-closed) throws RangeError for an oversized OP_RETURN even when singleOpReturnPolicy is explicitly false",
       "Encoding Chunk Boundaries: Full Pipeline singleOpReturnPolicy enforcement (always fail-closed) throws RangeError for an oversized OP_RETURN when the flag is absent"
-    ],
-    "7a532b0a3c0c3c0a": [
-      "BlockchainConnector.getTransactionHex() includes the txid in the \"not found\" error message",
-      "BlockchainConnector.getTransactionHex() requests the verbose form even when a caller passes a second argument",
-      "BlockchainConnector.getTransactionHex() rethrows transport errors directly",
-      "BlockchainConnector.getTransactionHex() returns the hex string on success",
-      "BlockchainConnector.getTransactionHex() sends auth credentials",
-      "BlockchainConnector.getTransactionHex() sends getrawtransaction with correct txid and verbose=true",
-      "BlockchainConnector.getTransactionHex() throws \"not found\" message when error.code is -5",
-      "BlockchainConnector.getTransactionHex() throws generic error when result is missing and error is not -5"
     ],
     "7fbd6025650718a6": [
       "Security: obfuscation key binding actually transforms the payload (not emitted in the clear)",
@@ -1035,6 +1022,25 @@
       "Security: obfuscation key binding fails closed on a too-short key (invalid key/IV length)",
       "Security: obfuscation key binding fails closed on an empty key",
       "Security: obfuscation key binding produces distinct ciphertext for the same data under different TXIDs"
+    ],
+    "8034f6c2b890b23c": [
+      "BlockchainConnector.getBlockCount() makes the envelope gate report an unknown tip, not a countdown, for result null",
+      "BlockchainConnector.getBlockCount() returns a real integer tip, including a genesis tip of 0",
+      "BlockchainConnector.getBlockCount() returns null for empty body",
+      "BlockchainConnector.getBlockCount() returns null for error body beside a result",
+      "BlockchainConnector.getBlockCount() returns null for error body with null result",
+      "BlockchainConnector.getBlockCount() returns null for no result key",
+      "BlockchainConnector.getBlockCount() returns null for result empty string",
+      "BlockchainConnector.getBlockCount() returns null for result false",
+      "BlockchainConnector.getBlockCount() returns null for result fraction",
+      "BlockchainConnector.getBlockCount() returns null for result negative",
+      "BlockchainConnector.getBlockCount() returns null for result null",
+      "BlockchainConnector.getBlockCount() returns null for result numeric string",
+      "BlockchainConnector.getBlockCount() returns null for result true",
+      "BlockchainConnector.getBlockCount() returns null for undefined body",
+      "BlockchainConnector.getBlockCount() returns null for undefined response",
+      "BlockchainConnector.getBlockCount() returns null when the request throws",
+      "BlockchainConnector.getBlockCount() sends getblockcount"
     ],
     "807a63a77985ea07": [
       "singleInstanceGuard acquireInstanceLock [REGRESSION] breaks a legacy bare-pid lock whose holder is npm's shell wrapper",
@@ -1087,6 +1093,22 @@
       "XChainEncoder.createTransaction(): P2WSH tx1 (funding) throws TypeError when P2WSH is used on a no-segwit network",
       "XChainEncoder.createTransaction(): P2WSH tx1 (funding) total outputs do not exceed total inputs for P2WSH tx1"
     ],
+    "845d953a12be6745": [
+      "BlockchainConnector.getTransactionHex() includes the txid in the \"not found\" error message",
+      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 200 error body",
+      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 500 -28 answer",
+      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 500 -8 answer",
+      "BlockchainConnector.getTransactionHex() node RPC error detail logs the node reason rather than a bare status code",
+      "BlockchainConnector.getTransactionHex() node RPC error detail rethrows a bodiless transport failure as the original error object",
+      "BlockchainConnector.getTransactionHex() node RPC error detail still gives the txindex hint for an HTTP 500 -5 answer",
+      "BlockchainConnector.getTransactionHex() requests the verbose form even when a caller passes a second argument",
+      "BlockchainConnector.getTransactionHex() rethrows transport errors directly",
+      "BlockchainConnector.getTransactionHex() returns the hex string on success",
+      "BlockchainConnector.getTransactionHex() sends auth credentials",
+      "BlockchainConnector.getTransactionHex() sends getrawtransaction with correct txid and verbose=true",
+      "BlockchainConnector.getTransactionHex() throws \"not found\" message when error.code is -5",
+      "BlockchainConnector.getTransactionHex() throws generic error when result is missing and error is not -5"
+    ],
     "870962db3bfe1571": [
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.21: BROADCAST message text preserved",
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.22: MESSAGE address + text preserved",
@@ -1122,9 +1144,6 @@
       "XChainEncoder package-aware fee sizing @regression @tier1 never spends more than the inputs hold",
       "XChainEncoder package-aware fee sizing @regression @tier1 never throws when the ancestor lookup itself throws"
     ],
-    "8f0e3d8435a01701": [
-      "Category D: UTXO & Fee Integration D-7: Fee capped by maxFeePerBytes limits fee when maxFeeRateKb is set"
-    ],
     "8f324f20d5abfee5": [
       "XChainEncoder.createTransaction() - change edge cases does not add change output when changeSatoshis is 0",
       "XChainEncoder.createTransaction() - change edge cases does not throw when changeSatoshis <= dustAmount and no change address"
@@ -1155,6 +1174,15 @@
       "release_inputs JSON-RPC method answers an unknown ticket with found:false rather than an error",
       "release_inputs JSON-RPC method maps a malformed or missing reservationId to invalid params",
       "release_inputs JSON-RPC method releases the claims the presented ticket owns"
+    ],
+    "9255e3590e78f11d": [
+      "XChainEncoder.createTransaction() Dogecoin relay fee floor rejects an explicit fee below the size-adjusted relay minimum",
+      "XChainEncoder.createTransaction() Dogecoin relay fee floor rejects caller feePerKb below the size-adjusted relay minimum",
+      "XChainEncoder.createTransaction() fee handling calls connector.getFeePerKilobyte when feePerKb is null",
+      "XChainEncoder.createTransaction() fee handling floors a node-derived fee to dustAmount when computed fee is lower",
+      "XChainEncoder.createTransaction() fee handling resolves relayfee when feePerKb is provided",
+      "XChainEncoder.createTransaction() fee handling throws RangeError when the custom fee exceeds 100x the fair-fee estimate (burn backstop)",
+      "XChainEncoder.createTransaction() fee handling uses custom fee when provided"
     ],
     "926d15e7ddd15fee": [
       "uppercase-hex txid / obfuscation-key binding @regression MULTISIGN: same, on the bare-multisig payload path",
@@ -1315,12 +1343,35 @@
       "REG-08: API Contract Regression REG-08.4: PSBT serialization psbt hex can be parsed back by Psbt.fromHex()",
       "REG-08: API Contract Regression REG-08.4: PSBT serialization result.psbt hex is non-empty and valid hex"
     ],
+    "a1d049e9d9b2cc99": [
+      "Encoder input validator validateUtxoArray / validateUtxoEntry coerces numeric-string confirmations and rejects untyped values",
+      "Encoder input validator validateUtxoArray / validateUtxoEntry coerces vout/value and defaults confirmations",
+      "Encoder input validator validateUtxoArray / validateUtxoEntry null passes; non-array and over-cap throw",
+      "Encoder input validator validateUtxoArray / validateUtxoEntry preserves an explicit confirmations value",
+      "Encoder input validator validateUtxoArray / validateUtxoEntry rejects each malformed field",
+      "Encoder input validator validateUtxoArray / validateUtxoEntry rejects vout values bare Number() would coerce to a plausible index (uuid:4555d78c)",
+      "Encoder input validator: vout uint32 bound rejects a vout above the uint32 wire width as a TypeError"
+    ],
+    "a54b04e2034f9891": [
+      "UtxoTracker.getUtxosFromAddress() accepts an empty utxos array",
+      "UtxoTracker.getUtxosFromAddress() handles multiple valid UTXOs correctly",
+      "UtxoTracker.getUtxosFromAddress() reports the correct index in malformed UTXO error for second item",
+      "UtxoTracker.getUtxosFromAddress() rethrows get_utxos transport errors",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error for malformed UTXO (missing txid)",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error for malformed UTXO (missing value)",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error for malformed UTXO (missing vout)",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error for malformed UTXO (txid not a string)",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error when a UTXO element is null",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error when scriptPubKey is an empty string",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error when scriptPubKey is missing",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error when txid is 64 chars but not hex",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error when txid is not a 64-char hex string (too short)",
+      "UtxoTracker.getUtxosFromAddress() throws a plain Error when utxos is not an array",
+      "UtxoTracker.getUtxosFromAddress() throws when UTXO result is missing",
+      "UtxoTracker.getUtxosFromAddress() throws when UTXO result is not an object"
+    ],
     "a58c0275055cc988": [
       "Encoder input validator validateChange null passes; rejects empty and over-long"
-    ],
-    "a5c9e585e49afb1a": [
-      "Category D: UTXO & Fee Integration Replace-by-fee sequence sets sequence to 0xfffffffd when rbf=true (RBF armed, BIP68 disabled)",
-      "Category D: UTXO & Fee Integration Replace-by-fee sequence sets sequence to 0xffffffff when rbf=false"
     ],
     "a6d0a7d54f8fdf52": [
       "health()/GET /status carry the window without bending readiness @regression a window does not make a lagging tracker read synced",
@@ -1396,9 +1447,6 @@
       "E2E-6: Multi-Chain Validation dogecoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
       "E2E-6: Multi-Chain Validation litecoin-regtest P2SH creates P2SH with output value >= chain dust threshold"
     ],
-    "ab3024540b6f92b9": [
-      "Category D: UTXO & Fee Integration D-8: Dust floor on fee floors fee to dustAmount when computed fee is lower"
-    ],
     "ab75df16ddef33d7": [
       "encoder crash handlers a broken logger cannot swallow the exit",
       "encoder crash handlers a non-Error rejection reason still yields a readable record",
@@ -1448,10 +1496,6 @@
       "TxSizeEstimator Boundaries estimateP2shInputWithRedeem returns 629 for 476-byte redeem script (max P2SH chunk)",
       "TxSizeEstimator Boundaries estimateP2shInputWithRedeem returns overhead (149) for 0-byte redeem script"
     ],
-    "b32e58f0542ec761": [
-      "Category D: UTXO & Fee Integration D-10: Legacy (non-segwit) UTXO handling fetches raw tx hex for nonWitnessUtxo via connector",
-      "Category D: UTXO & Fee Integration D-10: Legacy (non-segwit) UTXO handling segwit UTXOs do NOT call getTransactionHex"
-    ],
     "b35bd4199facec7a": [
       "XChainEncoder.isSegwitUTXO() returns false for P2PKH",
       "XChainEncoder.isSegwitUTXO() returns false for P2SH",
@@ -1500,13 +1544,6 @@
     ],
     "b7598b5920b35f20": [
       "Encoder input validator validateAddress accepts a valid string (incl. exactly 100 chars); rejects empty, non-string, and over-length"
-    ],
-    "b77f94d358245fae": [
-      "XChainEncoder.createTransaction() fee handling calls connector.getFeePerKilobyte when feePerKb is null",
-      "XChainEncoder.createTransaction() fee handling floors fee to dustAmount when computed fee is lower",
-      "XChainEncoder.createTransaction() fee handling throws RangeError when the custom fee exceeds 100x the fair-fee estimate (burn backstop)",
-      "XChainEncoder.createTransaction() fee handling uses custom fee when provided",
-      "XChainEncoder.createTransaction() fee handling uses feePerKb parameter when provided (no RPC call)"
     ],
     "b9beb9ad608568f2": [
       "REG-04: Validator Functions REG-04.10: validateCustomOutputs() returns null for null input",
@@ -1634,13 +1671,13 @@
     "c547ad41237f5f7b": [
       "Encoding Chunk Boundaries: Full Pipeline P2SH/P2WSH compiled chunk size ceiling every compiled chunk is <= 520 bytes at the chunk boundary (P2SH and P2WSH)"
     ],
-    "c590386a3c3ac1c3": [
-      "Encoder input validator validateUtxoArray / validateUtxoEntry coerces numeric-string confirmations and rejects untyped values",
-      "Encoder input validator validateUtxoArray / validateUtxoEntry coerces vout/value and defaults confirmations",
-      "Encoder input validator validateUtxoArray / validateUtxoEntry null passes; non-array and over-cap throw",
-      "Encoder input validator validateUtxoArray / validateUtxoEntry preserves an explicit confirmations value",
-      "Encoder input validator validateUtxoArray / validateUtxoEntry rejects each malformed field",
-      "Encoder input validator validateUtxoArray / validateUtxoEntry rejects vout values bare Number() would coerce to a plausible index (uuid:4555d78c)"
+    "c67fd5ac2d0b5ff4": [
+      "get_tx_block tracker proxy request errors refuses an unhealthy tracker before requesting the transaction block",
+      "get_tx_block tracker proxy request errors rejects a malformed txid with the existing invalid-params error type",
+      "get_tx_block tracker proxy results passes a null miss through unchanged",
+      "get_tx_block tracker proxy results passes stale sync metadata through unchanged",
+      "get_tx_block tracker proxy results returns a tracker hit and sends the exact lookup request",
+      "get_tx_block tracker proxy transport errors maps an unhealthy tracker transport failure to the existing internal error type"
     ],
     "c77bdfff70e2f687": [
       "XChainEncoder.createTransaction() P2SH native-fee customOutputs phase 1 (funding) does NOT emit the fee-destination output",
@@ -1673,9 +1710,6 @@
       "XChainEncoder.createTransaction() custom outputs adds custom outputs with correct address and value",
       "XChainEncoder.createTransaction() custom outputs skips custom outputs when customOutputs is not an array",
       "XChainEncoder.createTransaction() custom outputs skips custom outputs when customOutputs is null"
-    ],
-    "ca5016508c9204fa": [
-      "Category D: UTXO & Fee Integration UTXO sorting (largest first) uses largest UTXO first, needing fewer inputs"
     ],
     "ca8fa416b5e8a763": [
       "observability/installObservability buckets an unmatched path by first segment so URLs cannot explode cardinality",
@@ -1775,6 +1809,13 @@
       "E2E-1: Full ACTION-to-PSBT Pipeline Structural invariants across all ACTION types SWEEP: produces valid Psbt with >= 1 input and >= 2 outputs",
       "E2E-1: Full ACTION-to-PSBT Pipeline Structural invariants across all ACTION types TICK by ID: produces valid Psbt with >= 1 input and >= 2 outputs"
     ],
+    "cbb165a359525e9c": [
+      "protocol changes parity with documentation canonical matches the canonical envelope-recognition activation map"
+    ],
+    "cc54aa46235cfca0": [
+      "XChainEncoder TAPROOT native fee placement does not create a native-fee output when custom outputs are null",
+      "XChainEncoder TAPROOT native fee placement puts the native-fee output on the commit transaction"
+    ],
     "cc7754caab01c0b9": [
       "JSON body parser sits above the concurrency gates @regression holds no gate slot while a request body is still uploading",
       "JSON body parser sits below the key gate and the limiter @regression answers a wrong key 401 before parsing an unparseable body",
@@ -1814,6 +1855,11 @@
     "cee2a600289a6989": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.7: Fee floor enforcement floors fee to dustAmount when computed fee is lower"
     ],
+    "cf0706b575a3ca0f": [
+      "prev-out value check: segwit inputs builds on a match with attachPrevTx",
+      "prev-out value check: segwit inputs refuses a mismatch when attachPrevTx fetches the previous transaction",
+      "prev-out value check: segwit inputs stays fetch-free without attachPrevTx (the sighash commits to the amount)"
+    ],
     "cf4d68f6c7c95947": [
       "Fuzz: prepareData() MULTISIGN chunks are full 64-byte magic-prefixed slots over 1500 payloads",
       "Fuzz: prepareData() OP_RETURN produces one magic-prefixed chunk at/under the limit over 1500 payloads",
@@ -1822,6 +1868,15 @@
     ],
     "d089099f98093462": [
       "Encoding Chunk Boundaries: Full Pipeline P2WSH on Dogecoin (no bech32 in network config) throws because bitcoin.payments.p2wsh requires bech32 prefix"
+    ],
+    "d092f82fbad4908f": [
+      "REG-32: create_envelope_cancel_tx draws the same line as create_tx answers -32602 with the reason for a feePerKb below the relay minimum",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the message of a TypeError the build raises",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for a fee below the node relay minimum",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers -32603, generic, when the node reports no relayfee",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_TRACKER_ERROR, never -32602, for a malformed tracker row",
+      "REG-32: the other build paths keep node faults off -32602 answers -32603 from create_envelope_cancel_tx when the node reports no relayfee",
+      "REG-32: the other build paths keep node faults off -32602 raises a plain Error, not a RangeError, from the output-uplift invariant"
     ],
     "d101790f46691c56": [
       "Category C: Obfuscation Round-Trip C-1: OP_RETURN obfuscation round-trip deobfuscated OP_RETURN data has XCHN prefix and original ACTION",
@@ -1849,6 +1904,11 @@
       "Chaos Category A: Network & Dependency Failures A-7: Slow RPC responses 150ms delay on getFeePerKilobyte still completes",
       "Chaos Category A: Network & Dependency Failures A-7: Slow RPC responses 150ms delay on getTransactionHex (legacy UTXO) still completes"
     ],
+    "d487932ac997cf1e": [
+      "prev-out value check: legacy exact amounts builds on a matching value, and the fee math uses that exact amount",
+      "prev-out value check: legacy exact amounts compares above 2^53-1 exactly: a match builds, off by one is refused",
+      "prev-out value check: legacy exact amounts names only the mismatched input in a multi-input build"
+    ],
     "d5e9845e4e125e70": [
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() accepts 02-prefixed 66-char hex key",
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() accepts 03-prefixed 66-char hex key",
@@ -1856,10 +1916,6 @@
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() throws TypeError for 04-prefixed (uncompressed)",
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() throws TypeError for non-string",
       "REG-04: Validator Functions REG-04.12: validateCompressedPubKey() throws TypeError for wrong length (too short)"
-    ],
-    "d650883504da9b2d": [
-      "Category D: UTXO & Fee Integration D-4: Unconfirmed filtering with unconfirmed=false excludes mempool UTXOs when unconfirmed=false",
-      "Category D: UTXO & Fee Integration D-4: Unconfirmed filtering with unconfirmed=false includes mempool UTXOs when unconfirmed=true"
     ],
     "d683ae27a964eb5b": [
       "XChainEncoder.createTransaction() - rawData parameter accepts rawData and includes it in the compiled payload",
@@ -1869,6 +1925,12 @@
       "cross-repo sibling coverage (what this run could NOT verify) declares every sibling it lists in .ci-siblings, so the venue ships them",
       "cross-repo sibling coverage (what this run could NOT verify) reports every sibling it looked for, so the list itself cannot rot silently",
       "cross-repo sibling coverage (what this run could NOT verify) resolves every sibling checkout the cross-repo guards depend on"
+    ],
+    "d9588de8b6903a8b": [
+      "prev-out value check: legacy refusals (caller-supplied) refuses a vout past the end of the previous transaction",
+      "prev-out value check: legacy refusals (caller-supplied) refuses an overstated value",
+      "prev-out value check: legacy refusals (caller-supplied) refuses an undecodable previous transaction",
+      "prev-out value check: legacy refusals (caller-supplied) refuses an understated value with a RangeError naming the outpoint and both amounts"
     ],
     "da6106a9ba02aab9": [
       "Encoder input validator validateCombinedDataLength accepts a single-push payload at the compiled ceiling (backwards-compatible)",
@@ -1909,9 +1971,6 @@
       "REG-04: Validator Functions REG-04.14: validateAll() integration throws a SHAPE error for positional array params, not a missing-field one",
       "REG-04: Validator Functions REG-04.14: validateAll() integration validates P2SH pair atomically (rejects partial pair)"
     ],
-    "df667f23a4c0ba6d": [
-      "Category D: UTXO & Fee Integration D-2: Multiple UTXOs needed adds UTXOs until inputs cover outputs + fee"
-    ],
     "dfdfc61603d906bd": [
       "encoder FILE payload compression (spec Part B) validator accepts compress as an optional boolean; absent means \"use the deployment default\""
     ],
@@ -1927,13 +1986,6 @@
       "BlockchainConnector.getNetworkInfo() sets a timeout on the request",
       "BlockchainConnector.getNetworkInfo() throws when result is missing from response",
       "BlockchainConnector.getNetworkInfo() wraps axios transport errors"
-    ],
-    "e1c1badc45b5ec79": [
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) accepts the x-only internal key form",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) applies the create_tx fee guards to feePerKb and replacebyfee",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) builds, signs and extracts a sweep using only the recovery record",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) fails closed when the sweep would land under dust",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) validates the recovery-record fields"
     ],
     "e349cec537f9beb2": [
       "assertEnvelopeRecognized() FAIL-CLOSES when the tip is unknowable, rather than assuming",
@@ -2013,10 +2065,6 @@
       "Encoder input validator validateP2shParams enforces hex shape and the raw-tx length cap on p2shHex",
       "Encoder input validator validateP2shParams validates hash hex and non-empty hex; returns the pair"
     ],
-    "ee1005d70e3a9b6a": [
-      "Category D: UTXO & Fee Integration D-6: No UTXOs available throws when utxos empty and tracker returns empty",
-      "Category D: UTXO & Fee Integration D-6: No UTXOs available throws when utxos null and tracker returns null"
-    ],
     "ef8432a4a1ba859e": [
       "REG-09: 2026-07-03 deepdive encoder fixes FIX K: get_utxos validates the address param before the tracker call rejects an object-valued address with code -32602",
       "REG-09: 2026-07-03 deepdive encoder fixes FIX K: get_utxos validates the address param before the tracker call rejects an over-length (>100 char) address with code -32602",
@@ -2056,6 +2104,9 @@
     "f1872a85a8671d97": [
       "Security: compiled payload-size ceiling does not reject a small payload at the size guard",
       "Security: compiled payload-size ceiling rejects a payload whose compiled push exceeds the on-chain ceiling"
+    ],
+    "f23a5e117558dc06": [
+      "protocol changes is the same activation map re-exported by CryptoNetworks"
     ],
     "f2625b374d260d4b": [
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.10: DESTROY burn amount preserved",
@@ -2218,27 +2269,30 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 123,
-      "titleCount": 929,
+      "fileCount": 135,
+      "titleCount": 992,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
+        "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
+        "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
         "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/blockchain_connector.test.js": "52961e7b06b0e39f",
         "test/unit/blockchain_connector.test/01_get_network_info.test.js": "e1423a6af229c1b4",
         "test/unit/blockchain_connector.test/02_is_regtest.test.js": "995c5c346314f418",
-        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "7a532b0a3c0c3c0a",
+        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
         "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
-        "test/unit/browser_entry.test.js": "19bbd52a62e424d4",
-        "test/unit/build/apply_bufferutils_patch.test.js": "63c55285b6bac324",
+        "test/unit/blockchain_connector.test/09_get_block_count.test.js": "8034f6c2b890b23c",
+        "test/unit/blockchain_connector.test/10_sanitize_rpc_error_parity.test.js": "2883f0e9d248552e",
+        "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
         "test/unit/build/compression.test/02_create_transaction_integration.test.js": "ce55de477de9f588",
@@ -2255,7 +2309,8 @@
         "test/unit/build/utxo_tracker.test.js": "f4d480d0b43ad2e9",
         "test/unit/build/utxo_tracker.test/01_get_sync_status.test.js": "fea0d5dcb2b90bb0",
         "test/unit/build/utxo_tracker.test/02_get_utxos_from_address.test.js": "149a2b69c0c72f7f",
-        "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "27d7bba206f363af",
+        "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "a54b04e2034f9891",
+        "test/unit/build/utxo_tracker_get_tx_block.test.js": "c67fd5ac2d0b5ff4",
         "test/unit/coins/coins_conformance.test.js": "2442df610ebb6911",
         "test/unit/coins/xchain_encoder_consensus_pin_boot.test.js": "6a874601dbd714de",
         "test/unit/common/error_sanitize.test.js": "aec434dabffb9884",
@@ -2271,7 +2326,7 @@
         "test/unit/common/validator/validator.test/07_validate_fee.test.js": "13527b5e48f4a7cf",
         "test/unit/common/validator/validator.test/08_validate_fee_per_kb.test.js": "83a0c93d5c03a6e1",
         "test/unit/common/validator/validator.test/09_validate_dust.test.js": "0e58538e3d6aa84b",
-        "test/unit/common/validator/validator.test/10_validate_utxo_array_validate_utxo_entry.test.js": "c590386a3c3ac1c3",
+        "test/unit/common/validator/validator.test/10_validate_utxo_array_validate_utxo_entry.test.js": "a1d049e9d9b2cc99",
         "test/unit/common/validator/validator.test/11_validate_custom_outputs_validate_custom_output_via_wrapper.test.js": "a7ccb078a2beb124",
         "test/unit/common/validator/validator.test/12_validate_p2sh_params.test.js": "ea49e69971727d3a",
         "test/unit/common/validator/validator.test/13_validate_raw_tx_hex.test.js": "8125cb09f89c6f70",
@@ -2281,6 +2336,8 @@
         "test/unit/common/validator/validator.test/17_validate_all.test.js": "b4c7bf0a08619cca",
         "test/unit/crash_handlers.test.js": "ab75df16ddef33d7",
         "test/unit/observability.test.js": "ca8fa416b5e8a763",
+        "test/unit/protocol/changes.test.js": "f23a5e117558dc06",
+        "test/unit/protocol/changes_parity.test.js": "cbb165a359525e9c",
         "test/unit/repo/coverage_thresholds_sync.test.js": "4405034a199528ec",
         "test/unit/repo/docs_openrpc.test.js": "65be62f0e174b504",
         "test/unit/repo/sibling_coverage.test.js": "d8d1e52267ea606f",
@@ -2292,6 +2349,10 @@
         "test/unit/server/single_instance_guard.test/02_is_pid_alive.test.js": "9ad3745dcc03e270",
         "test/unit/server/single_instance_guard.test/03_release_lock_on_signals.test.js": "6248ca3f37b35faa",
         "test/unit/xchain_encoder/envelope_recognition_gate.test.js": "e349cec537f9beb2",
+        "test/unit/xchain_encoder/prev_output_value_check.test/01_legacy_refusals.test.js": "d9588de8b6903a8b",
+        "test/unit/xchain_encoder/prev_output_value_check.test/02_legacy_exact_amounts.test.js": "d487932ac997cf1e",
+        "test/unit/xchain_encoder/prev_output_value_check.test/03_tracker_fetched.test.js": "79ddb3d5c7dba3f0",
+        "test/unit/xchain_encoder/prev_output_value_check.test/04_segwit_attach_prev_tx.test.js": "cf0706b575a3ca0f",
         "test/unit/xchain_encoder/suggested_fee_ceiling.test.js": "a76fc6f4a4157148",
         "test/unit/xchain_encoder/xchain_encoder_auto_encoding.test.js": "0748973400fcace3",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test.js": "23e242d978109d26",
@@ -2299,7 +2360,7 @@
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/02_unconfirmed_filtering.test.js": "01301310489a6d18",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/03_utxo_sorting.test.js": "61c7893f33172ff0",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/04_replace_by_fee_sequence.test.js": "779e7e9a758ea87d",
-        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "b77f94d358245fae",
+        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "9255e3590e78f11d",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/06_custom_dust_parameter.test.js": "68626fb6051d2aba",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/07_change_output.test.js": "dbe9aa0a839fb823",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/08_no_utxos_available.test.js": "c08315d45c994876",
@@ -2327,21 +2388,23 @@
         "test/unit/xchain_encoder/xchain_encoder_extra.test/08_estimate_spending_p2wsh_tx.test.js": "59ae18cc4c09d4bd",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/09_remaining_branch_coverage.test.js": "630b933b3e1320d0",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/10_raw_data_parameter.test.js": "d683ae27a964eb5b",
-        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "5ada45b5f0f336ef",
+        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "181d8e207d19511b",
         "test/unit/xchain_encoder/xchain_encoder_is_segwit_u_t_x_o.test.js": "b35bd4199facec7a",
         "test/unit/xchain_encoder/xchain_encoder_obfuscate.test.js": "11a13e37d91017bf",
         "test/unit/xchain_encoder/xchain_encoder_p2sh_reveal_headroom.test.js": "e3e957d2c34ec853",
         "test/unit/xchain_encoder/xchain_encoder_prepare_data.test.js": "4a88b66dc7f07157",
         "test/unit/xchain_encoder/xchain_encoder_release_reservations.test.js": "923b72fe3989bb3c",
         "test/unit/xchain_encoder/xchain_encoder_reveal_funding_binding.test.js": "990dee7527465c8e",
+        "test/unit/xchain_encoder/xchain_encoder_script_amount_helpers.test.js": "3376d17691451cd0",
         "test/unit/xchain_encoder/xchain_encoder_segwit_input_guard.test.js": "2aa020357e5b268b",
         "test/unit/xchain_encoder/xchain_encoder_soft_dust_floor.test.js": "ef95d11a5f979b57",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js": "27e24996d31ce20e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js": "880c961e264c0519",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "e1c1badc45b5ec79",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "0fdda5be04dda426",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "44230034b18955bb",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
         "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }
@@ -2427,8 +2490,8 @@
       }
     },
     "test:integration": {
-      "fileCount": 21,
-      "titleCount": 115,
+      "fileCount": 8,
+      "titleCount": 96,
       "files": {
         "test/integration/action_encoding.test.js": "9adb839d3209d4b9",
         "test/integration/custom_outputs.test.js": "1a362ab39ee459fd",
@@ -2437,25 +2500,12 @@
         "test/integration/error_handling.test.js": "06a3215a6e86ed2d",
         "test/integration/large_satoshi_tracker.test.js": "6b03cb1158d948c7",
         "test/integration/multi_chain.test.js": "e4c3435f9bc2b0af",
-        "test/integration/obfuscation_roundtrip.test.js": "d101790f46691c56",
-        "test/integration/utxo_fee.test.js": "70440ad9037c909f",
-        "test/integration/utxo_fee.test/01_d_2_multiple_utxos_needed.test.js": "df667f23a4c0ba6d",
-        "test/integration/utxo_fee.test/02_d_3_duplicate_utxo_deduplication.test.js": "171d238e570fea73",
-        "test/integration/utxo_fee.test/03_d_4_unconfirmed_filtering.test.js": "d650883504da9b2d",
-        "test/integration/utxo_fee.test/04_d_5_utxo_tracker_fallback.test.js": "0e4bd255929ec3b3",
-        "test/integration/utxo_fee.test/05_d_6_no_utxos_available.test.js": "ee1005d70e3a9b6a",
-        "test/integration/utxo_fee.test/06_d_7_fee_capped_by_max_fee_per_bytes.test.js": "8f0e3d8435a01701",
-        "test/integration/utxo_fee.test/07_d_8_dust_floor_on_fee.test.js": "ab3024540b6f92b9",
-        "test/integration/utxo_fee.test/08_d_9_no_change_address.test.js": "271d27a1e5622be1",
-        "test/integration/utxo_fee.test/09_d_10_legacy_non_segwit_utxo_handling.test.js": "b32e58f0542ec761",
-        "test/integration/utxo_fee.test/10_utxo_sorting_largest_first.test.js": "ca5016508c9204fa",
-        "test/integration/utxo_fee.test/11_replace_by_fee_sequence.test.js": "a5c9e585e49afb1a",
-        "test/integration/utxo_fee.test/12_fee_source_selection.test.js": "3b83f98eb236d6d9"
+        "test/integration/obfuscation_roundtrip.test.js": "d101790f46691c56"
       }
     },
     "test:regression": {
-      "fileCount": 27,
-      "titleCount": 307,
+      "fileCount": 28,
+      "titleCount": 314,
       "files": {
         "test/regression/reg_01_encoding_types.test.js": "c438a1275387f62b",
         "test/regression/reg_02_obfuscation.test.js": "6c8feaefe1116923",
@@ -2476,14 +2526,15 @@
         "test/regression/reg_10_utxo_tracker_freshness.test.js": "140130fb419b99c8",
         "test/regression/reg_11_minimal_op_canonicalization.test.js": "76410d2234a85853",
         "test/regression/reg_12_ins0_key_binding.test.js": "c131768030b78cbc",
-        "test/regression/reg_13_reservation_release_on_throw.test.js": "4f79a402f81e163a",
         "test/regression/reg_14_p2sh_reveal_fee_floor.test.js": "3675428cec810c11",
         "test/regression/reg_15_uppercase_txid_key_binding.test.js": "926d15e7ddd15fee",
         "test/regression/reg_16_rawdata_only_warning.test.js": "145ea55c07323321",
         "test/regression/reg_17_utxo_pagination_snapshot.test.js": "a8137cddea506ba3",
-        "test/regression/reg_18_chained_send_reservation.test.js": "9716e0ba5467b267",
-        "test/regression/reg_19_envelope_cancel_reservation.test.js": "7334b6c4e6a33bbe",
-        "test/regression/reg_31_shortfall_names_reserved_inputs.test.js": "82be72919ffb1b6d"
+        "test/regression/reg_32_create_tx_error_code_split.test.js": "d092f82fbad4908f",
+        "test/regression/reservations.test/reg_13_reservation_release_on_throw.test.js": "4f79a402f81e163a",
+        "test/regression/reservations.test/reg_18_chained_send_reservation.test.js": "9716e0ba5467b267",
+        "test/regression/reservations.test/reg_19_envelope_cancel_reservation.test.js": "7334b6c4e6a33bbe",
+        "test/regression/reservations.test/reg_31_shortfall_names_reserved_inputs.test.js": "82be72919ffb1b6d"
       }
     },
     "test:regtest": {
@@ -2504,27 +2555,30 @@
       }
     },
     "test:unit": {
-      "fileCount": 123,
-      "titleCount": 929,
+      "fileCount": 135,
+      "titleCount": 992,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
+        "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
+        "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
         "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/blockchain_connector.test.js": "52961e7b06b0e39f",
         "test/unit/blockchain_connector.test/01_get_network_info.test.js": "e1423a6af229c1b4",
         "test/unit/blockchain_connector.test/02_is_regtest.test.js": "995c5c346314f418",
-        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "7a532b0a3c0c3c0a",
+        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
         "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
-        "test/unit/browser_entry.test.js": "19bbd52a62e424d4",
-        "test/unit/build/apply_bufferutils_patch.test.js": "63c55285b6bac324",
+        "test/unit/blockchain_connector.test/09_get_block_count.test.js": "8034f6c2b890b23c",
+        "test/unit/blockchain_connector.test/10_sanitize_rpc_error_parity.test.js": "2883f0e9d248552e",
+        "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
         "test/unit/build/compression.test/02_create_transaction_integration.test.js": "ce55de477de9f588",
@@ -2541,7 +2595,8 @@
         "test/unit/build/utxo_tracker.test.js": "f4d480d0b43ad2e9",
         "test/unit/build/utxo_tracker.test/01_get_sync_status.test.js": "fea0d5dcb2b90bb0",
         "test/unit/build/utxo_tracker.test/02_get_utxos_from_address.test.js": "149a2b69c0c72f7f",
-        "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "27d7bba206f363af",
+        "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "a54b04e2034f9891",
+        "test/unit/build/utxo_tracker_get_tx_block.test.js": "c67fd5ac2d0b5ff4",
         "test/unit/coins/coins_conformance.test.js": "2442df610ebb6911",
         "test/unit/coins/xchain_encoder_consensus_pin_boot.test.js": "6a874601dbd714de",
         "test/unit/common/error_sanitize.test.js": "aec434dabffb9884",
@@ -2557,7 +2612,7 @@
         "test/unit/common/validator/validator.test/07_validate_fee.test.js": "13527b5e48f4a7cf",
         "test/unit/common/validator/validator.test/08_validate_fee_per_kb.test.js": "83a0c93d5c03a6e1",
         "test/unit/common/validator/validator.test/09_validate_dust.test.js": "0e58538e3d6aa84b",
-        "test/unit/common/validator/validator.test/10_validate_utxo_array_validate_utxo_entry.test.js": "c590386a3c3ac1c3",
+        "test/unit/common/validator/validator.test/10_validate_utxo_array_validate_utxo_entry.test.js": "a1d049e9d9b2cc99",
         "test/unit/common/validator/validator.test/11_validate_custom_outputs_validate_custom_output_via_wrapper.test.js": "a7ccb078a2beb124",
         "test/unit/common/validator/validator.test/12_validate_p2sh_params.test.js": "ea49e69971727d3a",
         "test/unit/common/validator/validator.test/13_validate_raw_tx_hex.test.js": "8125cb09f89c6f70",
@@ -2567,6 +2622,8 @@
         "test/unit/common/validator/validator.test/17_validate_all.test.js": "b4c7bf0a08619cca",
         "test/unit/crash_handlers.test.js": "ab75df16ddef33d7",
         "test/unit/observability.test.js": "ca8fa416b5e8a763",
+        "test/unit/protocol/changes.test.js": "f23a5e117558dc06",
+        "test/unit/protocol/changes_parity.test.js": "cbb165a359525e9c",
         "test/unit/repo/coverage_thresholds_sync.test.js": "4405034a199528ec",
         "test/unit/repo/docs_openrpc.test.js": "65be62f0e174b504",
         "test/unit/repo/sibling_coverage.test.js": "d8d1e52267ea606f",
@@ -2578,6 +2635,10 @@
         "test/unit/server/single_instance_guard.test/02_is_pid_alive.test.js": "9ad3745dcc03e270",
         "test/unit/server/single_instance_guard.test/03_release_lock_on_signals.test.js": "6248ca3f37b35faa",
         "test/unit/xchain_encoder/envelope_recognition_gate.test.js": "e349cec537f9beb2",
+        "test/unit/xchain_encoder/prev_output_value_check.test/01_legacy_refusals.test.js": "d9588de8b6903a8b",
+        "test/unit/xchain_encoder/prev_output_value_check.test/02_legacy_exact_amounts.test.js": "d487932ac997cf1e",
+        "test/unit/xchain_encoder/prev_output_value_check.test/03_tracker_fetched.test.js": "79ddb3d5c7dba3f0",
+        "test/unit/xchain_encoder/prev_output_value_check.test/04_segwit_attach_prev_tx.test.js": "cf0706b575a3ca0f",
         "test/unit/xchain_encoder/suggested_fee_ceiling.test.js": "a76fc6f4a4157148",
         "test/unit/xchain_encoder/xchain_encoder_auto_encoding.test.js": "0748973400fcace3",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test.js": "23e242d978109d26",
@@ -2585,7 +2646,7 @@
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/02_unconfirmed_filtering.test.js": "01301310489a6d18",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/03_utxo_sorting.test.js": "61c7893f33172ff0",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/04_replace_by_fee_sequence.test.js": "779e7e9a758ea87d",
-        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "b77f94d358245fae",
+        "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/05_fee_handling.test.js": "9255e3590e78f11d",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/06_custom_dust_parameter.test.js": "68626fb6051d2aba",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/07_change_output.test.js": "dbe9aa0a839fb823",
         "test/unit/xchain_encoder/xchain_encoder_create_transaction.test/08_no_utxos_available.test.js": "c08315d45c994876",
@@ -2613,21 +2674,23 @@
         "test/unit/xchain_encoder/xchain_encoder_extra.test/08_estimate_spending_p2wsh_tx.test.js": "59ae18cc4c09d4bd",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/09_remaining_branch_coverage.test.js": "630b933b3e1320d0",
         "test/unit/xchain_encoder/xchain_encoder_extra.test/10_raw_data_parameter.test.js": "d683ae27a964eb5b",
-        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "5ada45b5f0f336ef",
+        "test/unit/xchain_encoder/xchain_encoder_fee_rate_cap.test.js": "181d8e207d19511b",
         "test/unit/xchain_encoder/xchain_encoder_is_segwit_u_t_x_o.test.js": "b35bd4199facec7a",
         "test/unit/xchain_encoder/xchain_encoder_obfuscate.test.js": "11a13e37d91017bf",
         "test/unit/xchain_encoder/xchain_encoder_p2sh_reveal_headroom.test.js": "e3e957d2c34ec853",
         "test/unit/xchain_encoder/xchain_encoder_prepare_data.test.js": "4a88b66dc7f07157",
         "test/unit/xchain_encoder/xchain_encoder_release_reservations.test.js": "923b72fe3989bb3c",
         "test/unit/xchain_encoder/xchain_encoder_reveal_funding_binding.test.js": "990dee7527465c8e",
+        "test/unit/xchain_encoder/xchain_encoder_script_amount_helpers.test.js": "3376d17691451cd0",
         "test/unit/xchain_encoder/xchain_encoder_segwit_input_guard.test.js": "2aa020357e5b268b",
         "test/unit/xchain_encoder/xchain_encoder_soft_dust_floor.test.js": "ef95d11a5f979b57",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js": "27e24996d31ce20e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js": "880c961e264c0519",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "e1c1badc45b5ec79",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "0fdda5be04dda426",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "44230034b18955bb",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
         "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }

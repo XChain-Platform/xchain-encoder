@@ -161,7 +161,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.0000001
+        null, null, null, true, null
       )
 
       const totalOutput = result.psbt.txOutputs.reduce((s, o) => s + o.value, 0)

@@ -46,7 +46,7 @@ const { initInputState, checkExactInputs, gatherUtxos, refuseShrunkExactInputs, 
 const { bindObfuscationKey } = require('./XChainEncoder/build_transaction/first_input_key.js')
 const { prepareDataChunks, priceRevealCustomOutputs, initEmissionState, emitDataOutputs, emitCustomOutputs } = require('./XChainEncoder/build_transaction/data_outputs.js')
 const { initSelection, selectFundingInputs } = require('./XChainEncoder/build_transaction/input_selection.js')
-const { refuseExcessiveFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange } = require('./XChainEncoder/build_transaction/fee_settlement.js')
+const { refuseExcessiveFee, refuseInsufficientRelayFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange } = require('./XChainEncoder/build_transaction/fee_settlement.js')
 const { emitChangeAndPad, sweepP2shReveal, buildEnvelopeReveal } = require('./XChainEncoder/build_transaction/reveal_outputs.js')
 const { finishBuild } = require('./XChainEncoder/build_transaction/build_result.js')
 
@@ -245,6 +245,7 @@ function* buildSteps(build){
     emitCustomOutputs.call(this, build)
     initSelection.call(this, build)
     yield* selectFundingInputs.call(this, build)
+    refuseInsufficientRelayFee.call(this, build)
     refuseExcessiveFee.call(this, build)
     yield* upliftForAncestors.call(this, build)
     floorEstimatedFee.call(this, build)

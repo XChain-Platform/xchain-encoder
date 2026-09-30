@@ -90,6 +90,7 @@ function makeEncoder (network) {
   // relative fee cap (x100) far above every caller rate used here.
   encoder.connector = {
     getFeePerKilobyte: async () => 0.01,
+    getNetworkInfo: async () => ({ relayfee: network === 'dogecoin-regtest' ? 0.001 : 0.00001 }),
     getTransactionHex: async () => prevTxHex()
   }
   return encoder
@@ -190,16 +191,16 @@ describe('XChainEncoder P2SH reveal headroom', () => {
 describe('XChainEncoder P2SH reveal headroom', () => {
   it('funds floor-dominant legs with exactly one extra output floor of headroom (tiny fee rate)', async () => {
     const encoder = makeEncoder(DOGE)
-    // 1 koinu/byte: every size-based estimate is far below the output floor, so the
+    // 101 koinu/byte: every size-based estimate is far below the output floor, so the
     // leg is floor (leg value) + floor (reveal change headroom), the 0.01 DOGE soft
     // limit on Dogecoin; the reveal fee still floors at the pinned hard dust.
-    const funding = await buildFunding(encoder, DOGE, 'P2SH', 1000, 120)
+    const funding = await buildFunding(encoder, DOGE, 'P2SH', 101000, 120)
     const legs = legOutputs(funding)
     assert.strictEqual(legs.length, 1)
     assert.strictEqual(encoder.outputFloor, DOGE_SOFT_DUST)
     assert.strictEqual(legs[0].value, 2 * DOGE_SOFT_DUST)
 
-    const reveal = await buildReveal(encoder, DOGE, 'P2SH', 1000, 120, funding)
+    const reveal = await buildReveal(encoder, DOGE, 'P2SH', 101000, 120, funding)
     const totalOut = reveal.outs.reduce((s, o) => s + o.value, 0)
     assert.strictEqual(totalOut, 2 * DOGE_SOFT_DUST - DOGE_DUST, 'one hard dust stays as the reveal fee; the rest sweeps back')
   })

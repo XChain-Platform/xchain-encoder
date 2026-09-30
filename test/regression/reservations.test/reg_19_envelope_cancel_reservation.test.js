@@ -29,8 +29,8 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
-const XChainEncoder = require('../../src/XChainEncoder')
-const actions = require('../integration/helpers/actionFactory')
+const XChainEncoder = require('../../../src/XChainEncoder')
+const actions = require('../../integration/helpers/actionFactory')
 
 bitcoin.initEccLib(ecc)
 const ECPair = ECPairFactory(ecc)
@@ -50,6 +50,7 @@ function makeEncoder () {
   const encoder = new XChainEncoder(NETWORK, '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => { throw new Error('unit test: no node') }
   }
   encoder.utxoTrackerConnector = {

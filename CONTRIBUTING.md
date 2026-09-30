@@ -21,7 +21,6 @@ If you're reporting a security issue, **stop here** and read [`SECURITY.md`](./S
 xchain-encoder/
 ├── src/                  encoder core: XChainEncoder, validator, PSBT construction, API, formats
 ├── test/                 layered suites (unit, integration, fuzz, boundary, chaos, regression, security, smoke, performance)
-├── dist/                 browser bundle output (xchain_encoder.min.js)
 ├── CHANGELOG.md          authoritative version history
 ├── SECURITY.md           private vulnerability disclosure
 └── package.json          scripts + dependencies
@@ -52,7 +51,6 @@ Create a `.env` (see [`README.md`](./README.md) for the full key list). **Never 
 
 ```bash
 npm run api        # start the JSON-RPC API server
-npm run build      # production browser bundle -> dist/xchain_encoder.min.js
 ```
 
 ---

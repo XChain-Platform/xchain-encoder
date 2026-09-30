@@ -184,19 +184,19 @@ function unknownActionName(data) {
 //   - a payload within ~8 bytes of the ceiling can still fail post-compression:
 //     compression.js keeps a result that is smaller by as little as one byte
 //     while withCompressionField pads the action string out to the COMPRESSION
-//     field. Those land as the builder's -32603 rather than this -32602.
+//     field. The builder refuses those with its own RangeError, still -32602.
 //
 // XChainEncoder.js's "everything downstream prices the bytes that will actually
 // be written" is about the passes that run AFTER compression; this one runs
 // before it. The compiled-size ceiling still runs ahead of the UTXO fetch, so
-// what a deferred rejection costs is the error CODE, not reservation work.
+// a deferred rejection costs only its wording, not reservation work.
 function validateCombinedDataLength(data, rawData, encoding) {
     if (data == null && rawData == null) return
     // createTransaction defaults a missing `data` to '' and still compiles it
     // as a push (OP_0, 1 byte), so a rawData-only request must be measured
     // here too; skipping it only shifted the rejection to the compiled-size
-    // ceiling in createTransaction with a -32603 internal error instead of
-    // this pre-check's -32602 invalid-params classification.
+    // ceiling in createTransaction, past the point this pre-check exists to
+    // refuse it at.
     const dataBytes = data != null ? Buffer.byteLength(data, 'utf8') : 0
     // Match XChainEncoder.js: rawData is bytes-as-string (Latin-1), so the
     // on-chain byte count is the string length, not the UTF-8 encoding length.
@@ -210,7 +210,7 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // 390,000-byte envelope ceiling below, and _buildTransaction refuses on the
     // REAL compiled buffer, so a push framed with OP_PUSHDATA4 must be counted
     // the way bitcoin.script.compile frames it or the two ceilings disagree by
-    // 2 bytes per large push and a payload lands as -32603 instead of -32602.
+    // 2 bytes per large push and a payload passes here only to fail in the build.
     const compiled = envelopePushSize(dataBytes) + (rawData != null ? envelopePushSize(rawBytes) : 0)
     // Per-encoding ceiling. "TAPROOT" and "AUTO" both get the
     // envelope ceiling; every other value (including an OMITTED encoding) keeps
@@ -224,8 +224,8 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // that resolution, so it can only apply the WIDEST ceiling any AUTO
     // resolution could legitimately use, and let _buildTransaction re-check the
     // resolved carrier. Consequence: an AUTO request that resolves to a legacy carrier
-    // over 8,192 bytes is refused by the builder (-32603) rather than here
-    // (-32602). Both fail closed. Note an OMITTED encoding is NOT AUTO: it keeps
+    // over 8,192 bytes is refused by the builder rather than here. Both fail
+    // closed as -32602. Note an OMITTED encoding is NOT AUTO: it keeps
     // prepareData's legacy OP_RETURN-else-P2SH fallback and its legacy ceiling.
     const wideCeiling = (encoding === 'TAPROOT' || encoding === 'AUTO')
     const ceiling = wideCeiling ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
@@ -234,8 +234,7 @@ function validateCombinedDataLength(data, rawData, encoding) {
     }
     // When the caller EXPLICITLY requested OP_RETURN, apply the far tighter 76-byte
     // single-output ceiling here rather than letting the request run the whole
-    // UTXO-selection/reservation path and throw post-compile in prepareData (which
-    // api.js then mis-classifies as -32603 internal instead of -32602 invalid-params).
+    // UTXO-selection/reservation path before prepareData throws post-compile.
     // Only when encoding is explicitly 'OP_RETURN': an omitted encoding must NOT be
     // rejected here, or it would break prepareData's automatic P2SH fallback for
     // larger payloads. prepareData remains the arbiter/backstop.

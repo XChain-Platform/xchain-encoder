@@ -34,6 +34,7 @@ function makeEncoder (networkName = 'bitcoin-regtest') {
   const encoder = new XChainEncoder(networkName, '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001, // 1 sat/byte
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => { throw new Error('unit test: no node') }
   }
   encoder.utxoTrackerConnector = {
@@ -132,6 +133,12 @@ describe('XChainEncoder TAPROOT envelope', function () {
         Object.assign({}, base, { commitTxid: 'xyz' })), /commitTxid/)
       await assert.rejects(encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { commitVout: -1 })), /commitVout/)
+      // A commitVout above the uint32 wire width is a TypeError, which the API maps to -32602.
+      for (const bad of [4294967296, 1e300]) {
+        await assert.rejects(encoder.createEnvelopeCancelTransaction(
+          Object.assign({}, base, { commitVout: bad })),
+          (err) => err instanceof TypeError && /commitVout/.test(err.message))
+      }
       await assert.rejects(encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { internalPubkey: '04' + 'a'.repeat(128) })), /internalPubkey/)
       await assert.rejects(encoder.createEnvelopeCancelTransaction(
@@ -184,6 +191,20 @@ describe('XChainEncoder TAPROOT envelope', function () {
       const plain = await encoder.createEnvelopeCancelTransaction(
         Object.assign({}, base, { feePerKb: '5000' }))
       assert.strictEqual(plain.psbt.txInputs[0].sequence, 0xffffffff)
+    })
+
+    it('rejects a caller fee rate below the size-adjusted relay minimum', async function () {
+      const encoder = makeEncoder()
+      const base = {
+        commitTxid: TXID_A, commitVout: 0, commitValue: 100000,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64),
+        destination: callerAddress(encoder.network), feePerKb: 1
+      }
+      await assert.rejects(
+        encoder.createEnvelopeCancelTransaction(base),
+        (err) => err instanceof RangeError &&
+          /feePerKb 1 base units\/kB produces fee \d+, below the node relay minimum \d+ base units/.test(err.message)
+      )
     })
 
     it('accepts the x-only internal key form', async function () {

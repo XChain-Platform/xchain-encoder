@@ -12,6 +12,8 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const crypto = require('crypto')
 const XChainEncoder = require('../../../../../src/XChainEncoder')
+// Per-txid prev-tx mocks, shared with the integration factory so both tiers agree.
+const { attachPrevTxs } = require('../../../../integration/helpers/utxoFactory')
 
 const pubkeyBuf = Buffer.from(
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
@@ -77,6 +79,7 @@ function makeEncoder (networkName = 'litecoin-regtest') {
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     // Returns a bare hex STRING, which is what BlockchainConnector.getTransactionHex
     // actually resolves with (`responseData.result.hex`). An `{ hex }` answer
     // models a shape the real class has never returned. The segwit path requires
@@ -111,6 +114,7 @@ module.exports = {
   makeSegwitUtxo,
   makeLegacyUtxo,
   makeEncoder,
+  attachPrevTxs,
   LTC_REGTEST,
   TxSizeEstimator,
   TEST_ADDRESS

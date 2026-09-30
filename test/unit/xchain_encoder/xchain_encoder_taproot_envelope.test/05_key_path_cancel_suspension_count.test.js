@@ -10,14 +10,14 @@
 
 // A key-path cancel suspends only where it waits on the node.
 //
-// The cancel claims its commit outpoint synchronously, then waits once on the
-// node's fee rate. With a node that answers at once, the call settles three
-// microtask turns after it is made: one for the fee-rate wait and one for
-// each of the two async returns (the build into the public entry point, and
-// the entry point into the caller). A fee-rate step awaited as its own async
-// function adds a fourth turn after the claim, which shifts when a failed
+// The cancel claims its commit outpoint synchronously, then waits once for the
+// relay floor and once for the node's fee rate. With a node that answers at
+// once, the call settles four microtask turns after it is made: two for the
+// node waits and one for each async return (the build into the public entry
+// point, and the entry point into the caller). An extra async boundary shifts
+// the settlement another turn after the claim, which changes when a failed
 // cancel hands its outpoint back relative to a concurrent createTransaction.
-// The count is pinned at three on both fee-rate paths and on the below-dust
+// The count is pinned at four on both fee-rate paths and on the below-dust
 // refusal.
 
 const assert = require('assert')
@@ -34,7 +34,10 @@ const DESTINATION = bitcoin.payments.p2wpkh({
 
 function makeEncoder () {
   const encoder = new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
-  encoder.connector = { getFeePerKilobyte: async () => 0.00001 }
+  encoder.connector = {
+    getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 })
+  }
   return encoder
 }
 
@@ -63,25 +66,25 @@ async function turnsUntilSettled (promise) {
 
 describe('XChainEncoder TAPROOT envelope', function () {
   describe('key-path cancel suspension count', function () {
-    it('the node fee-rate path settles three turns after the call', async function () {
+    it('the node fee-rate path settles four turns after the call', async function () {
       const encoder = makeEncoder()
       const call = encoder.createEnvelopeCancelTransaction(recoveryRecord(100000))
-      assert.strictEqual(await turnsUntilSettled(call), 3)
+      assert.strictEqual(await turnsUntilSettled(call), 4)
       assert.strictEqual((await call).cancel, true)
       assert.strictEqual(encoder.outpointReservations.size, 1)
     })
 
-    it('the caller fee-rate path settles three turns after the call', async function () {
+    it('the caller fee-rate path settles four turns after the call', async function () {
       const encoder = makeEncoder()
-      const call = encoder.createEnvelopeCancelTransaction(recoveryRecord(100000, { feePerKb: 0.00002 }))
-      assert.strictEqual(await turnsUntilSettled(call), 3)
+      const call = encoder.createEnvelopeCancelTransaction(recoveryRecord(100000, { feePerKb: 2000 }))
+      assert.strictEqual(await turnsUntilSettled(call), 4)
       assert.strictEqual((await call).cancel, true)
     })
 
-    it('a below-dust cancel is refused and hands its claim back three turns after the call', async function () {
+    it('a below-dust cancel is refused and hands its claim back four turns after the call', async function () {
       const encoder = makeEncoder()
       const call = encoder.createEnvelopeCancelTransaction(recoveryRecord(600))
-      assert.strictEqual(await turnsUntilSettled(call), 3)
+      assert.strictEqual(await turnsUntilSettled(call), 4)
       await assert.rejects(call, err => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
       assert.strictEqual(encoder.outpointReservations.size, 0)
     })

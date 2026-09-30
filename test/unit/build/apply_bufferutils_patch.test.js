@@ -91,6 +91,9 @@ describe('applyBufferutilsPatch', function () {
             [-1n,        /specified a negative value for writing an unsigned value/],
             [-Infinity,  /specified a negative value for writing an unsigned value/],
             [Infinity,   /value out of range/],
+            [2 ** 53,    /value out of range/],
+            [2 ** 60,    /value out of range/],
+            [1e16 + 1,   /value out of range/],
             [1e30,       /value out of range/],
             [0.5,        /value has a fractional component/],
             [NaN,        /value has a fractional component/]
@@ -104,6 +107,32 @@ describe('applyBufferutilsPatch', function () {
                 (err) => !/cannot be converted to a BigInt/.test(err.message),
                 'a native BigInt conversion error escaped for ' + String(value));
         }
+    });
+});
+
+describe('applyBufferutilsPatch', function () {
+    // A Number past 2^53-1 has already lost its exact value, so every writer refuses it
+    // as stock verifuint does, while the same amount as a BigInt still serializes.
+    it('caps a Number at 2^53-1 on every writer while a BigInt passes', function () {
+        const buf = Buffer.alloc(8);
+        bufferutils.writeUInt64LE(buf, 9007199254740991, 0);
+        assert.strictEqual(bufferutils.readUInt64LE(buf, 0), 9007199254740991);
+        bufferutils.writeUInt64LE(buf, 9007199254740992n, 0);
+        assert.strictEqual(bufferutils.readUInt64LE(buf, 0), 9007199254740992n);
+        assert.throws(() => new bufferutils.BufferWriter(Buffer.alloc(8)).writeUInt64(2 ** 53), /value out of range/);
+        const bip174Tools = require('bip174/src/lib/converter/tools');
+        assert.throws(() => bip174Tools.writeUInt64LE(Buffer.alloc(8), 2 ** 53, 0), /value out of range/);
+    });
+
+    it('refuses a PSBT witnessUtxo Number value past 2^53-1 and serializes its BigInt form', function () {
+        const { Psbt } = require('bitcoinjs-lib');
+        const input = (value) => ({ hash: Buffer.alloc(32, 1), index: 0,
+            witnessUtxo: { script: Buffer.from('0014' + '11'.repeat(20), 'hex'), value } });
+        assert.throws(() => { const psbt = new Psbt(); psbt.addInput(input(2 ** 53)); psbt.toBuffer(); },
+            /value out of range/);
+        const psbt = new Psbt();
+        psbt.addInput(input(9007199254740992n));
+        assert.ok(psbt.toBuffer().length > 0);
     });
 });
 

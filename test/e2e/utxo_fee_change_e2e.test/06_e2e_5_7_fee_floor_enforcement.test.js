@@ -50,7 +50,7 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.0000001 // very low rate
+        null, null, null, true, null
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)

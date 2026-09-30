@@ -208,7 +208,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.0000001 // very low
+        null, null, null, true, null
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)

@@ -215,7 +215,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.00001
+        null, null, null, true, 2000
       )
 
       assert.ok(result.psbt, 'should produce a PSBT without calling getFeePerKilobyte')
@@ -226,11 +226,11 @@ describe('REG-03: Fee & UTXO Selection', function () {
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
       const action = actions.makeSend()
 
-      // Very low feePerKb that would produce fee below dust
+      // The node-derived fee is below dust and is floored after sizing.
       const result = await encoder.createTransaction(
         [utxo], address, null,
         action.data, null, null, false, null, address,
-        null, null, null, true, 0.0000001
+        null, null, null, true, null
       )
       const outputs = result.psbt.txOutputs
       const totalOutput = outputs.reduce((sum, o) => sum + o.value, 0)
@@ -261,7 +261,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
       )
       const rawTxHex = buildRawTxHex(100000000, NETWORK)
       capped.connector = {
-        getFeePerKilobyte: async () => 0.00001,
+        getFeePerKilobyte: async () => 0.00001, getNetworkInfo: async () => ({ relayfee: 0.00001 }),
         getTransactionHex: async () => rawTxHex
       }
 

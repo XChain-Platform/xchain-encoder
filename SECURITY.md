@@ -52,7 +52,6 @@ If we cannot meet a timeline, we will tell you why and propose a new one. We wil
 - PSBT construction: inputs, outputs, amounts, and change address handling; any path where the wrong inputs are selected or the wrong value reaches an output.
 - Fee calculation and the fee-rate cap logic (`MAX_FEE_RATE_MULTIPLIER`, `MAX_FEE_RATE_KB`): a bypass could drain inputs into miner fee.
 - The encoder HTTP JSON-RPC API (`npm run api`): injection, auth bypass, rate-limit bypass, or denial-of-service via crafted requests.
-- The browser bundle (`dist/xchain_encoder.min.js`) produced by `npm run build`, including supply-chain integrity of that artifact.
 - Any path where a malformed or adversarial input yields a valid-looking but wrong transaction (wrong recipient, wrong amount, wrong action).
 
 ### Out of scope

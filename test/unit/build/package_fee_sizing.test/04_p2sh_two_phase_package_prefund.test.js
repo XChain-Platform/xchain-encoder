@@ -49,6 +49,7 @@ function makeEncoder (commitPackage) {
   const encoder = new XChainEncoder(DOGE, '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => 0.01,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => prevTxHex()
   }
   if (commitPackage !== undefined) {

@@ -80,6 +80,7 @@ function makeEncoder () {
   encoder.dustAmount = DUST
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => ({ hex: '' })
   }
   encoder.utxoTrackerConnector = { getUtxosFromAddress: async () => ({ utxos: [] }) }

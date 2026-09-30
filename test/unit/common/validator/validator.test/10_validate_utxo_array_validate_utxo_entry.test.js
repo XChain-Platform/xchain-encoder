@@ -81,3 +81,20 @@ describe('Encoder input validator', function () {
         });
     });
 });
+
+describe('Encoder input validator: vout uint32 bound', function () {
+    const goodUtxo = () => ({ txid: HEX64, vout: 0, value: 1000, scriptPubKey: '76a914' });
+
+    it('rejects a vout above the uint32 wire width as a TypeError', function () {
+        // bitcoinjs refuses these deep in psbt.addInput with a non-TypeError, which the API reports as -32603.
+        for (const bad of [4294967296, '4294967296', '99999999999', 1e300]) {
+            assert.throws(
+                () => v.validateUtxoEntry({ ...goodUtxo(), vout: bad }, 0),
+                (err) => err instanceof TypeError && /vout must be a non-negative integer/.test(err.message),
+                `vout ${JSON.stringify(bad)} must be rejected`
+            );
+        }
+        assert.strictEqual(v.validateUtxoEntry({ ...goodUtxo(), vout: 4294967295 }, 0).vout, 4294967295);
+        assert.strictEqual(v.validateUtxoEntry({ ...goodUtxo(), vout: '4294967295' }, 0).vout, 4294967295);
+    });
+});

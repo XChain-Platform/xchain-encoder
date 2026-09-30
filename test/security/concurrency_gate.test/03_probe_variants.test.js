@@ -53,7 +53,7 @@ describe('Security: probe variants Express routes to the probe handlers', functi
     })
 
     it('holds the probe-reserve slot of an aborted HEAD /status until its handler settles', async function () {
-        const { server, probeGate, releaseProbe, enteredProbe } = buildServer({
+        const { server, probeGate, releaseProbe, enteredProbe, closedProbe } = buildServer({
             limit: 10, probeLimit: 1, parkProbes: true
         })
         await listen(server)
@@ -65,8 +65,8 @@ describe('Security: probe variants Express routes to the probe handlers', functi
 
         controller.abort()
         await aborted.catch(() => {})
-        // Deliberate delay, not a sync point: the claim is that in_flight STAYS 1.
-        await new Promise(r => setTimeout(r, 50))
+        // Wait on the server seeing the close, never on in_flight: the claim is that it STAYS 1.
+        await waitFor(() => closedProbe() >= 1, "the server to see the probe's socket close")
         assert.strictEqual(probeGate.getStats().in_flight, 1)
 
         releaseProbe()

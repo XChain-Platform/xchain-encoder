@@ -43,6 +43,7 @@ function makeEncoder (networkName) {
   )
   encoder.connector = {
     getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => prevTxHex()
   }
   encoder.utxoTrackerConnector = {

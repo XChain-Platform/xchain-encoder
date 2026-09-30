@@ -73,7 +73,9 @@ function verifyU64(value) {
     if (value < 0) {
         throw new Error('specified a negative value for writing an unsigned value')
     }
-    if (value > MAX_U64) {
+    // Cap a Number at stock's 2^53-1, since past it the value is no longer exact; a BigInt
+    // carries anything larger, up to the wire's 2^64-1.
+    if (value > MAX_U64 || (typeof value === 'number' && value > Number.MAX_SAFE_INTEGER)) {
         throw new Error('RangeError: value out of range')
     }
     if (typeof value === 'number' && Math.floor(value) !== value) {

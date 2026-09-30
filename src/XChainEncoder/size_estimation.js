@@ -93,19 +93,25 @@ module.exports = {
     // a bitcoinjs release that reshapes this would otherwise underfund a reveal
     // silently, which is the exact failure this whole pass exists to prevent.
     raiseOutputValue(psbt, outputIndex, delta){
+        // Throw plain Error from every guard here (API -32603): each is an internal
+        // invariant no caller input can trip, never a RangeError the API reads as bad params.
+
+        // Verify the uplift is a positive whole amount
         if (!Number.isInteger(delta) || delta <= 0){
-            throw new RangeError('output uplift must be a positive integer')
+            throw new Error('output uplift must be a positive integer')
         }
         const outs = psbt.data.globalMap.unsignedTx
             && psbt.data.globalMap.unsignedTx.tx
             && psbt.data.globalMap.unsignedTx.tx.outs
+        // Verify the output being raised exists
         if (!Array.isArray(outs) || !outs[outputIndex]){
-            throw new RangeError(`no output at index ${outputIndex} to raise`)
+            throw new Error(`no output at index ${outputIndex} to raise`)
         }
         const raised = outs[outputIndex].value + delta
         outs[outputIndex].value = raised
+        // Verify bitcoinjs serializes the raised value (see the note above)
         if (psbt.txOutputs[outputIndex].value !== raised){
-            throw new RangeError('output value uplift did not reach the transaction bitcoinjs will serialize')
+            throw new Error('output value uplift did not reach the transaction bitcoinjs will serialize')
         }
     },
 

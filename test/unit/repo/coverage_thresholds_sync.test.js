@@ -39,5 +39,9 @@ describe('coverage ratchet floors', () => {
 
   it('fails the job on a shortfall rather than only reporting it', () => {
     assert.match(pkg.scripts['coverage:check'], /--check-coverage/);
+    for (const name of ['coverage', 'coverage:check']) {
+      assert.match(pkg.scripts[name], /(?:^|\s)--all(?:\s|$)/, `${name} must run c8 with --all`);
+      assert.doesNotMatch(pkg.scripts[name], /(?:^|\s)--exclude(?:=|\s)/);
+    }
   });
 });

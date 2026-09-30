@@ -76,7 +76,7 @@ describe('XChainEncoder.createTransaction()', () => {
         [utxo], TEST_ADDRESS, null,
         'test', null, null, false, null, TEST_ADDRESS,
         null, null, null,
-        true, 0.0000001, 100 // custom dust = 100, but network dust = 546
+        true, null, 100 // custom dust = 100, but network dust = 546
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)

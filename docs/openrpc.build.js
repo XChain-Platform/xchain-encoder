@@ -119,6 +119,30 @@ const METHODS = [
         params: [{ name: 'address', required: true, schema: str('address to query') }],
         result: { name: 'utxos', schema: { type: 'array', items: { type: 'object' } } },
     },
+    {
+        name: 'get_tx_block',
+        summary: 'Locate the confirmed block containing a transaction (proxied from xchain-utxo-tracker).',
+        description: 'Returns null when the well-formed txid is unknown, unindexed, or was rolled back. '
+            + 'The sync fields identify the tracker tip that served the lookup.',
+        params: [{ name: 'txid', required: true, schema: str('transaction id (64-character hexadecimal string)') }],
+        result: {
+            name: 'block',
+            schema: {
+                type: ['object', 'null'],
+                properties: {
+                    block_hash: str('hash of the confirmed block'),
+                    block_height: int('height of the confirmed block'),
+                    sync: {
+                        type: 'object',
+                        properties: {
+                            committed_height: int('tracker committed tip height'),
+                            committed_hash: str('tracker committed tip hash'),
+                        },
+                    },
+                },
+            },
+        },
+    },
 ];
 
 const spec = {

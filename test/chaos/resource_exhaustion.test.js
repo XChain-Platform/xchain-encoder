@@ -21,7 +21,7 @@ const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
 const {
   TXID_A, makeUtxo, makeLegacyUtxo,
-  makeEncoder, getTestAddress, buildRawTxHex
+  makeEncoder, getTestAddress, buildPrevTxHexByTxid, attachPrevTxs
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -92,6 +92,7 @@ describe('Chaos Category E: Resource Exhaustion', () => {
         const txid = TXID_A.slice(0, 60) + String(i).padStart(4, '0')
         utxos.push(makeUtxo(DOGE, txid, 0, 1000))
       }
+      attachPrevTxs(encoder, utxos, DOGE)
 
       const start = Date.now()
       const result = await encoder.createTransaction(
@@ -109,17 +110,17 @@ describe('Chaos Category E: Resource Exhaustion', () => {
 
     it('500 legacy UTXOs: getTransactionHex called for each consumed', async () => {
       const encoder = makeEncoder(DOGE)
-      const rawHex = buildRawTxHex(100, DOGE)
-      let hexCallCount = 0
-      encoder.connector.getTransactionHex = async () => {
-        hexCallCount++
-        return rawHex
-      }
-
       const utxos = []
       for (let i = 0; i < 500; i++) {
         const txid = TXID_A.slice(0, 60) + String(i).padStart(4, '0')
         utxos.push(makeLegacyUtxo(txid, 0, 1000))
+      }
+      // Each prev tx pays the 1000 its UTXO states, so the prev-out value check passes.
+      const hexByTxid = buildPrevTxHexByTxid(utxos, DOGE)
+      let hexCallCount = 0
+      encoder.connector.getTransactionHex = async (txid) => {
+        hexCallCount++
+        return hexByTxid.get(txid)
       }
 
       const start = Date.now()

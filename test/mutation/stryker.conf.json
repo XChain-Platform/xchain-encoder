@@ -2,12 +2,14 @@
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
   "mutate": [
     "src/XChainEncoder.js",
+    "src/XChainEncoder/**/*.js",
     "src/common/validator.js",
     "src/build/tx_size_estimator.js",
     "src/build/crypto_networks.js"
   ],
   "testRunner": "mocha",
   "mochaOptions": {
+    "require": ["./test/setup/index.js"],
     "spec": [
       "test/unit/**/*.test.js",
       "test/integration/**/*.test.js",
@@ -15,6 +17,17 @@
       "test/security/**/*.test.js",
       "test/fuzz/**/*.fuzz.js",
       "test/chaos/**/*.test.js"
+    ],
+    "ignore": [
+      "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js",
+      "test/unit/api/openrpc_coverage.test.js",
+      "test/integration/custom_outputs.test.js",
+      "test/integration/encoding_types.test.js",
+      "test/integration/error_handling.test.js",
+      "test/integration/multi_chain.test.js",
+      "test/integration/obfuscation_roundtrip.test.js",
+      "test/boundary/encoding_chunk_boundaries.test/05_multisign_encoding_boundaries.test.js",
+      "test/chaos/network_failures.test.js"
     ]
   },
   "reporters": ["html", "clear-text", "json"],

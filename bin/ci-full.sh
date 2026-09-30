@@ -77,17 +77,20 @@ ci_tier_deferred() {
   return 1
 }
 # <<< ci-tier <<<
+# >>> ci-tier timer (generated block; re-run the tier wirer to update) >>>
 run_tier() {
   ci_tier_deferred "$1" && return 0  # ci-tier guard (generated)
   local name="$1"; shift
+  local __ci_tier_t0=$SECONDS
   echo; echo "ci:full ===== $name ====="
   if "$@"; then
-    echo "ci:full ----- $name PASS"
+    echo "ci:full ----- $name PASS ($(( SECONDS - __ci_tier_t0 ))s)"
   else
     FAILED="$FAILED [$name]"
-    echo "ci:full ----- $name FAIL"
+    echo "ci:full ----- $name FAIL ($(( SECONDS - __ci_tier_t0 ))s)"
   fi
 }
+# <<< ci-tier timer <<<
 need_sib() {
   local s
   for s in "$@"; do
@@ -102,6 +105,10 @@ need_sib() {
 }
 
 need_sib xchain-hub xchain-documentation xchain-decoder xchain-sdk
+
+# Hold every tier below to the same guarantee need_sib just confirmed: an
+# unusable sibling must fail the tier that needs it, not skip it quietly.
+export XCHAIN_REQUIRE_SIBLINGS=1
 
 # --- job: ci (XChain-Platform/.github ci-reusable.yml -> npm run ci) -------
 run_tier "ci" npm run ci
