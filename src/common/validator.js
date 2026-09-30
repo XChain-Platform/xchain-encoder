@@ -55,6 +55,7 @@ const {
     validateFee,
     validateFeePerKb,
     validateDust,
+    validateOutpoint,
     validateUtxoArray,
     validateUtxoEntry,
     validateCustomOutputs
@@ -136,6 +137,7 @@ module.exports = {
     validateFeePerKb,
     validateOptionalBoolean,
     validateDust,
+    validateOutpoint,
     validateUtxoArray,
     validateUtxoEntry,
     validateCustomOutputs,

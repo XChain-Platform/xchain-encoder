@@ -111,6 +111,28 @@ function validateDust(dust) {
     return num
 }
 
+// Validate one outpoint by the rule create_tx and create_envelope_cancel_tx share, and
+// return it canonical: the txid lowercased and the vout as an integer.
+function validateOutpoint(txid, vout, txidLabel, voutLabel) {
+    // The outpoint's transaction id must be exactly 32 bytes of hex (64 chars);
+    // anything shorter, longer or non-hex cannot name a real transaction.
+    if (typeof txid !== 'string' || !HEX_64_RE.test(txid)) {
+        throw new TypeError(`${txidLabel} must be a 64-character hex string`)
+    }
+    // Route vout through toExactInt (rejecting NaN), not bare Number(): on the
+    // money path a JSON null/''/false/[] all coerce via Number() to a plausible
+    // index (0), so the encoder would build a PSBT spending txid:0, a different
+    // outpoint than intended. This matches the value field's exact-integer rigor
+    // and rejects values that Number() would silently coerce to zero.
+    const exact = toExactInt(vout)
+    // Cap vout at the uint32 wire width, so an oversized index is a -32602 here
+    // and never an opaque bitcoinjs typeforce error inside psbt.addInput.
+    if (!Number.isInteger(exact) || exact < 0 || exact > 0xffffffff) {
+        throw new TypeError(`${voutLabel} must be a non-negative integer no greater than 4294967295`)
+    }
+    return { txid: txid.toLowerCase(), vout: exact }
+}
+
 function validateUtxoOutpoint(entry, index) {
     // Reject anything that is not a plain object: a string, number, array or
     // null here means the caller sent the wrong shape, not a bad field, so
@@ -118,11 +140,7 @@ function validateUtxoOutpoint(entry, index) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
         throw new TypeError(`utxos[${index}] must be an object`)
     }
-    // The outpoint's transaction id must be exactly 32 bytes of hex (64 chars);
-    // anything shorter, longer or non-hex cannot name a real transaction.
-    if (typeof entry.txid !== 'string' || !HEX_64_RE.test(entry.txid)) {
-        throw new TypeError(`utxos[${index}].txid must be a 64-character hex string`)
-    }
+    const outpoint = validateOutpoint(entry.txid, entry.vout, `utxos[${index}].txid`, `utxos[${index}].vout`)
     // Canonicalize case, because on the OP_RETURN/MULTISIGN path this string IS the
     // AES-128-CTR obfuscation key (XChainEncoder.obfuscate splits it with substr), and
     // the decoder derives its key from the wire bytes, which render as lowercase hex.
@@ -131,19 +149,8 @@ function validateUtxoOutpoint(entry, index) {
     // INPUT_SELECTION_RACE. Normalizing here also makes the reservation keys and the
     // duplicate filter below compare one form of each outpoint. Mutating in place is
     // this function's established contract (vout, value and confirmations already are).
-    entry.txid = entry.txid.toLowerCase()
-    // Route vout through toExactInt (rejecting NaN), not bare Number(): on the
-    // money path a JSON null/''/false/[] all coerce via Number() to a plausible
-    // index (0), so the encoder would build a PSBT spending txid:0, a different
-    // outpoint than intended. This matches the value field's exact-integer rigor
-    // and rejects values that Number() would silently coerce to zero.
-    const vout = toExactInt(entry.vout)
-    // Cap vout at the uint32 wire width, so an oversized index is a -32602 here
-    // and never an opaque bitcoinjs typeforce error inside psbt.addInput.
-    if (!Number.isInteger(vout) || vout < 0 || vout > 0xffffffff) {
-        throw new TypeError(`utxos[${index}].vout must be a non-negative integer no greater than 4294967295`)
-    }
-    entry.vout = vout
+    entry.txid = outpoint.txid
+    entry.vout = outpoint.vout
 }
 
 function validateUtxoValueAndScript(entry, index) {
@@ -266,6 +273,7 @@ module.exports = {
     validateFee,
     validateFeePerKb,
     validateDust,
+    validateOutpoint,
     validateUtxoEntry,
     validateUtxoArray,
     validateCustomOutput,

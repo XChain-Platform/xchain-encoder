@@ -189,14 +189,6 @@
       "Security: remediated dependency advisories @regression @tier4 ADV-4: brace-expansion survives the CVE-2026-14257 unbounded-length input",
       "Security: remediated dependency advisories @regression @tier4 ADV-5: the installed axios reports a patched runtime version"
     ],
-    "0fdda5be04dda426": [
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) accepts the x-only internal key form",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) applies the create_tx fee guards to feePerKb and replacebyfee",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) builds, signs and extracts a sweep using only the recovery record",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) fails closed when the sweep would land under dust",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) rejects a caller fee rate below the size-adjusted relay minimum",
-      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) validates the recovery-record fields"
-    ],
     "11a13e37d91017bf": [
       "XChainEncoder.obfuscate() different keys produce different output",
       "XChainEncoder.obfuscate() handles 1-byte data",
@@ -608,14 +600,6 @@
       "CryptoNetworks .getFirstBlock() returns 6240000 for dogecoin-mainnet",
       "CryptoNetworks .getFirstBlock() returns 67847500 for dogecoin-testnet",
       "CryptoNetworks .getFirstBlock() returns 950000 for bitcoin-mainnet"
-    ],
-    "41d964a43ddfab20": [
-      "Security: rate-limit refusal counter/logger limitedHandler logs nothing more for refusals inside the same window",
-      "Security: rate-limit refusal counter/logger limitedHandler logs one line at the first refusal of a window, with count 1",
-      "Security: rate-limit refusal counter/logger limitedHandler logs the count accumulated since the last line at the first refusal after a full window, then resets",
-      "Security: rate-limit refusal counter/logger limitedHandler sends 429 with the exact JSON-RPC body the message option carried",
-      "Security: rate-limit refusal counter/logger src/api.js wiring routes the limiter through limitedHandler and carries no bare message: option",
-      "Security: rate-limit refusal counter/logger wired into a real express-rate-limit instance carries the draft-6 RateLimit-Policy/Limit and Retry-After headers on the 429 this handler sends"
     ],
     "427e40092d870bf8": [
       "Fee Calculation Boundaries Math.trunc precision fractional fee is truncated toward zero, not rounded",
@@ -1148,6 +1132,17 @@
       "XChainEncoder.createTransaction() - change edge cases does not add change output when changeSatoshis is 0",
       "XChainEncoder.createTransaction() - change edge cases does not throw when changeSatoshis <= dustAmount and no change address"
     ],
+    "909803d42e47b278": [
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) accepts the x-only internal key form",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) applies the create_tx fee guards to feePerKb and replacebyfee",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) builds, signs and extracts a sweep using only the recovery record",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) fails closed when the sweep would land under dust",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) rejects a caller fee rate below the size-adjusted relay minimum",
+      "XChainEncoder TAPROOT envelope key-path cancel from the persisted recovery record (\u00a73.5/\u00a73.7) validates the recovery-record fields",
+      "XChainEncoder TAPROOT envelope key-path cancel outpoint shares the create_tx outpoint rule accepts a decimal-string vout and an uppercase txid, building canonical forms",
+      "XChainEncoder TAPROOT envelope key-path cancel outpoint shares the create_tx outpoint rule keys a zero-padded vout as its integer, so it collides with create_tx",
+      "XChainEncoder TAPROOT envelope key-path cancel outpoint shares the create_tx outpoint rule still rejects every non-integer vout spelling as a typed commitVout error"
+    ],
     "920e3050fd4107ed": [
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.14: AIRDROP list index reference preserved",
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.15: DIVIDEND two-tick relationship preserved",
@@ -1446,6 +1441,15 @@
       "E2E-6: Multi-Chain Validation bitcoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
       "E2E-6: Multi-Chain Validation dogecoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
       "E2E-6: Multi-Chain Validation litecoin-regtest P2SH creates P2SH with output value >= chain dust threshold"
+    ],
+    "aa6df06a6ffcd257": [
+      "Security: rate-limit refusal counter/logger limitedHandler logs nothing more for refusals inside the same window",
+      "Security: rate-limit refusal counter/logger limitedHandler logs one line at the first refusal of a window, with count 1",
+      "Security: rate-limit refusal counter/logger limitedHandler logs the count accumulated since the last line at the first refusal after a full window, then resets",
+      "Security: rate-limit refusal counter/logger limitedHandler sends 429 with the exact JSON-RPC body the message option carried",
+      "Security: rate-limit refusal counter/logger limitedHandler states the real span since the last line when refusals straddle several windows",
+      "Security: rate-limit refusal counter/logger src/api.js wiring routes the limiter through limitedHandler and carries no bare message: option",
+      "Security: rate-limit refusal counter/logger wired into a real express-rate-limit instance carries the draft-6 RateLimit-Policy/Limit and Retry-After headers on the 429 this handler sends"
     ],
     "ab75df16ddef33d7": [
       "encoder crash handlers a broken logger cannot swallow the exit",
@@ -2270,7 +2274,7 @@
   "scripts": {
     "test": {
       "fileCount": 135,
-      "titleCount": 992,
+      "titleCount": 995,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2401,7 +2405,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js": "27e24996d31ce20e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js": "880c961e264c0519",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "0fdda5be04dda426",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "909803d42e47b278",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
@@ -2542,7 +2546,7 @@
     },
     "test:security": {
       "fileCount": 8,
-      "titleCount": 70,
+      "titleCount": 71,
       "files": {
         "test/security/concurrency_gate.test.js": "5c149d2d20812d9a",
         "test/security/concurrency_gate.test/01_resolve_limit.test.js": "5140a8874ea32fb0",
@@ -2551,12 +2555,12 @@
         "test/security/input_validation.test.js": "ff07b944e5210e36",
         "test/security/obfuscation_key.test.js": "7fbd6025650718a6",
         "test/security/payload_size.test.js": "f1872a85a8671d97",
-        "test/security/rate_limit_log.test.js": "41d964a43ddfab20"
+        "test/security/rate_limit_log.test.js": "aa6df06a6ffcd257"
       }
     },
     "test:unit": {
       "fileCount": 135,
-      "titleCount": 992,
+      "titleCount": 995,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2687,7 +2691,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test.js": "357ca3318e99187c",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/01_create_transaction_pair_construction.test.js": "27e24996d31ce20e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/02_sign_finalize_extract_round_trip.test.js": "880c961e264c0519",
-        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "0fdda5be04dda426",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/03_key_path_cancel_from_persisted_recovery_record.test.js": "909803d42e47b278",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",

@@ -140,6 +140,29 @@ describe('Security: rate-limit refusal counter/logger', () => {
 
 describe('Security: rate-limit refusal counter/logger', () => {
 
+    describe('limitedHandler', () => {
+        it('states the real span since the last line when refusals straddle several windows', () => {
+            const lines = []
+            let t = 0
+            const handler = limitedHandler({
+                service: 'Encoder', name: 'app-wide', envVar: 'ENCODER_RATE_LIMIT_RPM',
+                limit: 60, windowMs: 60000, message: MESSAGE, log: (l) => lines.push(l), now: () => t
+            })
+            handler({}, makeRes(), () => {}, {})
+            t = 10000
+            for (let i = 0; i < 40; i++) handler({}, makeRes(), () => {}, {})
+            t = 5 * 3600 * 1000
+            handler({}, makeRes(), () => {}, {})
+            assert.strictEqual(
+                lines[1],
+                'Encoder rate limit [app-wide]: 41 requests refused in the last 18000 s (limit 60/60 s); raise ENCODER_RATE_LIMIT_RPM if this is legitimate traffic'
+            )
+        })
+    })
+})
+
+describe('Security: rate-limit refusal counter/logger', () => {
+
     describe('wired into a real express-rate-limit instance', () => {
         let server
 

@@ -219,3 +219,40 @@ describe('XChainEncoder TAPROOT envelope', function () {
   })
 
 })
+
+describe('XChainEncoder TAPROOT envelope', function () {
+  describe('key-path cancel outpoint shares the create_tx outpoint rule', function () {
+    function cancelWith (encoder, commitTxid, commitVout) {
+      return encoder.createEnvelopeCancelTransaction({
+        commitTxid, commitVout, commitValue: 100000,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64),
+        destination: callerAddress(encoder.network)
+      })
+    }
+
+    it('accepts a decimal-string vout and an uppercase txid, building canonical forms', async function () {
+      const encoder = makeEncoder()
+      const cancel = await cancelWith(encoder, TXID_A.toUpperCase(), '0')
+      const input = cancel.psbt.txInputs[0]
+      assert.strictEqual(input.index, 0)
+      assert.strictEqual(Buffer.from(input.hash).reverse().toString('hex'), TXID_A)
+      assert.ok(encoder.outpointReservations.has(TXID_A + ':0'))
+    })
+
+    it('keys a zero-padded vout as its integer, so it collides with create_tx', async function () {
+      const encoder = makeEncoder()
+      await cancelWith(encoder, TXID_A, '01')
+      assert.ok(encoder.outpointReservations.has(TXID_A + ':1'))
+      assert.ok(!encoder.outpointReservations.has(TXID_A + ':01'))
+    })
+
+    it('still rejects every non-integer vout spelling as a typed commitVout error', async function () {
+      const encoder = makeEncoder()
+      const bad = ['abc', '1.5', '0x1', '1e3', '', null, true, [0], -1, '-1', 4294967296, '4294967296']
+      for (const vout of bad) {
+        await assert.rejects(cancelWith(encoder, TXID_A, vout),
+          (err) => err instanceof TypeError && /commitVout/.test(err.message), 'vout ' + JSON.stringify(vout))
+      }
+    })
+  })
+})

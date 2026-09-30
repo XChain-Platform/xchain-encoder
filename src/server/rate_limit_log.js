@@ -20,7 +20,8 @@
  * of a window and again at the first refusal after a full windowMs has
  * elapsed since that line, carrying how many refusals happened since. The
  * count only advances on an actual refusal (no timer/interval), so an idle
- * limiter never holds the process open.
+ * limiter never holds the process open. With no timer the span a line covers
+ * has no upper bound, so each line states the seconds since the previous one.
  *
  ********************************************************************/
 
@@ -39,7 +40,8 @@ function limitedHandler({ service, name, envVar, limit, windowMs, message, log =
         const dueForLog = lastLogAt === null || (ts - lastLogAt >= windowMs)
         if (dueForLog) {
             const n = count
-            log(`${service} rate limit [${name}]: ${n} request${n === 1 ? '' : 's'} refused in the last ${windowSeconds} s (limit ${limit}/${windowSeconds} s); raise ${envVar} if this is legitimate traffic`)
+            const spanSeconds = lastLogAt === null ? windowSeconds : Math.round((ts - lastLogAt) / 1000)
+            log(`${service} rate limit [${name}]: ${n} request${n === 1 ? '' : 's'} refused in the last ${spanSeconds} s (limit ${limit}/${windowSeconds} s); raise ${envVar} if this is legitimate traffic`)
             count = 0
             lastLogAt = ts
         }
