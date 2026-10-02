@@ -188,8 +188,9 @@ if (!psbtTxProto.__xchainBigIntValues) {
 // output values with Number '+', which throws 'Cannot mix BigInt and other
 // types' once any value is a BigInt. It runs inside extractTransaction /
 // getFee / getFeeRate via module-internal closures we cannot reach, so wrap
-// the public methods instead: try the stock implementation first (zero
-// behavior change for all-Number PSBTs) and, only on the BigInt-mixing
+// the public methods instead: use the stock implementation while its Number
+// sums are exact and, when an exact total passes 2^53-1 (all-Number values
+// can still sum past it on Dogecoin) or stock throws the BigInt-mixing
 // TypeError, recompute the amounts BigInt-safely, prime the caches the
 // stock helper would have primed, and answer from those caches ourselves.
 // getFee / getFeeRate must NOT be re-run through stock after priming: stock
@@ -247,19 +248,43 @@ function primeBigIntSafeAmts(psbt) {
     c.__FEE_RATE = Math.floor(feeNumber / tx.virtualSize())
 }
 
+// Would stock's Number sums round? Values are non-negative, so every partial sum is
+// bounded by its exact total. A PSBT that cannot be read here answers false, leaving
+// stock to raise its own error for it.
+function amountTotalsOverSafe(psbt) {
+    try {
+        const tx = psbt.__CACHE.__TX
+        let inputAmount = 0n
+        psbt.data.inputs.forEach((input, idx) => {
+            if (input.witnessUtxo) inputAmount += BigInt(input.witnessUtxo.value)
+            else if (input.nonWitnessUtxo)
+                inputAmount += BigInt(Transaction.fromBuffer(input.nonWitnessUtxo).outs[tx.ins[idx].index].value)
+        })
+        const outputAmount = tx.outs.reduce((total, o) => total + BigInt(o.value), 0n)
+        return inputAmount > MAX_SAFE_BIG || outputAmount > MAX_SAFE_BIG
+    } catch (_) {
+        return false
+    }
+}
+
+// Stock's own finalized test; an unfinalized PSBT always goes to stock for its error.
+const isFinalizedInput = (input) => !!input.finalScriptSig || !!input.finalScriptWitness
+
 if (!Psbt.prototype.__xchainBigIntAmts) {
     for (const method of ['extractTransaction', 'getFee', 'getFeeRate']) {
         const stock = Psbt.prototype[method]
         Psbt.prototype[method] = function (...args) {
-            try {
-                return stock.apply(this, args)
-            } catch (err) {
-                if (!(err instanceof TypeError) || !/BigInt/.test(err.message)) throw err
-                primeBigIntSafeAmts(this)
-                if (method === 'getFee') return this.__CACHE.__FEE
-                if (method === 'getFeeRate') return this.__CACHE.__FEE_RATE
-                return stock.apply(this, args)
+            if (!this.data.inputs.every(isFinalizedInput) || !amountTotalsOverSafe(this)) {
+                try {
+                    return stock.apply(this, args)
+                } catch (err) {
+                    if (!(err instanceof TypeError) || !/BigInt/.test(err.message)) throw err
+                }
             }
+            primeBigIntSafeAmts(this)
+            if (method === 'getFee') return this.__CACHE.__FEE
+            if (method === 'getFeeRate') return this.__CACHE.__FEE_RATE
+            return stock.apply(this, args)
         }
         Object.defineProperty(Psbt.prototype[method], 'name', { value: method })
     }
