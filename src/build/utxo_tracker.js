@@ -42,12 +42,12 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 // a PSBT over an outpoint the node no longer recognizes.
 //
 // Any height movement counts as a different snapshot, not just a backward one: a rewind
-// that re-applies to a HIGHER height looks like forward progress, and the page sibling
-// carries no reorg counter to tell the two apart (get_sync_status publishes reorg_count,
-// get_utxos does not). reorg_count is compared anyway when a tracker does publish it,
-// since it is the only way to catch a rewind that re-applies to the SAME height. Erring
-// toward a refusal is the direction every other gate on this path takes, and it costs a
-// retry only on an address holding more than one page of UTXOs.
+// that re-applies to a HIGHER height looks like forward progress on height alone. Each page
+// sibling also carries the tracker's reorg_count (the counter get_sync_status reports), the
+// only way to catch a rewind that re-applies to the SAME height; it is typeof-guarded, so a
+// page without it still gets the height check. Erring toward a refusal is the direction
+// every other gate on this path takes, and it costs a retry only on an address holding more
+// than one page of UTXOs.
 //
 // Returns a reason string when the pages disagree, null when they are one snapshot.
 function snapshotDivergence(first, later){

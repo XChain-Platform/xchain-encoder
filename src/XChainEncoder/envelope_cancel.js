@@ -26,6 +26,7 @@ const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateA
 const { OperationalError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
+const { capCallerFeeRate, feeForVsize } = require('./fee_policy.js')
 
 // The cancel's recovery record as handed over: validated, decoded, and read
 // into the values the build uses.
@@ -121,11 +122,9 @@ function claimCommitOutpoint(callReservations, commitTxid, commitVout){
 // Awaited as an async function it would add one more suspension after the
 // commit-outpoint claim.
 function* cancelFeeRate(feeRatePerKb){
-    // Fee-rate resolution with the same drain guards as createTransaction,
-    // in miniature: the caller rate is clamped to the tighter of the
-    // absolute MAX_FEE_RATE_KB cap and the relative multiplier x the node's
-    // own estimate. A cancel sweeps a prefund that scales with payload size
-    // and fee rate, so an unbounded rate here is a real burn surface.
+    // Clamp the caller rate through the same capCallerFeeRate createTransaction
+    // uses: a cancel sweeps a prefund that scales with payload size and fee
+    // rate, so an unbounded rate here sends the whole commit to the miner.
     const info = yield this.connector.getNetworkInfo()
     const relayFeePerKb = Number(info && info.relayfee)
     // Refuse a node that reports no usable relay floor. A plain Error, not a
@@ -140,21 +139,19 @@ function* cancelFeeRate(feeRatePerKb){
         try {
             nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
         } catch (err) {
-            logger.warn(util.format('Envelope-cancel relative fee cap skipped: node fee estimate unavailable:', err.message))
+            logger.warn(util.format('Envelope-cancel fee cap anchored on relayfee: node fee estimate unavailable:', err.message))
         }
     } else {
         feePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
         nodeFeePerBytes = feePerBytes
     }
-    let capFeePerBytes = this.maxFeePerBytes
-    if (this.maxFeeRateMultiplier && nodeFeePerBytes != null){
-        const relativeCap = nodeFeePerBytes * this.maxFeeRateMultiplier
-        capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
+    const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
+        maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
+    if (capped.clamped){
+        const limit = capped.capFeePerBytes != null ? 'the fee-rate cap' : 'the fixed burn backstop (fee-rate cap disabled)'
+        logger.warn(`Envelope-cancel fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds ${limit}, clamping to ${capped.feePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
     }
-    if (capFeePerBytes != null && feePerBytes > capFeePerBytes){
-        feePerBytes = capFeePerBytes
-    }
-    return { feePerBytes, relayFeePerKb }
+    return { feePerBytes: capped.feePerBytes, relayFeePerKb }
 }
 
 // The cancel's fee at the chain's stripped-size floor, and the sweep that remains.
@@ -171,7 +168,7 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
         strippedBytes = cancelStrippedFloor
     }
     const cancelVsize = strippedBytes + Math.ceil((2 + 1 + 1 + 65) / 4) + 2
-    let cancelFee = Math.trunc(cancelVsize * feePerBytes * SATOSHI_UNIT)
+    let cancelFee = feeForVsize(cancelVsize, feePerBytes, SATOSHI_UNIT)
     if (callerFeePerKb != null){
         const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
         const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)

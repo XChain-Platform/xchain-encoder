@@ -20,9 +20,9 @@
 
 const util = require('node:util');
 const { OperationalError } = require('../../build/errors')
-const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS } = require('../constants.js')
+const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, BURN_BACKSTOP_MULTIPLIER } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
-const { maxCpfpUpliftSat, packageFeeUpliftSatoshis } = require('../fee_policy.js')
+const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, feeForVsize } = require('../fee_policy.js')
 
 // The caller-fee ceilings: the rate cap, then the absolute burn backstop.
 function refuseExcessiveFee(build){
@@ -46,6 +46,7 @@ function refuseExcessiveFee(build){
     // the node-derived fair fee for this size is almost certainly an error that
     // would drain every selected input to the miner, so refuse it. 100x matches
     // the default MAX_FEE_RATE_MULTIPLIER, so default deployments are unaffected.
+    // A caller feePerKb gets the same ceiling as a clamp, in capCallerFeeRate.
     //
     // The fair-fee reference is the NODE's rate (nodeFeePerBytes), never the
     // caller-supplied feePerKb: deriving the ceiling from feePerBytes let a
@@ -58,9 +59,9 @@ function refuseExcessiveFee(build){
         const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
         if (referenceFeePerBytes != null){
             const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
-            const hardCeiling = Math.max(this.dustAmount, fairFee * 100)
+            const hardCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
             if (estimatedFee > hardCeiling){
-                throw new RangeError(`fee ${estimatedFee} exceeds 100x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
+                throw new RangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
             }
         }
     }
@@ -75,7 +76,7 @@ function refuseInsufficientRelayFee(build){
     const suppliedFee = hasExplicitFee
         ? estimatedFee
         : p2shHash
-            ? Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
+            ? feeForVsize(estimatedTxSize, feePerBytes, SATOSHI_UNIT)
             : estimatedFee
     const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
     const minimumRelayFee = Math.ceil(estimatedTxSize * relayFeeBaseUnitsPerKb / 1000)
@@ -161,7 +162,7 @@ if (capFeePerBytes != null){
 const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
 if (referenceFeePerBytes != null){
     const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
-    allowed = Math.min(allowed, Math.max(this.dustAmount, fairFee * 100) - estimatedFee)
+    allowed = Math.min(allowed, Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER) - estimatedFee)
 }
 
 // Never spend an input that is not there. Without this bound a

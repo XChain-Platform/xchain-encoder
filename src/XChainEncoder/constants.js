@@ -92,6 +92,11 @@ const SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER = 10
 // MAX_CPFP_UPLIFT_SAT overrides it; 0 turns package sizing off.
 const DEFAULT_MAX_CPFP_UPLIFT_SAT = 10000000
 
+// Fixed burn backstop: no caller fee or rate may exceed this multiple of the
+// node-anchored fair rate, whatever MAX_FEE_RATE_MULTIPLIER says. Matches that
+// setting's default, so default deployments never reach it.
+const BURN_BACKSTOP_MULTIPLIER = 100
+
 // How long a selected outpoint stays reserved against concurrent selection.
 // Long enough for a caller to sign and broadcast, short enough that an
 // abandoned selection auto-releases without operator intervention. In-memory
@@ -113,4 +118,4 @@ const Encoding = {
     AUTO: "AUTO"
 }
 
-module.exports = { logger, OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_LEAF_VERSION, TAPROOT_ENVELOPE_FORMAT_V0, SATOSHI_UNIT, MAX_SAFE_SATOSHI_BIG, SOFT_DUST_FLOOR_BY_COIN, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, TEST_NETWORK_SUFFIXES, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, RESERVATION_TTL_MS, Encoding }
+module.exports = { logger, OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_LEAF_VERSION, TAPROOT_ENVELOPE_FORMAT_V0, SATOSHI_UNIT, MAX_SAFE_SATOSHI_BIG, SOFT_DUST_FLOOR_BY_COIN, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, TEST_NETWORK_SUFFIXES, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, BURN_BACKSTOP_MULTIPLIER, RESERVATION_TTL_MS, Encoding }

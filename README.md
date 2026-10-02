@@ -23,7 +23,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Two-transaction P2SH/P2WSH**: automatic tx1 (fund) -> tx2 (spend/reveal) orchestration with marker OP_RETURN
 - **UTXO selection**: largest-first selection, duplicate removal, optional unconfirmed filtering, automatic change output
 - **Fee estimation**: byte-accurate transaction size estimation per format via `TxSizeEstimator`; dust floor enforcement
-- **Fee rate caps**: caller-supplied `fee`/`feePerKb` is capped at `MAX_FEE_RATE_MULTIPLIER` x the node's own fee estimate (default 100x), so a hostile or buggy request cannot drain inputs into miner fee; `MAX_FEE_RATE_KB` adds an optional absolute cap
+- **Fee rate caps**: caller-supplied `fee`/`feePerKb` is capped at `MAX_FEE_RATE_MULTIPLIER` x the node's own fee estimate (default 100x), so a hostile or buggy request cannot drain inputs into miner fee; `MAX_FEE_RATE_KB` adds an optional absolute cap. The envelope cancel (`create_envelope_cancel_tx`) applies the same caps, and both anchor on the node's relayfee when it has no fee estimate
 - **Input validation**: centralized parameter validation (`validator.js`) with typed errors for all 15 `createTransaction` parameters
 - **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin today on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee**: optional RBF signaling via sequence number
@@ -82,7 +82,7 @@ npm run api
 | `UTXO_TRACKER_API_PORT` | No | (none) | xchain-utxo-tracker service port |
 | `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it. `GET /status` publishes the effective value as `tracker_max_lag_blocks`, so a status board can rank lag against the other unready causes without mirroring a constant it cannot see (the tracker's own `SYNCED_THRESHOLD` is looser and is not this gate) |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
-| `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables) |
+| `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables this cap; with `MAX_FEE_RATE_KB` also unset, a fixed 100x burn backstop still clamps feePerKb and refuses an explicit fee) |
 | `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing) |
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
 | `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors (funding legs, data outputs, change). Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |

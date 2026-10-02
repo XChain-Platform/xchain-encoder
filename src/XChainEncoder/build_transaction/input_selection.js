@@ -24,6 +24,7 @@ const { MAX_UTXO_COUNT, parseSatoshiAmount } = require('../../common/validator')
 const { OperationalError } = require('../../build/errors')
 const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
+const { feeForVsize } = require('../fee_policy.js')
 
 function initSelection(build){
     let { estimatedTxSize, fee } = build
@@ -96,7 +97,7 @@ function* selectInputs(build){
         }
 
         if (fee == null || fee === false) {
-            estimatedFee = Math.trunc(estimatedTxSize * feePerBytes * SATOSHI_UNIT)
+            estimatedFee = feeForVsize(estimatedTxSize, feePerBytes, SATOSHI_UNIT)
         }
 
         // Exact-input mode never stops early: the caller named this set

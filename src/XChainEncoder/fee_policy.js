@@ -19,7 +19,7 @@
  ********************************************************************/
 
 const config = require('../common/config');
-const { TEST_NETWORK_SUFFIXES, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT } = require('./constants.js')
+const { TEST_NETWORK_SUFFIXES, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, BURN_BACKSTOP_MULTIPLIER } = require('./constants.js')
 
 function isTestNetworkKey(networkKey){
     const key = String(networkKey || '').toLowerCase()
@@ -83,4 +83,43 @@ function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFe
     return (uplift > 0) ? uplift : 0
 }
 
-module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis }
+// Bound a fee rate (coin per byte) by the operator cap, or by the fixed burn
+// backstop when no cap is set, both anchored on the node rate or relayfee.
+// Synchronous on purpose: the envelope cancel's suspension count is pinned.
+function capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb, maxFeePerBytes, maxFeeRateMultiplier }){
+    // Anchor on the relay floor when the node has no estimate, so no cap goes missing.
+    const anchorFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes
+        : (relayFeePerKb > 0 ? relayFeePerKb / 1000 : null)
+    // The operator cap: the tighter of MAX_FEE_RATE_KB and the relative multiplier.
+    let capFeePerBytes = maxFeePerBytes
+    if (maxFeeRateMultiplier && anchorFeePerBytes != null){
+        const relativeCap = anchorFeePerBytes * maxFeeRateMultiplier
+        capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
+    }
+    // With both operator caps disabled, the burn backstop still bounds the rate.
+    const backstopFeePerBytes = (capFeePerBytes == null && anchorFeePerBytes != null)
+        ? anchorFeePerBytes * BURN_BACKSTOP_MULTIPLIER : null
+    const ceiling = capFeePerBytes != null ? capFeePerBytes : backstopFeePerBytes
+    const clamped = ceiling != null && feePerBytes > ceiling
+    return { anchorFeePerBytes, capFeePerBytes, backstopFeePerBytes, clamped, feePerBytes: clamped ? ceiling : feePerBytes }
+}
+
+// The fee in base units for `vsize` bytes at `feePerBytes` (coin per byte),
+// ROUNDED UP like the relay floor (ceil(size * perKb / 1000)): a truncated fee
+// lands one unit under a floor the same rate clears. A whole per-kB rate
+// divides exactly in BigInt, since fl(rate / 1e8) * 1e8 can fall one ULP short;
+// a fractional rate takes the epsilon-shaved ceil above. A non-positive product
+// keeps plain truncation.
+function feeForVsize(vsize, feePerBytes, satoshiUnit){
+    const exact = vsize * feePerBytes * satoshiUnit
+    if (!(exact > 0)) return Math.trunc(exact)
+    const ratePerKb = feePerBytes * 1000 * satoshiUnit
+    const wholeRate = Math.round(ratePerKb)
+    if (Number.isSafeInteger(vsize) && Number.isSafeInteger(wholeRate) &&
+        Math.abs(ratePerKb - wholeRate) <= 1e-9 * Math.max(1, wholeRate)){
+        return Number((BigInt(vsize) * BigInt(wholeRate) + 999n) / 1000n)
+    }
+    return Math.ceil(exact - Math.abs(exact) * 1e-12)
+}
+
+module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, capCallerFeeRate, feeForVsize }

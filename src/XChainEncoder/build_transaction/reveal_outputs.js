@@ -23,7 +23,7 @@ const util = require('node:util');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { envelopeTapLeafHash, asSatValue } = require('../script_amount_helpers.js')
-const { packageFeeUpliftSatoshis, maxCpfpUpliftSat } = require('../fee_policy.js')
+const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, feeForVsize } = require('../fee_policy.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 
 // The change output, then the P2WSH reveal's stripped-size floor pad.
@@ -95,7 +95,7 @@ function* sweepP2shReveal(build){
             }
         }
         const revealSizeForFee = this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
-        let revealFeeKept = Math.trunc((revealSizeForFee * feePerBytes) * SATOSHI_UNIT)
+        let revealFeeKept = feeForVsize(revealSizeForFee, feePerBytes, SATOSHI_UNIT)
         if (revealFeeKept < estimatedFee){
             revealFeeKept = estimatedFee
         }

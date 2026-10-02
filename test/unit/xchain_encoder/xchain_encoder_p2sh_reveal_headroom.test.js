@@ -245,11 +245,13 @@ describe('XChainEncoder P2SH reveal headroom', () => {
   // The DOGE pin spends a P2PKH input, the only output type that chain holds.
   // Byte-identity pins for the paths that already work today. The expected
   // hexes were generated with THIS harness against the pre-fix (git HEAD)
-  // XChainEncoder, so any drift on these lanes fails loudly.
+  // XChainEncoder, so any drift on these lanes fails loudly. The BTC funding
+  // change is one base unit lower (feeForVsize rounds a fee up), so the BTC
+  // reveal spends a new txid and re-keys its obfuscated marker; values hold.
   const PRE_FIX = {
-    btcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02020900000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fefbd1f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
+    btcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02020900000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fefad1f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
     ltcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02405b00000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fe9849f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
-    btcP2wshReveal: '02000000019d2de3ed9219bd7f9df123398722dac29eef5f38d5c5b038a96dc6678a7066fd0000000000ffffffff0200000000000000000b6a098163302df9a1af23ee22020000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
+    btcP2wshReveal: '02000000018e1823ac37c2755d15f8a2b8a7865a7d6143d07eae6152191b64fae949bc0f850000000000ffffffff0200000000000000000b6a0975819111a938ed57e522020000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
     ltcP2wshReveal: '0200000001e681017eda2e84c8f80a5d543af89041236fc9e7549630025e3d1588ef60e5c60000000000ffffffff0200000000000000000b6a09e56b6a299a4ddadb6654150000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
     dogeOpReturn: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff0200000000000000002f6a2d09cb8e09635af4c5aa3a916a26c6652b18482f3a1ec3636bebdfa9f4d1599a8385426040f9baaff90aa6b137f0289ff105000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000'
   }

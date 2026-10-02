@@ -167,3 +167,38 @@ describe('XChainEncoder.createTransaction()', () => {
     })
   })
 })
+
+describe('XChainEncoder fee rounding', () => {
+  const { feeForVsize } = require('../../../../src/XChainEncoder/fee_policy.js')
+
+  it('rounds a whole per-kB rate up exactly, the way the relay floor does', () => {
+    for (const perKb of [100, 1000, 1500, 2500, 100000]) {
+      for (let vsize = 1; vsize <= 20000; vsize++) {
+        const want = Number((BigInt(vsize) * BigInt(perKb) + 999n) / 1000n)
+        assert.strictEqual(feeForVsize(vsize, perKb / 1000 / 1e8, 1e8), want, `vsize ${vsize} at ${perKb}/kB`)
+      }
+    }
+  })
+
+  it('keeps a fractional rate within one unit above the exact fee, and zero at zero', () => {
+    for (let vsize = 1; vsize <= 5000; vsize++) {
+      const exact = vsize * 3333.3 / 1000
+      const fee = feeForVsize(vsize, 3333.3 / 1000 / 1e8, 1e8)
+      assert.ok(fee >= exact - 1e-6 && fee < exact + 1, `vsize ${vsize}: ${fee} vs ${exact}`)
+    }
+    assert.strictEqual(feeForVsize(250, 0, 1e8), 0)
+  })
+
+  it('accepts a caller feePerKb exactly equal to the node relayfee', async () => {
+    const encoder = makeEncoder()
+    encoder.connector.getNetworkInfo = async () => ({ relayfee: 0.000001 })
+    encoder.connector.getFeePerKilobyte = async () => 0.000001
+    const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+    const result = await encoder.createTransaction(
+      [utxo], TEST_ADDRESS, null,
+      'test', null, null, false, null, TEST_ADDRESS,
+      null, null, null, true, 100
+    )
+    assert.ok(result.psbt.txOutputs.length > 0)
+  })
+})

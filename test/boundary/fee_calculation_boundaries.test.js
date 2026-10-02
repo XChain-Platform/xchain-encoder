@@ -14,7 +14,7 @@
  * Fee Calculation Boundary Tests
  *
  * Tests fee arithmetic edge cases: feePerKb=0, negative feePerKb,
- * maxFeeRateKb capping, Math.trunc truncation, fee exceeding inputs,
+ * maxFeeRateKb capping, fractional-fee rounding, fee exceeding inputs,
  * and explicit fee parameter behavior.
  */
 
@@ -196,8 +196,8 @@ describe('Fee Calculation Boundaries', () => {
 })
 
 describe('Fee Calculation Boundaries', () => {
-  describe('Math.trunc precision', () => {
-    it('fractional fee is truncated toward zero, not rounded', async () => {
+  describe('fractional fee precision', () => {
+    it('fractional fee resolves to a whole base unit', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
@@ -213,9 +213,9 @@ describe('Fee Calculation Boundaries', () => {
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
       const impliedFee = 100000000 - changeOutput.value
-      // Fee should be an integer (Math.trunc removes fractional part)
+      // Fee should be an integer (feeForVsize rounds the fraction up)
       assert.strictEqual(impliedFee, Math.trunc(impliedFee),
-        'fee should be an integer after Math.trunc')
+        'fee should be an integer')
       assert.ok(impliedFee >= BTC_DUST, 'fee should be at least dust')
     })
   })
