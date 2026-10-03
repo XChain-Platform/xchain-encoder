@@ -23,6 +23,7 @@ const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { MAGIC_WORD, SATOSHI_UNIT } = require('../constants.js')
 const { asSatValue } = require('../script_amount_helpers.js')
 const { assertRevealFundingTxMatches } = require('../request_resolution.js')
+const { feeForVsize } = require('../fee_policy.js')
 
 // A P2SH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2shChunk(build, nextDataBuffer){
@@ -89,7 +90,7 @@ function* spendP2shLeg(build, nextDataBuffer){
 function fundP2shLeg(build, nextDataBuffer){
     let { feePerBytes, finalDust, revealCustomOutputsValue, revealCustomOutputsFee, psbt, outputSatoshis, estimatedTxSize } = build
     let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
-    let spendingP2shEstimatedFee = Math.trunc((spendingP2shEstimatedSize * feePerBytes) * SATOSHI_UNIT)
+    let spendingP2shEstimatedFee = feeForVsize(spendingP2shEstimatedSize, feePerBytes, SATOSHI_UNIT)
 
     if (spendingP2shEstimatedFee < finalDust){
         spendingP2shEstimatedFee = finalDust
@@ -177,10 +178,10 @@ function topUpFirstP2shLeg(build, spendingP2shEstimatedFee){
 function sumP2shRevealLegs(preparedData, feePerBytes, finalDust){
     let baseLegsTotal = 0
     for (const chunkBuffer of preparedData["dataBufferArray"]){
-        let chunkLegFee = Math.trunc((this.estimateSpendingP2shTx(chunkBuffer) * feePerBytes) * SATOSHI_UNIT)
+        let chunkLegFee = feeForVsize(this.estimateSpendingP2shTx(chunkBuffer), feePerBytes, SATOSHI_UNIT)
         baseLegsTotal = baseLegsTotal + Math.max(chunkLegFee, finalDust)
     }
-    let revealFeeNeeded = Math.trunc((this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43) * feePerBytes) * SATOSHI_UNIT)
+    let revealFeeNeeded = feeForVsize(this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43), feePerBytes, SATOSHI_UNIT)
     if (revealFeeNeeded < this.dustAmount){
         // Mirrors the reveal path's own dust floor on
         // estimatedFee, so both phases price the same fee.
@@ -258,7 +259,7 @@ function fundP2wshLeg(build, nextDataBuffer){
     // witness-discounted sizing because P2WSH
     // reveal data lives in the (÷4-weighted) witness.
     let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer)
-    let spendingP2wshEstimatedFee = Math.trunc((spendingP2wshEstimatedSize * feePerBytes) * SATOSHI_UNIT)
+    let spendingP2wshEstimatedFee = feeForVsize(spendingP2wshEstimatedSize, feePerBytes, SATOSHI_UNIT)
 
     if (spendingP2wshEstimatedFee < finalDust){
         spendingP2wshEstimatedFee = finalDust

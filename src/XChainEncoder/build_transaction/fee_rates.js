@@ -20,7 +20,7 @@
 
 const util = require('node:util');
 const { logger, SATOSHI_UNIT } = require('../constants.js')
-const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte } = require('../fee_policy.js')
+const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, capCallerFeeRate } = require('../fee_policy.js')
 
 // The relay floor, per-byte rate this build charges, node rate the drain caps
 // anchor to, effective cap, and dust floor, settled in that order.
@@ -135,19 +135,16 @@ function* anchorRelayFeeRate(build){
 
 function applyFeeCapAndDustFloor(build){
     let { feePerBytes, nodeFeePerBytes, dust } = build
-    // Effective fee-rate ceiling (BTC/byte): the tighter of the absolute
-    // MAX_FEE_RATE_KB cap and the relative multiplier × node-estimate cap.
-    // Bounds the per-byte rate used for fee estimation AND for sizing the
-    // P2SH/P2WSH funding outputs, so a hostile feePerKb cannot drain the
-    // caller's inputs into miner fee or over-funded data outputs.
-    let capFeePerBytes = this.maxFeePerBytes
-    if (this.maxFeeRateMultiplier && nodeFeePerBytes != null){
-        const relativeCap = nodeFeePerBytes * this.maxFeeRateMultiplier
-        capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
-    }
-    if (capFeePerBytes != null && feePerBytes > capFeePerBytes) {
-        logger.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds the fee-rate cap, clamping to ${capFeePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
-        feePerBytes = capFeePerBytes
+    // Bound the rate that prices the fee AND sizes the P2SH/P2WSH legs, so a
+    // hostile feePerKb cannot drain inputs to the miner. capFeePerBytes stays
+    // null under the burn backstop, so refuseExcessiveFee keeps its wording.
+    const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb: build.relayFeePerKb,
+        maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
+    const capFeePerBytes = capped.capFeePerBytes
+    if (capped.clamped) {
+        const limit = capFeePerBytes != null ? 'the fee-rate cap' : 'the fixed burn backstop (fee-rate cap disabled)'
+        logger.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds ${limit}, clamping to ${capped.feePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
+        feePerBytes = capped.feePerBytes
     }
 
     // A caller dust may raise the floor for this build, never lower it: a leg under the

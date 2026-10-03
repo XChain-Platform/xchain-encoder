@@ -76,8 +76,9 @@ const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = process.env.ENCODER_API_PORT
 const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_FEE_RATE_KB, 10) : null
 // Relative fee-rate ceiling as a multiple of the node's estimatesmartfee(1)
-// estimate (default 10). Caps caller-supplied fee/feePerKb so a hostile request
-// cannot drain inputs into miner fee. Set to 0 to disable (not recommended).
+// estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder.js).
+// Caps caller-supplied fee/feePerKb so a hostile request cannot drain inputs
+// into miner fee. Set to 0 to disable (not recommended).
 // An unset or unparseable value keeps the encoder default (fail-safe).
 const _maxFeeRateMultiplier = parseFloat(process.env.MAX_FEE_RATE_MULTIPLIER)
 const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFeeRateMultiplier : undefined

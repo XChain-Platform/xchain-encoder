@@ -24,6 +24,7 @@ const { parseSatoshiAmount } = require('../../common/validator')
 const { SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
+const { feeForVsize } = require('../fee_policy.js')
 
 function prepareDataChunks(build){
     let { p2shHash, psbt, hasActionPayload, finalDataBuffer, encoding, pubkey, compressedPubKey } = build
@@ -81,7 +82,7 @@ function priceRevealCustomOutputs(build){
     // Round UP: a truncated fraction of a satoshi is exactly the kind of
     // off-by-one that lands the reveal a hair under the relay floor.
     let revealCustomOutputsFee = (revealCustomOutputsBytes > 0 && feePerBytes > 0)
-        ? Math.ceil(revealCustomOutputsBytes * feePerBytes * SATOSHI_UNIT)
+        ? feeForVsize(revealCustomOutputsBytes, feePerBytes, SATOSHI_UNIT)
         : 0
     Object.assign(build, { isP2shFamily, revealCustomOutputsValue, revealCustomOutputsBytes, revealCustomOutputsFee })
 }
@@ -248,7 +249,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
     const revealPadNeeded = !!(envStrippedFloor && (10 + 41 + revealChangeOutBytes) < envStrippedFloor)
     const revealOutputsBytes = revealChangeOutBytes + (revealPadNeeded ? revealChangeOutBytes : 0)
     const revealVsize = TxSizeEstimator.estimateEnvelopeRevealTx(nextDataBuffer.length, revealOutputsBytes, envStrippedFloor)
-    let revealFee = Math.trunc(revealVsize * feePerBytes * SATOSHI_UNIT)
+    let revealFee = feeForVsize(revealVsize, feePerBytes, SATOSHI_UNIT)
     if (revealFee < finalDust){
         revealFee = finalDust
     }

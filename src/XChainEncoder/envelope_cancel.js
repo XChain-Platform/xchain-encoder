@@ -22,21 +22,17 @@ const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
-const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress } = require('../common/validator')
+const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateOutpoint } = require('../common/validator')
 const { OperationalError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
+const { capCallerFeeRate, feeForVsize } = require('./fee_policy.js')
 
 // The cancel's recovery record as handed over: validated, decoded, and read
 // into the values the build uses.
 function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb, replacebyfee){
-    if (typeof commitTxid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(commitTxid)) {
-        throw new TypeError('commitTxid must be a 64-character hex string')
-    }
-    // Cap commitVout at the uint32 wire width before it becomes a reservation key.
-    if (!Number.isInteger(commitVout) || commitVout < 0 || commitVout > 0xffffffff) {
-        throw new TypeError('commitVout must be a non-negative integer no greater than 4294967295')
-    }
+    // Check the outpoint by create_tx's rule, so both paths build one canonical reservation key.
+    const outpoint = validateOutpoint(commitTxid, commitVout, 'commitTxid', 'commitVout')
     const value = parseSatoshiAmount(commitValue, 'commitValue')
     // Accept the 33-byte compressed form (what create_tx took) or the
     // 32-byte x-only form (what the recovery record may hold).
@@ -68,15 +64,15 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     const rbfArmed     = validateOptionalBoolean(replacebyfee, 'replacebyfee') === true
     ensureEccLib()
     const tapleafHashBuf = Buffer.from(tapleafHash, 'hex')
-    return { value, internalKeyBuf, feeRatePerKb, rbfArmed, tapleafHashBuf }
+    return { outpoint, value, internalKeyBuf, feeRatePerKb, rbfArmed, tapleafHashBuf }
 }
 
 function claimCommitOutpoint(callReservations, commitTxid, commitVout){
     // Cross-path double-spend guard. This is the one build path outside
     // _buildTransaction, so without a claim here a concurrent create_tx whose
     // fetched set still carries the commit output selects and reserves it while
-    // an unsigned cancel of that same output is outstanding. Lowercased because
-    // commitTxid is accepted in either case above while create_tx keys are
+    // an unsigned cancel of that same output is outstanding. Lowercased (again,
+    // after validateOutpoint already canonicalized it) because create_tx keys are
     // canonicalized in validator.validateUtxoEntry, and an uppercase key can
     // never collide with the reservation it is meant to see. Claimed
     // synchronously, before the first await below, so a concurrent call
@@ -126,11 +122,9 @@ function claimCommitOutpoint(callReservations, commitTxid, commitVout){
 // Awaited as an async function it would add one more suspension after the
 // commit-outpoint claim.
 function* cancelFeeRate(feeRatePerKb){
-    // Fee-rate resolution with the same drain guards as createTransaction,
-    // in miniature: the caller rate is clamped to the tighter of the
-    // absolute MAX_FEE_RATE_KB cap and the relative multiplier x the node's
-    // own estimate. A cancel sweeps a prefund that scales with payload size
-    // and fee rate, so an unbounded rate here is a real burn surface.
+    // Clamp the caller rate through the same capCallerFeeRate createTransaction
+    // uses: a cancel sweeps a prefund that scales with payload size and fee
+    // rate, so an unbounded rate here sends the whole commit to the miner.
     const info = yield this.connector.getNetworkInfo()
     const relayFeePerKb = Number(info && info.relayfee)
     // Refuse a node that reports no usable relay floor. A plain Error, not a
@@ -145,21 +139,19 @@ function* cancelFeeRate(feeRatePerKb){
         try {
             nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
         } catch (err) {
-            logger.warn(util.format('Envelope-cancel relative fee cap skipped: node fee estimate unavailable:', err.message))
+            logger.warn(util.format('Envelope-cancel fee cap anchored on relayfee: node fee estimate unavailable:', err.message))
         }
     } else {
         feePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
         nodeFeePerBytes = feePerBytes
     }
-    let capFeePerBytes = this.maxFeePerBytes
-    if (this.maxFeeRateMultiplier && nodeFeePerBytes != null){
-        const relativeCap = nodeFeePerBytes * this.maxFeeRateMultiplier
-        capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
+    const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
+        maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
+    if (capped.clamped){
+        const limit = capped.capFeePerBytes != null ? 'the fee-rate cap' : 'the fixed burn backstop (fee-rate cap disabled)'
+        logger.warn(`Envelope-cancel fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds ${limit}, clamping to ${capped.feePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
     }
-    if (capFeePerBytes != null && feePerBytes > capFeePerBytes){
-        feePerBytes = capFeePerBytes
-    }
-    return { feePerBytes, relayFeePerKb }
+    return { feePerBytes: capped.feePerBytes, relayFeePerKb }
 }
 
 // The cancel's fee at the chain's stripped-size floor, and the sweep that remains.
@@ -176,7 +168,7 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
         strippedBytes = cancelStrippedFloor
     }
     const cancelVsize = strippedBytes + Math.ceil((2 + 1 + 1 + 65) / 4) + 2
-    let cancelFee = Math.trunc(cancelVsize * feePerBytes * SATOSHI_UNIT)
+    let cancelFee = feeForVsize(cancelVsize, feePerBytes, SATOSHI_UNIT)
     if (callerFeePerKb != null){
         const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
         const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
@@ -233,10 +225,10 @@ module.exports = {
     },
 
     async buildEnvelopeCancelTransaction(callReservations, { commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb = null, replacebyfee = false } = {}){
-        const { value, internalKeyBuf, feeRatePerKb, rbfArmed, tapleafHashBuf } = readCancelRecord.call(this,
+        const { outpoint, value, internalKeyBuf, feeRatePerKb, rbfArmed, tapleafHashBuf } = readCancelRecord.call(this,
             commitTxid, commitVout, commitValue, internalPubkey, tapleafHash, destination, feePerKb, replacebyfee)
 
-        claimCommitOutpoint.call(this, callReservations, commitTxid, commitVout)
+        claimCommitOutpoint.call(this, callReservations, outpoint.txid, outpoint.vout)
 
         // Drive the fee-rate generator inline: each promise it yields is awaited
         // here once, and a rejection goes back in so its own try/catch sees it.
@@ -265,8 +257,8 @@ module.exports = {
 
         const psbt = new bitcoin.Psbt({ network: this.network })
         psbt.addInput({
-            hash: commitTxid,
-            index: commitVout,
+            hash: outpoint.txid,
+            index: outpoint.vout,
             // Same BIP68 trap as the funding path above: 0xfffffffd signals RBF
             // without enabling relative locktime.
             sequence: (rbfArmed ? 0xfffffffd : 0xffffffff),

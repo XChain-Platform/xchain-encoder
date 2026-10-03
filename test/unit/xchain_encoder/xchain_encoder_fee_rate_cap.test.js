@@ -23,6 +23,7 @@
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
+const ecc = require('tiny-secp256k1')
 const XChainEncoder = require('../../../src/XChainEncoder')
 
 const pubkeyBuf = Buffer.from(
@@ -220,5 +221,91 @@ describe('XChainEncoder fee-rate cap', () => {
     // 1 sat/byte on a ~131-byte tx ≈ 131 sats, floored to dust (546)
     assert.ok(paidFee(result) <= 1000,
       `fee ${paidFee(result)} should be the node-estimate fee, not a clamped value`)
+  })
+})
+
+describe('XChainEncoder fee-rate cap', () => {
+  it('cap disabled: the burn backstop clamps a feePerKb-only drain to 100x the node rate', async () => {
+    // Both operator caps off. 1000 sat/byte would pay ~131000; the backstop
+    // holds it at 100 sat/byte (~13100) instead of honoring it.
+    const result = await create(makeEncoder(null, 0), { feePerKb: 1000000 })
+    assert.ok(paidFee(result) <= 20000,
+      `fee ${paidFee(result)} should have been clamped by the burn backstop`)
+  })
+
+  it('cap disabled: the burn backstop anchors a feePerKb-only clamp on relayfee with no estimate', async () => {
+    const encoder = makeEncoder(null, 0)
+    encoder.connector = {
+      getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
+      getNetworkInfo: async () => ({ relayfee: 0.00001 })
+    }
+    const result = await create(encoder, { feePerKb: 1000000 })
+    assert.ok(paidFee(result) <= 20000,
+      `fee ${paidFee(result)} should have been clamped via the relayfee anchor`)
+  })
+
+  it('cap disabled: a plausible feePerKb is honored, not clamped', async () => {
+    const result = await create(makeEncoder(null, 0), { feePerKb: 10000 })
+    assert.ok(paidFee(result) >= 1000 && paidFee(result) <= 3000,
+      `fee ${paidFee(result)} should be ~10 sat/byte (~1310 sats)`)
+  })
+})
+
+// The envelope key-path cancel prices its sweep through the same caps.
+bitcoin.initEccLib(ecc)
+const XONLY = '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+const COMMIT_VALUE = 1000000
+
+function makeCancelEncoder (maxFeeRateMultiplier, connector) {
+  const encoder = maxFeeRateMultiplier === undefined
+    ? new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
+    : new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', null, maxFeeRateMultiplier)
+  encoder.connector = connector || {
+    getFeePerKilobyte: async () => 0.00001,
+    getNetworkInfo: async () => ({ relayfee: 0.00001 })
+  }
+  encoder.dustAmount = 546
+  return encoder
+}
+
+const NO_ESTIMATE = {
+  getFeePerKilobyte: async () => { throw new Error('Error getting smart fee from node') },
+  getNetworkInfo: async () => ({ relayfee: 0.00001 })
+}
+
+function cancel (encoder, feePerKb) {
+  return encoder.createEnvelopeCancelTransaction({
+    commitTxid: 'b'.repeat(64),
+    commitVout: 0,
+    commitValue: COMMIT_VALUE,
+    internalPubkey: XONLY,
+    tapleafHash: 'c'.repeat(64),
+    destination: bitcoin.payments.p2wpkh({ pubkey: Buffer.from('02' + XONLY, 'hex'), network: bitcoin.networks.regtest }).address,
+    feePerKb
+  })
+}
+
+describe('XChainEncoder fee-rate cap', () => {
+  it('envelope cancel: anchors the relative cap on relayfee when the node has no estimate', async () => {
+    // ~102-vbyte cancel: 1000 sat/byte would pay ~102000, the cap ~10200.
+    const result = await cancel(makeCancelEncoder(undefined, NO_ESTIMATE), 1000000)
+    assert.ok(result.fee <= 20000, `cancel fee ${result.fee} should have been clamped via relayfee`)
+  })
+
+  it('envelope cancel: cap disabled, the burn backstop keeps a drain-shaped feePerKb off the commit', async () => {
+    // Tuned to leave the sweep just above dust: uncapped it pays ~99% of the commit.
+    const result = await cancel(makeCancelEncoder(0), 9700000)
+    assert.ok(result.fee <= 20000, `cancel fee ${result.fee} should have been clamped by the burn backstop`)
+    assert.ok(result.psbt.txOutputs[0].value >= COMMIT_VALUE - 20000)
+  })
+
+  it('envelope cancel: cap disabled and no estimate, the burn backstop anchors on relayfee', async () => {
+    const result = await cancel(makeCancelEncoder(0, NO_ESTIMATE), 1000000)
+    assert.ok(result.fee <= 20000, `cancel fee ${result.fee} should have been clamped via relayfee`)
+  })
+
+  it('envelope cancel: cap disabled, a plausible feePerKb is honored', async () => {
+    const result = await cancel(makeCancelEncoder(0), 10000)
+    assert.ok(result.fee >= 900 && result.fee <= 1200, `cancel fee ${result.fee} should be ~10 sat/byte`)
   })
 })

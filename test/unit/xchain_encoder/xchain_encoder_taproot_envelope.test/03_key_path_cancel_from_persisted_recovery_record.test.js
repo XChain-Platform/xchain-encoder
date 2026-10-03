@@ -217,5 +217,74 @@ describe('XChainEncoder TAPROOT envelope', function () {
       assert.deepStrictEqual(cancel.psbt.data.inputs[0].tapInternalKey, XONLY)
     })
   })
+})
 
+describe('XChainEncoder TAPROOT envelope', function () {
+  describe('key-path cancel fee-rate cap without a node estimate', function () {
+    it('caps a caller feePerKb on the relayfee anchor when the node estimate is unavailable', async function () {
+      // No MAX_FEE_RATE_KB, default multiplier 100, relayfee 1 sat/vB: the
+      // ceiling is 100 sat/vB, so a 1000 sat/vB request on this ~102-vbyte
+      // sweep pays about 10200, not 102000.
+      const noEstimate = async () => { throw new Error('Error getting smart fee from node') }
+      const base = {
+        commitTxid: TXID_A, commitVout: 0, commitValue: 1000000,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64)
+      }
+      const cancelAt = async (encoder, feePerKb) => {
+        encoder.connector.getFeePerKilobyte = noEstimate
+        const cancel = await encoder.createEnvelopeCancelTransaction(
+          Object.assign({ feePerKb, destination: callerAddress(encoder.network) }, base))
+        assert.strictEqual(cancel.psbt.txOutputs[0].value, base.commitValue - cancel.fee)
+        return cancel.fee
+      }
+      const hostile = await cancelAt(makeEncoder(), 1000000)
+      assert.ok(hostile >= 10100 && hostile <= 10200, 'hostile rate clamped to 100 sat/vB, got ' + hostile)
+      // An absolute MAX_FEE_RATE_KB below the relative ceiling still binds.
+      const absolute = new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '', 50000)
+      absolute.connector = makeEncoder().connector
+      const capped = await cancelAt(absolute, 1000000)
+      assert.ok(capped >= 5050 && capped <= 5100, 'absolute cap binds at 50 sat/vB, got ' + capped)
+      // A legitimate rate under the ceiling is charged as given.
+      const fair = await cancelAt(makeEncoder(), 10000)
+      assert.ok(fair >= 1010 && fair <= 1020, 'a 10 sat/vB rate is not clamped, got ' + fair)
+    })
+  })
+
+})
+
+describe('XChainEncoder TAPROOT envelope', function () {
+  describe('key-path cancel outpoint shares the create_tx outpoint rule', function () {
+    function cancelWith (encoder, commitTxid, commitVout) {
+      return encoder.createEnvelopeCancelTransaction({
+        commitTxid, commitVout, commitValue: 100000,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64),
+        destination: callerAddress(encoder.network)
+      })
+    }
+
+    it('accepts a decimal-string vout and an uppercase txid, building canonical forms', async function () {
+      const encoder = makeEncoder()
+      const cancel = await cancelWith(encoder, TXID_A.toUpperCase(), '0')
+      const input = cancel.psbt.txInputs[0]
+      assert.strictEqual(input.index, 0)
+      assert.strictEqual(Buffer.from(input.hash).reverse().toString('hex'), TXID_A)
+      assert.ok(encoder.outpointReservations.has(TXID_A + ':0'))
+    })
+
+    it('keys a zero-padded vout as its integer, so it collides with create_tx', async function () {
+      const encoder = makeEncoder()
+      await cancelWith(encoder, TXID_A, '01')
+      assert.ok(encoder.outpointReservations.has(TXID_A + ':1'))
+      assert.ok(!encoder.outpointReservations.has(TXID_A + ':01'))
+    })
+
+    it('still rejects every non-integer vout spelling as a typed commitVout error', async function () {
+      const encoder = makeEncoder()
+      const bad = ['abc', '1.5', '0x1', '1e3', '', null, true, [0], -1, '-1', 4294967296, '4294967296']
+      for (const vout of bad) {
+        await assert.rejects(cancelWith(encoder, TXID_A, vout),
+          (err) => err instanceof TypeError && /commitVout/.test(err.message), 'vout ' + JSON.stringify(vout))
+      }
+    })
+  })
 })

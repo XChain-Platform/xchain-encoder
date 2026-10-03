@@ -14,14 +14,17 @@
  *
  * XChain Encoder - process crash visibility
  *
- * The encoder has neither an uncaughtException nor an unhandledRejection
- * handler, so a throw outside a request chain kills the process with node's
- * default stderr dump: no timestamp, no level, no service tag, nothing a
- * collector can key on. What an operator sees is a container that restarted.
+ * Without these handlers a throw outside a request chain kills the process with
+ * node's default stderr dump: no timestamp, no level, no service tag, nothing a
+ * collector can key on, only a container that restarted.
  *
  * These handlers emit one structured CRASH record instead. Emission is through
  * the shim's getLogger() rather than console because a patched console line
  * cannot carry structured fields, and the fields are the point.
+ *
+ * The two handlers differ on purpose. An uncaught exception logs and exits for
+ * a supervised restart. An unhandled rejection logs and CONTINUES: attaching
+ * the listener turns off node's default exit on an unhandled rejection.
  *
  * They are installed from the entry-point guard in api.js, never at module
  * scope: several suites require api.js in-process under mocha, which installs
@@ -76,6 +79,9 @@ function installCrashHandlers({ proc = process, exitOnUncaught = true } = {}) {
     if (exitOnUncaught) proc.exit(1)
   })
 
+  // Keep serving after logging: this listener disables node's default exit, and
+  // a stray promise does not by itself corrupt shared state (pinned by
+  // test/unit/crash_handlers.test/01_signal_registration.test.js).
   proc.on('unhandledRejection', (reason) => {
     const err = reason instanceof Error ? reason : new Error(String(reason))
     emit('unhandledRejection', err)
