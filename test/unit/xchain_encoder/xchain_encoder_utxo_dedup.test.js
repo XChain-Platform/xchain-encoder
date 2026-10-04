@@ -54,6 +54,23 @@ function outpoints(utxos) {
     return utxos.map((u) => u.txid + ':' + u.vout)
 }
 
+function makeCountedUtxos(count, counter) {
+    const utxos = []
+    for (let i = 0; i < count; i++) {
+        const txid = i.toString(16).padStart(64, '0')
+        const utxo = makeUtxo(NETWORK, txid, 0, 1000)
+        Object.defineProperty(utxo, 'txid', {
+            enumerable: true,
+            get() {
+                counter.reads++
+                return txid
+            }
+        })
+        utxos.push(utxo)
+    }
+    return utxos
+}
+
 describe('_buildTransaction outpoint dedup / mempool filter', function () {
 
     it('keeps the FIRST occurrence of a repeated outpoint and drops the rest', async function () {
@@ -156,37 +173,21 @@ describe('_buildTransaction outpoint dedup / mempool filter', function () {
         assert.strictEqual(utxos.length, 1, '5000 copies of one outpoint collapse to one')
     })
 
-    // The defect itself, in the shape that actually hurts: an address holding many
-    // DISTINCT outputs. The old inner while re-read every later txid for every
-    // survivor: n^2/2 property reads. Count those reads instead of measuring wall
-    // time, which varies with runner load and made this regression guard flaky.
-    // The caller path is capped at MAX_UTXO_COUNT, but the tracker-fetched path is
-    // deliberately uncapped, so a large set is reachable.
+    // An address holding many DISTINCT outputs: the old inner while re-read every
+    // later txid for every survivor (n^2/2 reads). Counting reads avoids wall-time flake.
     it('filters a large set of DISTINCT outpoints in linear time', async function () {
         const encoder = makeEncoder(NETWORK)
         const address = getTestAddress(NETWORK)
-        const utxos = []
         const count = 2000
-        let txidReads = 0
-        for (let i = 0; i < count; i++) {
-            const txid = i.toString(16).padStart(64, '0')
-            const utxo = makeUtxo(NETWORK, txid, 0, 1000)
-            Object.defineProperty(utxo, 'txid', {
-                enumerable: true,
-                get() {
-                    txidReads++
-                    return txid
-                }
-            })
-            utxos.push(utxo)
-        }
+        const counter = { reads: 0 }
+        const utxos = makeCountedUtxos(count, counter)
 
         const result = await build(encoder, address, utxos, true)
 
         assert.ok(result.psbt)
         assert.strictEqual(utxos.length, count, 'distinct outpoints are not duplicates')
-        assert.ok(txidReads >= count, 'the test must observe every candidate during filtering')
-        assert.ok(txidReads < count * 20,
-            `filtering ${count} distinct outpoints read txid ${txidReads} times; the quadratic scan is back`)
+        assert.ok(counter.reads >= count, 'the test must observe every candidate during filtering')
+        assert.ok(counter.reads < count * 20,
+            `filtering ${count} distinct outpoints read txid ${counter.reads} times; the quadratic scan is back`)
     })
 })
