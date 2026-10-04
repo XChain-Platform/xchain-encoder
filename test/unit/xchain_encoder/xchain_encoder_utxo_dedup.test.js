@@ -157,31 +157,36 @@ describe('_buildTransaction outpoint dedup / mempool filter', function () {
     })
 
     // The defect itself, in the shape that actually hurts: an address holding many
-    // DISTINCT outputs. Nothing is spliced, so the cost is pure comparison, and the
-    // old inner while re-scanned the whole tail for every surviving entry: n^2/2
-    // txid string compares. Measured on this machine with the old loop: 5000 -> 119ms,
-    // 10000 -> 423ms, 20000 -> 1739ms (a clean 4x per doubling). The linear pass:
-    // 14ms at 20000, 26ms at 40000. The caller path is capped at MAX_UTXO_COUNT, but
-    // the tracker-fetched path is deliberately uncapped, so this is reachable.
-    //
-    // The bound measures the complexity class, not the machine: it sits ~35x above
-    // the linear timing and ~3.5x below the quadratic one.
+    // DISTINCT outputs. The old inner while re-read every later txid for every
+    // survivor: n^2/2 property reads. Count those reads instead of measuring wall
+    // time, which varies with runner load and made this regression guard flaky.
+    // The caller path is capped at MAX_UTXO_COUNT, but the tracker-fetched path is
+    // deliberately uncapped, so a large set is reachable.
     it('filters a large set of DISTINCT outpoints in linear time', async function () {
-        this.timeout(30000)
         const encoder = makeEncoder(NETWORK)
         const address = getTestAddress(NETWORK)
         const utxos = []
-        for (let i = 0; i < 20000; i++) {
-            utxos.push(makeUtxo(NETWORK, i.toString(16).padStart(64, '0'), 0, 1000))
+        const count = 2000
+        let txidReads = 0
+        for (let i = 0; i < count; i++) {
+            const txid = i.toString(16).padStart(64, '0')
+            const utxo = makeUtxo(NETWORK, txid, 0, 1000)
+            Object.defineProperty(utxo, 'txid', {
+                enumerable: true,
+                get() {
+                    txidReads++
+                    return txid
+                }
+            })
+            utxos.push(utxo)
         }
 
-        const started = Date.now()
         const result = await build(encoder, address, utxos, true)
-        const elapsed = Date.now() - started
 
         assert.ok(result.psbt)
-        assert.strictEqual(utxos.length, 20000, 'distinct outpoints are not duplicates')
-        assert.ok(elapsed < 500,
-            `filtering 20000 distinct outpoints took ${elapsed}ms; the quadratic scan is back`)
+        assert.strictEqual(utxos.length, count, 'distinct outpoints are not duplicates')
+        assert.ok(txidReads >= count, 'the test must observe every candidate during filtering')
+        assert.ok(txidReads < count * 20,
+            `filtering ${count} distinct outpoints read txid ${txidReads} times; the quadratic scan is back`)
     })
 })
