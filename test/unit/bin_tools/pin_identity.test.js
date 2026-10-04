@@ -10,7 +10,7 @@ const {
     VENDORED_TWIN_FILES,
 } = require('../../../bin/pin-identity.js');
 
-describe('identity pin tool', () => {
+describe('identity pin file lists', () => {
     it('exports the complete ordered identity file lists', () => {
         assert.deepEqual(COINS_FILES, [
             'src/coins/BTC.js',
@@ -32,7 +32,9 @@ describe('identity pin tool', () => {
             'tools/release/release-signing-key.asc',
         ]);
     });
+});
 
+describe('identity pin values', () => {
     it('builds hashes for every tracked identity file', () => {
         const pin = buildPin();
         assert.deepEqual(Object.keys(pin.coins), COINS_FILES);
