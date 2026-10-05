@@ -47,6 +47,25 @@ const config = {
     // parameter defaults to this object; tests still inject their own).
     get ENCODER_INSTANCE_LOCK_FILE() { return process.env.ENCODER_INSTANCE_LOCK_FILE; },
     get ENCODER_API_PORT() { return process.env.ENCODER_API_PORT; },
+    // Unset-preserving network value for call sites that distinguish undefined from empty.
+    get NETWORK_RAW() { return process.env.NETWORK; },
+    get NODE_URL() { return process.env.NODE_URL; },
+    get NODE_PORT() { return process.env.NODE_PORT; },
+    get NODE_USER() { return process.env.NODE_USER; },
+    get NODE_PASSWORD() { return process.env.NODE_PASSWORD; },
+    get UTXO_TRACKER_URL() { return process.env.UTXO_TRACKER_URL; },
+    get UTXO_TRACKER_API_PORT() { return process.env.UTXO_TRACKER_API_PORT; },
+    get MAX_FEE_RATE_KB() { return process.env.MAX_FEE_RATE_KB; },
+    get MAX_FEE_RATE_MULTIPLIER() { return process.env.MAX_FEE_RATE_MULTIPLIER; },
+    get UTXO_TRACKER_MAX_LAG_BLOCKS() { return process.env.UTXO_TRACKER_MAX_LAG_BLOCKS; },
+    get DUST_AMOUNT() { return process.env.DUST_AMOUNT; },
+    get API_KEY() { return process.env.API_KEY; },
+    get CORS_ORIGIN() { return process.env.CORS_ORIGIN; },
+    get ENCODER_TRUST_PROXY() { return process.env.ENCODER_TRUST_PROXY; },
+    get ENCODER_RATE_LIMIT_RPM() { return process.env.ENCODER_RATE_LIMIT_RPM; },
+    get ENCODER_MAX_CONCURRENT_PROBES() { return process.env.ENCODER_MAX_CONCURRENT_PROBES; },
+    get ENCODER_MAX_CONCURRENT_REQUESTS() { return process.env.ENCODER_MAX_CONCURRENT_REQUESTS; },
+    get ENCODER_MAX_RPC_BATCH() { return process.env.ENCODER_MAX_RPC_BATCH; },
 };
 
 module.exports = config;
