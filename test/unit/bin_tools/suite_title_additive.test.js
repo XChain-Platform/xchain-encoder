@@ -13,62 +13,83 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const { spawnSync } = require('child_process');
 
-const { compare, reportDifferences } = require('../../../bin/suite-title-map.js');
+const REPO_ROOT = path.resolve(__dirname, '../../..');
+const CLI = path.join(REPO_ROOT, 'bin', 'suite-title-map.js');
+const PIN = path.join(REPO_ROOT, 'bin', 'pins', 'at1-suite-titles.json');
+const TMP_ROOT = path.join(REPO_ROOT, 'tmp');
 
-function mapOf(files) {
-    const titleSets = {};
-    const mappedFiles = {};
-    let index = 0;
-    for (const [file, titles] of Object.entries(files)) {
-        const key = `set${index += 1}`;
-        titleSets[key] = titles;
-        mappedFiles[file] = key;
-    }
-    return { titleSets, scripts: { test: { files: mappedFiles } } };
+function loadPin() {
+    return JSON.parse(fs.readFileSync(PIN, 'utf8'));
 }
 
-function report(pinFiles, freshFiles) {
-    const differences = compare(mapOf(pinFiles), mapOf(freshFiles), {}, undefined);
-    const lines = [];
-    const failed = reportDifferences(differences, 'pin.json', (line) => lines.push(line));
-    return { differences, failed, output: lines.join('\n') };
+function titlesFor(pin, file) {
+    return pin.titleSets[pin.scripts.test.files[file]];
+}
+
+function setTitles(pin, file, titles, suffix) {
+    const key = `suite-title-additive-${suffix}`;
+    pin.titleSets[key] = titles;
+    pin.scripts.test.files[file] = key;
+}
+
+function pinnedFileWithTitles(pin) {
+    return Object.keys(pin.scripts.test.files)
+        .find((file) => file.startsWith('test/unit/') && titlesFor(pin, file).length);
+}
+
+function compareThroughCli(pin) {
+    fs.mkdirSync(TMP_ROOT, { recursive: true });
+    const dir = fs.mkdtempSync(path.join(TMP_ROOT, 'suite-title-additive-'));
+    const pinPath = path.join(dir, 'pin.json');
+    try {
+        fs.writeFileSync(pinPath, `${JSON.stringify(pin)}\n`);
+        const result = spawnSync(process.execPath, [CLI, '--script', 'test', '--compare', pinPath], {
+            cwd: REPO_ROOT,
+            encoding: 'utf8',
+            timeout: 15000,
+        });
+        assert.ifError(result.error);
+        return { status: result.status, output: `${result.stdout}${result.stderr}` };
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 }
 
 describe('suite title comparison additive growth', () => {
-    it('prints added files and titles without failing', () => {
-        const result = report(
-            { 'test/unit/pinned.test.js': ['pinned title'] },
-            {
-                'test/unit/pinned.test.js': ['pinned title', 'new title'],
-                'test/unit/new.test.js': ['new file title'],
-            },
-        );
+    it('prints added files and titles without failing the compare CLI', () => {
+        const pin = loadPin();
+        const file = pinnedFileWithTitles(pin);
+        assert.ok(file);
+        const [addedTitle, ...remainingTitles] = titlesFor(pin, file);
+        setTitles(pin, file, remainingTitles, 'additive');
 
-        assert.deepStrictEqual(result.differences.map((difference) => difference.kind), [
-            'file_added',
-            'title_added',
-        ]);
-        assert.strictEqual(result.failed, false);
-        assert.match(result.output, /file_added test\/unit\/new\.test\.js/);
-        assert.match(result.output, /title_added test\/unit\/pinned\.test\.js :: new title/);
+        const result = compareThroughCli(pin);
+
+        assert.strictEqual(result.status, 0, result.output);
+        assert.ok(result.output.includes(
+            '[test] file_added test/unit/bin_tools/suite_title_additive.test.js',
+        ), result.output);
+        assert.ok(result.output.includes(`[test] title_added ${file} :: ${addedTitle}`), result.output);
     });
 
-    it('fails when a pinned file or title is dropped', () => {
-        const result = report(
-            {
-                'test/unit/dropped.test.js': ['dropped file title'],
-                'test/unit/pinned.test.js': ['kept title', 'dropped title'],
-            },
-            { 'test/unit/pinned.test.js': ['kept title'] },
-        );
+    it('prints dropped files and titles and fails the compare CLI', () => {
+        const pin = loadPin();
+        const file = pinnedFileWithTitles(pin);
+        assert.ok(file);
+        const droppedFile = 'test/unit/removed-from-tree.test.js';
+        const droppedFileTitle = 'suite removed from tree';
+        const droppedTitle = 'title removed from tree';
+        setTitles(pin, droppedFile, [droppedFileTitle], 'dropped-file');
+        setTitles(pin, file, [...titlesFor(pin, file), droppedTitle], 'dropped-title');
 
-        assert.deepStrictEqual(result.differences.map((difference) => difference.kind), [
-            'file_dropped',
-            'title_dropped',
-        ]);
-        assert.strictEqual(result.failed, true);
-        assert.match(result.output, /file_dropped test\/unit\/dropped\.test\.js/);
-        assert.match(result.output, /title_dropped test\/unit\/pinned\.test\.js :: dropped title/);
+        const result = compareThroughCli(pin);
+
+        assert.strictEqual(result.status, 1, result.output);
+        assert.ok(result.output.includes(`[test] file_dropped ${droppedFile}`), result.output);
+        assert.ok(result.output.includes(`[test] title_dropped ${file} :: ${droppedTitle}`), result.output);
     });
 });
