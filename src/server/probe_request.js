@@ -21,12 +21,29 @@
 // finds no slot of its own to keep.
 const PROBE_PATH = /^\/(status|openrpc\.json)\/?$/i
 
+// Match only the spec route, with the same case and trailing-slash tolerance.
+// The API-key gate exempts this one; /status still needs the key.
+const SPEC_PATH = /^\/openrpc\.json\/?$/i
+
+// Accept the methods Express sends to a GET route (HEAD dispatches to it).
+function isGetRouted (req) {
+    return req.method === 'GET' || req.method === 'HEAD'
+}
+
 /**
  * @param {{method: string, path: string}} req
  * @returns {boolean} true when the request belongs to the probe reserve
  */
 function isProbe (req) {
-    return (req.method === 'GET' || req.method === 'HEAD') && PROBE_PATH.test(req.path)
+    return isGetRouted(req) && PROBE_PATH.test(req.path)
 }
 
-module.exports = { isProbe, PROBE_PATH }
+/**
+ * @param {{method: string, path: string}} req
+ * @returns {boolean} true when the request reaches the public OpenRPC spec handler
+ */
+function isSpecRequest (req) {
+    return isGetRouted(req) && SPEC_PATH.test(req.path)
+}
+
+module.exports = { isProbe, isSpecRequest, PROBE_PATH, SPEC_PATH }

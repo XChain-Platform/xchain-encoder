@@ -83,8 +83,8 @@ function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFe
     return (uplift > 0) ? uplift : 0
 }
 
-// Bound a fee rate (coin per byte) by the operator cap, or by the fixed burn
-// backstop when no cap is set, both anchored on the node rate or relayfee.
+// Bound a fee rate (coin per byte) by the tighter of the operator cap and the
+// fixed burn backstop, both anchored on the node rate or relayfee.
 // Synchronous on purpose: the envelope cancel's suspension count is pinned.
 function capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb, maxFeePerBytes, maxFeeRateMultiplier }){
     // Anchor on the relay floor when the node has no estimate, so no cap goes missing.
@@ -96,12 +96,26 @@ function capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb, maxFeeP
         const relativeCap = anchorFeePerBytes * maxFeeRateMultiplier
         capFeePerBytes = (capFeePerBytes != null) ? Math.min(capFeePerBytes, relativeCap) : relativeCap
     }
-    // With both operator caps disabled, the burn backstop still bounds the rate.
-    const backstopFeePerBytes = (capFeePerBytes == null && anchorFeePerBytes != null)
-        ? anchorFeePerBytes * BURN_BACKSTOP_MULTIPLIER : null
-    const ceiling = capFeePerBytes != null ? capFeePerBytes : backstopFeePerBytes
+    // The burn backstop bounds the rate whatever the operator caps say, so a
+    // cap looser than 100x (or a loose MAX_FEE_RATE_KB alone) cannot lift it.
+    const backstopFeePerBytes = anchorFeePerBytes != null ? anchorFeePerBytes * BURN_BACKSTOP_MULTIPLIER : null
+    // Name the limit that binds; a cap equal to the backstop counts as the cap,
+    // so default deployments log exactly what they did before.
+    let limit = null
+    if (capFeePerBytes != null && (backstopFeePerBytes == null || capFeePerBytes <= backstopFeePerBytes)) limit = 'cap'
+    else if (backstopFeePerBytes != null) limit = 'backstop'
+    const ceiling = limit === 'cap' ? capFeePerBytes : (limit === 'backstop' ? backstopFeePerBytes : null)
     const clamped = ceiling != null && feePerBytes > ceiling
-    return { anchorFeePerBytes, capFeePerBytes, backstopFeePerBytes, clamped, feePerBytes: clamped ? ceiling : feePerBytes }
+    // capFeePerBytes stays the pure operator cap: refuseExcessiveFee and the
+    // package uplift read it and apply the backstop on their own.
+    return { anchorFeePerBytes, capFeePerBytes, backstopFeePerBytes, limit, clamped, feePerBytes: clamped ? ceiling : feePerBytes }
+}
+
+// Describe the limit a clamp hit, for the warning the two callers log.
+function clampLimitLabel(capped){
+    if (capped.limit === 'cap') return 'the fee-rate cap'
+    if (capped.capFeePerBytes == null) return 'the fixed burn backstop (fee-rate cap disabled)'
+    return `the fixed ${BURN_BACKSTOP_MULTIPLIER}x burn backstop (tighter than the configured fee-rate cap)`
 }
 
 // The fee in base units for `vsize` bytes at `feePerBytes` (coin per byte),
@@ -122,4 +136,4 @@ function feeForVsize(vsize, feePerBytes, satoshiUnit){
     return Math.ceil(exact - Math.abs(exact) * 1e-12)
 }
 
-module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, capCallerFeeRate, feeForVsize }
+module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, capCallerFeeRate, clampLimitLabel, feeForVsize }

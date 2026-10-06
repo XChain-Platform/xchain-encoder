@@ -44,7 +44,7 @@ const { limitedHandler } = require('./server/rate_limit_log.js')
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 const concurrencyGate = require('./server/concurrency_gate.js')
-const { isProbe } = require('./server/probe_request.js')
+const { isProbe, isSpecRequest } = require('./server/probe_request.js')
 
 // Express middleware that rejects an over-cap JSON-RPC batch array before dispatch, so one
 // HTTP request cannot amplify into thousands of backend RPCs (the rate limiter counts a batch
@@ -159,8 +159,9 @@ app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
 // API key authentication (only enforced when API_KEY is configured).
 if (API_KEY) {
     app.use((req, res, next) => {
-        // The machine-readable spec stays public even on keyed deploys.
-        if (req.method === 'GET' && req.path === '/openrpc.json') return next()
+        // The machine-readable spec stays public even on keyed deploys, for every
+        // request shape Express routes to it (HEAD, any case, a trailing slash).
+        if (isSpecRequest(req)) return next()
         const key = req.headers['x-api-key']
         if (!keyEquals(key, API_KEY)) {
             return res.status(401).json({

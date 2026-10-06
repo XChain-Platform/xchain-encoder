@@ -91,7 +91,8 @@ function validateCompressedPubKey(compressedPubKey) {
 // core for every address-shaped field: the get_utxos address param,
 // validateChange, validatePubkey (params.pubkey is actually a sender
 // address, not a real pubkey), and customOutputs[].address / feeQuote.address.
-// Coin-specific base58/bech32 validity is left to bitcoinjs downstream; this
+// Network validity (base58/bech32 decoding) is checked at the encoder entry by
+// assertAddressOnNetwork, since this module stays network-agnostic; this
 // just sheds obvious garbage (non-strings, empty, oversized) with a
 // -32602-mappable TypeError. `label` names the field in the thrown message;
 // callers that omit it keep the plain "address ..." wording.
