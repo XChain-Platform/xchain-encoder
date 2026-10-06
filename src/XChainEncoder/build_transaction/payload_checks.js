@@ -23,7 +23,7 @@ const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, validateDataParam
 const { compressPayloadForAction } = require('../../build/compression')
 const { Encoding } = require('../constants.js')
 const { ensureEccLib } = require('../script_amount_helpers.js')
-const { defaultCompressionEnabled } = require('../request_resolution.js')
+const { defaultCompressionEnabled, assertAddressOnNetwork } = require('../request_resolution.js')
 
 // The caller's payload as handed over: wire-safety re-checks, the ACTION-name
 // read, and the fee-quote output injected ahead of every other output.
@@ -73,12 +73,27 @@ function checkPayloadInput(build){
     // decoder tokenizes the compiled push whatever shape the caller handed over.
     const unknownAction = unknownActionName(data)
 
+    checkOutputAddresses.call(this, build)
+
     // If feeQuote is provided, inject it as a custom output
     if(feeQuote && feeQuote.address && feeQuote.amount > 0){
         if(!customOutputs) customOutputs = [];
         customOutputs.push({ address: feeQuote.address, value: feeQuote.amount });
     }
     Object.assign(build, { unknownAction, customOutputs })
+}
+
+// Verify every caller output address decodes on this network, inside the first
+// build step, so a typo is a -32602 before any fee, tracker or reservation work.
+// pubkey is left out: it may be a raw pubkey hex, resolved to an address later.
+function checkOutputAddresses(build){
+    const { customOutputs, feeQuote, change } = build
+    if (Array.isArray(customOutputs)){
+        customOutputs.forEach((output, i) => assertAddressOnNetwork(output && output.address, this.network, `customOutputs[${i}].address`))
+    }
+    // Check feeQuote under the same condition that injects it as an output.
+    if (feeQuote && feeQuote.address && feeQuote.amount > 0) assertAddressOnNetwork(feeQuote.address, this.network, 'feeQuote.address')
+    if (change) assertAddressOnNetwork(change, this.network, 'change')
 }
 
 function* compressPayload(build){

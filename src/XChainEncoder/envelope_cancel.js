@@ -22,11 +22,12 @@ const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
-const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateOutpoint } = require('../common/validator')
+const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint } = require('../common/validator')
 const { OperationalError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
-const { capCallerFeeRate, feeForVsize } = require('./fee_policy.js')
+const { assertAddressOnNetwork } = require('./request_resolution.js')
+const { capCallerFeeRate, clampLimitLabel, feeForVsize } = require('./fee_policy.js')
 
 // The cancel's recovery record as handed over: validated, decoded, and read
 // into the values the build uses.
@@ -51,7 +52,9 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     // path api.js does not route through validateAll, so without it the
     // 100-char cap every other address field gets is missing here and an
     // unbounded string reaches bs58check (quadratic) and psbt.addOutput.
-    validateAddress(destination, 'destination')
+    // assertAddressOnNetwork runs that shape check first, then refuses an
+    // address that does not decode on this network, before any claim or fee RPC.
+    assertAddressOnNetwork(destination, this.network, 'destination')
     if (this.network.supportsSegwit === false) {
         throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
     }
@@ -148,7 +151,7 @@ function* cancelFeeRate(feeRatePerKb){
     const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
         maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
     if (capped.clamped){
-        const limit = capped.capFeePerBytes != null ? 'the fee-rate cap' : 'the fixed burn backstop (fee-rate cap disabled)'
+        const limit = clampLimitLabel(capped)
         logger.warn(`Envelope-cancel fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds ${limit}, clamping to ${capped.feePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
     }
     return { feePerBytes: capped.feePerBytes, relayFeePerKb }
