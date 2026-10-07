@@ -74,35 +74,36 @@ describe('broadcast_tx node rejection codes', function () {
     const e = await rejection(controllerFailing(nodeError('empty result')))
     assert.strictEqual(e.code, -32603)
   })
+})
 
-  describe('through the real connector', function () {
-    let originalPost
-    beforeEach(() => { originalPost = axios.post })
-    afterEach(() => { axios.post = originalPost })
+describe('broadcast_tx node rejection codes through the real connector', function () {
+  let originalError
+  let originalPost
+  beforeEach(() => { originalPost = axios.post; originalError = console.error; console.error = () => {} })
+  afterEach(() => { axios.post = originalPost; console.error = originalError })
 
-    function realController () {
-      const connector = new BlockchainConnector('127.0.0.1', 18332, 'rpcuser', 'rpcpass')
-      return createJsonRpcController({ encoder: { connector }, NETWORK: 'dogecoin-testnet' })
-    }
+  function realController () {
+    const connector = new BlockchainConnector('127.0.0.1', 18332, 'rpcuser', 'rpcpass')
+    return createJsonRpcController({ encoder: { connector }, NETWORK: 'dogecoin-testnet' })
+  }
 
-    it('propagates the node code from a node error body to -32010', async function () {
-      axios.post = async () => ({ data: { error: { message: 'dust', code: -26 } } })
-      const e = await rejection(realController())
-      assert.strictEqual(e.code, -32010)
-      assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26 })
-    })
+  it('propagates the node code from a node error body to -32010', async function () {
+    axios.post = async () => ({ data: { error: { message: 'dust', code: -26 } } })
+    const e = await rejection(realController())
+    assert.strictEqual(e.code, -32010)
+    assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26 })
+  })
 
-    it('propagates the node code from an HTTP 500 body', async function () {
-      axios.post = async () => { throw Object.assign(new Error('status 500'), { response: { data: { error: { message: 'Transaction already in block chain', code: -27 } } } }) }
-      const e = await rejection(realController())
-      assert.strictEqual(e.data.reason, 'TX_ALREADY_IN_CHAIN')
-      assert.strictEqual(e.data.node_code, -27)
-    })
+  it('propagates the node code from an HTTP 500 body', async function () {
+    axios.post = async () => { throw Object.assign(new Error('status 500'), { response: { data: { error: { message: 'Transaction already in block chain', code: -27 } } } }) }
+    const e = await rejection(realController())
+    assert.strictEqual(e.data.reason, 'TX_ALREADY_IN_CHAIN')
+    assert.strictEqual(e.data.node_code, -27)
+  })
 
-    it('keeps a transport fault at -32603', async function () {
-      axios.post = async () => { throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) }
-      const e = await rejection(realController())
-      assert.strictEqual(e.code, -32603)
-    })
+  it('keeps a transport fault at -32603', async function () {
+    axios.post = async () => { throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) }
+    const e = await rejection(realController())
+    assert.strictEqual(e.code, -32603)
   })
 })
