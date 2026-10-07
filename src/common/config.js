@@ -55,6 +55,7 @@ const config = {
     get NODE_PASSWORD() { return process.env.NODE_PASSWORD; },
     get UTXO_TRACKER_URL() { return process.env.UTXO_TRACKER_URL; },
     get UTXO_TRACKER_API_PORT() { return process.env.UTXO_TRACKER_API_PORT; },
+    get UTXO_TRACKER_PROFILE() { return process.env.UTXO_TRACKER_PROFILE; },
     get MAX_FEE_RATE_KB() { return process.env.MAX_FEE_RATE_KB; },
     get MAX_FEE_RATE_MULTIPLIER() { return process.env.MAX_FEE_RATE_MULTIPLIER; },
     get UTXO_TRACKER_MAX_LAG_BLOCKS() { return process.env.UTXO_TRACKER_MAX_LAG_BLOCKS; },
