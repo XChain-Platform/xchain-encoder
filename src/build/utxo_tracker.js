@@ -159,8 +159,12 @@ function readUtxoResult(responseData){
     // Prefer err.data.code (string code forwarded by the tracker) over err.code.
     const rpcError = responseData.error
     if (rpcError && (rpcError.message || rpcError.code || rpcError.data?.code)) {
-        const code = rpcError.data?.code || rpcError.code
-        throw new Error(`Error getting utxos: ${code ? `[${code}] ` : ''}${rpcError.message || 'unknown error'}`)
+        // The tracker's text is untrusted and reaches public errors, so it gets the halt_reason sanitizer
+        // (leak-checked, printable ASCII, capped); an integer JSON-RPC code is safe as it stands.
+        const rawCode = rpcError.data?.code || rpcError.code
+        const code = Number.isSafeInteger(rawCode) ? String(rawCode) : safeUpstreamReason(rawCode)
+        const message = safeUpstreamReason(rpcError.message) || 'unknown error'
+        throw new Error(`Error getting utxos: ${code ? `[${code}] ` : ''}${message}`)
     }
     throw new Error('Error getting utxos: empty result')
 }

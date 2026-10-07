@@ -90,7 +90,7 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
     }
     if (halted){
         // The reason is tracker-authored, so it is gated before it reaches the
-        // forwarded message (src/build/errors.js forwards encoder-authored text only).
+        // forwarded message (src/build/errors.js forwards upstream text only once sanitized).
         const haltReason = safeUpstreamReason(sync.halt_reason)
         verdict.code = 'UTXO_TRACKER_HALTED'
         verdict.message = `utxo-tracker is halted (${haltReason || 'unrecoverable reorg'}); ` +

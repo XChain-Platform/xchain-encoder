@@ -109,7 +109,7 @@ function* fetchTrackerUtxos(build){
         // transport failure embeds the tracker's internal host:port,
         // so upstreamErrorMessage collapses it to the generic
         // fallback; the tracker's own application messages (lag,
-        // address-too-large) are safe and actionable and pass through.
+        // address-too-large) pass through, already sanitized and capped by readUtxoResult.
         throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
     }
 

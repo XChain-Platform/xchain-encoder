@@ -20,8 +20,9 @@
  * transport failure that embeds host:port). api.js forwards an OperationalError
  * message + its stable `xchainCode` to the caller, but collapses everything
  * else to a generic message so internals and credentials never reach a
- * response. The message here is always encoder-authored (never an upstream
- * string), so it is safe to forward by construction.
+ * response. The message here is encoder-authored; any upstream text it embeds
+ * (a tracker error or halt reason) has first passed safeUpstreamReason
+ * (leak-checked, printable ASCII, length-capped), so it is safe to forward.
  *
  ********************************************************************/
 
