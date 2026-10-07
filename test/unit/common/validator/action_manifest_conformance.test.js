@@ -54,6 +54,10 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
             'Keep src/common/validator.js ACTION_ALIASES byte-identical to xchain-decoder\'s.');
     });
 
+    it('records BET version 4 as user-encodable', function () {
+        assert.deepStrictEqual(MANIFEST.actions.BET.userEncodableVersions, [0, 1, 2, 3, 4]);
+    });
+
     // IDENTITY: the vendored copy must match the canonical source. Refuses an
     // absent docs checkout and a lane symlink into a live main checkout alike.
     describe('byte-identity to canonical manifest', function () {
