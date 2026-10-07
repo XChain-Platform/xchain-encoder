@@ -251,8 +251,9 @@ function validateFeeQuote(feeQuote) {
     // Array.isArray, because typeof [] is 'object': a JSON array cleared this gate
     // and died one line later on validateAddress(undefined), reporting an address
     // error for what is a shape error. Same guard the other object-shaped
-    // validators carry (lines 481/557/635). No === null clause: the line above
-    // already returns for a null/absent quote, which is legal.
+    // validators carry (validateCreateTxOptions, validateUtxoOutpoint,
+    // validateCustomOutput, and validateAll in transaction_checks.js). No === null
+    // clause: the line above already returns for a null/absent quote, which is legal.
     if (typeof feeQuote !== 'object' || Array.isArray(feeQuote)) {
         throw new TypeError('feeQuote must be an object with address and amount')
     }
