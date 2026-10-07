@@ -31,5 +31,14 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validatePubkey(123), TypeError);
             assert.throws(() => v.validatePubkey('x'.repeat(101)), /maximum length/);
         });
+
+        it('refuses an uncompressed key by its form, not as an oversized address', function () {
+            assert.throws(() => v.validatePubkey('04' + 'a'.repeat(128)),
+                (err) => err instanceof TypeError && /uncompressed/.test(err.message) && !/maximum length/.test(err.message));
+            const compressed = '02' + 'a'.repeat(64);
+            assert.strictEqual(v.validatePubkey(compressed), compressed);
+            assert.throws(() => v.validatePubkey('05' + 'a'.repeat(128)), /maximum length/,
+                'only the exact uncompressed shape gets the named refusal');
+        });
     });
 });

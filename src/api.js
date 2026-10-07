@@ -75,14 +75,23 @@ const NODE_PASSWORD = config.NODE_PASSWORD
 const UTXO_TRACKER_URL = config.UTXO_TRACKER_URL
 const UTXO_TRACKER_API_PORT = config.UTXO_TRACKER_API_PORT
 const ENCODER_API_PORT = config.ENCODER_API_PORT
-const MAX_FEE_RATE_KB = config.MAX_FEE_RATE_KB ? parseInt(config.MAX_FEE_RATE_KB, 10) : null
+// Absolute fee-rate cap in sat/kB; only a positive value caps, anything else leaves it off.
+const _maxFeeRateKb = parseInt(config.MAX_FEE_RATE_KB, 10)
+const MAX_FEE_RATE_KB = (Number.isFinite(_maxFeeRateKb) && _maxFeeRateKb > 0) ? _maxFeeRateKb : null
 // Relative fee-rate ceiling as a multiple of the node's estimatesmartfee(1)
 // estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder.js).
 // Caps caller-supplied fee/feePerKb so a hostile request cannot drain inputs
 // into miner fee. Set to 0 to disable (not recommended).
-// An unset or unparseable value keeps the encoder default (fail-safe).
+// An unset, unparseable or negative value keeps the encoder default (fail-safe).
 const _maxFeeRateMultiplier = parseFloat(config.MAX_FEE_RATE_MULTIPLIER)
-const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFeeRateMultiplier : undefined
+const MAX_FEE_RATE_MULTIPLIER = (Number.isFinite(_maxFeeRateMultiplier) && _maxFeeRateMultiplier >= 0) ? _maxFeeRateMultiplier : undefined
+// Name a set-but-refused fee cap at boot, since the fallback above is otherwise silent.
+if (config.MAX_FEE_RATE_KB && MAX_FEE_RATE_KB === null && _maxFeeRateKb !== 0) {
+    console.warn('WARNING: MAX_FEE_RATE_KB=' + config.MAX_FEE_RATE_KB + ' is not a positive sat/kB rate; the absolute fee-rate cap stays off.')
+}
+if (config.MAX_FEE_RATE_MULTIPLIER && MAX_FEE_RATE_MULTIPLIER === undefined) {
+    console.warn('WARNING: MAX_FEE_RATE_MULTIPLIER=' + config.MAX_FEE_RATE_MULTIPLIER + ' is not a number >= 0; the default multiplier applies.')
+}
 // Max blocks the utxo-tracker's per-response freshness `sync` field may report
 // as lag before create_tx refuses to select UTXOs from it
 // (UTXO_TRACKER_STALE). Unset/unparseable falls through to XChainEncoder's own default

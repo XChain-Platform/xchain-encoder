@@ -53,7 +53,7 @@ const METHODS = [
             + 'sign both, broadcast commit then reveal. TAPROOT requires compressedPubKey (the envelope internal '
             + 'key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling.',
         params: [
-            { name: 'pubkey', required: true, schema: str('sender address (or public key for compressed flows)') },
+            { name: 'pubkey', required: true, schema: str('caller identity: sender address (base58 or bech32) or compressed public key hex (02/03 + 64 hex); uncompressed (04...) keys are rejected') },
             { name: 'data', schema: str('ACTION payload string (pipe-delimited, from xchain-sdk createAction)') },
             { name: 'rawData', schema: str('additional raw bytes, Latin-1 decoded (gated-FILE ciphertext, ECIES envelopes)') },
             { name: 'utxos', schema: { type: 'array', description: 'explicit UTXOs; fetched from the UTXO tracker when omitted (max 500)', items: { type: 'object' } } },

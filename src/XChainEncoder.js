@@ -154,10 +154,16 @@ class XChainEncoder {
       // Maximum fee rate in BTC/byte (null = no cap). Prevents runaway estimates
       // (e.g. regtest feedback loop) from producing fees that the node will reject.
       // MAX_FEE_RATE_KB is in sat/kB, convert to BTC/byte to match feePerBytes units.
-      this.maxFeePerBytes = maxFeeRateKb ? maxFeeRateKb / 1000 / SATOSHI_UNIT : null
+      const capKb = Number(maxFeeRateKb)
+      // Treat a zero, negative or unparseable cap as no cap: one below zero would
+      // clamp every rate, the node's own included, down to a dust-sized fee.
+      this.maxFeePerBytes = (Number.isFinite(capKb) && capKb > 0) ? capKb / 1000 / SATOSHI_UNIT : null
       // Relative fee-rate ceiling: caller-supplied fee/feePerKb may not exceed
       // this multiple of the node's current estimate (0/null disables).
-      this.maxFeeRateMultiplier = maxFeeRateMultiplier || null
+      const multiplier = Number(maxFeeRateMultiplier)
+      // Keep the default for a negative or unparseable multiplier rather than invert the cap below zero.
+      this.maxFeeRateMultiplier = (maxFeeRateMultiplier == null || multiplier === 0) ? null
+          : (multiplier > 0 ? multiplier : DEFAULT_MAX_FEE_RATE_MULTIPLIER)
       // See DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS above. `undefined`/`null` from an
       // unset or unparseable env var falls through to the class default via the
       // parameter default above (only a literal `undefined` triggers a JS default

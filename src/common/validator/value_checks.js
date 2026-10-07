@@ -92,16 +92,20 @@ function parseSatoshiAmount(raw, label, opts) {
     throw new RangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
 }
 
-// params.pubkey is not a real pubkey: it is the caller's base58 sender
-// address (fed straight to utxoTrackerConnector.getUtxosFromAddress and to
-// bitcoin.address.fromBase58Check in XChainEncoder.js). It must be held to
-// the same shared bound as every other address-shaped field, so this
-// delegates to validateAddress (defined below) rather than keeping its own
-// private, looser cap. Only the null-passthrough semantics differ from
-// validateAddress, since pubkey is validated for presence separately in
-// validateAll.
+// Uncompressed public key hex: 04 then the 64-byte X and Y coordinates.
+const UNCOMPRESSED_PUBKEY_HEX = /^04[0-9a-fA-F]{128}$/
+
+// Check params.pubkey, the caller identity: a sender address or a compressed
+// 02/03 pubkey hex, both resolved downstream by resolveCallerAddress and
+// resolveCallerHash160. Null passes through (presence is checked in validateAll).
 function validatePubkey(pubkey) {
     if (pubkey == null) return null
+    // Refuse an uncompressed key by name: the network-default P2WPKH address takes
+    // only a 33-byte key, and the length cap below would misreport it as oversized.
+    if (typeof pubkey === 'string' && UNCOMPRESSED_PUBKEY_HEX.test(pubkey)) {
+        throw new TypeError('pubkey: uncompressed public keys (04 + 128 hex) are not supported; pass the compressed 02/03 + 64 hex form or a sender address')
+    }
+    // Hold everything else to the same shared bound as every address-shaped field.
     return validateAddress(pubkey, 'pubkey')
 }
 

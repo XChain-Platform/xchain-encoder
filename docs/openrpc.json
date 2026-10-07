@@ -150,7 +150,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "sender address (or public key for compressed flows)"
+            "description": "caller identity: sender address (base58 or bech32) or compressed public key hex (02/03 + 64 hex); uncompressed (04...) keys are rejected"
           }
         },
         {

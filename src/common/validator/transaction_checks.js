@@ -89,8 +89,8 @@ function validateCompressedPubKey(compressedPubKey) {
 
 // Shape-only address check (non-empty string, capped at 100 chars). Shared
 // core for every address-shaped field: the get_utxos address param,
-// validateChange, validatePubkey (params.pubkey is actually a sender
-// address, not a real pubkey), and customOutputs[].address / feeQuote.address.
+// validateChange, validatePubkey (params.pubkey is a sender address or a
+// compressed pubkey hex), and customOutputs[].address / feeQuote.address.
 // Network validity (base58/bech32 decoding) is checked at the encoder entry by
 // assertAddressOnNetwork, since this module stays network-agnostic; this
 // just sheds obvious garbage (non-strings, empty, oversized) with a
