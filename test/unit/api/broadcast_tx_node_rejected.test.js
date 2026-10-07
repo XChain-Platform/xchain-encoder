@@ -6,7 +6,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 const assert = require('assert')
+const axios = require('axios')
 const bitcoin = require('bitcoinjs-lib')
+const BlockchainConnector = require('../../../src/build/blockchain_connector')
 const { createJsonRpcController } = require('../../../src/api/json_rpc_methods')
 
 function txHex () {
@@ -71,5 +73,36 @@ describe('broadcast_tx node rejection codes', function () {
   it('keeps a node error without a numeric code at -32603', async function () {
     const e = await rejection(controllerFailing(nodeError('empty result')))
     assert.strictEqual(e.code, -32603)
+  })
+
+  describe('through the real connector', function () {
+    let originalPost
+    beforeEach(() => { originalPost = axios.post })
+    afterEach(() => { axios.post = originalPost })
+
+    function realController () {
+      const connector = new BlockchainConnector('127.0.0.1', 18332, 'rpcuser', 'rpcpass')
+      return createJsonRpcController({ encoder: { connector }, NETWORK: 'dogecoin-testnet' })
+    }
+
+    it('propagates the node code from a node error body to -32010', async function () {
+      axios.post = async () => ({ data: { error: { message: 'dust', code: -26 } } })
+      const e = await rejection(realController())
+      assert.strictEqual(e.code, -32010)
+      assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26 })
+    })
+
+    it('propagates the node code from an HTTP 500 body', async function () {
+      axios.post = async () => { throw Object.assign(new Error('status 500'), { response: { data: { error: { message: 'Transaction already in block chain', code: -27 } } } }) }
+      const e = await rejection(realController())
+      assert.strictEqual(e.data.reason, 'TX_ALREADY_IN_CHAIN')
+      assert.strictEqual(e.data.node_code, -27)
+    })
+
+    it('keeps a transport fault at -32603', async function () {
+      axios.post = async () => { throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) }
+      const e = await rejection(realController())
+      assert.strictEqual(e.code, -32603)
+    })
   })
 })
