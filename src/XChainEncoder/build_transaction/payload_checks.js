@@ -24,6 +24,7 @@ const { compressPayloadForAction } = require('../../build/compression')
 const { Encoding } = require('../constants.js')
 const { ensureEccLib } = require('../script_amount_helpers.js')
 const { defaultCompressionEnabled, assertAddressOnNetwork } = require('../request_resolution.js')
+const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 // The caller's payload as handed over: wire-safety re-checks, the ACTION-name
 // read, and the fee-quote output injected ahead of every other output.
@@ -246,11 +247,11 @@ function chooseEncoding(build){
     // the envelope's own 520-byte push framing rides outside it.
     const compiledCeiling = (encoding === Encoding.TAPROOT) ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
     if (finalDataBuffer.length > compiledCeiling) {
-        throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${compiledCeiling} bytes (${encoding === Encoding.TAPROOT ? 'TAPROOT envelope payload ceiling' : 'compiled on-chain ACTION push'})`)
+        throw new ParamRangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${compiledCeiling} bytes (${encoding === Encoding.TAPROOT ? 'TAPROOT envelope payload ceiling' : 'compiled on-chain ACTION push'})`)
     }
 
     if (encoding === 'P2WSH' && this.network.supportsSegwit === false) {
-        throw new TypeError('P2WSH encoding is not supported on this network (no segwit support)')
+        throw new ParamTypeError('P2WSH encoding is not supported on this network (no segwit support)')
     }
     Object.assign(build, { encoding })
 }
@@ -264,10 +265,10 @@ function* checkEnvelopeEncoding(build){
     // returns the commit/reveal pair together, never a second reveal call.
     if (encoding === Encoding.TAPROOT) {
         if (this.network.supportsSegwit === false) {
-            throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
+            throw new ParamTypeError('TAPROOT encoding is not supported on this network (no segwit support)')
         }
         if (p2shHash) {
-            throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
+            throw new ParamTypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
         }
         // Segwit support is NOT sufficient. Below the network's recognition
         // height every decoder ignores an envelope reveal, so building one here

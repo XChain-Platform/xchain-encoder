@@ -21,7 +21,7 @@
 const bitcoin = require('bitcoinjs-lib')
 const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { MAX_UTXO_COUNT, parseSatoshiAmount } = require('../../common/validator')
-const { OperationalError } = require('../../build/errors')
+const { OperationalError, ParamTypeError, ParamRangeError } = require('../../build/errors')
 const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
 const { feeForVsize } = require('../fee_policy.js')
@@ -127,7 +127,7 @@ function refuseUnsignableInput(preparedData, nextUtxo){
     // rather than skip: silently dropping a caller's coin-control
     // input would change what they spend.
     if (preparedData["encoding"] === Encoding.TAPROOT && !this.isSegwitUTXO(nextUtxo)){
-        throw new TypeError(
+        throw new ParamTypeError(
             `TAPROOT commit inputs must be native-segwit UTXOs (witness-program scriptPubKey); ` +
             `utxo ${nextUtxo.txid}:${nextUtxo.vout} is not. A non-segwit input would shift the ` +
             `commit txid at signing time and strand the pre-built reveal.`)
@@ -137,7 +137,7 @@ function refuseUnsignableInput(preparedData, nextUtxo){
     // no segwit: there the output is anyone-can-spend and a witnessUtxo
     // input signs nothing the network enforces. Fail closed, never skip.
     if (this.network.supportsSegwit === false && this.isSegwitUTXO(nextUtxo)){
-        throw new TypeError(
+        throw new ParamTypeError(
             `Input ${nextUtxo.txid}:${nextUtxo.vout} carries a witness-program scriptPubKey, ` +
             `which this network does not support (no segwit). Spend legacy inputs on this chain.`)
     }
@@ -196,7 +196,7 @@ function assertPrevOutValueMatches(prevTxHex, utxo, fetchedFromTracker){
     if (problem === null) return
     // Name who supplied the bad figure: a tracker row is not a caller parameter.
     if (fetchedFromTracker) throw new OperationalError('UTXO_TRACKER_ERROR', `utxo-tracker returned a wrong utxo: ${problem}`)
-    throw new RangeError(problem)
+    throw new ParamRangeError(problem)
 }
 
 function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker){
@@ -255,7 +255,7 @@ function refuseEmptySelection(build){
     // genuinely needs more inputs than this is over standardness size and
     // would be rejected at broadcast, so fail here with a precise reason.
     if (selectedInputCount > MAX_UTXO_COUNT){
-        throw new RangeError(`selected input count (${selectedInputCount}) exceeds the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`)
+        throw new ParamRangeError(`selected input count (${selectedInputCount}) exceeds the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`)
     }
 
     // No spendable input was selected on the funding/single-tx path: the

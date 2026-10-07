@@ -39,6 +39,7 @@ const {
     validateCustomOutputs,
     validateFeeQuote
 } = require('./fee_and_utxo_checks')
+const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 function validateP2shParams(p2shHash, p2shHex) {
     const hasHash = (p2shHash != null && p2shHash !== false)
@@ -46,19 +47,19 @@ function validateP2shParams(p2shHash, p2shHex) {
 
     if (!hasHash && !hasHex) return { p2shHash: null, p2shHex: null }
     if (hasHash !== hasHex) {
-        throw new TypeError('p2shHash and p2shHex must both be provided or both omitted')
+        throw new ParamTypeError('p2shHash and p2shHex must both be provided or both omitted')
     }
     if (typeof p2shHash !== 'string' || !HEX_64_RE.test(p2shHash)) {
-        throw new TypeError('p2shHash must be a 64-character hex string')
+        throw new ParamTypeError('p2shHash must be a 64-character hex string')
     }
     if (typeof p2shHex !== 'string' || p2shHex.length === 0) {
-        throw new TypeError('p2shHex must be a non-empty hex string')
+        throw new ParamTypeError('p2shHex must be a non-empty hex string')
     }
     if (p2shHex.length > MAX_RAW_TX_HEX_LENGTH) {
-        throw new TypeError('p2shHex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
+        throw new ParamTypeError('p2shHex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
     }
     if (!RAW_TX_HEX_RE.test(p2shHex)) {
-        throw new TypeError('p2shHex must be an even-length hex string')
+        throw new ParamTypeError('p2shHex must be an even-length hex string')
     }
     return { p2shHash, p2shHex }
 }
@@ -68,13 +69,13 @@ function validateP2shParams(p2shHash, p2shHex) {
 // returns a -32602 with a precise reason instead of a node parse error.
 function validateRawTxHex(txHex) {
     if (typeof txHex !== 'string' || txHex.length === 0) {
-        throw new TypeError('tx_hex must be a non-empty hex string')
+        throw new ParamTypeError('tx_hex must be a non-empty hex string')
     }
     if (txHex.length > MAX_BROADCAST_TX_HEX_LENGTH) {
-        throw new TypeError('tx_hex exceeds maximum length (' + MAX_BROADCAST_TX_HEX_LENGTH + ')')
+        throw new ParamTypeError('tx_hex exceeds maximum length (' + MAX_BROADCAST_TX_HEX_LENGTH + ')')
     }
     if (!RAW_TX_HEX_RE.test(txHex)) {
-        throw new TypeError('tx_hex must be an even-length hex string')
+        throw new ParamTypeError('tx_hex must be an even-length hex string')
     }
     return txHex
 }
@@ -82,7 +83,7 @@ function validateRawTxHex(txHex) {
 function validateCompressedPubKey(compressedPubKey) {
     if (compressedPubKey == null) return null
     if (typeof compressedPubKey !== 'string' || !COMPRESSED_PUBKEY_RE.test(compressedPubKey)) {
-        throw new TypeError('compressedPubKey must be a 66-character hex string starting with 02 or 03')
+        throw new ParamTypeError('compressedPubKey must be a 66-character hex string starting with 02 or 03')
     }
     return compressedPubKey
 }
@@ -98,10 +99,10 @@ function validateCompressedPubKey(compressedPubKey) {
 // callers that omit it keep the plain "address ..." wording.
 function validateAddress(address, label = 'address') {
     if (typeof address !== 'string' || address.length === 0) {
-        throw new TypeError(`${label} must be a non-empty string`)
+        throw new ParamTypeError(`${label} must be a non-empty string`)
     }
     if (address.length > 100) {
-        throw new TypeError(`${label} exceeds maximum length (100)`)
+        throw new ParamTypeError(`${label} exceeds maximum length (100)`)
     }
     return address
 }
@@ -113,7 +114,7 @@ function validateAddress(address, label = 'address') {
 // key into the ticket map.
 function validateReservationId(reservationId) {
     if (typeof reservationId !== 'string' || !/^[0-9a-f]{32}$/.test(reservationId)) {
-        throw new TypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
+        throw new ParamTypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
     }
     return reservationId
 }
@@ -160,14 +161,14 @@ function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubk
     // required. Without it the encoder reaches `Buffer.from(compressedPubKey, 'hex')` with
     // null and throws an opaque deep error; reject up front with a precise reason instead.
     if (encoding === 'MULTISIGN' && compressedPubKey == null) {
-        throw new TypeError('compressedPubKey is required for MULTISIGN encoding')
+        throw new ParamTypeError('compressedPubKey is required for MULTISIGN encoding')
     }
 
     // The Taproot-envelope leaf ends with <internal x-only pubkey> OP_CHECKSIG
     // and the commit's key-path cancel needs the same key, so the caller's real
     // pubkey is required (pubkey may be a bare address). Mirrors MULTISIGN.
     if (encoding === 'TAPROOT' && compressedPubKey == null) {
-        throw new TypeError('compressedPubKey is required for TAPROOT encoding (it becomes the envelope internal key)')
+        throw new ParamTypeError('compressedPubKey is required for TAPROOT encoding (it becomes the envelope internal key)')
     }
 
     // TAPROOT is a single-call flow: create_tx returns the {commit, reveal}
@@ -175,7 +176,7 @@ function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubk
     // commit's stable txid. The p2shHash/p2shHex second-call reveal flow is a
     // chunked reveal concept and must not engage here.
     if (encoding === 'TAPROOT' && p2shHash != null) {
-        throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
+        throw new ParamTypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
     }
 
     // docs/openrpc.json marks pubkey required:true. A missing pubkey otherwise
@@ -184,7 +185,7 @@ function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubk
     // so api.js maps it to -32602 invalid-params), matching the
     // MULTISIGN/compressedPubKey presence check above.
     if (pubkey == null) {
-        throw new RangeError('pubkey is required')
+        throw new ParamRangeError('pubkey is required')
     }
 }
 
@@ -240,7 +241,7 @@ function validateAll(params) {
     // object-shaped validators in fee_and_utxo_checks.js carry (validateCreateTxOptions,
     // validateUtxoOutpoint, validateCustomOutput, validateFeeQuote).
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        throw new TypeError('Request params must be an object')
+        throw new ParamTypeError('Request params must be an object')
     }
 
     const { data, rawData, encoding } = validateActionFields(params)

@@ -13,6 +13,7 @@
  **********************************************************************/
 
 const { MAX_SATOSHI_U64 } = require('./constants')
+const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
 
 // Exact-integer parse for satoshi/fee money fields. Unlike parseInt, this
@@ -38,7 +39,7 @@ function toExactInt(raw) {
 function validateOptionalBoolean(raw, label) {
     if (raw === undefined || raw === null) return undefined
     if (typeof raw !== 'boolean') {
-        throw new TypeError(`${label} must be a boolean (got ${typeof raw}${typeof raw === 'string' ? ` "${raw}"` : ''}); string "false" would coerce to true`)
+        throw new ParamTypeError(`${label} must be a boolean (got ${typeof raw}${typeof raw === 'string' ? ` "${raw}"` : ''}); string "false" would coerce to true`)
     }
     return raw
 }
@@ -60,22 +61,22 @@ function parseSatoshiAmount(raw, label, opts) {
     // first; createTransaction re-parses defensively): re-validate in place.
     if (typeof raw === 'bigint') {
         if (raw < 0n) {
-            throw new RangeError(`${label} must be a non-negative integer`)
+            throw new ParamRangeError(`${label} must be a non-negative integer`)
         }
         if (raw <= BigInt(Number.MAX_SAFE_INTEGER)) {
             return Number(raw)
         }
         if (!allowBig) {
-            throw new RangeError(`${label} (${raw}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss`)
+            throw new ParamRangeError(`${label} (${raw}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss`)
         }
         if (raw > MAX_SATOSHI_U64) {
-            throw new RangeError(`${label} (${raw}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
+            throw new ParamRangeError(`${label} (${raw}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
         }
         return raw
     }
     const num = toExactInt(raw)
     if (isNaN(num) || num < 0) {
-        throw new RangeError(`${label} must be a non-negative integer`)
+        throw new ParamRangeError(`${label} must be a non-negative integer`)
     }
     if (Number.isSafeInteger(num)) {
         return num
@@ -85,11 +86,11 @@ function parseSatoshiAmount(raw, label, opts) {
         // guaranteed non-negative, so this BigInt parse cannot throw.
         const big = BigInt(raw.trim())
         if (big > MAX_SATOSHI_U64) {
-            throw new RangeError(`${label} (${raw.trim()}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
+            throw new ParamRangeError(`${label} (${raw.trim()}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
         }
         return big
     }
-    throw new RangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
+    throw new ParamRangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
 }
 
 // Uncompressed public key hex: 04 then the 64-byte X and Y coordinates.
@@ -103,7 +104,7 @@ function validatePubkey(pubkey) {
     // Refuse an uncompressed key by name: the network-default P2WPKH address takes
     // only a 33-byte key, and the length cap below would misreport it as oversized.
     if (typeof pubkey === 'string' && UNCOMPRESSED_PUBKEY_HEX.test(pubkey)) {
-        throw new TypeError('pubkey: uncompressed public keys (04 + 128 hex) are not supported; pass the compressed 02/03 + 64 hex form or a sender address')
+        throw new ParamTypeError('pubkey: uncompressed public keys (04 + 128 hex) are not supported; pass the compressed 02/03 + 64 hex form or a sender address')
     }
     // Hold everything else to the same shared bound as every address-shaped field.
     return validateAddress(pubkey, 'pubkey')

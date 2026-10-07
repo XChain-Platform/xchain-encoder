@@ -34,9 +34,9 @@ const NETWORK = 'dogecoin-regtest'
 
 /**
  * Simulate the api.js create_tx handler flow:
- * 1. validateAll(rawParams): may throw TypeError/RangeError (→ -32602)
- * 2. encoder.createTransaction(validated): may throw TypeError/RangeError
- *    (→ -32602), an operational error (→ -32010) or plain Error (→ -32603)
+ * 1. validateAll(rawParams): may throw ParamTypeError/ParamRangeError (→ -32602)
+ * 2. encoder.createTransaction(validated): may throw ParamTypeError/ParamRangeError
+ *    (→ -32602), an operational error (→ -32010) or anything else (→ -32603)
  * 3. return { psbt: psbt.toHex(), encoding }
  */
 async function simulateCreateTx (rawParams, encoder) {

@@ -27,15 +27,16 @@ const {
     parseSatoshiAmount
 } = require('./value_checks')
 const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
+const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 function validateCreateTxOptions(options) {
     if (options == null) return null
     if (typeof options !== 'object' || Array.isArray(options)) {
-        throw new TypeError('options must be an object')
+        throw new ParamTypeError('options must be an object')
     }
     for (const key of Object.keys(options)) {
         if (!VALID_CREATE_TX_OPTIONS.has(key)) {
-            throw new TypeError(`Unknown options key: "${key}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
+            throw new ParamTypeError(`Unknown options key: "${key}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
         }
     }
     if (options.signerSupportsTapscript !== undefined) {
@@ -54,13 +55,13 @@ function validateFee(fee) {
     if (fee == null || fee === false) return null
     const num = toExactInt(fee)
     if (isNaN(num)) {
-        throw new TypeError(`fee must be a valid integer, got: ${typeof fee === 'string' ? fee : typeof fee}`)
+        throw new ParamTypeError(`fee must be a valid integer, got: ${typeof fee === 'string' ? fee : typeof fee}`)
     }
     if (num < 0) {
-        throw new RangeError('fee must be non-negative')
+        throw new ParamRangeError('fee must be non-negative')
     }
     if (num > MAX_FEE_SATOSHIS) {
-        throw new RangeError(`fee (${num}) exceeds maximum (${MAX_FEE_SATOSHIS})`)
+        throw new ParamRangeError(`fee (${num}) exceeds maximum (${MAX_FEE_SATOSHIS})`)
     }
     return num
 }
@@ -71,7 +72,7 @@ function validateFeePerKb(feePerKb) {
     // boolean (true -> 1), array ([50] -> 50), object (-> NaN but still a wrong
     // type on a money field). Only a real number or a numeric string is valid.
     if (typeof feePerKb !== 'number' && typeof feePerKb !== 'string') {
-        throw new TypeError('feePerKb must be a finite number')
+        throw new ParamTypeError('feePerKb must be a finite number')
     }
     let num
     if (typeof feePerKb === 'number') {
@@ -83,15 +84,15 @@ function validateFeePerKb(feePerKb) {
         // accept, while still permitting a legitimately fractional feePerKb.
         const s = feePerKb.trim()
         if (!/^-?\d+(\.\d+)?$/.test(s)) {
-            throw new TypeError('feePerKb must be a finite number')
+            throw new ParamTypeError('feePerKb must be a finite number')
         }
         num = Number(s)
     }
     if (isNaN(num) || !isFinite(num)) {
-        throw new TypeError('feePerKb must be a finite number')
+        throw new ParamTypeError('feePerKb must be a finite number')
     }
     if (num <= 0) {
-        throw new RangeError('feePerKb must be positive')
+        throw new ParamRangeError('feePerKb must be positive')
     }
     return num
 }
@@ -100,13 +101,13 @@ function validateDust(dust) {
     if (dust == null || dust === false) return null
     const num = toExactInt(dust)
     if (isNaN(num)) {
-        throw new TypeError('dust must be a valid integer')
+        throw new ParamTypeError('dust must be a valid integer')
     }
     if (num < 0) {
-        throw new RangeError('dust must be non-negative')
+        throw new ParamRangeError('dust must be non-negative')
     }
     if (num > MAX_FEE_SATOSHIS) {
-        throw new RangeError(`dust (${num}) exceeds maximum (${MAX_FEE_SATOSHIS})`)
+        throw new ParamRangeError(`dust (${num}) exceeds maximum (${MAX_FEE_SATOSHIS})`)
     }
     return num
 }
@@ -117,7 +118,7 @@ function validateOutpoint(txid, vout, txidLabel, voutLabel) {
     // The outpoint's transaction id must be exactly 32 bytes of hex (64 chars);
     // anything shorter, longer or non-hex cannot name a real transaction.
     if (typeof txid !== 'string' || !HEX_64_RE.test(txid)) {
-        throw new TypeError(`${txidLabel} must be a 64-character hex string`)
+        throw new ParamTypeError(`${txidLabel} must be a 64-character hex string`)
     }
     // Route vout through toExactInt (rejecting NaN), not bare Number(): on the
     // money path a JSON null/''/false/[] all coerce via Number() to a plausible
@@ -128,7 +129,7 @@ function validateOutpoint(txid, vout, txidLabel, voutLabel) {
     // Cap vout at the uint32 wire width, so an oversized index is a -32602 here
     // and never an opaque bitcoinjs typeforce error inside psbt.addInput.
     if (!Number.isInteger(exact) || exact < 0 || exact > 0xffffffff) {
-        throw new TypeError(`${voutLabel} must be a non-negative integer no greater than 4294967295`)
+        throw new ParamTypeError(`${voutLabel} must be a non-negative integer no greater than 4294967295`)
     }
     return { txid: txid.toLowerCase(), vout: exact }
 }
@@ -138,7 +139,7 @@ function validateUtxoOutpoint(entry, index) {
     // null here means the caller sent the wrong shape, not a bad field, so
     // each UTXO must arrive as its own {txid, vout, value, scriptPubKey} record.
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-        throw new TypeError(`utxos[${index}] must be an object`)
+        throw new ParamTypeError(`utxos[${index}] must be an object`)
     }
     const outpoint = validateOutpoint(entry.txid, entry.vout, `utxos[${index}].txid`, `utxos[${index}].vout`)
     // Canonicalize case, because on the OP_RETURN/MULTISIGN path this string IS the
@@ -160,7 +161,7 @@ function validateUtxoValueAndScript(entry, index) {
     entry.value = parseSatoshiAmount(entry.value, `utxos[${index}].value`, { allowBig: true })
 
     if (typeof entry.scriptPubKey !== 'string' || entry.scriptPubKey.length === 0) {
-        throw new TypeError(`utxos[${index}].scriptPubKey must be a non-empty string`)
+        throw new ParamTypeError(`utxos[${index}].scriptPubKey must be a non-empty string`)
     }
     // scriptPubKey flows unchecked into Buffer.from(...,'hex') for the PSBT
     // witnessUtxo.script and into bitcoin.script.decompile in isSegwitUTXO.
@@ -169,10 +170,10 @@ function validateUtxoValueAndScript(entry, index) {
     // silently yields a truncated script and misclassifies the input. Anchor it
     // to even-length hex with a sane bound, matching the txid/rawTxHex rigor.
     if (entry.scriptPubKey.length > MAX_SCRIPTPUBKEY_HEX_LENGTH) {
-        throw new RangeError(`utxos[${index}].scriptPubKey exceeds maximum length (${MAX_SCRIPTPUBKEY_HEX_LENGTH})`)
+        throw new ParamRangeError(`utxos[${index}].scriptPubKey exceeds maximum length (${MAX_SCRIPTPUBKEY_HEX_LENGTH})`)
     }
     if (!RAW_TX_HEX_RE.test(entry.scriptPubKey)) {
-        throw new TypeError(`utxos[${index}].scriptPubKey must be an even-length hex string`)
+        throw new ParamTypeError(`utxos[${index}].scriptPubKey must be an even-length hex string`)
     }
     if (entry.confirmations == null) {
         entry.confirmations = 0
@@ -184,7 +185,7 @@ function validateUtxoValueAndScript(entry, index) {
         // range-check so the downstream comparison always sees an integer.
         const confirmations = toExactInt(entry.confirmations)
         if (!Number.isInteger(confirmations) || confirmations < 0) {
-            throw new TypeError(`utxos[${index}].confirmations must be a non-negative integer`)
+            throw new ParamTypeError(`utxos[${index}].confirmations must be a non-negative integer`)
         }
         entry.confirmations = confirmations
     }
@@ -199,10 +200,10 @@ function validateUtxoEntry(entry, index) {
 function validateUtxoArray(utxos) {
     if (utxos == null) return null
     if (!Array.isArray(utxos)) {
-        throw new TypeError('utxos must be an array')
+        throw new ParamTypeError('utxos must be an array')
     }
     if (utxos.length > MAX_UTXO_COUNT) {
-        throw new RangeError(`utxos array length (${utxos.length}) exceeds maximum (${MAX_UTXO_COUNT})`)
+        throw new ParamRangeError(`utxos array length (${utxos.length}) exceeds maximum (${MAX_UTXO_COUNT})`)
     }
     for (let i = 0; i < utxos.length; i++) {
         validateUtxoEntry(utxos[i], i)
@@ -212,7 +213,7 @@ function validateUtxoArray(utxos) {
 
 function validateCustomOutput(output, index) {
     if (typeof output !== 'object' || output === null || Array.isArray(output)) {
-        throw new TypeError(`customOutputs[${index}] must be an object`)
+        throw new ParamTypeError(`customOutputs[${index}] must be an object`)
     }
     validateAddress(output.address, `customOutputs[${index}].address`)
     // allowBig: a >2^53-1-sat DOGE payment output is legitimate; it must be
@@ -227,7 +228,7 @@ function validateCustomOutput(output, index) {
     // XChainEncoder.createTransaction), so it never passes through here and its
     // sub-dust-but-positive DOGE fee values keep working.
     if (output.value <= 0) {
-        throw new RangeError(`customOutputs[${index}].value must be a positive integer (satoshis)`)
+        throw new ParamRangeError(`customOutputs[${index}].value must be a positive integer (satoshis)`)
     }
     return output
 }
@@ -235,10 +236,10 @@ function validateCustomOutput(output, index) {
 function validateCustomOutputs(customOutputs) {
     if (customOutputs == null) return null
     if (!Array.isArray(customOutputs)) {
-        throw new TypeError('customOutputs must be an array')
+        throw new ParamTypeError('customOutputs must be an array')
     }
     if (customOutputs.length > MAX_CUSTOM_OUTPUTS) {
-        throw new RangeError(`customOutputs length (${customOutputs.length}) exceeds maximum (${MAX_CUSTOM_OUTPUTS})`)
+        throw new ParamRangeError(`customOutputs length (${customOutputs.length}) exceeds maximum (${MAX_CUSTOM_OUTPUTS})`)
     }
     for (let i = 0; i < customOutputs.length; i++) {
         validateCustomOutput(customOutputs[i], i)
@@ -255,15 +256,15 @@ function validateFeeQuote(feeQuote) {
     // validateCustomOutput, and validateAll in transaction_checks.js). No === null
     // clause: the line above already returns for a null/absent quote, which is legal.
     if (typeof feeQuote !== 'object' || Array.isArray(feeQuote)) {
-        throw new TypeError('feeQuote must be an object with address and amount')
+        throw new ParamTypeError('feeQuote must be an object with address and amount')
     }
     validateAddress(feeQuote.address, 'feeQuote.address')
     const amount = toExactInt(feeQuote.amount)
     if (isNaN(amount) || amount <= 0) {
-        throw new RangeError('feeQuote.amount must be a positive integer (satoshis)')
+        throw new ParamRangeError('feeQuote.amount must be a positive integer (satoshis)')
     }
     if (amount > MAX_FEE_SATOSHIS) {
-        throw new RangeError('feeQuote.amount exceeds maximum (' + MAX_FEE_SATOSHIS + ')')
+        throw new ParamRangeError('feeQuote.amount exceeds maximum (' + MAX_FEE_SATOSHIS + ')')
     }
     feeQuote.amount = amount
     return feeQuote

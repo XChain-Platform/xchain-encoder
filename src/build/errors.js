@@ -39,4 +39,27 @@ class OperationalError extends Error {
     }
 }
 
-module.exports = { OperationalError }
+// A caller-input rejection the encoder raised itself, so its message is safe to
+// return as -32602. A bare TypeError/RangeError from Node or a library is a bug and
+// stays unmarked. `name` is inherited, so instanceof and name checks still match.
+class ParamTypeError extends TypeError {
+    constructor(message) {
+        super(message)
+        this.invalidParams = true
+    }
+}
+
+// The RangeError twin of ParamTypeError: a caller value of the right type out of bounds.
+class ParamRangeError extends RangeError {
+    constructor(message) {
+        super(message)
+        this.invalidParams = true
+    }
+}
+
+// Whether an error is an encoder-authored caller-input rejection.
+function isInvalidParams(err) {
+    return Boolean(err) && err.invalidParams === true
+}
+
+module.exports = { OperationalError, ParamTypeError, ParamRangeError, isInvalidParams }

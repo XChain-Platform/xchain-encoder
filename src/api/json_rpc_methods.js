@@ -24,6 +24,7 @@ const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
 const { upstreamErrorMessage } = require('../common/error_sanitize')
+const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
@@ -140,6 +141,30 @@ return {
 }
 }
 
+// Map a build-path error to its JSON-RPC code: OperationalError to -32010 with its
+// xchainCode, an encoder-raised ParamTypeError/ParamRangeError to -32602, and anything
+// else (a Node or library TypeError included) to a logged, generic, retryable -32603.
+function toRpcError(err) {
+    // Forward an operational error's credential-free message and stable code so the wallet and SDK can branch on it
+    if (err && err.operational === true) {
+        const e = new Error(err.message)
+        e.code = -32010
+        e.data = Object.assign({ reason: err.xchainCode }, err.details || {})
+        return e
+    }
+    // Return a caller-input rejection's own message: fix the params, do not retry
+    if (isInvalidParams(err)) {
+        const e = new Error(err.message)
+        e.code = -32602
+        return e
+    }
+    // Log anything else and send a generic message, so no host:port, stack or RPC credential leaks
+    logger.error(util.format('Encoder error:', err))
+    const e = new Error('Internal encoder error')
+    e.code = -32603
+    return e
+}
+
 // The build itself; every error class it can raise maps to one JSON-RPC code.
 function buildTransactionMethods({ encoder }) {
 return {
@@ -162,32 +187,8 @@ return {
                 params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
                 params.feeQuote, params.attachPrevTx, params.compress, params.options)
         } catch (err) {
-            // Typed operational errors (no UTXOs, insufficient funds, missing
-            // change address, tracker unavailable) are expected, caller-actionable
-            // conditions with an encoder-authored, credential-free message and a
-            // stable machine-readable code. Forward those so the wallet/SDK can
-            // branch on them: message passes through and `xchainCode` (plus any
-            // details payload) rides in the JSON-RPC error `data.reason`.
-            if (err && err.operational === true) {
-                const e = new Error(err.message)
-                e.code = -32010
-                e.data = Object.assign({ reason: err.xchainCode }, err.details || {})
-                throw e
-            }
-            // Validation errors (TypeError/RangeError) carry safe messages from
-            // our own validation. Everything else is an unexpected internal and is
-            // collapsed to a generic message to prevent leaking internals
-            // (host:port, stack, RPC credentials).
-            // Map a validation error to -32602 (fix the params, do not retry) and
-            // everything else to -32603 (retry with backoff). Node and tracker faults
-            // inside the build throw plain Error so they stay on the retryable side.
-            const isKnown = err instanceof TypeError || err instanceof RangeError
-            if (!isKnown) {
-                logger.error(util.format('Encoder error:', err))
-            }
-            const e = new Error(isKnown ? err.message : 'Internal encoder error')
-            e.code = isKnown ? -32602 : -32603
-            throw e
+            // Node and tracker faults inside the build throw plain Error, so they stay retryable
+            throw toRpcError(err)
         }
 
         psbt["psbt"] = psbt["psbt"].toHex()
@@ -206,8 +207,8 @@ function buildCancelMethods({ encoder }) {
 return {
     // Key-path cancel of an unrevealed TAPROOT envelope commit: rebuilds the
     // sweep PSBT from the wallet's persisted recovery
-    // record alone. Validation lives in the encoder method (typed
-    // TypeError/RangeError -> -32602, OperationalError -> -32010).
+    // record alone. Validation lives in the encoder method (ParamTypeError/
+    // ParamRangeError -> -32602, OperationalError -> -32010).
     async create_envelope_cancel_tx(rawParams) {
         // Array.isArray for the same reason validator.validateAll carries it:
         // positional params otherwise clear the gate and destructure to undefined.
@@ -220,19 +221,7 @@ return {
         try {
             result = await encoder.createEnvelopeCancelTransaction(rawParams)
         } catch (err) {
-            if (err && err.operational === true) {
-                const e = new Error(err.message)
-                e.code = -32010
-                e.data = Object.assign({ reason: err.xchainCode }, err.details || {})
-                throw e
-            }
-            const isKnown = err instanceof TypeError || err instanceof RangeError
-            if (!isKnown) {
-                logger.error(util.format('Encoder error:', err))
-            }
-            const e = new Error(isKnown ? err.message : 'Internal encoder error')
-            e.code = isKnown ? -32602 : -32603
-            throw e
+            throw toRpcError(err)
         }
         result.psbt = result.psbt.toHex()
         return result
@@ -260,7 +249,7 @@ return {
         let reservationId
         try {
             if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
-                throw new TypeError('Request params must be an object')
+                throw new ParamTypeError('Request params must be an object')
             }
             reservationId = validator.validateReservationId(rawParams.reservationId)
         } catch (err) {
@@ -271,13 +260,7 @@ return {
         try {
             return encoder.releaseReservation(reservationId)
         } catch (err) {
-            const isKnown = err instanceof TypeError || err instanceof RangeError
-            if (!isKnown) {
-                logger.error(util.format('Encoder error:', err))
-            }
-            const e = new Error(isKnown ? err.message : 'Internal encoder error')
-            e.code = isKnown ? -32602 : -32603
-            throw e
+            throw toRpcError(err)
         }
     },
 }

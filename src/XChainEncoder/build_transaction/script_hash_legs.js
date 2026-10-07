@@ -24,6 +24,7 @@ const { MAGIC_WORD, SATOSHI_UNIT } = require('../constants.js')
 const { asSatValue } = require('../script_amount_helpers.js')
 const { assertRevealFundingTxMatches } = require('../request_resolution.js')
 const { feeForVsize } = require('../fee_policy.js')
+const { ParamRangeError } = require('../../build/errors')
 
 // A P2SH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2shChunk(build, nextDataBuffer){
@@ -66,7 +67,7 @@ function* spendP2shLeg(build, nextDataBuffer){
     }
 
     if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
-        throw new RangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
+        throw new ParamRangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
     let nextInput = {
         sequence: utxoSequence,
@@ -228,7 +229,7 @@ function* spendP2wshLeg(build, nextDataBuffer){
     }
 
     if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
-        throw new RangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
+        throw new ParamRangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
     let nextInput = {
         sequence: utxoSequence,

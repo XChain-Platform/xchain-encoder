@@ -52,6 +52,8 @@ const {
     COMPRESSION_MAX_RATIO,
     COMPRESSION_MAX_INPUT_BYTES
 } = require('../common/validator.js')
+// The guards refuse a caller request, so they raise the -32602 Param classes.
+const { ParamTypeError, ParamRangeError } = require('./errors')
 
 // FILE v0 field indices in the FULL action string (ACTION token included):
 // FILE|0|NAME|TYPE|TITLE|MEMO|GATE_TICKER|ENCRYPTION_METHOD|KEY_HASH|GATE_MIN_AMOUNT|COMPRESSION
@@ -112,7 +114,7 @@ function guardCompressible(actionString, rawDataBuffer, maxInputBytes, refuse){
     // payload would produce bytes no reader can reconstruct, because there is
     // nowhere to record that they were compressed.
     if (!isFileV0Action(actionString))
-        return refuse(TypeError, 'not-a-file-action',
+        return refuse(ParamTypeError, 'not-a-file-action',
             'Compression requested, but COMPRESSION is a FILE v0 field: ' +
             'refusing to compress a payload whose action cannot carry the marker.')
 
@@ -130,7 +132,7 @@ function guardCompressible(actionString, rawDataBuffer, maxInputBytes, refuse){
     // almost always emit raw anyway. Almost is not a guarantee, and the
     // failure mode is permanently unreadable published data.)
     if (isGatedFileAction(actionString))
-        return refuse(TypeError, 'gated-file',
+        return refuse(ParamTypeError, 'gated-file',
             'Compression requested for a token-gated FILE. On a gated FILE the ' +
             'COMPRESSION field means inflate-after-decrypt and belongs to the client that ' +
             'performed compress-then-encrypt; the encoder must not set it. ' +
@@ -141,13 +143,13 @@ function guardCompressible(actionString, rawDataBuffer, maxInputBytes, refuse){
     // would double-encode.
     const declared = compressionFieldOf(actionString)
     if (declared.length > 0)
-        return refuse(TypeError, 'codec-already-declared',
+        return refuse(ParamTypeError, 'codec-already-declared',
             `Compression requested, but the action already declares COMPRESSION='${declared}'. ` +
             'Refusing to re-compress bytes whose codec the caller already asserted.')
 
     // GUARD 4: pre-compression input cap.
     if (rawDataBuffer.length > maxInputBytes)
-        return refuse(RangeError, 'over-input-cap',
+        return refuse(ParamRangeError, 'over-input-cap',
             `Payload of ${rawDataBuffer.length} bytes exceeds the ` +
             `${maxInputBytes}-byte compression input cap.`)
 
@@ -180,7 +182,7 @@ function guardCompressible(actionString, rawDataBuffer, maxInputBytes, refuse){
  * @returns {Promise<{data: string, rawData: Buffer, compressed: boolean,
  *                    rawLength: number, storedLength: number, reason: string|null}>}
  *   `data` and `rawData` are what the transaction must actually carry.
- * @throws TypeError when compression was explicitly requested but cannot be
+ * @throws ParamTypeError or ParamRangeError when compression was explicitly requested but cannot be
  *   applied safely (see guardCompressible: its guards fail CLOSED, because emitting
  *   compressed bytes without a correct marker publishes permanently
  *   unreadable data, and the money is already spent by the time anyone finds

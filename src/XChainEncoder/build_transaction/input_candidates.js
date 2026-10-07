@@ -19,7 +19,7 @@
  ********************************************************************/
 
 const { validateUtxoEntry } = require('../../common/validator')
-const { OperationalError } = require('../../build/errors')
+const { OperationalError, ParamTypeError } = require('../../build/errors')
 const { upstreamErrorMessage } = require('../../common/error_sanitize')
 const { classifyTrackerFreshness, resolveCallerAddress } = require('../request_resolution.js')
 
@@ -72,12 +72,12 @@ function checkExactInputs(build){
     const exactInputs = !!(options && options.exactInputs)
     if (exactInputs){
         if (isReveal){
-            throw new TypeError(
+            throw new ParamTypeError(
                 'options.exactInputs cannot be combined with p2shHash: the reveal spends the ' +
                 'funding transaction\'s own outputs, which are derived from p2shHex, not selected')
         }
         if ((utxos == null) || (utxos.length == 0)){
-            throw new TypeError(
+            throw new ParamTypeError(
                 'options.exactInputs requires a non-empty utxos array: it names the exact input ' +
                 'set to spend, so there is nothing to be exact about when the set is fetched')
         }
@@ -191,7 +191,7 @@ function refuseShrunkExactInputs(build){
         if (!unconfirmed){
             const mempoolInput = utxos.find((u) => u.confirmations == 0)
             if (mempoolInput){
-                throw new TypeError(
+                throw new ParamTypeError(
                     `options.exactInputs names unconfirmed utxo ${mempoolInput.txid}:${mempoolInput.vout}, ` +
                     'but unconfirmed=false would drop it; pass unconfirmed: true to spend it')
             }
@@ -200,7 +200,7 @@ function refuseShrunkExactInputs(build){
         for (const u of utxos){
             const k = u.txid + ':' + u.vout
             if (seenOutpoints.has(k)){
-                throw new TypeError(
+                throw new ParamTypeError(
                     `options.exactInputs names outpoint ${k} more than once; a transaction cannot spend the same output twice`)
             }
             seenOutpoints.add(k)

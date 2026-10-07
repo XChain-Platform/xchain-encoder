@@ -23,6 +23,7 @@ const config = require('../common/config');
 const { safeUpstreamReason } = require('../common/error_sanitize');
 const { validateAddress } = require('../common/validator');
 const { ensureEccLib } = require('./script_amount_helpers.js');
+const { ParamTypeError } = require('../build/errors');
 
 // THE tracker-freshness classifier. Pure: it reads a `sync` object and a lag
 // ceiling and returns a verdict; it never throws, logs, or touches a connector.
@@ -206,7 +207,7 @@ function defaultCompressionEnabled(){
 function assertRevealFundingTxMatches(p2shHash, fundingTxid){
     if (!p2shHash) return
     if (String(p2shHash).toLowerCase() !== String(fundingTxid).toLowerCase()){
-        throw new TypeError(
+        throw new ParamTypeError(
             `p2shHash (${p2shHash}) does not match the txid of the supplied p2shHex transaction (${fundingTxid}); ` +
             `the reveal would spend one funding transaction while keying its marker to another`
         )
@@ -226,7 +227,7 @@ function assertAddressOnNetwork(address, network, label){
     } catch (err) {
         // bitcoinjs reports an undecodable address as a plain Error; any other
         // error class is a library fault and keeps its own identity.
-        if (err && err.constructor === Error) throw new TypeError(`${label} is not a valid address for this network`)
+        if (err && err.constructor === Error) throw new ParamTypeError(`${label} is not a valid address for this network`)
         throw err
     }
     return address

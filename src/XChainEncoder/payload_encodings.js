@@ -21,6 +21,7 @@
 const bitcoin = require('bitcoinjs-lib');
 const { OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_ENVELOPE_FORMAT_V0, Encoding } = require('./constants.js')
 const { resolveCallerHash160 } = require('./request_resolution.js')
+const { ParamTypeError, ParamRangeError } = require('../build/errors')
 
 // The per-encoding payload layouts prepareData dispatches to. Each returns the
 // chunk buffers the emission loop turns into outputs, with the encoding used.
@@ -47,7 +48,7 @@ function opReturnPayload(data, encoding, magicWordBuffer){
     // config flag rather than a real opt-out. Fail-closed
     // unconditionally now, the same as when the flag is absent.
     if (data.length > chunksSize) {
-        throw new RangeError(
+        throw new ParamRangeError(
             `OP_RETURN encoding requires compiled payload <= ${chunksSize} bytes; ` +
             `got ${data.length}. Use P2SH for larger payloads.`
         )
@@ -204,10 +205,10 @@ function envelopePayload(data, encoding, compressedPubKey, magicWordBuffer){
     // real pubkey; `pubKey` may be a bare address, so the explicit
     // compressedPubKey is required, mirroring MULTISIGN.
     if (compressedPubKey == null) {
-        throw new TypeError('compressedPubKey is required for TAPROOT encoding (it becomes the envelope internal key)')
+        throw new ParamTypeError('compressedPubKey is required for TAPROOT encoding (it becomes the envelope internal key)')
     }
     if (typeof compressedPubKey !== 'string' || !/^(02|03)[0-9a-fA-F]{64}$/.test(compressedPubKey)) {
-        throw new TypeError('compressedPubKey must be a 66-character hex string starting with 02 or 03')
+        throw new ParamTypeError('compressedPubKey must be a 66-character hex string starting with 02 or 03')
     }
     const internalPubkey = Buffer.from(compressedPubKey, 'hex').subarray(1)
     let envelopeChunks = sliceEnvelopeChunks(data)

@@ -19,7 +19,7 @@
  ********************************************************************/
 
 const util = require('node:util');
-const { OperationalError } = require('../../build/errors')
+const { OperationalError, ParamRangeError } = require('../../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, BURN_BACKSTOP_MULTIPLIER } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
 const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, feeForVsize } = require('../fee_policy.js')
@@ -36,7 +36,7 @@ function refuseExcessiveFee(build){
     if (fee != null && fee !== false && capFeePerBytes != null){
         const maxFeeSatoshis = Math.max(this.dustAmount, Math.ceil(estimatedTxSize * capFeePerBytes * SATOSHI_UNIT))
         if (estimatedFee > maxFeeSatoshis){
-            throw new RangeError(`fee ${estimatedFee} exceeds the maximum allowed ${maxFeeSatoshis} satoshis for a ~${estimatedTxSize}-byte transaction (fee-rate cap)`)
+            throw new ParamRangeError(`fee ${estimatedFee} exceeds the maximum allowed ${maxFeeSatoshis} satoshis for a ~${estimatedTxSize}-byte transaction (fee-rate cap)`)
         }
     }
 
@@ -61,7 +61,7 @@ function refuseExcessiveFee(build){
             const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
             const hardCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
             if (estimatedFee > hardCeiling){
-                throw new RangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
+                throw new ParamRangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
             }
         }
     }
@@ -83,9 +83,9 @@ function refuseInsufficientRelayFee(build){
     if (suppliedFee >= minimumRelayFee) return
 
     if (hasExplicitFee){
-        throw new RangeError(`fee ${suppliedFee} is below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+        throw new ParamRangeError(`fee ${suppliedFee} is below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
     }
-    throw new RangeError(`feePerKb ${feePerKb} base units/kB produces fee ${suppliedFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+    throw new ParamRangeError(`feePerKb ${feePerKb} base units/kB produces fee ${suppliedFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
 }
 
 function* upliftForAncestors(build){

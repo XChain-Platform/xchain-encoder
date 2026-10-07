@@ -25,6 +25,7 @@ const { SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
 const { feeForVsize } = require('../fee_policy.js')
+const { ParamRangeError } = require('../../build/errors')
 
 function prepareDataChunks(build){
     let { p2shHash, psbt, hasActionPayload, finalDataBuffer, encoding, pubkey, compressedPubKey } = build
@@ -302,7 +303,7 @@ function emitCustomOutputs(build){
             // value. Interim safe rule: reject only value <= 0, not a full
             // per-network dust floor.
             if (outputValue <= 0) {
-                throw new RangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
+                throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
             }
             psbt.addOutput({
                 address: output.address,
