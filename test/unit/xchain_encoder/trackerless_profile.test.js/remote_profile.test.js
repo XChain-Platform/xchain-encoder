@@ -3,9 +3,9 @@
 process.env.NETWORK = process.env.NETWORK || 'bitcoin-regtest'
 
 const assert = require('assert')
-const XChainEncoder = require('../../../src/XChainEncoder')
-const UtxoTracker = require('../../../src/build/utxo_tracker')
-const { resolveTrackerProfile, classifyRemoteSync } = require('../../../src/XChainEncoder/trackerless_profile.js')
+const XChainEncoder = require('../../../../src/XChainEncoder')
+const UtxoTracker = require('../../../../src/build/utxo_tracker')
+const { resolveTrackerProfile, classifyRemoteSync } = require('../../../../src/XChainEncoder/trackerless_profile.js')
 
 const PUBKEY = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
 const goodSync = { tracker_height: 100, node_height: 100, lag: 0, synced: true, mempool_ready: true }
@@ -20,7 +20,7 @@ async function code(promise) {
 }
 
 function drive(encoder) {
-  const steps = require('../../../src/XChainEncoder/build_transaction/input_candidates.js')
+  const steps = require('../../../../src/XChainEncoder/build_transaction/input_candidates.js')
   const build = { utxos: null, isReveal: false, p2shHex: null, pubkey: PUBKEY }
   const gen = steps.gatherUtxos.call(encoder, build)
   return (async () => {
@@ -34,7 +34,7 @@ function drive(encoder) {
   })()
 }
 
-describe('UTXO_TRACKER_PROFILE=remote fails closed', () => {
+function registerProfileTests() {
   it('resolves the profile and rejects unknown values', () => {
     assert.strictEqual(resolveTrackerProfile(undefined), 'default')
     assert.strictEqual(resolveTrackerProfile(' Remote '), 'remote')
@@ -54,7 +54,9 @@ describe('UTXO_TRACKER_PROFILE=remote fails closed', () => {
     assert.strictEqual(classifyRemoteSync('remote', { lag: 0 }, 2).code, 'UTXO_TRACKER_STALE')
     assert.strictEqual(classifyRemoteSync('remote', goodSync, 2), null)
   })
+}
 
+function registerStatusTests() {
   const cases = [
     ['unreachable', () => { throw Object.assign(new Error('connect ECONNREFUSED 10.1.2.3:3001'), { code: 'ECONNREFUSED' }) }, 'UTXO_TRACKER_UNREACHABLE'],
     ['empty status', () => { throw Object.assign(new Error('empty result'), { syncMissing: true }) }, 'UTXO_TRACKER_SYNC_MISSING'],
@@ -70,7 +72,9 @@ describe('UTXO_TRACKER_PROFILE=remote fails closed', () => {
       assert.strictEqual(await code(drive(enc)), expected)
     })
   }
+}
 
+function registerUtxoResponseTests() {
   it('refuses a get_utxos response that carries no sync field', async () => {
     const enc = makeEncoder('remote')
     enc.utxoTrackerConnector.getUtxosFromAddress = async () => ({ utxos: [] })
@@ -98,10 +102,19 @@ describe('UTXO_TRACKER_PROFILE=remote fails closed', () => {
     enc.utxoTrackerConnector.getUtxosFromAddress = async () => ({ sync: goodSync, utxos: [{ txid: 'a'.repeat(64), vout: 0, value: 100000, scriptPubKey: '0014' + 'b'.repeat(40), confirmations: 3 }] })
     assert.strictEqual((await drive(enc)).utxos.length, 1)
   })
+}
 
+function registerTrackerTests() {
   it('UtxoTracker.assertTrackerReady types a transport failure in the remote profile', async () => {
     const t = new UtxoTracker('127.0.0.1', 1, 'remote', 2)
     t.getSyncStatus = async () => { throw new Error('socket hang up') }
     assert.strictEqual(await code(t.getUtxosFromAddress('x')), 'UTXO_TRACKER_UNREACHABLE')
   })
+}
+
+describe('UTXO_TRACKER_PROFILE=remote fails closed', () => {
+  registerProfileTests()
+  registerStatusTests()
+  registerUtxoResponseTests()
+  registerTrackerTests()
 })
