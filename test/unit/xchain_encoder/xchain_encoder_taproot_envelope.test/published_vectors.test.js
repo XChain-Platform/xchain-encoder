@@ -13,9 +13,10 @@ const crypto = require('crypto')
 const fs = require('fs')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../../../src/XChainEncoder')
-const { skipOrFail } = require('../../../helpers/sibling_checkout')
+const { siblingCheckout, skipOrFail } = require('../../../helpers/sibling_checkout')
 
-const vectorsFile = process.env.TAPROOT_VECTORS_FILE
+const vectorsFile = process.env.TAPROOT_VECTORS_FILE ||
+  '../../../../../xchain-documentation/protocol/test-vectors/taproot_envelope.json'
 let vectors
 let internalPubkey
 
@@ -68,18 +69,13 @@ function decompileEnvelope (envelopeScript) {
 }
 
 function loadPublishedVectors () {
-  const verdict = {
-    usable: Boolean(vectorsFile && fs.existsSync(vectorsFile)),
-    reason: vectorsFile
-      ? `published vectors file absent: ${vectorsFile}`
-      : 'TAPROOT_VECTORS_FILE is not set'
-  }
+  const verdict = siblingCheckout(__dirname, vectorsFile)
 
   if (!verdict.usable) {
     return skipOrFail(this, verdict, 'the published Taproot envelope vector checks')
   }
 
-  vectors = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'))
+  vectors = JSON.parse(fs.readFileSync(verdict.path, 'utf8'))
   internalPubkey = vectors.envelope_grammar.internal_pubkey_compressed
 }
 
