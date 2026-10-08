@@ -12,7 +12,7 @@ const assert = require('assert')
 const crypto = require('crypto')
 const fs = require('fs')
 const bitcoin = require('bitcoinjs-lib')
-const XChainEncoder = require('../../../src/XChainEncoder')
+const XChainEncoder = require('../../../../src/XChainEncoder')
 
 const vectorsFile = process.env.TAPROOT_VECTORS_FILE
 
