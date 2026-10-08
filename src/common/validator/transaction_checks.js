@@ -80,11 +80,23 @@ function validateRawTxHex(txHex) {
     return txHex
 }
 
+let secp = null
+
+// Refuse a key that is not a secp256k1 point (33-byte compressed or 32-byte
+// x-only). The hex regexes check shape only, and about half of all x values
+// have no point: one lands unspendable in a multisig or fails late in a p2tr tweak.
+function assertPubkeyOnCurve(buf, label) {
+    if (!secp) secp = require('tiny-secp256k1')    // lazy: wasm-backed, as ensureEccLib
+    const onCurve = buf.length === 32 ? secp.isXOnlyPoint(buf) : secp.isPoint(buf)
+    if (!onCurve) throw new ParamTypeError(`${label} is not a valid secp256k1 point`)
+}
+
 function validateCompressedPubKey(compressedPubKey) {
     if (compressedPubKey == null) return null
     if (typeof compressedPubKey !== 'string' || !COMPRESSED_PUBKEY_RE.test(compressedPubKey)) {
         throw new ParamTypeError('compressedPubKey must be a 66-character hex string starting with 02 or 03')
     }
+    assertPubkeyOnCurve(Buffer.from(compressedPubKey, 'hex'), 'compressedPubKey')
     return compressedPubKey
 }
 
@@ -265,6 +277,7 @@ module.exports = {
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,
+    assertPubkeyOnCurve,
     validateAddress,
     validateReservationId,
     validateChange,

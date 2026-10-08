@@ -68,6 +68,24 @@ describe('BlockchainConnector.sendRawTransaction()', () => {
   })
 })
 
+describe('BlockchainConnector.sendRawTransaction() node code', () => {
+  registerAxiosHooks()
+  it('carries the node RPC code as nodeCode on a rejection', async () => {
+    stubAxiosPost({ data: { error: { message: 'Transaction already in block chain', code: -27 } } })
+    await assert.rejects(() => makeConnector().sendRawTransaction(TX_HEX), (e) => e.nodeCode === -27)
+  })
+
+  it('carries nodeCode from an HTTP 500 error body', async () => {
+    stubAxiosPostThrow(Object.assign(new Error('status 500'), { response: { data: { error: { message: 'dust', code: -26 } } } }))
+    await assert.rejects(() => makeConnector().sendRawTransaction(TX_HEX), (e) => e.nodeCode === -26 && /dust/.test(e.message))
+  })
+
+  it('leaves nodeCode unset on a transport fault', async () => {
+    stubAxiosPostThrow(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }))
+    await assert.rejects(() => makeConnector().sendRawTransaction(TX_HEX), (e) => e.nodeCode === undefined)
+  })
+})
+
 describe('BlockchainConnector.sendRawTransaction()', () => {
   registerAxiosHooks()
   it('uses error.message from JSON-RPC error when present', async () => {
