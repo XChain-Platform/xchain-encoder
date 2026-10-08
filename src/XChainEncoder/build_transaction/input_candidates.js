@@ -21,7 +21,8 @@
 const { validateUtxoEntry } = require('../../common/validator')
 const { OperationalError, ParamTypeError } = require('../../build/errors')
 const { upstreamErrorMessage } = require('../../common/error_sanitize')
-const { classifyTrackerFreshness, resolveCallerAddress } = require('../request_resolution.js')
+const { resolveCallerAddress } = require('../request_resolution.js')
+const { isRemoteProfile, throwIfRefused, trackerUnreachableError } = require('../trackerless_profile.js')
 
 function initInputState(build){
     let { replacebyfee, p2shHash } = build
@@ -105,6 +106,9 @@ function* fetchTrackerUtxos(build){
     try {
         fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network)))
     } catch (err) {
+        if (isRemoteProfile(this.trackerProfile)){
+            throw err.operational ? err : trackerUnreachableError(err)
+        }
         // Surface a typed, credential-free operational error. A
         // transport failure embeds the tracker's internal host:port,
         // so upstreamErrorMessage collapses it to the generic
@@ -126,10 +130,7 @@ function* fetchTrackerUtxos(build){
     // One classifier, shared with api.js getServeReadiness(); the ordering,
     // the strict-equality fail-open rules and the operator text all live in
     // classifyTrackerFreshness above.
-    const freshness = classifyTrackerFreshness(fetched && fetched.sync, this.maxUtxoTrackerLagBlocks)
-    if (freshness.code){
-        throw new OperationalError(freshness.code, freshness.message, freshness.details)
-    }
+    throwIfRefused(this.trackerProfile, fetched && fetched.sync, this.maxUtxoTrackerLagBlocks)
 
     acceptTrackerUtxos(build, fetched)
 }
