@@ -78,16 +78,10 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
         const { siblingCheckout, skipOrFail } = require('../../../helpers/sibling_checkout.js');
         before(function () { const docs = siblingCheckout(__dirname, CANON); if (!docs.usable) skipOrFail(this, docs, 'the canonical action-manifest.json byte-identity guard'); });
         it('vendored test/fixtures/action-manifest.json is byte-identical to canonical', function () {
-            const vendored = fs.readFileSync(VENDORED, 'utf8');
-            const canonical = fs.readFileSync(CANON, 'utf8');
-            if (vendored === canonical) return;
-
-            const preceding = vendored.replace(
-                '      "userEncodableVersions": [0, 1, 2, 3, 4],',
-                '      "userEncodableVersions": [0, 1, 2, 3],');
-            assert.notStrictEqual(preceding, vendored, 'vendored manifest does not contain the BET version 4 revision');
-            assert.strictEqual(preceding, canonical,
-                'vendored action-manifest.json drifted beyond the pending BET version revision; edit ' +
+            const vendored = fs.readFileSync(VENDORED);
+            const canonical = fs.readFileSync(CANON);
+            assert.deepStrictEqual(vendored, canonical,
+                'vendored action-manifest.json differs byte-for-byte from the canonical source; edit ' +
                 'xchain-documentation/protocol/action-manifest.json and re-vendor all copies.');
         });
     });
