@@ -54,6 +54,18 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
             'Keep src/common/validator.js ACTION_ALIASES byte-identical to xchain-decoder\'s.');
     });
 
+    it('keeps settlement anchors outside the encoder ACTION-name gate', function () {
+        const anchors = Object.entries(MANIFEST.actions)
+            .filter(([, action]) => action.category === 'settlement-anchor')
+            .map(([name]) => name)
+            .sort();
+        assert.deepStrictEqual(anchors, ['LIST_SHARE', 'XPOLICY']);
+        assert.deepStrictEqual(
+            anchors.filter(name => MANIFEST.actions[name].wireDecoded || v.VALID_ACTION_NAMES.has(name)),
+            [],
+            'settlement anchors are indexer-minted records and must not be accepted as wire ACTION names');
+    });
+
     // IDENTITY: the vendored copy must match the canonical source. Refuses an
     // absent docs checkout and a lane symlink into a live main checkout alike.
     describe('byte-identity to canonical manifest', function () {
