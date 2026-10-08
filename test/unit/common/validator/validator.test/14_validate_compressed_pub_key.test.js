@@ -31,5 +31,17 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateCompressedPubKey('04' + HEX64), /02 or 03/);
             assert.throws(() => v.validateCompressedPubKey('nope'), TypeError);
         });
+
+        it('refuses a well-shaped key whose x is not on the curve, for both prefixes', function () {
+            // BIP340 lists this x as not on the curve; the fixture checks itself.
+            const OFF_CURVE_X = 'EEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34';
+            assert.strictEqual(require('tiny-secp256k1').isXOnlyPoint(Buffer.from(OFF_CURVE_X, 'hex')), false);
+            for (const prefix of ['02', '03']) {
+                assert.throws(() => v.validateCompressedPubKey(prefix + OFF_CURVE_X),
+                    (e) => e instanceof TypeError && e.invalidParams === true && /secp256k1 point/.test(e.message));
+            }
+            const G = '79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798';
+            assert.strictEqual(v.validateCompressedPubKey('03' + G), '03' + G);
+        });
     });
 });
