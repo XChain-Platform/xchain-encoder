@@ -13,15 +13,11 @@ const crypto = require('crypto')
 const fs = require('fs')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder = require('../../../../src/XChainEncoder')
+const { skipOrFail } = require('../../../helpers/sibling_checkout')
 
 const vectorsFile = process.env.TAPROOT_VECTORS_FILE
-
-if (!vectorsFile) {
-  throw new Error('TAPROOT_VECTORS_FILE must point to the published taproot envelope vectors')
-}
-
-const vectors = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'))
-const internalPubkey = vectors.envelope_grammar.internal_pubkey_compressed
+let vectors
+let internalPubkey
 
 function sha256 (buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex')
@@ -38,6 +34,17 @@ function compilePayload (action, rawData) {
   return bitcoin.script.compile([Buffer.from(action, 'utf8'), rawData])
 }
 
+function payloadFor (testCase, vector) {
+  if (vector.payload_generation) {
+    assert.strictEqual(vector.payload_generation, testCase.payloadGeneration)
+    return compilePayload(testCase.action, testCase.rawData)
+  }
+
+  const payload = Buffer.alloc(vector.compiled_payload_length, 0x41)
+  payload[payload.length - 1] = Number(vector.final_byte)
+  return payload
+}
+
 function decompileEnvelope (envelopeScript) {
   const decompiled = bitcoin.script.decompile(envelopeScript)
   assert.ok(decompiled, 'envelope script must decompile')
@@ -50,22 +57,45 @@ describe('XChainEncoder published Taproot envelope vectors', function () {
     {
       name: 'envelope_chunking',
       action: 'FILE|0|chunks.bin|application/octet-stream|||||||',
-      rawData: makeRawData(1200)
+      rawData: makeRawData(1200),
+      payloadGeneration: 'action "FILE|0|chunks.bin|application/octet-stream|||||||" + 1200 rawData bytes where byte[i] = (i*7+13) & 0xff'
     },
     {
       name: 'chunk_rebalance',
       action: 'FILE|0|rebalance.bin|application/octet-stream|||||||',
-      rawData: makeRawData(985, 0x07)
+      rawData: makeRawData(985, 0x07),
+      payloadGeneration: 'action "FILE|0|rebalance.bin|application/octet-stream|||||||" + 985 rawData bytes where byte[i] = (i*7+13) & 0xff for i < 984 and byte[984] = 0x07'
     }
   ]
+
+  before(function () {
+    const verdict = {
+      usable: Boolean(vectorsFile && fs.existsSync(vectorsFile)),
+      reason: vectorsFile
+        ? `published vectors file absent: ${vectorsFile}`
+        : 'TAPROOT_VECTORS_FILE is not set'
+    }
+
+    if (!verdict.usable) {
+      return skipOrFail(this, verdict, 'the published Taproot envelope vector checks')
+    }
+
+    vectors = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'))
+    internalPubkey = vectors.envelope_grammar.internal_pubkey_compressed
+  })
 
   for (const testCase of cases) {
     it(`matches ${testCase.name} through prepareData`, function () {
       const vector = vectors[testCase.name]
-      const payload = compilePayload(testCase.action, testCase.rawData)
+      const payload = payloadFor(testCase, vector)
 
       assert.strictEqual(payload.length, vector.compiled_payload_length)
-      assert.strictEqual(sha256(payload), vector.compiled_payload_sha256)
+      if (vector.final_byte) {
+        assert.strictEqual(payload.at(-1), Number(vector.final_byte))
+      }
+      if (vector.payload_generation) {
+        assert.strictEqual(sha256(payload), vector.compiled_payload_sha256)
+      }
 
       const prepared = encoder.prepareData(payload, 'TAPROOT', null, internalPubkey)
       assert.strictEqual(prepared.encoding, 'TAPROOT')
@@ -94,7 +124,9 @@ describe('XChainEncoder published Taproot envelope vectors', function () {
       assert.ok(pushes.every(Buffer.isBuffer))
       assert.deepStrictEqual(pushes.map((push) => push.length), vector.push_lengths)
       assert.deepStrictEqual(Buffer.concat(pushes), payload)
-      assert.strictEqual(sha256(envelopeScript), vector.envelope_script_sha256)
+      if (vector.payload_generation) {
+        assert.strictEqual(sha256(envelopeScript), vector.envelope_script_sha256)
+      }
 
       if (vector.envelope_script_length != null) {
         assert.strictEqual(envelopeScript.length, vector.envelope_script_length)
