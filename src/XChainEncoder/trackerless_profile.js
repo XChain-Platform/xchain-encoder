@@ -75,7 +75,9 @@ function classifyRemoteSync(profile, sync, maxLagBlocks){
     if (!verdict.syncedClaimed){
         const err = new OperationalError('UTXO_TRACKER_STALE',
             'utxo-tracker did not assert that it is synced; refusing to select utxos from it')
-        return { code: err.xchainCode, message: err.message, details: { lag: verdict.lag } }
+        // Carry the same heights as the shared classifier's STALE, as the error registry promises.
+        const details = { lag: verdict.lag, tracker_height: sync.tracker_height, node_height: sync.node_height }
+        return { code: err.xchainCode, message: err.message, details }
     }
     return null
 }

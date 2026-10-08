@@ -66,6 +66,12 @@ function registerProfileTests() {
     assert.strictEqual(classifyRemoteSync('remote', { lag: 0 }, 2).code, 'UTXO_TRACKER_STALE')
     assert.strictEqual(classifyRemoteSync('remote', goodSync, 2), null)
   })
+
+  it('sends the registered lag and heights on a remote STALE for an unasserted synced', () => {
+    const refusal = classifyRemoteSync('remote', { tracker_height: 100, node_height: 100, lag: 0 }, 2)
+    assert.strictEqual(refusal.code, 'UTXO_TRACKER_STALE')
+    assert.deepStrictEqual(refusal.details, { lag: 0, tracker_height: 100, node_height: 100 })
+  })
 }
 
 function registerStatusTests() {

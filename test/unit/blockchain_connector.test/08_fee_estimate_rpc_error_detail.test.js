@@ -46,6 +46,33 @@ describe('BlockchainConnector.getFeePerKilobyte() node RPC error detail', () => 
     await assert.rejects(() => c.getFeePerKilobyte(6), /Error getting smart fee from node \(RPC error -32601: Method not found\)/)
   })
 
+  it('carries a modern node result.errors reason into the thrown message', async () => {
+    stubMainnet(() => ({ data: { result: { errors: ['Insufficient data or no feerate found'], blocks: 2 }, error: null } }))
+    const c = makeConnector()
+    await assert.rejects(() => c.getFeePerKilobyte(6),
+      /Error getting smart fee from node \(node: Insufficient data or no feerate found\)/)
+  })
+
+  it('adds no suffix for a feerate -1 body or result.errors with no usable string', async () => {
+    const bodies = [{ feerate: -1, blocks: 25 }, { errors: [], blocks: 2 }, { errors: [null, 42, ''], blocks: 2 }]
+    for (const result of bodies) {
+      stubMainnet(() => ({ data: { result: result } }))
+      const c = makeConnector()
+      await assert.rejects(() => c.getFeePerKilobyte(6), (err) => err.message === 'Error getting smart fee from node')
+    }
+  })
+
+  it('still takes the testnet relay fallback for a modern no-estimate body', async () => {
+    axios.post = async (url, data) => {
+      if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
+      if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
+      if (data.method === 'estimatesmartfee') return { data: { result: { errors: ['Insufficient data or no feerate found'], blocks: 2 }, error: null } }
+      return { data: { result: {} } }
+    }
+    const c = makeConnector()
+    assert.strictEqual(await c.getFeePerKilobyte(6), 0.01)
+  })
+
   it('rethrows a bodiless transport failure as the original error object', async () => {
     const original = new Error('socket hang up')
     stubMainnet(() => { throw original })
