@@ -266,6 +266,14 @@ return {
 }
 }
 
+// The node's answer for a transaction it already holds: RPC -27 (already in
+// the chain) or the mempool duplicate wording.
+const ALREADY_KNOWN_NODE_CODE = -27
+const ALREADY_KNOWN_PATTERN = /already in block ?chain|already known|already in mempool|txn-already/i
+function isAlreadyKnown(err) {
+    return err.nodeCode === ALREADY_KNOWN_NODE_CODE || ALREADY_KNOWN_PATTERN.test(err.message || '')
+}
+
 // Node-facing broadcast; upstream error text is sanitized before it leaves.
 function buildBroadcastMethods({ encoder }) {
 return {
@@ -295,7 +303,15 @@ return {
         } catch (err) {
             logger.error(util.format(`Broadcast error for txid ${localTxid}:`, err))
             const e = new Error(upstreamErrorMessage(err, 'Transaction broadcast failed'))
-            e.code = -32603
+            if (Number.isInteger(err && err.nodeCode)) {
+                e.code = -32010
+                e.data = {
+                    reason: isAlreadyKnown(err) ? 'TX_ALREADY_IN_CHAIN' : 'NODE_REJECTED',
+                    node_code: err.nodeCode,
+                }
+            } else {
+                e.code = -32603
+            }
             throw e
         }
     },

@@ -17,6 +17,14 @@ const util = require('node:util');
 const { logger, RPC_TIMEOUT } = require('./constants');
 const { sanitizeRpcError } = require('./rpc_helpers');
 
+// An Error carrying the node's own message and, when it sent one, its numeric
+// RPC code as nodeCode, so callers can tell a rejection from a transport fault.
+function nodeRejection(rpcError) {
+    const err = new Error(rpcError.message || JSON.stringify(rpcError));
+    if (Number.isInteger(rpcError.code)) err.nodeCode = rpcError.code;
+    return err;
+}
+
 module.exports = {
     async sendRawTransaction(txHex) {
         try {
@@ -68,7 +76,7 @@ module.exports = {
             const responseData = response.data;
 
             if (responseData && responseData.error) {
-                throw new Error(responseData.error.message || JSON.stringify(responseData.error));
+                throw nodeRejection(responseData.error);
             }
 
             if (responseData && responseData.result) {
@@ -82,9 +90,10 @@ module.exports = {
             // non-2xx status, so read the node's error body off error.response so
             // its actual reason (e.g. "non-mandatory-script-verify-flag", "dust",
             // "bad-txns-*") is surfaced instead of a useless "status code 500".
+            if (error && error.nodeCode !== undefined) throw error;
             const body = error.response?.data;
             if (body && body.error) {
-                throw new Error(body.error.message || JSON.stringify(body.error));
+                throw nodeRejection(body.error);
             }
             logger.error(util.format('Error:', sanitizeRpcError(error)));
             throw error;
