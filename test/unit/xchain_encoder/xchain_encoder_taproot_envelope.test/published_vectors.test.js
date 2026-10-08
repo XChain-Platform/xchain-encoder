@@ -19,6 +19,22 @@ const vectorsFile = process.env.TAPROOT_VECTORS_FILE
 let vectors
 let internalPubkey
 
+const encoder = new XChainEncoder('bitcoin-regtest', '', '', '', '', '', '')
+const cases = [
+  {
+    name: 'envelope_chunking',
+    action: 'FILE|0|chunks.bin|application/octet-stream|||||||',
+    rawData: makeRawData(1200),
+    payloadGeneration: 'action "FILE|0|chunks.bin|application/octet-stream|||||||" + 1200 rawData bytes where byte[i] = (i*7+13) & 0xff'
+  },
+  {
+    name: 'chunk_rebalance',
+    action: 'FILE|0|rebalance.bin|application/octet-stream|||||||',
+    rawData: makeRawData(985, 0x07),
+    payloadGeneration: 'action "FILE|0|rebalance.bin|application/octet-stream|||||||" + 985 rawData bytes where byte[i] = (i*7+13) & 0xff for i < 984 and byte[984] = 0x07'
+  }
+]
+
 function sha256 (buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex')
 }
@@ -51,86 +67,84 @@ function decompileEnvelope (envelopeScript) {
   return decompiled
 }
 
+function loadPublishedVectors () {
+  const verdict = {
+    usable: Boolean(vectorsFile && fs.existsSync(vectorsFile)),
+    reason: vectorsFile
+      ? `published vectors file absent: ${vectorsFile}`
+      : 'TAPROOT_VECTORS_FILE is not set'
+  }
+
+  if (!verdict.usable) {
+    return skipOrFail(this, verdict, 'the published Taproot envelope vector checks')
+  }
+
+  vectors = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'))
+  internalPubkey = vectors.envelope_grammar.internal_pubkey_compressed
+}
+
+function assertPayload (payload, vector) {
+  assert.strictEqual(payload.length, vector.compiled_payload_length)
+  if (vector.final_byte) {
+    assert.strictEqual(payload.at(-1), Number(vector.final_byte))
+  }
+  if (vector.payload_generation) {
+    assert.strictEqual(sha256(payload), vector.compiled_payload_sha256)
+  }
+}
+
+function assertEnvelopeGrammar (decompiled) {
+  assert.deepStrictEqual(decompiled.slice(0, 4), [
+    bitcoin.opcodes.OP_0,
+    bitcoin.opcodes.OP_IF,
+    Buffer.from('XCHN', 'utf8'),
+    Buffer.from([0])
+  ])
+  assert.strictEqual(decompiled.at(-3), bitcoin.opcodes.OP_ENDIF)
+  assert.strictEqual(
+    decompiled.at(-2).toString('hex'),
+    vectors.envelope_grammar.internal_pubkey_xonly
+  )
+  assert.strictEqual(decompiled.at(-1), bitcoin.opcodes.OP_CHECKSIG)
+}
+
+function assertEnvelope (envelopeScript, payload, vector) {
+  const decompiled = decompileEnvelope(envelopeScript)
+  assertEnvelopeGrammar(decompiled)
+
+  const pushes = decompiled.slice(4, -3)
+  assert.ok(pushes.every(Buffer.isBuffer))
+  assert.deepStrictEqual(pushes.map((push) => push.length), vector.push_lengths)
+  assert.deepStrictEqual(Buffer.concat(pushes), payload)
+  if (vector.payload_generation) {
+    assert.strictEqual(sha256(envelopeScript), vector.envelope_script_sha256)
+  }
+  if (vector.envelope_script_length != null) {
+    assert.strictEqual(envelopeScript.length, vector.envelope_script_length)
+  }
+}
+
+function assertPublishedVector (testCase) {
+  const vector = vectors[testCase.name]
+  const payload = payloadFor(testCase, vector)
+  assertPayload(payload, vector)
+
+  const prepared = encoder.prepareData(payload, 'TAPROOT', null, internalPubkey)
+  assert.strictEqual(prepared.encoding, 'TAPROOT')
+  assert.strictEqual(prepared.dataBufferArray.length, 1)
+  assert.strictEqual(
+    prepared.internalPubkey.toString('hex'),
+    vectors.envelope_grammar.internal_pubkey_xonly
+  )
+  assertEnvelope(prepared.dataBufferArray[0], payload, vector)
+}
+
 describe('XChainEncoder published Taproot envelope vectors', function () {
-  const encoder = new XChainEncoder('bitcoin-regtest', '', '', '', '', '', '')
-  const cases = [
-    {
-      name: 'envelope_chunking',
-      action: 'FILE|0|chunks.bin|application/octet-stream|||||||',
-      rawData: makeRawData(1200),
-      payloadGeneration: 'action "FILE|0|chunks.bin|application/octet-stream|||||||" + 1200 rawData bytes where byte[i] = (i*7+13) & 0xff'
-    },
-    {
-      name: 'chunk_rebalance',
-      action: 'FILE|0|rebalance.bin|application/octet-stream|||||||',
-      rawData: makeRawData(985, 0x07),
-      payloadGeneration: 'action "FILE|0|rebalance.bin|application/octet-stream|||||||" + 985 rawData bytes where byte[i] = (i*7+13) & 0xff for i < 984 and byte[984] = 0x07'
-    }
-  ]
-
-  before(function () {
-    const verdict = {
-      usable: Boolean(vectorsFile && fs.existsSync(vectorsFile)),
-      reason: vectorsFile
-        ? `published vectors file absent: ${vectorsFile}`
-        : 'TAPROOT_VECTORS_FILE is not set'
-    }
-
-    if (!verdict.usable) {
-      return skipOrFail(this, verdict, 'the published Taproot envelope vector checks')
-    }
-
-    vectors = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'))
-    internalPubkey = vectors.envelope_grammar.internal_pubkey_compressed
-  })
+  before(loadPublishedVectors)
 
   for (const testCase of cases) {
-    it(`matches ${testCase.name} through prepareData`, function () {
-      const vector = vectors[testCase.name]
-      const payload = payloadFor(testCase, vector)
-
-      assert.strictEqual(payload.length, vector.compiled_payload_length)
-      if (vector.final_byte) {
-        assert.strictEqual(payload.at(-1), Number(vector.final_byte))
-      }
-      if (vector.payload_generation) {
-        assert.strictEqual(sha256(payload), vector.compiled_payload_sha256)
-      }
-
-      const prepared = encoder.prepareData(payload, 'TAPROOT', null, internalPubkey)
-      assert.strictEqual(prepared.encoding, 'TAPROOT')
-      assert.strictEqual(prepared.dataBufferArray.length, 1)
-      assert.strictEqual(
-        prepared.internalPubkey.toString('hex'),
-        vectors.envelope_grammar.internal_pubkey_xonly
-      )
-
-      const envelopeScript = prepared.dataBufferArray[0]
-      const decompiled = decompileEnvelope(envelopeScript)
-      assert.deepStrictEqual(decompiled.slice(0, 4), [
-        bitcoin.opcodes.OP_0,
-        bitcoin.opcodes.OP_IF,
-        Buffer.from('XCHN', 'utf8'),
-        Buffer.from([0])
-      ])
-      assert.strictEqual(decompiled.at(-3), bitcoin.opcodes.OP_ENDIF)
-      assert.strictEqual(
-        decompiled.at(-2).toString('hex'),
-        vectors.envelope_grammar.internal_pubkey_xonly
-      )
-      assert.strictEqual(decompiled.at(-1), bitcoin.opcodes.OP_CHECKSIG)
-
-      const pushes = decompiled.slice(4, -3)
-      assert.ok(pushes.every(Buffer.isBuffer))
-      assert.deepStrictEqual(pushes.map((push) => push.length), vector.push_lengths)
-      assert.deepStrictEqual(Buffer.concat(pushes), payload)
-      if (vector.payload_generation) {
-        assert.strictEqual(sha256(envelopeScript), vector.envelope_script_sha256)
-      }
-
-      if (vector.envelope_script_length != null) {
-        assert.strictEqual(envelopeScript.length, vector.envelope_script_length)
-      }
+    it(`matches ${testCase.name} through prepareData`, () => {
+      assertPublishedVector(testCase)
     })
   }
 })
