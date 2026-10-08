@@ -54,6 +54,10 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
             'Keep src/common/validator.js ACTION_ALIASES byte-identical to xchain-decoder\'s.');
     });
 
+    it('records BET version 4 as user-encodable', function () {
+        assert.deepStrictEqual(MANIFEST.actions.BET.userEncodableVersions, [0, 1, 2, 3, 4]);
+    });
+
     it('keeps settlement anchors outside the encoder ACTION-name gate', function () {
         const anchors = Object.entries(MANIFEST.actions)
             .filter(([, action]) => action.category === 'settlement-anchor')
@@ -74,8 +78,10 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
         const { siblingCheckout, skipOrFail } = require('../../../helpers/sibling_checkout.js');
         before(function () { const docs = siblingCheckout(__dirname, CANON); if (!docs.usable) skipOrFail(this, docs, 'the canonical action-manifest.json byte-identity guard'); });
         it('vendored test/fixtures/action-manifest.json is byte-identical to canonical', function () {
-            assert.strictEqual(fs.readFileSync(VENDORED, 'utf8'), fs.readFileSync(CANON, 'utf8'),
-                'vendored action-manifest.json drifted from canonical; edit ' +
+            const vendored = fs.readFileSync(VENDORED);
+            const canonical = fs.readFileSync(CANON);
+            assert.deepStrictEqual(vendored, canonical,
+                'vendored action-manifest.json differs byte-for-byte from the canonical source; edit ' +
                 'xchain-documentation/protocol/action-manifest.json and re-vendor all copies.');
         });
     });
