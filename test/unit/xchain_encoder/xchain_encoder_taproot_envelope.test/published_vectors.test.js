@@ -38,9 +38,10 @@ function compilePayload (action, rawData) {
   return bitcoin.script.compile([Buffer.from(action, 'utf8'), rawData])
 }
 
-function payloadPushes (envelopeScript) {
+function decompileEnvelope (envelopeScript) {
   const decompiled = bitcoin.script.decompile(envelopeScript)
-  return decompiled.slice(4, -3)
+  assert.ok(decompiled, 'envelope script must decompile')
+  return decompiled
 }
 
 describe('XChainEncoder published Taproot envelope vectors', function () {
@@ -69,9 +70,27 @@ describe('XChainEncoder published Taproot envelope vectors', function () {
       const prepared = encoder.prepareData(payload, 'TAPROOT', null, internalPubkey)
       assert.strictEqual(prepared.encoding, 'TAPROOT')
       assert.strictEqual(prepared.dataBufferArray.length, 1)
+      assert.strictEqual(
+        prepared.internalPubkey.toString('hex'),
+        vectors.envelope_grammar.internal_pubkey_xonly
+      )
 
       const envelopeScript = prepared.dataBufferArray[0]
-      const pushes = payloadPushes(envelopeScript)
+      const decompiled = decompileEnvelope(envelopeScript)
+      assert.deepStrictEqual(decompiled.slice(0, 4), [
+        bitcoin.opcodes.OP_0,
+        bitcoin.opcodes.OP_IF,
+        Buffer.from('XCHN', 'utf8'),
+        Buffer.from([0])
+      ])
+      assert.strictEqual(decompiled.at(-3), bitcoin.opcodes.OP_ENDIF)
+      assert.strictEqual(
+        decompiled.at(-2).toString('hex'),
+        vectors.envelope_grammar.internal_pubkey_xonly
+      )
+      assert.strictEqual(decompiled.at(-1), bitcoin.opcodes.OP_CHECKSIG)
+
+      const pushes = decompiled.slice(4, -3)
       assert.ok(pushes.every(Buffer.isBuffer))
       assert.deepStrictEqual(pushes.map((push) => push.length), vector.push_lengths)
       assert.deepStrictEqual(Buffer.concat(pushes), payload)
