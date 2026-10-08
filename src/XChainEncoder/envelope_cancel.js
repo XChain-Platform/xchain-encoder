@@ -22,7 +22,7 @@ const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
-const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint } = require('../common/validator')
+const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint, assertPubkeyOnCurve } = require('../common/validator')
 const { OperationalError, ParamTypeError, ParamRangeError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
@@ -45,6 +45,8 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     } else {
         throw new ParamTypeError('internalPubkey must be a 66-character compressed or 64-character x-only pubkey hex string')
     }
+    // Refuse an off-curve key here as -32602, before any claim or fee RPC.
+    assertPubkeyOnCurve(internalKeyBuf, 'internalPubkey')
     if (typeof tapleafHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(tapleafHash)) {
         throw new ParamTypeError('tapleafHash must be a 64-character hex string')
     }

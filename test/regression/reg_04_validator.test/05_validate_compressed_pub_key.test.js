@@ -23,7 +23,7 @@ const assert = require('assert')
 const { validateCompressedPubKey } = require('../../../src/common/validator')
 
 const VALID_COMPRESSED_02 = '02' + 'a'.repeat(64)
-const VALID_COMPRESSED_03 = '03' + 'b'.repeat(64)
+const VALID_COMPRESSED_03 = '0379BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798'  // on the curve: the generator's x
 
 describe('REG-04: Validator Functions', function () {
   describe('REG-04.12: validateCompressedPubKey()', function () {
