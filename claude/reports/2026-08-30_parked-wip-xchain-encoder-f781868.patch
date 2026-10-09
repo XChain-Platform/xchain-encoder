@@ -2,7 +2,6 @@ From f7818681a72acc329ed893ef732594c8f830d7da Mon Sep 17 00:00:00 2001
 From: J-Dog <j-dog@j-dog.net>
 Date: Sun, 30 Aug 2026 21:10:52 -0700
 Subject: [PATCH] wip: extend outpoint reservation to caller-supplied sets
- (XC-1796, live verify not driven)
 
 ---
  src/XChainEncoder.js                          | 130 ++++++++++----
