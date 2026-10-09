@@ -1,0 +1,624 @@
+From f7818681a72acc329ed893ef732594c8f830d7da Mon Sep 17 00:00:00 2001
+From: J-Dog <j-dog@j-dog.net>
+Date: Sun, 30 Aug 2026 21:10:52 -0700
+Subject: [PATCH] wip: extend outpoint reservation to caller-supplied sets
+ (XC-1796, live verify not driven)
+
+---
+ src/XChainEncoder.js                          | 130 ++++++++++----
+ .../boundary/custom-output-boundaries.test.js |   4 +
+ test/chaos/library-failures.test.js           |   2 +
+ test/chaos/network-failures.test.js           |   4 +-
+ test/integration/custom-outputs.test.js       |   6 +-
+ test/regression/reg-09-deepdive-fixes.test.js |  20 ++-
+ .../reg-12-ins0-key-binding.test.js           |  16 +-
+ .../reg-18-chained-send-reservation.test.js   | 163 ++++++++++++++++++
+ test/unit/XChainEncoder.autoEncoding.test.js  |   2 +
+ .../XChainEncoder.createTransaction.test.js   |   3 +
+ .../XChainEncoder.p2shRevealHeadroom.test.js  |   3 +
+ test/unit/compression.test.js                 |   3 +
+ test/unit/packageFeeSizing.test.js            |   3 +
+ 13 files changed, 313 insertions(+), 46 deletions(-)
+ create mode 100644 test/regression/reg-18-chained-send-reservation.test.js
+
+diff --git a/src/XChainEncoder.js b/src/XChainEncoder.js
+index db42d4e..0a8cb1c 100644
+--- a/src/XChainEncoder.js
++++ b/src/XChainEncoder.js
+@@ -369,11 +369,52 @@ class XChainEncoder {
+       // parameter, so this normalizes `null` the same way).
+       this.maxUtxoTrackerLagBlocks = (maxUtxoTrackerLagBlocks == null) ? DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS : maxUtxoTrackerLagBlocks
+       // outpoint ("txid:vout") -> reservation-expiry epoch ms. Guards against
+-      // two concurrent create_tx calls for the same address both selecting the
+-      // same tracker-fetched UTXOs and emitting conflicting double-spends. Only
+-      // engaged for tracker-fetched selections (caller-supplied UTXOs are the
+-      // caller's own coin-control). See RESERVATION_TTL_MS.
++      // two create_tx calls for the same address, concurrent or a few hundred
++      // milliseconds apart, both selecting the same UTXO and emitting conflicting
++      // double-spends. Engaged for EVERY selection, caller-supplied sets
++      // included: the SDK fetches the funding set itself and hands it over as
++      // `utxos`, so "caller-supplied" is the mainstream wallet path, not a
++      // coin-control opt-in. Treating it as unreserved is how three chained
++      // MINTs on BTC testnet4 built the same transaction twice (XC-1796).
++      // See RESERVATION_TTL_MS.
+       this.outpointReservations = new Map()
++      // unsigned txid -> expiry epoch ms of every transaction this process built
++      // within RESERVATION_TTL_MS. Second line of defense behind the outpoint
++      // map: a byte-identical rebuild hashes to the same txid, and returning it
++      // as a fresh build let a caller journal one broadcast as two successes.
++      this.recentBuilds = new Map()
++    }
++
++    // Sweep the recent-build map the same way _evictExpiredReservations sweeps
++    // the outpoint map, so neither grows unbounded in a long-lived process.
++    _evictExpiredRecentBuilds(now) {
++        for (const [txid, expiry] of this.recentBuilds) {
++            if (expiry <= now) this.recentBuilds.delete(txid)
++        }
++    }
++
++    // Refuse to hand back a transaction identical to one built within the
++    // reservation window, then record this one. Identity is the UNSIGNED txid
++    // (inputs, outputs, version, locktime): a rebuild that changes any of those
++    // (an RBF bump, a different amount, a different input) is a different
++    // transaction and passes. The outpoint reservations normally stop an
++    // identical rebuild one layer earlier (every input is still reserved), so
++    // this only fires when those were bypassed or cleared; it exists so the
++    // "same txid twice" failure can never present as two successes again.
++    _refuseDuplicateBuild(psbt, now) {
++        this._evictExpiredRecentBuilds(now)
++        const unsignedTx = bitcoin.Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer())
++        const txid = unsignedTx.getId()
++        if (this.recentBuilds.has(txid)) {
++            throw new OperationalError(
++                'DUPLICATE_TRANSACTION',
++                'refusing to rebuild a transaction identical to one built in the last ' +
++                    Math.round(RESERVATION_TTL_MS / 60000) + ' minutes (same inputs and outputs, same txid ' +
++                    txid + '); broadcast the one you already have, or change the inputs or outputs',
++                { txid }
++            )
++        }
++        this.recentBuilds.set(txid, now + RESERVATION_TTL_MS)
+     }
+ 
+     // A reserved outpoint is one an in-flight selection has claimed and not yet
+@@ -426,10 +467,12 @@ class XChainEncoder {
+         }
+     }
+ 
+-    // Explicit release of all reservations. The encoder holds no durable state,
+-    // so this is primarily a test seam; production relies on the TTL.
++    // Explicit release of all reservations and recent-build records. The encoder
++    // holds no durable state, so this is primarily a test seam; production
++    // relies on the TTL.
+     clearReservations() {
+         this.outpointReservations.clear()
++        this.recentBuilds.clear()
+     }
+     
+     isSegwitUTXO(utxo) {
+@@ -1198,7 +1241,7 @@ class XChainEncoder {
+         // The OP_RETURN/MULTISIGN obfuscation key MUST bind to the txid of the input actually
+         // placed at ins[0]: the decoder derives its deobfuscation key from transaction.ins[0].
+         // The selection loop below skips outpoints a concurrent/recent create_tx reserved
+-        // (tracker-fetched sets only), so sorted utxos[0] is NOT necessarily the first input.
++        // (caller-supplied sets included), so sorted utxos[0] is NOT necessarily the first input.
+         // Synchronously pre-reserve the first AVAILABLE outpoint now - before the async data
+         // loop, so no concurrent call can claim it in between - and bind the key to it; the
+         // selection loop carves this outpoint out of its skip check so it is taken as ins[0].
+@@ -1213,10 +1256,15 @@ class XChainEncoder {
+         // the async data loop un-skips that outpoint and it takes ins[0] while the key stays
+         // bound here. Move the key-bound outpoint to the head of the selection order so ins[0]
+         // is correct by construction, independent of any clock.
++        //
++        // Reservation is NOT gated on fetchedFromTracker. The SDK fetches the funding
++        // set through get_utxos and passes it as `utxos`, so a caller-supplied set is
++        // the wallet's normal path; leaving it unreserved is exactly the hole that let
++        // two chained sends 800ms apart build the same transaction (XC-1796).
+         let firstReservedOutpoint = null
+         let txidFirstInput = null
+         if (utxos.length){
+-            if (fetchedFromTracker){
++            {
+                 const nowFirst = Date.now()
+                 this._evictExpiredReservations(nowFirst)
+                 for (let i = 0; i < utxos.length; i++){
+@@ -1242,9 +1290,6 @@ class XChainEncoder {
+                 // free a DIFFERENT outpoint first; the post-selection guard below catches that
+                 // and fails closed rather than emitting a silently-undecodable action.
+                 if (txidFirstInput === null) txidFirstInput = utxos[0]["txid"]
+-            } else {
+-                // Caller-supplied UTXOs are the caller's own coin-control; ins[0] is utxos[0].
+-                txidFirstInput = utxos[0]["txid"]
+             }
+             // Lowercase where the key BINDS, not only at validation: this string is the
+             // obfuscation key itself, the decoder's half of it always renders lowercase,
+@@ -1747,6 +1792,10 @@ class XChainEncoder {
+         // that omits it degrades to per-transaction sizing rather than to a
+         // guess about someone else's fee.
+         const unconfirmedInputTxids = []
++        // Candidates the loop skipped because another build holds them. Reported
++        // when nothing could be selected, so the caller learns the inputs exist
++        // and are spoken for rather than that the address is empty.
++        let reservedCandidates = 0
+         if (!p2shHash){//The p2sh input is already created before
+             const now = Date.now()
+             this._evictExpiredReservations(now)
+@@ -1771,25 +1820,29 @@ class XChainEncoder {
+                         `commit txid at signing time and strand the pre-built reveal.`)
+                 }
+ 
+-                // Best-effort double-spend guard: when this set was fetched from
+-                // the tracker for the sender address, skip any outpoint another
+-                // in-flight create_tx just claimed, and reserve the ones we take.
+-                // Two concurrent calls for one address would otherwise both pick
+-                // the largest UTXOs and build conflicting double-spends. Reserve
+-                // synchronously here (before the getTransactionHex await below)
+-                // so a concurrent call observes the claim. Caller-supplied UTXOs
+-                // are the caller's own coin-control and are left unreserved.
++                // Double-spend guard: skip any outpoint another create_tx claimed
++                // within RESERVATION_TTL_MS, and reserve the ones we take. Two
++                // calls for one address would otherwise both pick the largest
++                // UTXOs and build conflicting double-spends (or, with identical
++                // outputs, the identical transaction). Reserve synchronously here
++                // (before the getTransactionHex await below) so a concurrent call
++                // observes the claim. Applies to caller-supplied sets too: the SDK
++                // and wallet hand over a tracker-fetched set as `utxos`, and the
++                // tracker keeps publishing a spent input until it sees the spend,
++                // so a chained send re-supplies the input the previous build took.
++                // A caller that truly wants to respend a reserved input (an RBF
++                // bump) waits out the TTL or restarts the encoder; that is the
++                // price of never building the same spend twice.
+                 const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
+-                if (fetchedFromTracker){
+-                    // Skip outpoints reserved by OTHER in-flight calls, but NOT the one this
+-                    // call pre-reserved for ins[0] above (the obfuscation key binds to it).
+-                    if (outpointKey !== firstReservedOutpoint && this._isOutpointReserved(outpointKey, now)){
+-                        nextUtxoIndex = nextUtxoIndex + 1
+-                        continue
+-                    }
+-                    if (outpointKey !== firstReservedOutpoint){
+-                        this._claimOutpoint(callReservations, outpointKey, now)
+-                    }
++                // Skip outpoints reserved by OTHER calls, but NOT the one this
++                // call pre-reserved for ins[0] above (the obfuscation key binds to it).
++                if (outpointKey !== firstReservedOutpoint && this._isOutpointReserved(outpointKey, now)){
++                    reservedCandidates = reservedCandidates + 1
++                    nextUtxoIndex = nextUtxoIndex + 1
++                    continue
++                }
++                if (outpointKey !== firstReservedOutpoint){
++                    this._claimOutpoint(callReservations, outpointKey, now)
+                 }
+ 
+                 nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
+@@ -1868,10 +1921,19 @@ class XChainEncoder {
+             // fee against a zero-input transaction's tiny size and mask the real
+             // cause. (The reveal path has p2shHash set and never reaches here.)
+             if (selectedInputCount === 0){
++                // Name the real cause when the inputs exist but are spoken for: a
++                // chained send that re-supplied an input the previous build took
++                // is not an empty address, and the caller's fix is to wait for
++                // that spend to reach the tracker, not to fund the address.
++                const allReserved = reservedCandidates > 0
+                 throw new OperationalError(
+                     'INSUFFICIENT_FUNDS',
+-                    'insufficient funds: no spendable inputs available (all candidates reserved or empty)',
+-                    { required: jsonSafeSat(outputSatoshis + BigInt(estimatedFee)), available: 0, outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee }
++                    allReserved
++                        ? `insufficient funds: all ${reservedCandidates} candidate input(s) are reserved by a transaction ` +
++                          `built in the last ${Math.round(RESERVATION_TTL_MS / 60000)} minutes; broadcast that transaction ` +
++                          'and wait for its change to appear, or wait for the reservation to lapse'
++                        : 'insufficient funds: no spendable inputs available (all candidates reserved or empty)',
++                    { required: jsonSafeSat(outputSatoshis + BigInt(estimatedFee)), available: 0, outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee, reservedCandidates }
+                 )
+             }
+ 
+@@ -2241,6 +2303,12 @@ class XChainEncoder {
+         // output and require a match in the PSBT, and require the leading data
+         // pushes to concatenate to the action it intended. Passing a forged
+         // script means failing one or the other.
++        // Last gate before the transaction leaves: an identical unsigned tx built
++        // inside the reservation window is refused, not returned as a new success.
++        // Runs on the funding/single tx of every encoding (the TAPROOT reveal is
++        // derived from this commit, so guarding the commit guards the pair).
++        this._refuseDuplicateBuild(psbt, Date.now())
++
+         let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
+ 
+         // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive
+diff --git a/test/boundary/custom-output-boundaries.test.js b/test/boundary/custom-output-boundaries.test.js
+index 167abe0..c6e5a35 100644
+--- a/test/boundary/custom-output-boundaries.test.js
++++ b/test/boundary/custom-output-boundaries.test.js
+@@ -129,6 +129,8 @@ describe('Custom Output Boundaries', () => {
+         null, null, null, true, 100000 // sat/kB: 100 sat/byte, moderate fee rate
+       )
+ 
++      // Same input on purpose: release the first build's reservation.
++      encoder.clearReservations()
+       const resultWithout = await encoder.createTransaction(
+         [utxo], address, null,
+         'SEND|0|X|1|a', null, null, false, null, address,
+@@ -208,6 +210,8 @@ describe('Custom Output Boundaries', () => {
+         null, null, null, true, 0.00001
+       )
+ 
++      // Same input on purpose: release the first build's reservation.
++      encoder.clearReservations()
+       const resultNull = await encoder.createTransaction(
+         [utxo], address, null,
+         'SEND|0|X|1|a', null, 10000, false, null, address,
+diff --git a/test/chaos/library-failures.test.js b/test/chaos/library-failures.test.js
+index b41145e..259b206 100644
+--- a/test/chaos/library-failures.test.js
++++ b/test/chaos/library-failures.test.js
+@@ -208,6 +208,8 @@ describe('Chaos Category C: Library & Crypto Failures', () => {
+         actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
+         null, null, null, true, 0.00001
+       )
++      // Same input on purpose: release the first build's reservation.
++      encoder.clearReservations()
+       const viaPubkey = await encoder.createTransaction(
+         [makeSegwitUtxo(TXID_A, 0, 100000000)], PUBKEY_BUF.toString('hex'), null,
+         actions.makeIssueFull().data, null, 10000, false, null, DOGE_ADDR,
+diff --git a/test/chaos/network-failures.test.js b/test/chaos/network-failures.test.js
+index 78aee4d..cd02992 100644
+--- a/test/chaos/network-failures.test.js
++++ b/test/chaos/network-failures.test.js
+@@ -263,7 +263,9 @@ describe('Chaos Category A: Network & Dependency Failures', () => {
+       )
+       assert.ok(result1.psbt)
+ 
+-      // Call 2 (even) → failure
++      // Call 2 (even) → failure. Every call here respends the one fixture
++      // input, so release call 1's reservation or the RPC never gets asked.
++      encoder.clearReservations()
+       await assert.rejects(
+         () => encoder.createTransaction(
+           [makeSegwitUtxo(TXID_A, 0, 100000000)], ADDRESS, null,
+diff --git a/test/integration/custom-outputs.test.js b/test/integration/custom-outputs.test.js
+index 6748cf1..c115646 100644
+--- a/test/integration/custom-outputs.test.js
++++ b/test/integration/custom-outputs.test.js
+@@ -75,7 +75,9 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
+         null, null, null, true, 0.00001
+       )
+ 
+-      // With custom output of 500000 sats
++      // With custom output of 500000 sats. Same input on purpose: release the
++      // first build's reservation so this is a comparison, not a double-spend.
++      encoder.clearReservations()
+       const customOutputs = [{ address: address, value: '500000' }]
+       const resultWithCustom = await encoder.createTransaction(
+         [utxo], address, customOutputs,
+@@ -149,6 +151,8 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
+     async function buildFunding (encoder, address, customOutputs) {
+       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+       const action = actions.makeIssueFull('BIGTOKEN')
++      // Each probe respends the one fixture input on the same encoder.
++      encoder.clearReservations()
+       return await encoder.createTransaction(
+         [utxo], address, customOutputs && customOutputs.map(o => ({ ...o })),
+         action.data, null, 10000, false, null, address,
+diff --git a/test/regression/reg-09-deepdive-fixes.test.js b/test/regression/reg-09-deepdive-fixes.test.js
+index 55c77a3..d8f13d7 100644
+--- a/test/regression/reg-09-deepdive-fixes.test.js
++++ b/test/regression/reg-09-deepdive-fixes.test.js
+@@ -100,7 +100,9 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
+       assert.ok(atDust.psbt.txOutputs.find(o => o.value === 546),
+         'change equal to the dust threshold must be emitted')
+ 
+-      // change == dust - 1 (545): folded.
++      // change == dust - 1 (545): folded. Same outpoint as above, so release the
++      // first build's reservation before rebuilding.
++      encoder.clearReservations()
+       const belowDust = await encoder.createTransaction(
+         [makeSegwitUtxo(TXID_A, 0, 10545)], address, null,
+         'test', null, 10000, false, null, address,
+@@ -222,18 +224,22 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
+       assert.deepStrictEqual(r.psbt.txInputs.map(i => i.index), [0])
+     })
+ 
+-    it('caller-supplied UTXOs are never reserved (caller owns coin-control)', async () => {
++    it('caller-supplied UTXOs are reserved too (XC-1796: the SDK supplies a tracker-fetched set)', async () => {
+       const encoder = makeEncoder('bitcoin-regtest')
+       const address = getTestAddress('bitcoin-regtest')
+       const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
+ 
+-      // Two back-to-back calls with the SAME explicit UTXO both succeed and both
+-      // select it: explicit coin-control is the caller's responsibility.
++      // Two back-to-back calls with the SAME explicit UTXO: the first selects it
++      // and reserves it, the second is refused with the reservation named as
++      // the cause. Before XC-1796 both succeeded and built the same transaction.
+       const r1 = await encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
+-      const r2 = await encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
+       assert.deepStrictEqual(r1.psbt.txInputs.map(i => i.index), [0])
+-      assert.deepStrictEqual(r2.psbt.txInputs.map(i => i.index), [0])
+-      assert.strictEqual(encoder.outpointReservations.size, 0, 'explicit UTXOs must not be reserved')
++      assert.strictEqual(encoder.outpointReservations.size, 1, 'explicit UTXOs are reserved on selection')
++      await assert.rejects(
++        () => encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001),
++        (err) => err.operational === true && err.xchainCode === 'INSUFFICIENT_FUNDS' &&
++          err.details.reservedCandidates === 1 && /reserved by a transaction built/.test(err.message)
++      )
+     })
+   })
+ 
+diff --git a/test/regression/reg-12-ins0-key-binding.test.js b/test/regression/reg-12-ins0-key-binding.test.js
+index 22f41c9..458d47c 100644
+--- a/test/regression/reg-12-ins0-key-binding.test.js
++++ b/test/regression/reg-12-ins0-key-binding.test.js
+@@ -195,22 +195,26 @@ describe('ins[0] / obfuscation-key binding @regression', function () {
+       `reservation map should not leak entries, saw ${encoder.outpointReservations.size}`)
+   })
+ 
+-  it('caller-supplied UTXOs are untouched: no reservations, ins[0] is utxos[0]', async function () {
++  it('caller-supplied UTXOs: the key binds to the first UNRESERVED input, which lands at ins[0]', async function () {
+     const encoder = twoUtxoEncoder()
+     const address = getTestAddress(NETWORK)
+     const action = actions.makeSend()
+ 
++    // XC-1796: caller-supplied sets go through the same reservation path as
++    // tracker-fetched ones. A foreign hold on TXID_A must push selection to
++    // TXID_B AND bind the obfuscation key there, or the action decodes to nothing.
++    encoder.outpointReservations.set(TXID_A + ':0', Date.now() + FIVE_MINUTES)
+     const result = await encoder.createTransaction(
+-      [makeSegwitUtxo(TXID_A, 0, 100000000)], address, null,
++      [makeSegwitUtxo(TXID_A, 0, 100000000), makeSegwitUtxo(TXID_B, 0, 100000000)], address, null,
+       action.data, null, 10000, false, null, address,
+       null, null, null, true, 0.00001
+     )
+ 
+-    assert.strictEqual(ins0Txid(result), TXID_A)
+-    assert.strictEqual(encoder.outpointReservations.size, 0,
+-      'caller coin-control must not engage the reservation map')
++    assert.strictEqual(ins0Txid(result), TXID_B)
++    assert.ok(encoder.outpointReservations.has(TXID_B + ':0'),
++      'the selected caller-supplied input must be reserved')
+     const opReturn = result.psbt.txOutputs.find(o => o.value === 0)
+     const obf = bitcoin.script.decompile(opReturn.script)[1]
+-    assert.strictEqual(deobfuscate(obf, TXID_A).subarray(0, 4).toString('utf8'), MAGIC)
++    assert.strictEqual(deobfuscate(obf, TXID_B).subarray(0, 4).toString('utf8'), MAGIC)
+   })
+ })
+diff --git a/test/regression/reg-18-chained-send-reservation.test.js b/test/regression/reg-18-chained-send-reservation.test.js
+new file mode 100644
+index 0000000..71b2c5b
+--- /dev/null
++++ b/test/regression/reg-18-chained-send-reservation.test.js
+@@ -0,0 +1,163 @@
++// Copyright © 2025–2026 Dankest, LLC
++// Based on XChain Platform by Dankest, LLC – https://dankest.llc
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//
++// This file is part of XChain Platform. Licensed under the GNU Affero
++// General Public License v3.0 or later; see LICENSE.md. A commercial
++// license (without AGPL source-disclosure terms) is available -
++// contact legal@dankest.llc.
++
++// Regression for XC-1796: chained sends from one wallet session built the SAME
++// transaction twice.
++//
++// Measured live on BTC testnet4, 2026-08-27: three MINTs fired 1.2s apart from
++// one validator address. The first built and broadcast; the second, ~800ms
++// later, was handed the same input by the utxo-tracker (which had not yet seen
++// the spend) and the encoder built a byte-identical transaction with the same
++// txid, which the caller counted as a second success; the third failed.
++//
++// Root cause: the outpoint reservation map was only engaged for sets the
++// encoder fetched from the tracker itself. The SDK fetches the funding set via
++// get_utxos and passes it as `utxos`, so the mainstream wallet path was treated
++// as "caller coin-control" and never reserved anything.
++//
++// Contract now: every selected input is reserved regardless of who fetched the
++// set, a chained send that re-supplies a reserved input is refused with the
++// reservation named as the cause, and a build identical to one produced inside
++// the reservation window is refused even if the outpoint map was bypassed.
++
++const assert = require('assert')
++const {
++  makeEncoder, makeSegwitUtxo, getTestAddress, TXID_A, TXID_B, TXID_C
++} = require('../integration/helpers/utxoFactory')
++
++const NETWORK = 'bitcoin-regtest'
++const MINT = 'MINT|0|XCHAIN|10000'
++
++function build (encoder, utxos, action = MINT) {
++  const address = getTestAddress(NETWORK)
++  return encoder.createTransaction(
++    utxos, address, null, action, null, 10000, false, null, address,
++    null, null, null, true, 0.00001
++  )
++}
++
++function txidOf (result) {
++  const bitcoin = require('bitcoinjs-lib')
++  return bitcoin.Transaction.fromBuffer(result.psbt.data.globalMap.unsignedTx.toBuffer()).getId()
++}
++
++describe('REG-18: chained sends reserve caller-supplied inputs @regression', function () {
++  this.timeout(10000)
++
++  it('the measured shape: a second send re-supplying the spent input is refused, not rebuilt', async () => {
++    const encoder = makeEncoder(NETWORK)
++    // The tracker view a wallet hands over on a chained send: the previous
++    // build's input is still listed because the spend has not reached it yet.
++    const staleView = () => [makeSegwitUtxo(TXID_A, 0, 100000000)]
++
++    const first = await build(encoder, staleView())
++    const firstTxid = txidOf(first)
++
++    await assert.rejects(
++      () => build(encoder, staleView()),
++      (err) => {
++        assert.strictEqual(err.operational, true)
++        assert.strictEqual(err.xchainCode, 'INSUFFICIENT_FUNDS')
++        assert.strictEqual(err.details.reservedCandidates, 1)
++        assert.match(err.message, /reserved by a transaction built in the last 5 minutes/)
++        return true
++      },
++      'the second build must be refused with the reservation named, never returned as a second success'
++    )
++
++    // Nothing about the first build leaked or changed.
++    assert.ok(encoder.outpointReservations.has(TXID_A + ':0'), 'the first build keeps its reservation')
++    assert.ok(encoder.recentBuilds.has(firstTxid), 'the first build is on record')
++  })
++
++  it('three chained sends over a fresh view each produce three DISTINCT transactions', async () => {
++    // The verify clause of XC-1796 at unit scale: chained sends whose views
++    // reflect each prior spend select different inputs and hash differently.
++    const encoder = makeEncoder(NETWORK)
++    const r1 = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    const r2 = await build(encoder, [makeSegwitUtxo(TXID_B, 0, 100000000)])
++    const r3 = await build(encoder, [makeSegwitUtxo(TXID_C, 0, 100000000)])
++    const txids = new Set([txidOf(r1), txidOf(r2), txidOf(r3)])
++    assert.strictEqual(txids.size, 3, 'three chained sends must be three distinct transactions')
++    assert.strictEqual(encoder.outpointReservations.size, 3, 'each selected input stays reserved')
++  })
++
++  it('a stale view that still lists the spent input alongside the change selects the change', async () => {
++    const encoder = makeEncoder(NETWORK)
++    await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    // Tracker now lists the old input AND the new change; the old one is reserved.
++    const r2 = await build(encoder, [
++      makeSegwitUtxo(TXID_A, 0, 100000000),
++      makeSegwitUtxo(TXID_B, 1, 99000000)
++    ])
++    const ins = r2.psbt.txInputs.map(i => Buffer.from(i.hash).reverse().toString('hex'))
++    assert.deepStrictEqual(ins, [TXID_B], 'the reserved input is skipped and the change is spent')
++  })
++
++  it('a different transaction over an unreserved input is not mistaken for a duplicate', async () => {
++    const encoder = makeEncoder(NETWORK)
++    await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)], MINT)
++    const r2 = await build(encoder, [makeSegwitUtxo(TXID_B, 0, 100000000)], 'MINT|0|XCHAIN|5000')
++    assert.ok(r2.psbt, 'a genuinely different transaction builds')
++  })
++
++  it('an identical rebuild is refused as DUPLICATE_TRANSACTION when the outpoint map was bypassed', async () => {
++    // Defense in depth: clear only the outpoint map (as a lapsed reservation
++    // would) and rebuild byte-for-byte. The recent-build record still refuses it.
++    const encoder = makeEncoder(NETWORK)
++    const first = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    encoder.outpointReservations.clear()
++
++    await assert.rejects(
++      () => build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)]),
++      (err) => {
++        assert.strictEqual(err.operational, true)
++        assert.strictEqual(err.xchainCode, 'DUPLICATE_TRANSACTION')
++        assert.strictEqual(err.details.txid, txidOf(first))
++        return true
++      }
++    )
++    // The refused rebuild hands back the reservation it took, so the map does
++    // not squat on the outpoint for a build that never happened.
++    assert.strictEqual(encoder.outpointReservations.size, 0)
++  })
++
++  it('an RBF bump of the same input is a different transaction and passes the duplicate gate', async () => {
++    const encoder = makeEncoder(NETWORK)
++    const address = getTestAddress(NETWORK)
++    const utxo = () => makeSegwitUtxo(TXID_A, 0, 100000000)
++    const first = await encoder.createTransaction([utxo()], address, null, MINT, null, 10000, true, null, address, null, null, null, true, 0.00001)
++    // The bump deliberately respends the same input: only the outpoint map is
++    // released (the operator's "wait out the TTL"), the recent-build record stays.
++    encoder.outpointReservations.clear()
++    const bump = await encoder.createTransaction([utxo()], address, null, MINT, null, 12000, true, null, address, null, null, null, true, 0.00001)
++    assert.notStrictEqual(txidOf(bump), txidOf(first), 'a higher fee changes the outputs and the txid')
++  })
++
++  it('clearReservations releases both the outpoint map and the recent-build record', async () => {
++    const encoder = makeEncoder(NETWORK)
++    await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    encoder.clearReservations()
++    assert.strictEqual(encoder.outpointReservations.size, 0)
++    assert.strictEqual(encoder.recentBuilds.size, 0)
++    const again = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    assert.ok(again.psbt)
++  })
++
++  it('recent-build records expire with the reservation TTL', async () => {
++    const encoder = makeEncoder(NETWORK)
++    const first = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    encoder.outpointReservations.clear()
++    encoder.recentBuilds.set(txidOf(first), Date.now() - 1)
++    const again = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
++    assert.strictEqual(txidOf(again), txidOf(first))
++    assert.strictEqual(encoder.recentBuilds.size, 1, 'the expired record is evicted and the new one written')
++  })
++})
+diff --git a/test/unit/XChainEncoder.autoEncoding.test.js b/test/unit/XChainEncoder.autoEncoding.test.js
+index 0cfa759..fd9a1f9 100644
+--- a/test/unit/XChainEncoder.autoEncoding.test.js
++++ b/test/unit/XChainEncoder.autoEncoding.test.js
+@@ -172,6 +172,8 @@ describe('size-aware encoding selection (§6)', function () {
+             assert.strictEqual(small.encoding, 'OP_RETURN')
+             assert.strictEqual(small.revealPsbt, undefined)
+ 
++            // Same fixture input again: release the first build's reservation.
++            e.clearReservations()
+             const large = await e.createTransaction(
+                 [segwitUtxo(network)], callerAddress(network), null, FILE_ACTION,
+                 compressibleText(6000), null, false, null, callerAddress(network),
+diff --git a/test/unit/XChainEncoder.createTransaction.test.js b/test/unit/XChainEncoder.createTransaction.test.js
+index abb69d8..461c46f 100644
+--- a/test/unit/XChainEncoder.createTransaction.test.js
++++ b/test/unit/XChainEncoder.createTransaction.test.js
+@@ -755,6 +755,9 @@ describe('XChainEncoder.createTransaction()', () => {
+       // fee output leaves value by definition and needs no change output, so
+       // funding that dust too would buy the caller a third output they never
+       // asked for - which is what REG-14 pins against on this exact shape.
++      //
++      // Same input as the baseline on purpose: release its reservation first.
++      encoder.clearReservations()
+       const withFee = await encoder.createTransaction(
+         [utxo], TEST_ADDRESS, feeOutputs(),
+         bigData, null, 10000, false, null, TEST_ADDRESS,
+diff --git a/test/unit/XChainEncoder.p2shRevealHeadroom.test.js b/test/unit/XChainEncoder.p2shRevealHeadroom.test.js
+index 279224b..3eab325 100644
+--- a/test/unit/XChainEncoder.p2shRevealHeadroom.test.js
++++ b/test/unit/XChainEncoder.p2shRevealHeadroom.test.js
+@@ -72,6 +72,9 @@ function callerAddress (network) {
+ 
+ async function buildFunding (encoder, network, encoding, feePerKb, payloadLen) {
+   const addr = callerAddress(network)
++  // Each probe respends the one fixture input on the same encoder; release the
++  // previous build's reservation so this is a comparison, not a double-spend.
++  encoder.clearReservations()
+   const res = await encoder.createTransaction(
+     [makeSegwitUtxo(TXID_A, 0, 100000000)], addr, null,
+     'x'.repeat(payloadLen), null, null, false, encoding, addr,
+diff --git a/test/unit/compression.test.js b/test/unit/compression.test.js
+index 5e5496d..a4d76f1 100644
+--- a/test/unit/compression.test.js
++++ b/test/unit/compression.test.js
+@@ -259,6 +259,9 @@ describe('encoder FILE payload compression (spec Part B)', function () {
+                 null, false, 'TAPROOT', callerAddress(network), null, null, PUBKEY.toString('hex'),
+                 true, null, null, null, false, false)
+ 
++            // Same input on purpose: release the first build's reservation so the
++            // second is a rebuild for comparison, not a refused double-spend.
++            encoder.clearReservations()
+             const compressed = await encoder.createTransaction(
+                 [segwitUtxo(network)], callerAddress(network), null,
+                 'FILE|0|big.txt|text/plain|Big|', raw.toString('binary'),
+diff --git a/test/unit/packageFeeSizing.test.js b/test/unit/packageFeeSizing.test.js
+index 0e4d461..5dac68d 100644
+--- a/test/unit/packageFeeSizing.test.js
++++ b/test/unit/packageFeeSizing.test.js
+@@ -270,6 +270,9 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
+   }
+ 
+   async function create (encoder, utxos) {
++    // Every probe here respends the same fixture input on one encoder to
++    // compare fees, so release the previous build's reservation first.
++    encoder.clearReservations()
+     return encoder.createTransaction(
+       utxos, TEST_ADDRESS, null, 'test', null, null, false, null, TEST_ADDRESS,
+       null, null, null, true, null
+-- 
+2.50.1 (Apple Git-155)
