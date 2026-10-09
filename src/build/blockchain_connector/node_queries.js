@@ -16,8 +16,28 @@ const axios = require('axios')
 const util = require('node:util');
 const { logger, RPC_TIMEOUT } = require('./constants');
 const { sanitizeRpcError, rpcErrorDetail } = require('./rpc_helpers');
+const { chainTierMismatch } = require('./chain_identity');
+const { OperationalError } = require('../errors');
 
 module.exports = {
+    // Refuse a node whose getblockchaininfo chain is a recognized tier other than the configured network.
+    // (Fails open, warning once, when no network was configured or the chain cannot be read; a pass is cached.)
+    async assertNodeTier(){
+        if (!this.consensusNetwork || this.nodeTierOk) return;
+        let chain;
+        try {
+            chain = await this.chainName();
+        } catch (error) {
+            if (!this.nodeTierWarned) logger.warn(`Node chain tier unchecked: ${error && error.message}`);
+            this.nodeTierWarned = true;
+            return;
+        }
+        const reason = chainTierMismatch(this.consensusNetwork, chain);
+        if (reason) throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
+        this.nodeTierOk = true;
+    },
+
+
     async getNetworkInfo(){
         const data = {
             jsonrpc: '2.0',

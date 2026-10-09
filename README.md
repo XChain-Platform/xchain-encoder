@@ -77,7 +77,7 @@ npm run api
 | `NODE_USER` | Yes | (none) | RPC username |
 | `NODE_PASSWORD` | Yes | (none) | RPC password |
 | `ENCODER_API_PORT` | No | `3000` | JSON-RPC API port |
-| `NODE_RPC_TIMEOUT` | No | `30000` | Coin-node RPC call timeout in milliseconds |
+| `NODE_RPC_TIMEOUT` | No | `30000` | Coin-node RPC call timeout in milliseconds; must be a positive integer, and an empty or invalid value falls back to `30000` with a warning |
 | `UTXO_TRACKER_URL` | No | (none) | xchain-utxo-tracker service host |
 | `UTXO_TRACKER_API_PORT` | No | (none) | xchain-utxo-tracker service port |
 | `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it. `GET /status` publishes the effective value as `tracker_max_lag_blocks`, so a status board can rank lag against the other unready causes without mirroring a constant it cannot see (the tracker's own `SYNCED_THRESHOLD` is looser and is not this gate) |

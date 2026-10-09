@@ -140,7 +140,7 @@ class XChainEncoder {
       // api.js builds the singleton encoder at module load, so a later check would
       // let the HTTP surface bind and serve builds first.
       coins.verifyConsensusPin(this.consensusNetwork)
-      this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
+      this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword, this.consensusNetwork)
       // Two floors: dustAmount is the pinned consensus threshold (fee floor, fee-drain
       // caps, burn guard); outputFloor bounds every output this encoder authors and is
       // the same threshold raised to the coin relay floor and again to an operator DUST_AMOUNT.

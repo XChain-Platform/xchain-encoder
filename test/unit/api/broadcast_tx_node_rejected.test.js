@@ -19,7 +19,7 @@ function txHex () {
 }
 
 function controllerFailing (err) {
-  const encoder = { connector: { sendRawTransaction: async () => { throw err } } }
+  const encoder = { connector: { sendRawTransaction: async () => { throw err }, assertNodeTier: async () => {} } }
   return createJsonRpcController({ encoder, NETWORK: 'dogecoin-testnet' })
 }
 

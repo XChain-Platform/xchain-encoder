@@ -123,6 +123,7 @@ return {
         // rate, so the quote matches what the build would actually charge.
         const capPerByte = XChainEncoder.suggestedFeeCeilingPerByte(NETWORK, 100000000);
         const capPerVbyte = capPerByte == null ? null : Math.max(1, Math.round(capPerByte * 100000000));
+        await assertNodeTierOrRpcError(encoder);
         try {
             for (const tier of Object.keys(targets)) {
                 const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
@@ -139,6 +140,12 @@ return {
         return out;
     },
 }
+}
+
+// Refuse a coin node on the wrong network tier before any fee, build or broadcast work.
+// (Inside the build a fee-path throw is swallowed when the caller supplies feePerKb.)
+async function assertNodeTierOrRpcError(encoder) {
+    try { await encoder.connector.assertNodeTier() } catch (err) { throw toRpcError(err) }
 }
 
 // Map a build-path error to its JSON-RPC code: OperationalError to -32010 with its
@@ -179,6 +186,7 @@ return {
             throw e
         }
 
+        await assertNodeTierOrRpcError(encoder)
         let psbt
         try {
             psbt = await encoder.createTransaction(
@@ -218,6 +226,7 @@ return {
             e.code = -32602
             throw e
         }
+        await assertNodeTierOrRpcError(encoder)
         let result
         try {
             result = await encoder.createEnvelopeCancelTransaction(rawParams)
@@ -298,6 +307,7 @@ return {
             throw e
         }
 
+        await assertNodeTierOrRpcError(encoder)
         try {
             let txid = await encoder.connector.sendRawTransaction(tx_hex)
             return { txid: txid }

@@ -23,7 +23,8 @@ describe('broadcast_tx rejection logging', function () {
     const txid = tx.getId()
     const encoder = {
       connector: {
-        sendRawTransaction: async () => { throw new Error('66: insufficient priority') }
+        sendRawTransaction: async () => { throw new Error('66: insufficient priority') },
+        assertNodeTier: async () => {}
       }
     }
     const controller = createJsonRpcController({ encoder, NETWORK: 'dogecoin-testnet' })

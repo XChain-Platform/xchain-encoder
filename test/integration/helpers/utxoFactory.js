@@ -238,7 +238,8 @@ function makeEncoder (networkName = 'dogecoin-regtest') {
     getFeePerKilobyte: async () => 0.00001,
     getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async () => rawTxHex,
-    isRegtest: async () => true
+    isRegtest: async () => true,
+    assertNodeTier: async () => {}
   }
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => makeTrackerEnvelope([makeUtxo(networkName, TXID_A, 0, 100000000)])
