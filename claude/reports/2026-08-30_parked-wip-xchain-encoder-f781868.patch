@@ -38,7 +38,7 @@ index db42d4e..0a8cb1c 100644
 +      // included: the SDK fetches the funding set itself and hands it over as
 +      // `utxos`, so "caller-supplied" is the mainstream wallet path, not a
 +      // coin-control opt-in. Treating it as unreserved is how three chained
-+      // MINTs on BTC testnet4 built the same transaction twice (XC-1796).
++      // MINTs on BTC testnet4 built the same transaction twice (XC -1796).
 +      // See RESERVATION_TTL_MS.
        this.outpointReservations = new Map()
 +      // unsigned txid -> expiry epoch ms of every transaction this process built
@@ -113,7 +113,7 @@ index db42d4e..0a8cb1c 100644
 +        // Reservation is NOT gated on fetchedFromTracker. The SDK fetches the funding
 +        // set through get_utxos and passes it as `utxos`, so a caller-supplied set is
 +        // the wallet's normal path; leaving it unreserved is exactly the hole that let
-+        // two chained sends 800ms apart build the same transaction (XC-1796).
++        // two chained sends 800ms apart build the same transaction (XC -1796).
          let firstReservedOutpoint = null
          let txidFirstInput = null
          if (utxos.length){
@@ -320,7 +320,7 @@ index 55c77a3..d8f13d7 100644
      })
  
 -    it('caller-supplied UTXOs are never reserved (caller owns coin-control)', async () => {
-+    it('caller-supplied UTXOs are reserved too (XC-1796: the SDK supplies a tracker-fetched set)', async () => {
++    it('caller-supplied UTXOs are reserved too (XC -1796: the SDK supplies a tracker-fetched set)', async () => {
        const encoder = makeEncoder('bitcoin-regtest')
        const address = getTestAddress('bitcoin-regtest')
        const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
@@ -329,7 +329,7 @@ index 55c77a3..d8f13d7 100644
 -      // select it: explicit coin-control is the caller's responsibility.
 +      // Two back-to-back calls with the SAME explicit UTXO: the first selects it
 +      // and reserves it, the second is refused with the reservation named as
-+      // the cause. Before XC-1796 both succeeded and built the same transaction.
++      // the cause. Before XC -1796 both succeeded and built the same transaction.
        const r1 = await encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
 -      const r2 = await encoder.createTransaction([utxo], address, null, 'test', null, 10000, false, null, address, null, null, null, true, 0.00001)
        assert.deepStrictEqual(r1.psbt.txInputs.map(i => i.index), [0])
@@ -358,7 +358,7 @@ index 22f41c9..458d47c 100644
      const address = getTestAddress(NETWORK)
      const action = actions.makeSend()
  
-+    // XC-1796: caller-supplied sets go through the same reservation path as
++    // XC -1796: caller-supplied sets go through the same reservation path as
 +    // tracker-fetched ones. A foreign hold on TXID_A must push selection to
 +    // TXID_B AND bind the obfuscation key there, or the action decodes to nothing.
 +    encoder.outpointReservations.set(TXID_A + ':0', Date.now() + FIVE_MINUTES)
@@ -397,7 +397,7 @@ index 0000000..71b2c5b
 +// license (without AGPL source-disclosure terms) is available -
 +// contact legal@dankest.llc.
 +
-+// Regression for XC-1796: chained sends from one wallet session built the SAME
++// Regression for XC -1796: chained sends from one wallet session built the SAME
 +// transaction twice.
 +//
 +// Measured live on BTC testnet4, 2026-08-27: three MINTs fired 1.2s apart from
@@ -467,7 +467,7 @@ index 0000000..71b2c5b
 +  })
 +
 +  it('three chained sends over a fresh view each produce three DISTINCT transactions', async () => {
-+    // The verify clause of XC-1796 at unit scale: chained sends whose views
++    // The verify clause of XC -1796 at unit scale: chained sends whose views
 +    // reflect each prior spend select different inputs and hash differently.
 +    const encoder = makeEncoder(NETWORK)
 +    const r1 = await build(encoder, [makeSegwitUtxo(TXID_A, 0, 100000000)])
