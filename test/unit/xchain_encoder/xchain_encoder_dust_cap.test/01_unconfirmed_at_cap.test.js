@@ -12,11 +12,11 @@ const {
 const NETWORK = 'bitcoin-regtest'
 const INPUT_CAP = 500
 
-function dustSet(count) {
+function dustSet(count, value = 20) {
     const utxos = []
     for (let i = 0; i < count; i++) {
         const txid = (i + 1).toString(16).padStart(64, '0')
-        utxos.push(makeUtxo(NETWORK, txid, 0, 20))
+        utxos.push(makeUtxo(NETWORK, txid, 0, value))
     }
     return utxos
 }
@@ -65,6 +65,13 @@ describe('tracker-funded selection at the input cap', function () {
         await assert.rejects(
             () => buildFromTracker(utxos, false, 25000),
             isCappedSelection
+        )
+    })
+
+    it('preserves the range error when additional inputs could fund the transaction', async function () {
+        await assert.rejects(
+            () => buildFromTracker(dustSet(600, 50), true, 25000),
+            (error) => error instanceof RangeError && /selected input count/.test(error.message)
         )
     })
 })

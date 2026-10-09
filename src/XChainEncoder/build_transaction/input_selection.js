@@ -74,14 +74,7 @@ function* selectInputs(build){
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
     while (nextUtxoIndex < utxos.length){
-        if (selectedInputCount >= MAX_UTXO_COUNT){
-            throw new OperationalError(
-                'NO_CONFIRMED_UTXO',
-                `no input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum without ` +
-                'waiting for a larger output to confirm or consolidating the confirmed outputs',
-                { selectedInputCount, maximum: MAX_UTXO_COUNT }
-            )
-        }
+        refuseCappedSelection.call(this, build, nextUtxoIndex, inputSatoshis, estimatedFee, selectedInputCount, now)
         let nextUtxo = utxos[nextUtxoIndex]
 
         refuseUnsignableInput.call(this, preparedData, nextUtxo)
@@ -121,6 +114,37 @@ function* selectInputs(build){
         nextUtxoIndex = nextUtxoIndex + 1
     }
     Object.assign(build, { estimatedTxSize, estimatedFee, inputSatoshis, selectedInputCount, reservedCandidates })
+}
+
+function refuseCappedSelection(build, nextUtxoIndex, inputSatoshis, estimatedFee, selectedInputCount, now){
+    if (selectedInputCount < MAX_UTXO_COUNT) return
+    if (remainingCandidatesCanFund.call(this, build, nextUtxoIndex, inputSatoshis, estimatedFee, now)){
+        throw new ParamRangeError(
+            `selected input count would exceed the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`
+        )
+    }
+    throw new OperationalError(
+        'NO_CONFIRMED_UTXO',
+        `no input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum without ` +
+        'waiting for a larger output to confirm or consolidating the confirmed outputs',
+        { selectedInputCount, maximum: MAX_UTXO_COUNT }
+    )
+}
+
+function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimatedFee, now){
+    const { utxos, exactInputs, firstReservedOutpoint, outputSatoshis } = build
+    const required = outputSatoshis + BigInt(estimatedFee)
+    let available = inputSatoshis
+    for (let index = nextUtxoIndex; index < utxos.length; index++){
+        const candidate = utxos[index]
+        const outpointKey = candidate.txid + ':' + candidate.vout
+        if (!exactInputs && outpointKey !== firstReservedOutpoint && this.isOutpointReserved(outpointKey, now)){
+            continue
+        }
+        available += BigInt(parseSatoshiAmount(candidate.value, `utxos[${index}].value`, { allowBig: true }))
+        if (available > required) return true
+    }
+    return false
 }
 
 function refuseUnsignableInput(preparedData, nextUtxo){
