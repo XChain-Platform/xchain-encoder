@@ -143,7 +143,8 @@ return {
 
 // Map a build-path error to its JSON-RPC code: OperationalError to -32010 with its
 // xchainCode, an encoder-raised ParamTypeError/ParamRangeError to -32602, and anything
-// else (a Node or library TypeError included) to a logged, generic, retryable -32603.
+// else (a Node or library TypeError included) to a logged, generic -32603.
+// The SDK treats every JSON-RPC body error as final; callers own any retries.
 function toRpcError(err) {
     // Forward an operational error's credential-free message and stable code so the wallet and SDK can branch on it
     if (err && err.operational === true) {
