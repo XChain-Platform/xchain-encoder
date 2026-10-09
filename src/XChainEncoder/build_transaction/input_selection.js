@@ -74,6 +74,14 @@ function* selectInputs(build){
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
     while (nextUtxoIndex < utxos.length){
+        if (selectedInputCount >= MAX_UTXO_COUNT){
+            throw new OperationalError(
+                'NO_CONFIRMED_UTXO',
+                `no input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum without ` +
+                'waiting for a larger output to confirm or consolidating the confirmed outputs',
+                { selectedInputCount, maximum: MAX_UTXO_COUNT }
+            )
+        }
         let nextUtxo = utxos[nextUtxoIndex]
 
         refuseUnsignableInput.call(this, preparedData, nextUtxo)
