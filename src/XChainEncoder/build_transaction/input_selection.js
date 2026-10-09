@@ -69,22 +69,17 @@ function* selectFundingInputs(build){
 function* selectInputs(build){
     let { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
         attachPrevTx, fee, feePerBytes, outputSatoshis, estimatedTxSize, estimatedFee, inputSatoshis,
-        selectedInputCount, unconfirmedInputTxids, reservedCandidates, unconfirmed } = build
+        selectedInputCount, unconfirmedInputTxids, reservedCandidates } = build
     const now = Date.now()
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
     while (nextUtxoIndex < utxos.length){
         if (selectedInputCount >= MAX_UTXO_COUNT){
-            if (!unconfirmed || unconfirmedInputTxids.length > 0){
-                throw new OperationalError(
-                    'NO_CONFIRMED_UTXO',
-                    `no input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum without ` +
-                    'waiting for a larger output to confirm or consolidating the confirmed outputs',
-                    { selectedInputCount, maximum: MAX_UTXO_COUNT }
-                )
-            }
-            throw new ParamRangeError(
-                `selected input count would exceed the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`
+            throw new OperationalError(
+                'NO_CONFIRMED_UTXO',
+                `no input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum without ` +
+                'waiting for a larger output to confirm or consolidating the confirmed outputs',
+                { selectedInputCount, maximum: MAX_UTXO_COUNT }
             )
         }
         let nextUtxo = utxos[nextUtxoIndex]
