@@ -75,11 +75,11 @@ function* selectInputs(build){
     let nextUtxoIndex = 0
     while (nextUtxoIndex < utxos.length){
         if (selectedInputCount >= MAX_UTXO_COUNT){
-            if (!unconfirmed){
+            if (!unconfirmed || unconfirmedInputTxids.length > 0){
                 throw new OperationalError(
                     'NO_CONFIRMED_UTXO',
-                    `no confirmed input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum; ` +
-                    'wait for a larger output to confirm or consolidate the confirmed outputs',
+                    `no input selection can fund the transaction within the ${MAX_UTXO_COUNT}-input maximum without ` +
+                    'waiting for a larger output to confirm or consolidating the confirmed outputs',
                     { selectedInputCount, maximum: MAX_UTXO_COUNT }
                 )
             }
