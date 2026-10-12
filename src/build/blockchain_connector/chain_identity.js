@@ -14,10 +14,9 @@
  *
  * XChain Encoder - coin-node chain-tier identity
  *
- * The tier half of xchain-decoder's src/protocol/chain_identity.js, kept in
- * step with it. getblockchaininfo's `chain` names the network TIER, never the
- * coin, and `test`/`testnet3`/`testnet4` collapse to one tier, so this can
- * prove "wrong tier" and nothing more.
+ * The pure identity decisions from xchain-decoder's
+ * src/protocol/chain_identity.js, kept in step with it. The reported chain
+ * proves tier identity, while the block-0 hash proves coin and chain identity.
  *
  ********************************************************************/
 
@@ -44,4 +43,23 @@ function chainTierMismatch(consensusNetwork, reportedChain){
         ') but this encoder is configured for ' + consensusNetwork;
 }
 
-module.exports = { CHAIN_TO_NETWORK, chainTierMismatch };
+// Return a reason string when two usable block-0 hashes differ, else null.
+function chainGenesisMismatch(pinnedHash, reportedHash){
+    if (typeof pinnedHash !== 'string' || pinnedHash === '') return null;
+    if (typeof reportedHash !== 'string' || reportedHash === '') return null;
+    if (pinnedHash.toLowerCase() === reportedHash.toLowerCase()) return null;
+    return 'node block-0 hash is ' + reportedHash + ', but this encoder is pinned to ' +
+        pinnedHash + ', so the endpoint is serving a different chain';
+}
+
+// Return true when no usable block-0 hash is pinned.
+function chainGenesisUnpinned(pinnedHash){
+    return typeof pinnedHash !== 'string' || pinnedHash === '';
+}
+
+module.exports = {
+    CHAIN_TO_NETWORK,
+    chainTierMismatch,
+    chainGenesisMismatch,
+    chainGenesisUnpinned,
+};
