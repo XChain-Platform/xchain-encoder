@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-11
+
+### Added
+- Added the remote tracker profile that fails closed.
+- Answered node rejections from broadcast_tx as error -32010 with the node code.
+
+### Changed
+- Bounded fragmented input selection at the transaction cap and refused capped unconfirmed selections.
+- Rounded fees up and shared one caller fee-rate cap with a node-anchored burn backstop.
+
+### Fixed
+- Returned retryable errors for capped dust selection and deferred capped selections that contain mempool inputs.
+- Mirrored exact PSBT fee totals past 2^53 from the SDK copy.
+
 ## [0.21.0] - 2026-09-29
 
 ### Added

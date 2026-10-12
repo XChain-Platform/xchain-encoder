@@ -136,6 +136,25 @@ describe('encoder FILE payload compression (spec Part B)', function () {
     })
 })
 
+describe('encoder FILE payload compression: refusal error class', function () {
+    describe('compressPayloadForAction', function () {
+        // Each refusal is a caller fault, so it must carry the marker the API maps to -32602.
+        it('marks every explicit refusal as invalid params', async function () {
+            const { isInvalidParams } = require('../../../src/build/errors')
+            const refusals = [
+                ['SEND|0|XCHAIN|1000', compressibleBytes(), {}],
+                [GATED_FILE, compressibleBytes(), {}],
+                [PUBLIC_FILE + '|||||1', compressibleBytes(), {}],
+                [PUBLIC_FILE, Buffer.alloc(2048), { maxInputBytes: 1024 }]
+            ]
+            for (const [action, bytes, opts] of refusals) {
+                await assert.rejects(() => compression.compressPayloadForAction(action, bytes, opts),
+                    (err) => isInvalidParams(err) && (err instanceof TypeError || err instanceof RangeError))
+            }
+        })
+    })
+})
+
 describe('encoder FILE payload compression (spec Part B)', function () {
     describe('compressPayloadForAction', function () {
         it('a gated FILE passes its own COMPRESSION field through untouched', function () {

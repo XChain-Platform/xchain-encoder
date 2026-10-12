@@ -628,31 +628,6 @@
       "Custom Output Boundaries non-integer custom output values are rejected \"999999.9\" is rejected, not truncated to 999999",
       "Custom Output Boundaries non-integer custom output values are rejected a clean integer custom output value still builds correctly"
     ],
-    "46251d813cd6068d": [
-      "classifyTrackerFreshness(): the halt reason is tracker-authored bounds a long halt reason and keeps an absent one null",
-      "classifyTrackerFreshness(): the halt reason is tracker-authored collapses a halt reason carrying an endpoint in both the message and the details",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict does not mutate the sync object it is handed",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict fails open on every field it is not explicitly told is bad",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict names the halt, not the staleness, when a halted tracker is ALSO stale",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a halted tracker even at lag 0, and carries the halt reason",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a lag above the supplied ceiling and names the ceiling it used",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker that de-asserts synced, whatever the lag",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker whose mempool has not reconverged",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses an orphaned view (tracker committed above the node) and says so",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict reports no refusal, and present:false, for a tracker with no freshness surface",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict separates the tracker's positive synced claim from the refusal verdict",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict serves at exactly the ceiling (lag == max is not \"above\")",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict takes the ceiling from its argument, not from a baked-in constant",
-      "classifyTrackerFreshness(): the single tracker-freshness verdict treats a non-numeric lag as unknown rather than comparing it",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: halted",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: healthy",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag at the ceiling",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag one over the ceiling",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: mempool not reconverged",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: orphaned view",
-      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: tracker de-asserts synced",
-      "create_tx and health() reach the same verdict on the same tracker @regression reports the halt and the mempool state alongside the verdict"
-    ],
     "471e523a3c7464b3": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.11: SegWit UTXO handling P2WPKH UTXO uses witnessUtxo, no raw tx fetch"
     ],
@@ -2024,6 +1999,45 @@
       "XChainEncoder P2SH reveal headroom scales the leg with the fee rate and with the payload size",
       "XChainEncoder P2SH reveal headroom the DOGE reveal is no longer a full burn: it leaves a >= dust output to the caller"
     ],
+    "e3f640b2cf4c0689": [
+      "UTXO_TRACKER_PROFILE=remote fails closed UtxoTracker.assertTrackerReady types a transport failure in the remote profile",
+      "UTXO_TRACKER_PROFILE=remote fails closed classifies an absent sync as SYNC_MISSING only in the remote profile",
+      "UTXO_TRACKER_PROFILE=remote fails closed getUtxos refuses a empty status tracker with UTXO_TRACKER_SYNC_MISSING",
+      "UTXO_TRACKER_PROFILE=remote fails closed getUtxos refuses a halted tracker with UTXO_TRACKER_HALTED",
+      "UTXO_TRACKER_PROFILE=remote fails closed getUtxos refuses a not ready tracker with UTXO_TRACKER_NOT_READY",
+      "UTXO_TRACKER_PROFILE=remote fails closed getUtxos refuses a stale tracker with UTXO_TRACKER_STALE",
+      "UTXO_TRACKER_PROFILE=remote fails closed getUtxos refuses a status without lag tracker with UTXO_TRACKER_SYNC_MISSING",
+      "UTXO_TRACKER_PROFILE=remote fails closed getUtxos refuses a unreachable tracker with UTXO_TRACKER_UNREACHABLE",
+      "UTXO_TRACKER_PROFILE=remote fails closed keeps the default profile failing open on a missing sync field",
+      "UTXO_TRACKER_PROFILE=remote fails closed passes a healthy remote tracker",
+      "UTXO_TRACKER_PROFILE=remote fails closed refuses a get_utxos response that carries no sync field",
+      "UTXO_TRACKER_PROFILE=remote fails closed refuses construction without a tracker url or port",
+      "UTXO_TRACKER_PROFILE=remote fails closed resolves the profile and rejects unknown values",
+      "UTXO_TRACKER_PROFILE=remote fails closed wraps a get_utxos transport failure as UNREACHABLE and leaks no host",
+      "classifyTrackerFreshness(): the halt reason is tracker-authored bounds a long halt reason and keeps an absent one null",
+      "classifyTrackerFreshness(): the halt reason is tracker-authored collapses a halt reason carrying an endpoint in both the message and the details",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict does not mutate the sync object it is handed",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict fails open on every field it is not explicitly told is bad",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict names the halt, not the staleness, when a halted tracker is ALSO stale",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a halted tracker even at lag 0, and carries the halt reason",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a lag above the supplied ceiling and names the ceiling it used",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker that de-asserts synced, whatever the lag",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses a tracker whose mempool has not reconverged",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict refuses an orphaned view (tracker committed above the node) and says so",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict reports no refusal, and present:false, for a tracker with no freshness surface",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict separates the tracker's positive synced claim from the refusal verdict",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict serves at exactly the ceiling (lag == max is not \"above\")",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict takes the ceiling from its argument, not from a baked-in constant",
+      "classifyTrackerFreshness(): the single tracker-freshness verdict treats a non-numeric lag as unknown rather than comparing it",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: halted",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: healthy",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag at the ceiling",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: lag one over the ceiling",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: mempool not reconverged",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: orphaned view",
+      "create_tx and health() reach the same verdict on the same tracker @regression agrees on: tracker de-asserts synced",
+      "create_tx and health() reach the same verdict on the same tracker @regression reports the halt and the mempool state alongside the verdict"
+    ],
     "e4c3435f9bc2b0af": [
       "Category F: Multi-Chain Network Configs CryptoNetworks completeness bitcoin-mainnet returns valid config with dustThreshold",
       "Category F: Multi-Chain Network Configs CryptoNetworks completeness bitcoin-regtest returns valid config with dustThreshold",
@@ -2285,7 +2299,7 @@
   "scripts": {
     "test": {
       "fileCount": 135,
-      "titleCount": 1006,
+      "titleCount": 1020,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2420,7 +2434,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
-        "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
+        "test/unit/xchain_encoder/trackerless_profile.test.js": "e3f640b2cf4c0689",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }
     },
@@ -2571,7 +2585,7 @@
     },
     "test:unit": {
       "fileCount": 135,
-      "titleCount": 1006,
+      "titleCount": 1020,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
@@ -2706,7 +2720,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/04_tx_size_estimator_envelope_sizing.test.js": "5086151532f51b80",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
-        "test/unit/xchain_encoder/xchain_encoder_tracker_freshness_classifier.test.js": "46251d813cd6068d",
+        "test/unit/xchain_encoder/trackerless_profile.test.js": "e3f640b2cf4c0689",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "2a1c91a7aceda8eb"
       }
     }

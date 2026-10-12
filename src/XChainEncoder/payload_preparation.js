@@ -25,6 +25,7 @@ const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD } = require('../co
 const { OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_ENVELOPE_FORMAT_V0, Encoding } = require('./constants.js')
 const { resolveCallerHash160 } = require('./request_resolution.js')
 const { opReturnPayload, scriptHashPayload, multisignPayload, envelopePayload } = require('./payload_encodings.js')
+const { ParamTypeError } = require('../build/errors')
 
 module.exports = {
     isSegwitUTXO(utxo) {
@@ -67,7 +68,7 @@ module.exports = {
                 return envelopePayload(data, encoding, compressedPubKey, magicWordBuffer)
             }
             default:
-                throw new TypeError(`Unknown encoding: "${encoding}". Valid values: OP_RETURN, P2SH, MULTISIGN, P2WSH, TAPROOT`)
+                throw new ParamTypeError(`Unknown encoding: "${encoding}". Valid values: OP_RETURN, P2SH, MULTISIGN, P2WSH, TAPROOT`)
         }
     },
 
@@ -113,7 +114,7 @@ module.exports = {
     async assertEnvelopeRecognized(){
         const height = CryptoNetworks.getEnvelopeRecognitionHeight(this.networkKey)
         if (height === null || height === undefined) {
-            throw new TypeError('TAPROOT encoding is not recognized on this network; ' +
+            throw new ParamTypeError('TAPROOT encoding is not recognized on this network; ' +
                 'no envelope recognition height is defined for it')
         }
         if (height === 0) return                    // genesis-active (testnet/regtest)

@@ -23,10 +23,12 @@ const broadcast = require('./blockchain_connector/broadcast.js')
 const feeEstimation = require('./blockchain_connector/fee_estimation.js')
 
 class BlockchainConnector {
-    constructor(url, port, rpcUser, rpcPassword) {
+    // consensusNetwork ('mainnet'|'testnet'|'regtest') arms assertNodeTier; omitted, the check is skipped.
+    constructor(url, port, rpcUser, rpcPassword, consensusNetwork = null) {
         this.url = "http://"+url+":"+port
         this.rpcUser = rpcUser
         this.rpcPassword = rpcPassword
+        this.consensusNetwork = consensusNetwork
     }
 }
 

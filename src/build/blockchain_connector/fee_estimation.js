@@ -156,8 +156,18 @@ function usableSmartFee(responseData) {
 async function requireNoEstimateFallback(connector, responseData) {
     const fallback = await connector.noEstimateRelayFallback();
     if (fallback !== null) return fallback;
-    // Keep the node's reason from an HTTP 200 error body (BTC v28's shape).
-    throw new Error('Error getting smart fee from node' + rpcErrorDetail(responseData));
+    // Keep the node's reason from either HTTP 200 shape: an error body (BTC v28) or
+    // modern Core's success body that lists it under result.errors.
+    throw new Error('Error getting smart fee from node' + smartFeeResultErrors(responseData)
+        + rpcErrorDetail(responseData));
+}
+
+// The non-empty strings in result.errors as a compact suffix, or '' when there are none.
+function smartFeeResultErrors(responseData) {
+    const errors = responseData && responseData.result && responseData.result.errors;
+    if (!Array.isArray(errors)) return '';
+    const reasons = errors.filter((e) => typeof e === 'string' && e !== '');
+    return reasons.length ? ' (node: ' + reasons.join('; ') + ')' : '';
 }
 
 // RPC implementations may report missing estimate data as an error body. Run

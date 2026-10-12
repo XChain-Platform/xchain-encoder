@@ -24,6 +24,7 @@
 
 const coins = require('../coins');
 const { ENVELOPE_RECOGNITION_ACTIVATION } = require('../protocol/changes');
+const { ParamTypeError } = require('./errors');
 
 const SUPPORTED = 'bitcoin-mainnet, bitcoin-testnet, bitcoin-regtest, dogecoin-mainnet, ' +
     'dogecoin-testnet, dogecoin-regtest, litecoin-mainnet, litecoin-testnet, litecoin-regtest';
@@ -44,7 +45,7 @@ class CryptoNetworks {
     // bitcoinjs-lib network object (+ XChain relay overlays) for a network key.
     static getBitcoinJsNetwork(networkName){
         const p = parseNetworkName(networkName);
-        if(!p) throw new TypeError(`Unknown network: "${networkName}". Supported: ${SUPPORTED}`);
+        if(!p) throw new ParamTypeError(`Unknown network: "${networkName}". Supported: ${SUPPORTED}`);
         return coins.getCoinConfig(p.tick, p.net).net;
     }
 

@@ -20,6 +20,7 @@
 
 const dotenv = require('dotenv')
 dotenv.config()
+const config = require('./common/config')
 
 // Before anything else logs. The API_KEY notice and env-validation lines
 // immediately below are exactly the ones an operator needs levelled and
@@ -29,7 +30,7 @@ const { patchConsole } = require('./observability');
 patchConsole({
     service: 'xchain-encoder',
     version: require('../package.json').version,
-    network: process.env.NETWORK || ''
+    network: config.NETWORK
 });
 
 const bitcoin = require('bitcoinjs-lib');
@@ -43,7 +44,7 @@ const { limitedHandler } = require('./server/rate_limit_log.js')
 const XChainEncoder  = require('./XChainEncoder');
 const jsonRouter = require('express-json-rpc-router')
 const concurrencyGate = require('./server/concurrency_gate.js')
-const { isProbe } = require('./server/probe_request.js')
+const { isProbe, isSpecRequest } = require('./server/probe_request.js')
 
 // Express middleware that rejects an over-cap JSON-RPC batch array before dispatch, so one
 // HTTP request cannot amplify into thousands of backend RPCs (the rate limiter counts a batch
@@ -66,35 +67,44 @@ const { installObservability } = require('./observability');   // default-off /m
 const { installCrashHandlers } = require('./server/crash_handlers')
 
 
-const NETWORK = process.env.NETWORK
-const NODE_URL = process.env.NODE_URL
-const NODE_PORT = process.env.NODE_PORT
-const NODE_USER = process.env.NODE_USER
-const NODE_PASSWORD = process.env.NODE_PASSWORD
-const UTXO_TRACKER_URL = process.env.UTXO_TRACKER_URL
-const UTXO_TRACKER_API_PORT = process.env.UTXO_TRACKER_API_PORT
-const ENCODER_API_PORT = process.env.ENCODER_API_PORT
-const MAX_FEE_RATE_KB = process.env.MAX_FEE_RATE_KB ? parseInt(process.env.MAX_FEE_RATE_KB, 10) : null
+const NETWORK = config.NETWORK_RAW
+const NODE_URL = config.NODE_URL
+const NODE_PORT = config.NODE_PORT
+const NODE_USER = config.NODE_USER
+const NODE_PASSWORD = config.NODE_PASSWORD
+const UTXO_TRACKER_URL = config.UTXO_TRACKER_URL
+const UTXO_TRACKER_API_PORT = config.UTXO_TRACKER_API_PORT
+const ENCODER_API_PORT = config.ENCODER_API_PORT
+// Absolute fee-rate cap in sat/kB; only a positive value caps, anything else leaves it off.
+const _maxFeeRateKb = parseInt(config.MAX_FEE_RATE_KB, 10)
+const MAX_FEE_RATE_KB = (Number.isFinite(_maxFeeRateKb) && _maxFeeRateKb > 0) ? _maxFeeRateKb : null
 // Relative fee-rate ceiling as a multiple of the node's estimatesmartfee(1)
 // estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder.js).
 // Caps caller-supplied fee/feePerKb so a hostile request cannot drain inputs
 // into miner fee. Set to 0 to disable (not recommended).
-// An unset or unparseable value keeps the encoder default (fail-safe).
-const _maxFeeRateMultiplier = parseFloat(process.env.MAX_FEE_RATE_MULTIPLIER)
-const MAX_FEE_RATE_MULTIPLIER = Number.isFinite(_maxFeeRateMultiplier) ? _maxFeeRateMultiplier : undefined
+// An unset, unparseable or negative value keeps the encoder default (fail-safe).
+const _maxFeeRateMultiplier = parseFloat(config.MAX_FEE_RATE_MULTIPLIER)
+const MAX_FEE_RATE_MULTIPLIER = (Number.isFinite(_maxFeeRateMultiplier) && _maxFeeRateMultiplier >= 0) ? _maxFeeRateMultiplier : undefined
+// Name a set-but-refused fee cap at boot, since the fallback above is otherwise silent.
+if (config.MAX_FEE_RATE_KB && MAX_FEE_RATE_KB === null && _maxFeeRateKb !== 0) {
+    console.warn('WARNING: MAX_FEE_RATE_KB=' + config.MAX_FEE_RATE_KB + ' is not a positive sat/kB rate; the absolute fee-rate cap stays off.')
+}
+if (config.MAX_FEE_RATE_MULTIPLIER && MAX_FEE_RATE_MULTIPLIER === undefined) {
+    console.warn('WARNING: MAX_FEE_RATE_MULTIPLIER=' + config.MAX_FEE_RATE_MULTIPLIER + ' is not a number >= 0; the default multiplier applies.')
+}
 // Max blocks the utxo-tracker's per-response freshness `sync` field may report
 // as lag before create_tx refuses to select UTXOs from it
 // (UTXO_TRACKER_STALE). Unset/unparseable falls through to XChainEncoder's own default
 // (DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS) via the `undefined` fallback, same
 // pattern as MAX_FEE_RATE_MULTIPLIER above.
-const _utxoTrackerMaxLagBlocks = parseInt(process.env.UTXO_TRACKER_MAX_LAG_BLOCKS, 10)
+const _utxoTrackerMaxLagBlocks = parseInt(config.UTXO_TRACKER_MAX_LAG_BLOCKS, 10)
 const UTXO_TRACKER_MAX_LAG_BLOCKS = Number.isFinite(_utxoTrackerMaxLagBlocks) ? _utxoTrackerMaxLagBlocks : undefined
 // Operator floor on every value output the encoder authors; it only raises the floor
 // above the coin dust threshold and relay-policy soft-dust floor (see XChainEncoder).
-const _dustAmount = parseInt(process.env.DUST_AMOUNT, 10)
+const _dustAmount = parseInt(config.DUST_AMOUNT, 10)
 const DUST_AMOUNT = (Number.isFinite(_dustAmount) && _dustAmount > 0) ? _dustAmount : undefined
-const API_KEY = process.env.API_KEY
-const CORS_ORIGIN = process.env.CORS_ORIGIN
+const API_KEY = config.API_KEY
+const CORS_ORIGIN = config.CORS_ORIGIN
 
 // Constant-time API-key comparison. A plain `!==` short-circuits at the first
 // mismatching byte, leaking the key through response-time differences;
@@ -112,7 +122,7 @@ if (!API_KEY) {
     console.warn('NOTICE: API_KEY not set. Encoder API authentication is DISABLED (open access).')
 }
 
-const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER, UTXO_TRACKER_MAX_LAG_BLOCKS, DUST_AMOUNT);
+const encoder = new XChainEncoder(NETWORK, NODE_URL, NODE_PORT, NODE_USER, NODE_PASSWORD, UTXO_TRACKER_URL, UTXO_TRACKER_API_PORT, MAX_FEE_RATE_KB, MAX_FEE_RATE_MULTIPLIER, UTXO_TRACKER_MAX_LAG_BLOCKS, DUST_AMOUNT, config.UTXO_TRACKER_PROFILE);
 
 const app = express();
 
@@ -132,7 +142,7 @@ const app = express();
 // ENCODER_TRUST_PROXY overrides for other topologies: `false`, a hop count
 // (e.g. `1`), or an address/CIDR list per the Express docs. Mirrors
 // xchain-hub's HUB_TRUST_PROXY (src/api.js).
-let trustProxy = process.env.ENCODER_TRUST_PROXY || 'loopback, uniquelocal';
+let trustProxy = config.ENCODER_TRUST_PROXY || 'loopback, uniquelocal';
 if (trustProxy === 'true')       trustProxy = true;
 else if (trustProxy === 'false') trustProxy = false;
 else if (/^\d+$/.test(trustProxy)) trustProxy = parseInt(trustProxy, 10);
@@ -158,8 +168,9 @@ app.use(cors({ origin: parseCorsOrigin(CORS_ORIGIN) }));
 // API key authentication (only enforced when API_KEY is configured).
 if (API_KEY) {
     app.use((req, res, next) => {
-        // The machine-readable spec stays public even on keyed deploys.
-        if (req.method === 'GET' && req.path === '/openrpc.json') return next()
+        // The machine-readable spec stays public even on keyed deploys, for every
+        // request shape Express routes to it (HEAD, any case, a trailing slash).
+        if (isSpecRequest(req)) return next()
         const key = req.headers['x-api-key']
         if (!keyEquals(key, API_KEY)) {
             return res.status(401).json({
@@ -172,7 +183,7 @@ if (API_KEY) {
 }
 
 const ENCODER_RATE_LIMIT_WINDOW_MS = 60 * 1000
-const ENCODER_RATE_LIMIT_RPM = parseInt(process.env.ENCODER_RATE_LIMIT_RPM, 10) || 60
+const ENCODER_RATE_LIMIT_RPM = parseInt(config.ENCODER_RATE_LIMIT_RPM, 10) || 60
 const limiter = rateLimit({
     windowMs: ENCODER_RATE_LIMIT_WINDOW_MS,
     limit: ENCODER_RATE_LIMIT_RPM,
@@ -227,7 +238,7 @@ app.use(bodyParser.json({ limit: '3mb' }));
 const BUSY_BODY = { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Server busy, retry shortly' } }
 
 const probeGate = concurrencyGate.createConcurrencyGate({
-    limit:      concurrencyGate.resolveLimit(process.env.ENCODER_MAX_CONCURRENT_PROBES, 16),
+    limit:      concurrencyGate.resolveLimit(config.ENCODER_MAX_CONCURRENT_PROBES, 16),
     retryAfter: 1,
     skip:       (req) => !isProbe(req),
     body:       BUSY_BODY
@@ -235,7 +246,7 @@ const probeGate = concurrencyGate.createConcurrencyGate({
 app.use(probeGate)
 
 const requestGate = concurrencyGate.createConcurrencyGate({
-    limit:      concurrencyGate.resolveLimit(process.env.ENCODER_MAX_CONCURRENT_REQUESTS, 50),
+    limit:      concurrencyGate.resolveLimit(config.ENCODER_MAX_CONCURRENT_REQUESTS, 50),
     retryAfter: 1,
     skip:       isProbe,
     body:       BUSY_BODY
@@ -313,7 +324,7 @@ app.get('/openrpc.json', (req, res) => {
 // each estimate_fee/create_tx/get_utxos does node or tracker RPCs with no concurrency limit,
 // exhausting the shared coin-node RPC pool from one unauthenticated request. Cap the batch
 // length (default 20, ENCODER_MAX_RPC_BATCH). Must run after bodyParser and before the router.
-app.use(makeRpcBatchGuard(parseInt(process.env.ENCODER_MAX_RPC_BATCH, 10) || 20))
+app.use(makeRpcBatchGuard(parseInt(config.ENCODER_MAX_RPC_BATCH, 10) || 20))
 
 // Express 5 / body-parser 2.x leaves req.body undefined when a request carries
 // no JSON body (a GET, or a POST without application/json), whereas body-parser

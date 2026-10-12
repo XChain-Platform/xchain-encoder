@@ -14,6 +14,7 @@
 
 const assert = require('assert')
 const { createJsonRpcController } = require('../../src/api/json_rpc_methods')
+const { ParamTypeError } = require('../../src/build/errors')
 const { TXID_A, PUBKEY_BUF, makeEncoder, getTestAddress } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -50,9 +51,16 @@ describe('REG-32: create_tx answers a caller fault with -32602', () => {
     assert.ok(/below the node relay minimum/.test(caught.message), caught.message)
   })
 
+  // The compression guards raise through refuse(ErrorClass, ...), never a literal `new`.
+  it('keeps the reason for an explicit compress request on a non-FILE action', async () => {
+    const caught = await rejectionOf('create_tx', null, sendParams({ compress: true, rawData: 'a'.repeat(64) }))
+    assert.strictEqual(caught.code, -32602)
+    assert.ok(/COMPRESSION is a FILE v0 field/.test(caught.message), caught.message)
+  })
+
   it('keeps the message of a TypeError the build raises', async () => {
     const caught = await rejectionOf('create_tx', (encoder) => {
-      encoder.createTransaction = async () => { throw new TypeError('Unknown encoding: "FOO"') }
+      encoder.createTransaction = async () => { throw new ParamTypeError('Unknown encoding: "FOO"') }
     }, sendParams())
     assert.strictEqual(caught.code, -32602)
     assert.strictEqual(caught.message, 'Unknown encoding: "FOO"')
@@ -112,4 +120,33 @@ describe('REG-32: the other build paths keep node faults off -32602', () => {
     assert.throws(() => encoder.raiseOutputValue(null, 0, 0),
       (err) => err.constructor === Error && /output uplift must be a positive integer/.test(err.message))
   })
+})
+
+// A native or library TypeError/RangeError is a bug, not a caller fault: logged, retryable, generic.
+describe('REG-32: an unmarked TypeError or RangeError from the build is an internal error', () => {
+  const NATIVE = "Cannot read properties of undefined (reading 'x')"
+  const cancelParams = {
+    commitTxid: TXID_A,
+    commitVout: 0,
+    commitValue: 100000,
+    internalPubkey: PUBKEY_BUF.toString('hex'),
+    tapleafHash: 'c'.repeat(64),
+    destination: address
+  }
+  const cases = [
+    ['create_tx', (enc, err) => { enc.createTransaction = async () => { throw err } }, sendParams()],
+    ['create_envelope_cancel_tx', (enc, err) => { enc.createEnvelopeCancelTransaction = async () => { throw err } }, cancelParams],
+    ['release_inputs', (enc, err) => { enc.releaseReservation = () => { throw err } }, { reservationId: 'f'.repeat(32) }]
+  ]
+
+  for (const [method, stub, params] of cases) {
+    for (const make of [() => new TypeError(NATIVE), () => new RangeError('Invalid array length')]) {
+      const kind = make().name
+      it(method + ' answers -32603, generic, for a native ' + kind, async () => {
+        const caught = await rejectionOf(method, (enc) => stub(enc, make()), params)
+        assert.strictEqual(caught.code, -32603)
+        assert.strictEqual(caught.message, 'Internal encoder error')
+      })
+    }
+  }
 })

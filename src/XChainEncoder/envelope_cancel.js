@@ -22,11 +22,12 @@ const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
-const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateAddress, validateOutpoint } = require('../common/validator')
-const { OperationalError } = require('../build/errors')
+const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint, assertPubkeyOnCurve } = require('../common/validator')
+const { OperationalError, ParamTypeError, ParamRangeError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
-const { capCallerFeeRate, feeForVsize } = require('./fee_policy.js')
+const { assertAddressOnNetwork } = require('./request_resolution.js')
+const { capCallerFeeRate, clampLimitLabel, feeForVsize } = require('./fee_policy.js')
 
 // The cancel's recovery record as handed over: validated, decoded, and read
 // into the values the build uses.
@@ -42,18 +43,22 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     } else if (typeof internalPubkey === 'string' && /^[0-9a-fA-F]{64}$/.test(internalPubkey)) {
         internalKeyBuf = Buffer.from(internalPubkey, 'hex')
     } else {
-        throw new TypeError('internalPubkey must be a 66-character compressed or 64-character x-only pubkey hex string')
+        throw new ParamTypeError('internalPubkey must be a 66-character compressed or 64-character x-only pubkey hex string')
     }
+    // Refuse an off-curve key here as -32602, before any claim or fee RPC.
+    assertPubkeyOnCurve(internalKeyBuf, 'internalPubkey')
     if (typeof tapleafHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(tapleafHash)) {
-        throw new TypeError('tapleafHash must be a 64-character hex string')
+        throw new ParamTypeError('tapleafHash must be a 64-character hex string')
     }
     // validateAddress, not a local non-empty check: this is the one create
     // path api.js does not route through validateAll, so without it the
     // 100-char cap every other address field gets is missing here and an
     // unbounded string reaches bs58check (quadratic) and psbt.addOutput.
-    validateAddress(destination, 'destination')
+    // assertAddressOnNetwork runs that shape check first, then refuses an
+    // address that does not decode on this network, before any claim or fee RPC.
+    assertAddressOnNetwork(destination, this.network, 'destination')
     if (this.network.supportsSegwit === false) {
-        throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
+        throw new ParamTypeError('TAPROOT encoding is not supported on this network (no segwit support)')
     }
     // Same money/boolean guards create_tx gets through validateAll, so both
     // create paths classify identical bad input identically (-32602). Left
@@ -148,7 +153,7 @@ function* cancelFeeRate(feeRatePerKb){
     const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
         maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
     if (capped.clamped){
-        const limit = capped.capFeePerBytes != null ? 'the fee-rate cap' : 'the fixed burn backstop (fee-rate cap disabled)'
+        const limit = clampLimitLabel(capped)
         logger.warn(`Envelope-cancel fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds ${limit}, clamping to ${capped.feePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
     }
     return { feePerBytes: capped.feePerBytes, relayFeePerKb }
@@ -173,7 +178,7 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
         const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
         const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
         if (cancelFee < minimumRelayFee){
-            throw new RangeError(`feePerKb ${callerFeePerKb} base units/kB produces fee ${cancelFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
+            throw new ParamRangeError(`feePerKb ${callerFeePerKb} base units/kB produces fee ${cancelFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
         }
     }
     if (cancelFee < this.dustAmount){

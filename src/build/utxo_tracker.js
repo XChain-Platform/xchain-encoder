@@ -23,6 +23,7 @@ const util = require('node:util');
 const { getLogger } = require('../observability');
 const { safeUpstreamReason } = require('../common/error_sanitize');
 const logger = getLogger();
+const { isRemoteProfile, throwIfRefused, trackerUnreachableError, trackerSyncMissingError } = require('../XChainEncoder/trackerless_profile.js')
 
 // How long to wait on the tracker before giving up on a request.
 const TRACKER_TIMEOUT = 15000
@@ -72,6 +73,7 @@ function snapshotDivergence(first, later){
 // silently. Converting this into an explicit, catchable error lets
 // callers (e.g. the oracle PRICE submission path) surface or retry.
 async function assertTrackerReady(tracker){
+    if (isRemoteProfile(tracker.profile)) return assertRemoteTrackerReady(tracker)
     try {
         const syncStatus = await tracker.getSyncStatus()
         const lag = syncStatus.lag
@@ -118,6 +120,24 @@ async function assertTrackerReady(tracker){
     }
 }
 
+// Remote profile: the tracker is mandatory, so a transport failure, an empty
+// status and every missing or negative freshness signal refuse with a typed code.
+async function assertRemoteTrackerReady(tracker){
+    let status
+    try {
+        status = await tracker.getSyncStatus()
+    } catch (error) {
+        logger.error(util.format('Error checking UTXO tracker sync status:', error));
+        throw error.syncMissing ? trackerSyncMissingError() : trackerUnreachableError(error)
+    }
+    try {
+        throwIfRefused(tracker.profile, status, tracker.maxLagBlocks)
+    } catch (error) {
+        logger.error(util.format('Error checking UTXO tracker sync status:', error));
+        throw error
+    }
+}
+
 // One get_utxos page: `cursor` is the previous page's nextCursor, absent on
 // the first page. Returns the JSON-RPC response body as the tracker sent it.
 async function fetchUtxoPage(tracker, address, limit, cursor){
@@ -159,8 +179,12 @@ function readUtxoResult(responseData){
     // Prefer err.data.code (string code forwarded by the tracker) over err.code.
     const rpcError = responseData.error
     if (rpcError && (rpcError.message || rpcError.code || rpcError.data?.code)) {
-        const code = rpcError.data?.code || rpcError.code
-        throw new Error(`Error getting utxos: ${code ? `[${code}] ` : ''}${rpcError.message || 'unknown error'}`)
+        // The tracker's text is untrusted and reaches public errors, so it gets the halt_reason sanitizer
+        // (leak-checked, printable ASCII, capped); an integer JSON-RPC code is safe as it stands.
+        const rawCode = rpcError.data?.code || rpcError.code
+        const code = Number.isSafeInteger(rawCode) ? String(rawCode) : safeUpstreamReason(rawCode)
+        const message = safeUpstreamReason(rpcError.message) || 'unknown error'
+        throw new Error(`Error getting utxos: ${code ? `[${code}] ` : ''}${message}`)
     }
     throw new Error('Error getting utxos: empty result')
 }
@@ -222,9 +246,11 @@ function assertFreshCursor(nextCursor, seenCursors, address){
 }
 
 class UtxoTracker {
-    constructor(url, port) {
+    constructor(url, port, profile, maxLagBlocks) {
         this.url = "http://"+url+":"+port
         this.port = port
+        this.profile = profile
+        this.maxLagBlocks = maxLagBlocks
     }
 
     // Probe the tracker's lag behind the chain tip. Returns the parsed
@@ -250,7 +276,9 @@ class UtxoTracker {
         if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
             return responseData.result
         } else {
-            throw new Error('Error getting sync status: empty result')
+            const empty = new Error('Error getting sync status: empty result')
+            empty.syncMissing = true
+            throw empty
         }
     }
 

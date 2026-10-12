@@ -16,7 +16,23 @@ const { getLogger } = require('../../observability');
 const config = require('../../common/config');
 const logger = getLogger();
 
-const RPC_TIMEOUT = parseInt(config.NODE_RPC_TIMEOUT ?? '30000', 10)
+// Read an integer env value, falling back with a warning on anything but a clean integer >= min.
+// (An empty value would parse to NaN, which axios treats as "no timeout"; '30s' would parse to 30.)
+function envInt(raw, fallback, name, min = 1) {
+    const s = (raw === undefined || raw === null) ? '' : String(raw).trim()
+    if (s === '') {
+        if (raw !== undefined && raw !== null) logger.warn(`[config] ${name} is set but empty; using ${fallback}`)
+        return fallback
+    }
+    const n = /^-?\d+$/.test(s) ? Number(s) : NaN
+    if (!Number.isInteger(n) || n < min) {
+        logger.warn(`[config] ${name}="${s}" is not an integer >= ${min}; using ${fallback}`)
+        return fallback
+    }
+    return n
+}
+
+const RPC_TIMEOUT = envInt(config.NODE_RPC_TIMEOUT, 30000, 'NODE_RPC_TIMEOUT')
 
 // Absolute per-chain sanity ceiling (COIN/kB, the same unit estimatesmartfee
 // returns) on the RAW non-regtest estimate before anything else sees it.
@@ -41,4 +57,4 @@ const DEFAULT_FEE_ESTIMATE_SANITY_CEILING = {
     dogecoin: 10,    // 10 DOGE/kB (~1000x the 0.01 DOGE/kB documented recommended rate)
 }
 
-module.exports = { logger, RPC_TIMEOUT, DEFAULT_FEE_ESTIMATE_SANITY_CEILING }
+module.exports = { logger, envInt, RPC_TIMEOUT, DEFAULT_FEE_ESTIMATE_SANITY_CEILING }

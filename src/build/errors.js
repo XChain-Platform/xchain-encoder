@@ -20,8 +20,9 @@
  * transport failure that embeds host:port). api.js forwards an OperationalError
  * message + its stable `xchainCode` to the caller, but collapses everything
  * else to a generic message so internals and credentials never reach a
- * response. The message here is always encoder-authored (never an upstream
- * string), so it is safe to forward by construction.
+ * response. The message here is encoder-authored; any upstream text it embeds
+ * (a tracker error or halt reason) has first passed safeUpstreamReason
+ * (leak-checked, printable ASCII, length-capped), so it is safe to forward.
  *
  ********************************************************************/
 
@@ -38,4 +39,27 @@ class OperationalError extends Error {
     }
 }
 
-module.exports = { OperationalError }
+// A caller-input rejection the encoder raised itself, so its message is safe to
+// return as -32602. A bare TypeError/RangeError from Node or a library is a bug and
+// stays unmarked. `name` is inherited, so instanceof and name checks still match.
+class ParamTypeError extends TypeError {
+    constructor(message) {
+        super(message)
+        this.invalidParams = true
+    }
+}
+
+// The RangeError twin of ParamTypeError: a caller value of the right type out of bounds.
+class ParamRangeError extends RangeError {
+    constructor(message) {
+        super(message)
+        this.invalidParams = true
+    }
+}
+
+// Whether an error is an encoder-authored caller-input rejection.
+function isInvalidParams(err) {
+    return Boolean(err) && err.invalidParams === true
+}
+
+module.exports = { OperationalError, ParamTypeError, ParamRangeError, isInvalidParams }

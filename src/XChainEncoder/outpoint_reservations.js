@@ -20,7 +20,7 @@
 
 const crypto = require('crypto');
 const bitcoin = require('bitcoinjs-lib');
-const { OperationalError } = require('../build/errors')
+const { OperationalError, ParamTypeError } = require('../build/errors')
 const { RESERVATION_TTL_MS } = require('./constants.js')
 
 module.exports = {
@@ -244,7 +244,7 @@ module.exports = {
     // window the reservation map exists to close.
     releaseReservation(reservationId) {
         if (typeof reservationId !== 'string' || !/^[0-9a-f]{32}$/.test(reservationId)) {
-            throw new TypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
+            throw new ParamTypeError('reservationId must be a 32-character lowercase hex string, as returned in create_tx result.reservation.id')
         }
         const now = Date.now()
         this.evictExpiredReservations(now)

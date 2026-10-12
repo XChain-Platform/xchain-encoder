@@ -30,6 +30,7 @@ const coins = require('./coins')
 const BlockchainConnector = require('./build/blockchain_connector')
 const CryptoNetworks = require('./build/crypto_networks')
 const UtxoTracker = require('./build/utxo_tracker')
+const { resolveTrackerProfile, assertRemoteTrackerConfigured } = require('./XChainEncoder/trackerless_profile.js')
 const TxSizeEstimator = require("./build/tx_size_estimator")
 const { OperationalError } = require('./build/errors')
 const { upstreamErrorMessage } = require('./common/error_sanitize')
@@ -119,7 +120,7 @@ function initReservationMaps(){
 
 
 class XChainEncoder {
-    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS, dustAmount=null) {
+    constructor(network, nodeUrl, nodePort, nodeUser, nodePassword, utxoTrackerUrl, utxoTrackerPort, maxFeeRateKb=null, maxFeeRateMultiplier=DEFAULT_MAX_FEE_RATE_MULTIPLIER, maxUtxoTrackerLagBlocks=DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS, dustAmount=null, trackerProfile=null) {
       this.network = CryptoNetworks.getBitcoinJsNetwork(network)
       // The raw "<coin>-<net>" key. getBitcoinJsNetwork returns only the
       // bitcoinjs params, which carry no chain identity, and the envelope
@@ -139,8 +140,7 @@ class XChainEncoder {
       // api.js builds the singleton encoder at module load, so a later check would
       // let the HTTP surface bind and serve builds first.
       coins.verifyConsensusPin(this.consensusNetwork)
-      this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword)
-      this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort)
+      this.connector = new BlockchainConnector(nodeUrl, nodePort, nodeUser, nodePassword, this.consensusNetwork)
       // Two floors: dustAmount is the pinned consensus threshold (fee floor, fee-drain
       // caps, burn guard); outputFloor bounds every output this encoder authors and is
       // the same threshold raised to the coin relay floor and again to an operator DUST_AMOUNT.
@@ -154,15 +154,24 @@ class XChainEncoder {
       // Maximum fee rate in BTC/byte (null = no cap). Prevents runaway estimates
       // (e.g. regtest feedback loop) from producing fees that the node will reject.
       // MAX_FEE_RATE_KB is in sat/kB, convert to BTC/byte to match feePerBytes units.
-      this.maxFeePerBytes = maxFeeRateKb ? maxFeeRateKb / 1000 / SATOSHI_UNIT : null
+      const capKb = Number(maxFeeRateKb)
+      // Treat a zero, negative or unparseable cap as no cap: one below zero would
+      // clamp every rate, the node's own included, down to a dust-sized fee.
+      this.maxFeePerBytes = (Number.isFinite(capKb) && capKb > 0) ? capKb / 1000 / SATOSHI_UNIT : null
       // Relative fee-rate ceiling: caller-supplied fee/feePerKb may not exceed
       // this multiple of the node's current estimate (0/null disables).
-      this.maxFeeRateMultiplier = maxFeeRateMultiplier || null
+      const multiplier = Number(maxFeeRateMultiplier)
+      // Keep the default for a negative or unparseable multiplier rather than invert the cap below zero.
+      this.maxFeeRateMultiplier = (maxFeeRateMultiplier == null || multiplier === 0) ? null
+          : (multiplier > 0 ? multiplier : DEFAULT_MAX_FEE_RATE_MULTIPLIER)
       // See DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS above. `undefined`/`null` from an
       // unset or unparseable env var falls through to the class default via the
       // parameter default above (only a literal `undefined` triggers a JS default
       // parameter, so this normalizes `null` the same way).
       this.maxUtxoTrackerLagBlocks = (maxUtxoTrackerLagBlocks == null) ? DEFAULT_MAX_UTXO_TRACKER_LAG_BLOCKS : maxUtxoTrackerLagBlocks
+      this.trackerProfile = resolveTrackerProfile(trackerProfile)
+      assertRemoteTrackerConfigured(this.trackerProfile, utxoTrackerUrl, utxoTrackerPort)
+      this.utxoTrackerConnector = new UtxoTracker(utxoTrackerUrl, utxoTrackerPort, this.trackerProfile, this.maxUtxoTrackerLagBlocks)
       initReservationMaps.call(this)
     }
 

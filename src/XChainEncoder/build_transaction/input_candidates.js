@@ -19,9 +19,10 @@
  ********************************************************************/
 
 const { validateUtxoEntry } = require('../../common/validator')
-const { OperationalError } = require('../../build/errors')
+const { OperationalError, ParamTypeError } = require('../../build/errors')
 const { upstreamErrorMessage } = require('../../common/error_sanitize')
-const { classifyTrackerFreshness, resolveCallerAddress } = require('../request_resolution.js')
+const { resolveCallerAddress } = require('../request_resolution.js')
+const { isRemoteProfile, throwIfRefused, trackerUnreachableError } = require('../trackerless_profile.js')
 
 function initInputState(build){
     let { replacebyfee, p2shHash } = build
@@ -72,12 +73,12 @@ function checkExactInputs(build){
     const exactInputs = !!(options && options.exactInputs)
     if (exactInputs){
         if (isReveal){
-            throw new TypeError(
+            throw new ParamTypeError(
                 'options.exactInputs cannot be combined with p2shHash: the reveal spends the ' +
                 'funding transaction\'s own outputs, which are derived from p2shHex, not selected')
         }
         if ((utxos == null) || (utxos.length == 0)){
-            throw new TypeError(
+            throw new ParamTypeError(
                 'options.exactInputs requires a non-empty utxos array: it names the exact input ' +
                 'set to spend, so there is nothing to be exact about when the set is fetched')
         }
@@ -105,11 +106,14 @@ function* fetchTrackerUtxos(build){
     try {
         fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network)))
     } catch (err) {
+        if (isRemoteProfile(this.trackerProfile)){
+            throw err.operational ? err : trackerUnreachableError(err)
+        }
         // Surface a typed, credential-free operational error. A
         // transport failure embeds the tracker's internal host:port,
         // so upstreamErrorMessage collapses it to the generic
         // fallback; the tracker's own application messages (lag,
-        // address-too-large) are safe and actionable and pass through.
+        // address-too-large) pass through, already sanitized and capped by readUtxoResult.
         throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
     }
 
@@ -126,10 +130,7 @@ function* fetchTrackerUtxos(build){
     // One classifier, shared with api.js getServeReadiness(); the ordering,
     // the strict-equality fail-open rules and the operator text all live in
     // classifyTrackerFreshness above.
-    const freshness = classifyTrackerFreshness(fetched && fetched.sync, this.maxUtxoTrackerLagBlocks)
-    if (freshness.code){
-        throw new OperationalError(freshness.code, freshness.message, freshness.details)
-    }
+    throwIfRefused(this.trackerProfile, fetched && fetched.sync, this.maxUtxoTrackerLagBlocks)
 
     acceptTrackerUtxos(build, fetched)
 }
@@ -191,7 +192,7 @@ function refuseShrunkExactInputs(build){
         if (!unconfirmed){
             const mempoolInput = utxos.find((u) => u.confirmations == 0)
             if (mempoolInput){
-                throw new TypeError(
+                throw new ParamTypeError(
                     `options.exactInputs names unconfirmed utxo ${mempoolInput.txid}:${mempoolInput.vout}, ` +
                     'but unconfirmed=false would drop it; pass unconfirmed: true to spend it')
             }
@@ -200,7 +201,7 @@ function refuseShrunkExactInputs(build){
         for (const u of utxos){
             const k = u.txid + ':' + u.vout
             if (seenOutpoints.has(k)){
-                throw new TypeError(
+                throw new ParamTypeError(
                     `options.exactInputs names outpoint ${k} more than once; a transaction cannot spend the same output twice`)
             }
             seenOutpoints.add(k)

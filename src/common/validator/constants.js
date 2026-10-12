@@ -70,9 +70,9 @@ const MAX_FEE_SATOSHIS = 2_100_000_000_000
 // BTC/LTC/DOGE transaction tops out around 100 KB (200,000 hex chars), so
 // 400,000 chars (a 200 KB transaction) is comfortably above anything the
 // platform constructs while still shedding megabyte garbage before it reaches
-// Transaction.fromHex / Buffer.from or a coin-node round-trip. The Express
-// 1 MB body limit is the outer bound either way; this gives a precise, named
-// rejection instead of a node-side parse error.
+// Transaction.fromHex / Buffer.from or a coin-node round-trip. The 3mb body
+// limit in src/api.js is far looser (sized for TAPROOT envelopes), so this cap,
+// not the transport, is the precise gate and gives a named rejection.
 const MAX_RAW_TX_HEX_LENGTH = 400_000
 // broadcast_tx ceiling, wider than MAX_RAW_TX_HEX_LENGTH on purpose: a signed
 // Taproot-envelope reveal carries up to ENVELOPE_MAX_PAYLOAD payload bytes in

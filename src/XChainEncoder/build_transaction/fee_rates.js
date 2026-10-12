@@ -20,7 +20,7 @@
 
 const util = require('node:util');
 const { logger, SATOSHI_UNIT } = require('../constants.js')
-const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, capCallerFeeRate } = require('../fee_policy.js')
+const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, capCallerFeeRate, clampLimitLabel } = require('../fee_policy.js')
 
 // The relay floor, per-byte rate this build charges, node rate the drain caps
 // anchor to, effective cap, and dust floor, settled in that order.
@@ -137,12 +137,13 @@ function applyFeeCapAndDustFloor(build){
     let { feePerBytes, nodeFeePerBytes, dust } = build
     // Bound the rate that prices the fee AND sizes the P2SH/P2WSH legs, so a
     // hostile feePerKb cannot drain inputs to the miner. capFeePerBytes stays
-    // null under the burn backstop, so refuseExcessiveFee keeps its wording.
+    // the pure operator cap (null when both are off), so refuseExcessiveFee
+    // keeps its wording even when the burn backstop is the limit that binds.
     const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb: build.relayFeePerKb,
         maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
     const capFeePerBytes = capped.capFeePerBytes
     if (capped.clamped) {
-        const limit = capFeePerBytes != null ? 'the fee-rate cap' : 'the fixed burn backstop (fee-rate cap disabled)'
+        const limit = clampLimitLabel(capped)
         logger.warn(`Fee rate ${feePerBytes * 1000 * SATOSHI_UNIT} sat/kB exceeds ${limit}, clamping to ${capped.feePerBytes * 1000 * SATOSHI_UNIT} sat/kB`)
         feePerBytes = capped.feePerBytes
     }

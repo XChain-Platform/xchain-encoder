@@ -21,6 +21,9 @@
 const bitcoin = require('bitcoinjs-lib');
 const config = require('../common/config');
 const { safeUpstreamReason } = require('../common/error_sanitize');
+const { validateAddress } = require('../common/validator');
+const { ensureEccLib } = require('./script_amount_helpers.js');
+const { ParamTypeError } = require('../build/errors');
 
 // THE tracker-freshness classifier. Pure: it reads a `sync` object and a lag
 // ceiling and returns a verdict; it never throws, logs, or touches a connector.
@@ -88,7 +91,7 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
     }
     if (halted){
         // The reason is tracker-authored, so it is gated before it reaches the
-        // forwarded message (src/build/errors.js forwards encoder-authored text only).
+        // forwarded message (src/build/errors.js forwards upstream text only once sanitized).
         const haltReason = safeUpstreamReason(sync.halt_reason)
         verdict.code = 'UTXO_TRACKER_HALTED'
         verdict.message = `utxo-tracker is halted (${haltReason || 'unrecoverable reorg'}); ` +
@@ -204,11 +207,30 @@ function defaultCompressionEnabled(){
 function assertRevealFundingTxMatches(p2shHash, fundingTxid){
     if (!p2shHash) return
     if (String(p2shHash).toLowerCase() !== String(fundingTxid).toLowerCase()){
-        throw new TypeError(
+        throw new ParamTypeError(
             `p2shHash (${p2shHash}) does not match the txid of the supplied p2shHex transaction (${fundingTxid}); ` +
             `the reveal would spend one funding transaction while keying its marker to another`
         )
     }
 }
 
-module.exports = { classifyTrackerFreshness, resolveCallerHash160, resolveCallerAddress, defaultCompressionEnabled, assertRevealFundingTxMatches }
+// Refuse an address that does not decode on this network with a TypeError, so
+// the API answers -32602 before node, tracker or reservation work. bitcoinjs throws
+// a plain Error late (a retryable -32603), or never on a P2SH/P2WSH funding call.
+function assertAddressOnNetwork(address, network, label){
+    validateAddress(address, label)
+    // Decoding a bech32m (Taproot) address needs the ECC library, which this
+    // encoder only loads lazily; without it a valid bc1p address is refused.
+    ensureEccLib()
+    try {
+        bitcoin.address.toOutputScript(address, network)
+    } catch (err) {
+        // bitcoinjs reports an undecodable address as a plain Error; any other
+        // error class is a library fault and keeps its own identity.
+        if (err && err.constructor === Error) throw new ParamTypeError(`${label} is not a valid address for this network`)
+        throw err
+    }
+    return address
+}
+
+module.exports = { classifyTrackerFreshness, resolveCallerHash160, resolveCallerAddress, defaultCompressionEnabled, assertRevealFundingTxMatches, assertAddressOnNetwork }

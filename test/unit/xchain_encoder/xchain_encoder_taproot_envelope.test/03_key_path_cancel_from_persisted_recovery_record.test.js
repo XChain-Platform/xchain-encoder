@@ -288,3 +288,33 @@ describe('XChainEncoder TAPROOT envelope', function () {
     })
   })
 })
+
+describe('XChainEncoder TAPROOT envelope', function () {
+  describe('caller public keys must be secp256k1 points', function () {
+    // BIP340 lists this x as not on the curve; the fixture checks itself.
+    const OFF_CURVE_X = 'eefdea4cdb677750a420fee807eacf21eb9898ae79b9768766e4faa04a2d4a34'
+    const isInvalidParam = (label) => (err) =>
+      err instanceof TypeError && err.invalidParams === true && new RegExp(label + ' is not a valid secp256k1 point').test(err.message)
+
+    it('refuses an off-curve cancel internalPubkey in both forms before any reservation or fee RPC', async function () {
+      assert.strictEqual(ecc.isXOnlyPoint(Buffer.from(OFF_CURVE_X, 'hex')), false)
+      const encoder = makeEncoder()
+      let feeCalls = 0
+      encoder.connector.getFeePerKilobyte = async () => { feeCalls++; return 0.00001 }
+      for (const internalPubkey of ['02' + OFF_CURVE_X, OFF_CURVE_X]) {
+        await assert.rejects(encoder.createEnvelopeCancelTransaction({
+          commitTxid: TXID_A, commitVout: 0, commitValue: 100000,
+          internalPubkey, tapleafHash: 'c'.repeat(64), destination: callerAddress(encoder.network)
+        }), isInvalidParam('internalPubkey'))
+      }
+      assert.strictEqual(feeCalls, 0)
+      assert.strictEqual(encoder.outpointReservations.size, 0)
+    })
+
+    it('refuses an off-curve TAPROOT compressedPubKey at the envelope builder', function () {
+      const { envelopePayload } = require('../../../../src/XChainEncoder/payload_encodings.js')
+      assert.throws(() => envelopePayload(Buffer.from('00', 'hex'), 'TAPROOT', '03' + OFF_CURVE_X, Buffer.from('xchain')),
+        isInvalidParam('compressedPubKey'))
+    })
+  })
+})

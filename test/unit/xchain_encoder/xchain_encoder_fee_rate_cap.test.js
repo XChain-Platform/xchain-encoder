@@ -251,6 +251,33 @@ describe('XChainEncoder fee-rate cap', () => {
   })
 })
 
+// An operator cap looser than 100x never lifts the burn backstop off feePerKb.
+describe('XChainEncoder fee-rate cap', () => {
+  it('loose multiplier: the burn backstop clamps a 500x feePerKb to 100x the node rate', async () => {
+    // Multiplier 1000 would allow 1000 sat/byte; 500 sat/byte (~65500) must hold at ~13100.
+    const result = await create(makeEncoder(null, 1000), { feePerKb: 500000 })
+    assert.ok(paidFee(result) <= 20000, `fee ${paidFee(result)} should have been clamped by the burn backstop`)
+  })
+
+  it('loose multiplier: a plausible feePerKb is honored, not clamped', async () => {
+    const result = await create(makeEncoder(null, 1000), { feePerKb: 50000 })
+    assert.ok(paidFee(result) >= 5000 && paidFee(result) <= 8000, `fee ${paidFee(result)} should be ~50 sat/byte`)
+  })
+
+  it('loose MAX_FEE_RATE_KB alone: the burn backstop clamps a 500x feePerKb', async () => {
+    // 1000000 sat/kB is 1000x the node rate; multiplier 0 leaves it the only cap.
+    const result = await create(makeEncoder(1000000, 0), { feePerKb: 500000 })
+    assert.ok(paidFee(result) <= 20000, `fee ${paidFee(result)} should have been clamped by the burn backstop`)
+  })
+
+  it('loose multiplier: an explicit 500x fee is still refused, matching the feePerKb clamp', async () => {
+    await assert.rejects(
+      create(makeEncoder(null, 1000), { fee: 65500 }),
+      (err) => err instanceof RangeError && /100x the estimated fair fee/.test(err.message)
+    )
+  })
+})
+
 // The envelope key-path cancel prices its sweep through the same caps.
 bitcoin.initEccLib(ecc)
 const XONLY = '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
@@ -307,5 +334,11 @@ describe('XChainEncoder fee-rate cap', () => {
   it('envelope cancel: cap disabled, a plausible feePerKb is honored', async () => {
     const result = await cancel(makeCancelEncoder(0), 10000)
     assert.ok(result.fee >= 900 && result.fee <= 1200, `cancel fee ${result.fee} should be ~10 sat/byte`)
+  })
+
+  it('envelope cancel: loose multiplier, the burn backstop keeps a drain-shaped feePerKb off the commit', async () => {
+    const result = await cancel(makeCancelEncoder(1000), 9700000)
+    assert.ok(result.fee <= 20000, `cancel fee ${result.fee} should have been clamped by the burn backstop`)
+    assert.ok(result.psbt.txOutputs[0].value >= COMMIT_VALUE - 20000)
   })
 })

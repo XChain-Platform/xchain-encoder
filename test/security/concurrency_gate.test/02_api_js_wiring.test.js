@@ -44,8 +44,14 @@ describe('Security: global in-flight concurrency cap', function () {
             assert.ok(apiSource.includes('ENCODER_MAX_CONCURRENT_PROBES'))
             assert.ok(/app\.use\(probeGate\)/.test(apiSource))
             // The security suite drives this module's predicate; an inline copy here would escape it.
-            assert.ok(apiSource.includes("const { isProbe } = require('./server/probe_request.js')"))
+            assert.ok(apiSource.includes("const { isProbe, isSpecRequest } = require('./server/probe_request.js')"))
             assert.ok(!/const isProbe\s*=/.test(apiSource), 'api.js must not redefine the probe predicate')
+        })
+
+        it('exempts the spec from the API key through the shared predicate, not an exact match', function () {
+            assert.ok(/if \(isSpecRequest\(req\)\) return next\(\)/.test(apiSource))
+            assert.ok(!apiSource.includes("req.path === '/openrpc.json'"), 'an exact-match exemption refuses HEAD, case and slash variants')
+            assert.ok(!/const isSpecRequest\s*=/.test(apiSource), 'api.js must not redefine the spec predicate')
         })
 
         it('reports the gate stats so a stampede is visible to operators', function () {

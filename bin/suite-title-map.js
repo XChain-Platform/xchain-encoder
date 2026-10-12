@@ -46,7 +46,7 @@
  *   node bin/suite-title-map.js --out <file>       write the map as JSON
  *   node bin/suite-title-map.js --script test      one script only
  *   node bin/suite-title-map.js --compare <pin>    diff the tree against a pin,
- *                                                  exit 1 on any difference
+ *                                                  exit 1 on dropped coverage
  *   node bin/suite-title-map.js --compare <pin> --rename-map <file>
  *                                                  the same, with the moving
  *                                                  commit's {old: new} paths
@@ -269,6 +269,17 @@ function compare(pin, fresh, renames, only) {
     return differences;
 }
 
+const ADDITIVE_DIFFERENCES = new Set(['file_added', 'title_added']);
+
+function reportDifferences(differences, against, log = console.log) {
+    log(`${differences.length} difference(s) against ${against}:`);
+    for (const d of differences.slice(0, 200)) {
+        log(`  [${d.script}] ${d.kind} ${d.file || ''} ${d.title ? `:: ${d.title}` : d.detail || ''}`);
+    }
+    if (differences.length > 200) log(`  ... and ${differences.length - 200} more`);
+    return differences.some((d) => !ADDITIVE_DIFFERENCES.has(d.kind));
+}
+
 function parseArgs(argv) {
     const opts = { json: false };
     for (let i = 0; i < argv.length; i += 1) {
@@ -302,12 +313,7 @@ function main() {
                 + `${opts.splitMap ? ' through the declared split map' : ''}`);
             return;
         }
-        console.log(`${differences.length} difference(s) against ${path.relative(REPO_ROOT, opts.compare)}:`);
-        for (const d of differences.slice(0, 200)) {
-            console.log(`  [${d.script}] ${d.kind} ${d.file || ''} ${d.title ? `:: ${d.title}` : d.detail || ''}`);
-        }
-        if (differences.length > 200) console.log(`  ... and ${differences.length - 200} more`);
-        process.exitCode = 1;
+        if (reportDifferences(differences, path.relative(REPO_ROOT, opts.compare))) process.exitCode = 1;
         return;
     }
 
@@ -340,4 +346,6 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { buildMap, collect, mochaArgsFor, splitCommand, compare, expand, NOT_RUN };
+module.exports = {
+    buildMap, collect, mochaArgsFor, splitCommand, compare, expand, reportDifferences, NOT_RUN,
+};

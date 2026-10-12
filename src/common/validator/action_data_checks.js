@@ -22,6 +22,7 @@ const {
     VALID_ENCODINGS
 } = require('./constants')
 const { firstNonLatin1 } = require('./value_checks')
+const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 // Gate `data` and `rawData` on what their wire encodings can actually carry, not
 // just on being strings. prepareData converts data with Buffer.from(data,'utf8')
@@ -36,17 +37,17 @@ const { firstNonLatin1 } = require('./value_checks')
 function validateDataParam(value, fieldName) {
     if (value == null) return null
     if (typeof value !== 'string') {
-        throw new TypeError(`${fieldName} must be a string`)
+        throw new ParamTypeError(`${fieldName} must be a string`)
     }
     if (fieldName === 'rawData') {
         // Latin-1 wire: every code unit must fit one byte.
         const bad = firstNonLatin1(value)
         if (bad !== -1) {
-            throw new RangeError(`${fieldName} contains a code point above U+00FF at index ${bad} that cannot be encoded as a latin-1 byte`)
+            throw new ParamRangeError(`${fieldName} contains a code point above U+00FF at index ${bad} that cannot be encoded as a latin-1 byte`)
         }
     } else if (!value.isWellFormed()) {
         // UTF-8 wire: an unpaired surrogate would be replaced with U+FFFD.
-        throw new RangeError(`${fieldName} is not well-formed Unicode (unpaired surrogate) and cannot round-trip through UTF-8`)
+        throw new ParamRangeError(`${fieldName} is not well-formed Unicode (unpaired surrogate) and cannot round-trip through UTF-8`)
     }
     return value
 }
@@ -104,12 +105,12 @@ function isMinimalOpSingleByte(buf) {
 // out of scope here (see isMinimalOpSingleByte).
 function validateActionPushDecodability(data, rawData) {
     if (data != null && isMinimalOpSingleByte(Buffer.from(data, 'utf8'))) {
-        throw new RangeError(
+        throw new ParamRangeError(
             'data must not be a single byte in the minimal-opcode range (0x01-0x10, 0x81); ' +
             'it compiles to a bare opcode that the decoder discards, silently dropping the ACTION')
     }
     if (rawData != null && isMinimalOpSingleByte(Buffer.from(rawData, 'binary'))) {
-        throw new RangeError(
+        throw new ParamRangeError(
             'rawData must not be a single byte in the minimal-opcode range (0x01-0x10, 0x81); ' +
             'it compiles to a bare opcode that the decoder discards, silently dropping rawData')
     }
@@ -138,7 +139,7 @@ function validateActionPushDecodability(data, rawData) {
 function validateActionName(data) {
     const rawActionName = unknownActionName(data)
     if (rawActionName == null) return
-    throw new RangeError(
+    throw new ParamRangeError(
         `data has unknown ACTION name '${rawActionName.slice(0, 32)}'; ` +
         'the decoder rejects any leading token that is not a canonical action ' +
         'name or alias, silently dropping the ACTION on a fee-paid transaction')
@@ -230,7 +231,7 @@ function validateCombinedDataLength(data, rawData, encoding) {
     const wideCeiling = (encoding === 'TAPROOT' || encoding === 'AUTO')
     const ceiling = wideCeiling ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
     if (compiled > ceiling) {
-        throw new RangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${ceiling}${wideCeiling ? ', the TAPROOT envelope payload ceiling' : ''})`)
+        throw new ParamRangeError(`Combined compiled payload (${compiled} bytes) exceeds maximum (${ceiling}${wideCeiling ? ', the TAPROOT envelope payload ceiling' : ''})`)
     }
     // When the caller EXPLICITLY requested OP_RETURN, apply the far tighter 76-byte
     // single-output ceiling here rather than letting the request run the whole
@@ -239,7 +240,7 @@ function validateCombinedDataLength(data, rawData, encoding) {
     // rejected here, or it would break prepareData's automatic P2SH fallback for
     // larger payloads. prepareData remains the arbiter/backstop.
     if (encoding === 'OP_RETURN' && compiled > MAX_OP_RETURN_COMPILED_LENGTH) {
-        throw new RangeError(
+        throw new ParamRangeError(
             `OP_RETURN encoding requires compiled payload <= ${MAX_OP_RETURN_COMPILED_LENGTH} bytes; ` +
             `got ${compiled}. Use P2SH for larger payloads.`)
     }
@@ -248,7 +249,7 @@ function validateCombinedDataLength(data, rawData, encoding) {
 function validateEncoding(encoding) {
     if (encoding == null) return null
     if (typeof encoding !== 'string' || !VALID_ENCODINGS.has(encoding)) {
-        throw new TypeError(`Invalid encoding: "${encoding}". Valid values: ${[...VALID_ENCODINGS].join(', ')}`)
+        throw new ParamTypeError(`Invalid encoding: "${encoding}". Valid values: ${[...VALID_ENCODINGS].join(', ')}`)
     }
     return encoding
 }

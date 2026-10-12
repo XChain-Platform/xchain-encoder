@@ -23,7 +23,8 @@ const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, validateDataParam
 const { compressPayloadForAction } = require('../../build/compression')
 const { Encoding } = require('../constants.js')
 const { ensureEccLib } = require('../script_amount_helpers.js')
-const { defaultCompressionEnabled } = require('../request_resolution.js')
+const { defaultCompressionEnabled, assertAddressOnNetwork } = require('../request_resolution.js')
+const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 // The caller's payload as handed over: wire-safety re-checks, the ACTION-name
 // read, and the fee-quote output injected ahead of every other output.
@@ -73,12 +74,27 @@ function checkPayloadInput(build){
     // decoder tokenizes the compiled push whatever shape the caller handed over.
     const unknownAction = unknownActionName(data)
 
+    checkOutputAddresses.call(this, build)
+
     // If feeQuote is provided, inject it as a custom output
     if(feeQuote && feeQuote.address && feeQuote.amount > 0){
         if(!customOutputs) customOutputs = [];
         customOutputs.push({ address: feeQuote.address, value: feeQuote.amount });
     }
     Object.assign(build, { unknownAction, customOutputs })
+}
+
+// Verify every caller output address decodes on this network, inside the first
+// build step, so a typo is a -32602 before any fee, tracker or reservation work.
+// pubkey is left out: it may be a raw pubkey hex, resolved to an address later.
+function checkOutputAddresses(build){
+    const { customOutputs, feeQuote, change } = build
+    if (Array.isArray(customOutputs)){
+        customOutputs.forEach((output, i) => assertAddressOnNetwork(output && output.address, this.network, `customOutputs[${i}].address`))
+    }
+    // Check feeQuote under the same condition that injects it as an output.
+    if (feeQuote && feeQuote.address && feeQuote.amount > 0) assertAddressOnNetwork(feeQuote.address, this.network, 'feeQuote.address')
+    if (change) assertAddressOnNetwork(change, this.network, 'change')
 }
 
 function* compressPayload(build){
@@ -231,11 +247,11 @@ function chooseEncoding(build){
     // the envelope's own 520-byte push framing rides outside it.
     const compiledCeiling = (encoding === Encoding.TAPROOT) ? ENVELOPE_MAX_PAYLOAD : MAX_COMPILED_ACTION_DATA_LENGTH
     if (finalDataBuffer.length > compiledCeiling) {
-        throw new RangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${compiledCeiling} bytes (${encoding === Encoding.TAPROOT ? 'TAPROOT envelope payload ceiling' : 'compiled on-chain ACTION push'})`)
+        throw new ParamRangeError(`Payload too large: compiled size ${finalDataBuffer.length} bytes exceeds maximum ${compiledCeiling} bytes (${encoding === Encoding.TAPROOT ? 'TAPROOT envelope payload ceiling' : 'compiled on-chain ACTION push'})`)
     }
 
     if (encoding === 'P2WSH' && this.network.supportsSegwit === false) {
-        throw new TypeError('P2WSH encoding is not supported on this network (no segwit support)')
+        throw new ParamTypeError('P2WSH encoding is not supported on this network (no segwit support)')
     }
     Object.assign(build, { encoding })
 }
@@ -249,10 +265,10 @@ function* checkEnvelopeEncoding(build){
     // returns the commit/reveal pair together, never a second reveal call.
     if (encoding === Encoding.TAPROOT) {
         if (this.network.supportsSegwit === false) {
-            throw new TypeError('TAPROOT encoding is not supported on this network (no segwit support)')
+            throw new ParamTypeError('TAPROOT encoding is not supported on this network (no segwit support)')
         }
         if (p2shHash) {
-            throw new TypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
+            throw new ParamTypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
         }
         // Segwit support is NOT sufficient. Below the network's recognition
         // height every decoder ignores an envelope reveal, so building one here
