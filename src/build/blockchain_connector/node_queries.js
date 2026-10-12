@@ -33,7 +33,10 @@ module.exports = {
             return;
         }
         const reason = chainTierMismatch(this.consensusNetwork, chain);
-        if (reason) throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
+        if (reason) {
+            this.nodeTierMismatch = reason;
+            throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
+        }
         this.nodeTierOk = true;
     },
 
