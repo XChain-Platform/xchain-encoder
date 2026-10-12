@@ -21,7 +21,7 @@
 const bitcoin = require('bitcoinjs-lib');
 const config = require('../common/config');
 const { safeUpstreamReason } = require('../common/error_sanitize');
-const { validateAddress } = require('../common/validator');
+const { validateAddress, assertPubkeyOnCurve } = require('../common/validator');
 const { ensureEccLib } = require('./script_amount_helpers.js');
 const { ParamTypeError } = require('../build/errors');
 
@@ -139,7 +139,10 @@ function resolveCallerHash160(pubKey) {
     // addresses do not start with "0"), so ordering it first is safe and never
     // changes legacy behavior.
     if (typeof pubKey === 'string' && /^(0[23][0-9a-fA-F]{64}|04[0-9a-fA-F]{128})$/.test(pubKey)) {
-        return bitcoin.crypto.hash160(Buffer.from(pubKey, 'hex'))
+        // An off-curve key has no signer, so its HASH160 would lock every chunk output.
+        const pubkeyBuf = Buffer.from(pubKey, 'hex')
+        assertPubkeyOnCurve(pubkeyBuf, 'pubkey')
+        return bitcoin.crypto.hash160(pubkeyBuf)
     }
     // Base58 P2PKH/P2SH address: byte-identical to the original behavior.
     try { return bitcoin.address.fromBase58Check(pubKey).hash } catch (_) { /* not base58 */ }
@@ -147,11 +150,12 @@ function resolveCallerHash160(pubKey) {
     try {
         const dec = bitcoin.address.fromBech32(pubKey)
         if (dec.version === 0 && dec.data.length === 20) return dec.data
-        throw new Error(`caller "${pubKey}" decodes to a v${dec.version} / ${dec.data.length}-byte witness program; the chunk-lane P2PKH gate needs a 20-byte HASH160 (v0 P2WPKH)`)
+        throw new ParamTypeError(`caller "${pubKey}" decodes to a v${dec.version} / ${dec.data.length}-byte witness program; the chunk-lane P2PKH gate needs a 20-byte HASH160 (v0 P2WPKH)`)
     } catch (e) {
         if (e && typeof e.message === 'string' && e.message.indexOf('witness program') !== -1) throw e
     }
-    throw new Error(`prepareData: cannot resolve a 20-byte caller HASH160 from identity "${pubKey}" (expected a base58 P2PKH/P2SH address, a compressed/uncompressed pubkey hex, or a v0 bech32 P2WPKH address)`)
+    // A caller-input refusal, so it is typed to map to -32602 rather than an internal error.
+    throw new ParamTypeError(`prepareData: cannot resolve a 20-byte caller HASH160 from identity "${pubKey}" (expected a base58 P2PKH/P2SH address, a compressed/uncompressed pubkey hex, or a v0 bech32 P2WPKH address)`)
 }
 
 // Sibling of resolveCallerHash160, same "any identity in" contract, but for
@@ -171,19 +175,23 @@ function resolveCallerHash160(pubKey) {
 // default is the best a single guess can do.
 function resolveCallerAddress(pubKey, network) {
     if (typeof pubKey !== 'string' || pubKey.length === 0) return pubKey
-    // Already a valid address on this network: pass through unchanged.
+    // Already a valid address on this network: pass through unchanged. The ECC
+    // library is loaded first so a Taproot (bech32m) address decodes here too.
+    ensureEccLib()
     try { bitcoin.address.toOutputScript(pubKey, network); return pubKey } catch (_) { /* not a valid address here */ }
     // Raw compressed/uncompressed pubkey hex: derive the network's default address type.
     if (/^(0[23][0-9a-fA-F]{64}|04[0-9a-fA-F]{128})$/.test(pubKey)) {
         const pubkeyBuf = Buffer.from(pubKey, 'hex')
+        // bitcoinjs accepts any 02/03 x below p, so an off-curve key would yield an unspendable address.
+        assertPubkeyOnCurve(pubkeyBuf, 'pubkey')
         return (network.supportsSegwit === false
             ? bitcoin.payments.p2pkh({ pubkey: pubkeyBuf, network })
             : bitcoin.payments.p2wpkh({ pubkey: pubkeyBuf, network })
         ).address
     }
-    // Anything else: pass through unchanged and let the downstream call
-    // (tracker / bitcoinjs-lib) surface its own, more specific error.
-    return pubKey
+    // Anything else fails downstream either way (the tracker and bitcoinjs decode
+    // with this same network), so refuse it here as caller input, naming pubkey.
+    throw new ParamTypeError('pubkey is neither a valid address for this network nor a public key hex')
 }
 
 // Deployment default for transparent FILE compression. ON unless
@@ -216,7 +224,7 @@ function assertRevealFundingTxMatches(p2shHash, fundingTxid){
 
 // Refuse an address that does not decode on this network with a TypeError, so
 // the API answers -32602 before node, tracker or reservation work. bitcoinjs throws
-// a plain Error late (a retryable -32603), or never on a P2SH/P2WSH funding call.
+// a plain Error late (a generic -32603), or never on a P2SH/P2WSH funding call.
 function assertAddressOnNetwork(address, network, label){
     validateAddress(address, label)
     // Decoding a bech32m (Taproot) address needs the ECC library, which this

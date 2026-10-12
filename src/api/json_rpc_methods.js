@@ -196,7 +196,8 @@ return {
                 params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
                 params.feeQuote, params.attachPrevTx, params.compress, params.options)
         } catch (err) {
-            // Node and tracker faults inside the build throw plain Error, so they stay retryable
+            // Map the fault: a tracker refusal is operational (-32010), a plain node Error a
+            // generic -32603; the SDK retries neither body error, so any retry is the caller's
             throw toRpcError(err)
         }
 

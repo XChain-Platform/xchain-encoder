@@ -94,6 +94,11 @@ function validateFeePerKb(feePerKb) {
     if (num <= 0) {
         throw new ParamRangeError('feePerKb must be positive')
     }
+    // Reject an absurd rate like the other money fields instead of leaving it to
+    // the build's clamp: above this, one kB alone costs more than the fee ceiling.
+    if (num > MAX_FEE_SATOSHIS) {
+        throw new ParamRangeError(`feePerKb (${num}) exceeds maximum (${MAX_FEE_SATOSHIS})`)
+    }
     return num
 }
 

@@ -102,9 +102,11 @@ function* gatherUtxos(build){
 
 function* fetchTrackerUtxos(build){
     let { pubkey } = build
+    // Resolved outside the try so an unresolvable caller identity stays a -32602, not a tracker fault.
+    const callerAddress = resolveCallerAddress(pubkey, this.network)
     let fetched
     try {
-        fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network)))
+        fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(callerAddress))
     } catch (err) {
         if (isRemoteProfile(this.trackerProfile)){
             throw err.operational ? err : trackerUnreachableError(err)

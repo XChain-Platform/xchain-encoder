@@ -342,7 +342,8 @@ function acquireInstanceLock(lockPath, env = config, deps = {}) {
 const SIGNAL_EXIT_STATUS = { SIGTERM: 143, SIGINT: 130 }
 
 // How long to wait for the re-raise below to actually kill us before forcing
-// the exit ourselves. Only the PID 1 case ever waits this long.
+// the exit ourselves. Only a node running as PID 1 ever waits this long, which
+// the supported container deploys never do (tini sits in front of node).
 const RERAISE_GRACE_MS = 50
 
 // Release the instance lock when the process is SIGNALLED, not only when it
@@ -362,12 +363,14 @@ function releaseLockOnSignals(release, proc = process) {
             // Re-raise so the process still dies OF the signal, leaving exit
             // status and supervision semantics exactly as they were.
             proc.kill(proc.pid, signal)
-            // ...except as PID 1, which is what the container CMD makes this
-            // process: the kernel drops signals PID 1 has installed no handler
-            // for, so the re-raise above is silently a no-op there and the
-            // process would sit until Docker's 10s SIGKILL. If we are still
-            // alive a moment later, exit with the status that signal would have
-            // produced, which is what the supervisor was going to record anyway.
+            // ...except as PID 1: the kernel drops signals PID 1 has installed
+            // no handler for, so the re-raise above is silently a no-op there
+            // and the process would sit until Docker's 10s SIGKILL. The
+            // supported deploys run node under the image's tini, so the
+            // re-raise normally kills it and this timer is a safety net for a
+            // run with no init in front of node. If we are still alive a moment
+            // later, exit with the status that signal would have produced,
+            // which is what the supervisor was going to record anyway.
             const timer = setTimeout(() => proc.exit(SIGNAL_EXIT_STATUS[signal]), RERAISE_GRACE_MS)
             if (typeof timer.unref === 'function') timer.unref()
         }

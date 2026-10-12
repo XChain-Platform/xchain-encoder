@@ -12,9 +12,10 @@
  *
  **********************************************************************/
 
-const { MAX_SATOSHI_U64 } = require('./constants')
+const { MAX_SATOSHI_U64, COMPRESSED_PUBKEY_RE } = require('./constants')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
+const assertPubkeyOnCurve = (...args) => require('./transaction_checks').assertPubkeyOnCurve(...args)
 
 // Exact-integer parse for satoshi/fee money fields. Unlike parseInt, this
 // rejects decimals, scientific notation, hex, and trailing garbage ("1e8" ->
@@ -107,7 +108,11 @@ function validatePubkey(pubkey) {
         throw new ParamTypeError('pubkey: uncompressed public keys (04 + 128 hex) are not supported; pass the compressed 02/03 + 64 hex form or a sender address')
     }
     // Hold everything else to the same shared bound as every address-shaped field.
-    return validateAddress(pubkey, 'pubkey')
+    validateAddress(pubkey, 'pubkey')
+    // A compressed key must also be a curve point: its HASH160 gates the chunk
+    // outputs and its address takes the reveal change, so an off-curve key locks both.
+    if (COMPRESSED_PUBKEY_RE.test(pubkey)) assertPubkeyOnCurve(Buffer.from(pubkey, 'hex'), 'pubkey')
+    return pubkey
 }
 
 // Index of the first code unit a latin-1 byte cannot hold, or -1. Written as a scan

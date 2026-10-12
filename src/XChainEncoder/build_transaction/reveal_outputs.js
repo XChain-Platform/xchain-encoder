@@ -61,8 +61,9 @@ function emitChangeAndPad(build){
     // (see the P2WSH funding branch) so the output's value is available.
     let strippedFloor = this.network.minStandardTxNonWitnessSize
     if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
-        let padAddress = change || resolveCallerAddress(pubkey, this.network)
-        if (padAddress && this.strippedTxSize(psbt) < strippedFloor){
+        // Resolved only when the pad is added, so an unused caller identity is never refused here.
+        let padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        if (padAddress){
             psbt.addOutput({
                 address: padAddress,
                 value: this.dustAmount
@@ -103,9 +104,10 @@ function* sweepP2shReveal(build){
         revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
         let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
-        let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
-        // The sweep is an authored output: below the relay floor the surplus stays as fee.
-        if (sweepAddress && revealSurplus >= BigInt(this.outputFloor)){
+        // The sweep is an authored output: below the relay floor the surplus stays as fee,
+        // and the caller identity is resolved only when the sweep is added.
+        let sweepAddress = revealSurplus >= BigInt(this.outputFloor) ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        if (sweepAddress){
             psbt.addOutput({
                 address: sweepAddress,
                 value: asSatValue(revealSurplus)

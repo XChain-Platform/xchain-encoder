@@ -60,7 +60,8 @@ const MAX_OP_RETURN_COMPILED_LENGTH = OP_RETURN_OUTPUT_SIZE - OP_RETURN_MAGIC_WO
 const ENVELOPE_MAX_PAYLOAD = 390_000
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
-// Sanity ceiling on the fee/dust/feeQuote money fields: 21,000 BTC in satoshis.
+// Sanity ceiling on the fee/dust/feeQuote money fields and the feePerKb rate
+// (base units per kB): 21,000 BTC in satoshis.
 // This is deliberately far tighter than the 21M-BTC supply, and the value is the
 // contract, not a rounding of it. Do NOT "repair" it to 2_100_000_000_000_000 to
 // chase a supply figure: that loosens every fee-path ceiling 1000x. Large output

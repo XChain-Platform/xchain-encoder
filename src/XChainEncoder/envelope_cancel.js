@@ -133,7 +133,7 @@ function* cancelFeeRate(feeRatePerKb){
     const info = yield this.connector.getNetworkInfo()
     const relayFeePerKb = Number(info && info.relayfee)
     // Refuse a node that reports no usable relay floor. A plain Error, not a
-    // RangeError: this is the node's fault, so the API answers retryable -32603.
+    // RangeError: the node is at fault, not the input, so the API answers -32603.
     if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0){
         throw new Error('Node did not report a positive relayfee; transaction fee safety cannot be verified')
     }
