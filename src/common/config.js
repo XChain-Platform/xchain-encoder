@@ -67,6 +67,8 @@ const config = {
     get ENCODER_MAX_CONCURRENT_PROBES() { return process.env.ENCODER_MAX_CONCURRENT_PROBES; },
     get ENCODER_MAX_CONCURRENT_REQUESTS() { return process.env.ENCODER_MAX_CONCURRENT_REQUESTS; },
     get ENCODER_MAX_RPC_BATCH() { return process.env.ENCODER_MAX_RPC_BATCH; },
+    // Operator override of the mainnet prelaunch refusal (src/api/json_rpc_methods.js); raw string, parsed at the call site.
+    get ENCODER_MAINNET_PRELAUNCH_OVERRIDE() { return process.env.ENCODER_MAINNET_PRELAUNCH_OVERRIDE; },
 };
 
 module.exports = config;

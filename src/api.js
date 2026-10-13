@@ -26,7 +26,7 @@ const config = require('./common/config')
 // immediately below are exactly the ones an operator needs levelled and
 // timestamped, and installObservability does not run until ~190 lines further
 // down.
-const { patchConsole } = require('./observability');
+const { patchConsole, getLogger } = require('./observability');
 patchConsole({
     service: 'xchain-encoder',
     version: require('../package.json').version,
@@ -271,6 +271,9 @@ installObservability(app, {
 // close over the encoder instance and network built above, so the part hands
 // back the controller from a factory rather than a module-level literal.
 const jsonRpcController = require('./api/json_rpc_methods.js').createJsonRpcController({ encoder, NETWORK })
+if (encoder.consensusNetwork === 'mainnet' && config.ENCODER_MAINNET_PRELAUNCH_OVERRIDE) {
+    getLogger().warn('ENCODER_MAINNET_PRELAUNCH_OVERRIDE=' + config.ENCODER_MAINNET_PRELAUNCH_OVERRIDE + ' on a mainnet encoder: the prelaunch refusal is lifted only when it is 1, true, yes or on')
+}
 
 // GET /status: returns 200 when the encoder's hard dependencies are reachable
 // and the UTXO tracker is synced, or 503 when not. Distinct from the JSON-RPC

@@ -28,7 +28,41 @@ const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
+const config = require('../common/config')
+const { ACTION_ALIASES } = require('../common/validator')
 const logger = getLogger();
+
+// Unix time (2027-01-01T00:00:00Z) before which a mainnet encoder refuses to
+// build anything but validator-set actions.
+const MAINNET_LAUNCH_TS = 1798761600
+// The only actions a mainnet encoder builds before launch.
+const VALIDATOR_ACTIONS = new Set(['STAKE', 'UNSTAKE', 'DELEGATE', 'SLASH', 'NODEPROOF', 'ROLLCALL'])
+const OVERRIDE_TRUE = new Set(['1', 'true', 'yes', 'on'])
+
+// Operator override, read live from ENCODER_MAINNET_PRELAUNCH_OVERRIDE (1/true/yes/on).
+function prelaunchOverrideFromEnv() {
+    return OVERRIDE_TRUE.has(String(config.ENCODER_MAINNET_PRELAUNCH_OVERRIDE || '').trim().toLowerCase())
+}
+
+// Canonical leading ACTION name of `data`, or null when there is none.
+function actionNameOf(data) {
+    if (typeof data !== 'string' && !Buffer.isBuffer(data)) return null
+    const raw = (Buffer.isBuffer(data) ? data.toString('utf8') : data).split('|')[0]
+    return raw ? (ACTION_ALIASES[raw] ?? raw) : null
+}
+
+// Refuse a non-validator build on a mainnet encoder before launch, unless the operator overrides.
+function assertNotMainnetPrelaunch(encoder, params, { now, prelaunchOverride }) {
+    if (encoder.consensusNetwork !== 'mainnet') return
+    const nowSec = Math.floor(now() / 1000)
+    if (nowSec >= MAINNET_LAUNCH_TS) return
+    if (prelaunchOverride()) return
+    if (VALIDATOR_ACTIONS.has(actionNameOf(params.data))) return
+    const e = new Error('Mainnet is not open yet: only validator actions can be built before launch')
+    e.code = -32010
+    e.data = { reason: 'MAINNET_PRELAUNCH', opens_at: MAINNET_LAUNCH_TS }
+    throw e
+}
 
 // Each builder closes one group of methods over the encoder (and, for fees,
 // the network name); the factory composes the groups into one controller. The
@@ -174,7 +208,7 @@ function toRpcError(err) {
 }
 
 // The build itself; every error class it can raise maps to one JSON-RPC code.
-function buildTransactionMethods({ encoder }) {
+function buildTransactionMethods({ encoder, now, prelaunchOverride }) {
 return {
     async create_tx(rawParams) {
         let params
@@ -186,6 +220,7 @@ return {
             throw e
         }
 
+        assertNotMainnetPrelaunch(encoder, params, { now, prelaunchOverride })
         await assertNodeTierOrRpcError(encoder)
         let psbt
         try {
@@ -383,11 +418,12 @@ return {
 // Made here rather than at module scope because the methods close over the
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
-function createJsonRpcController({ encoder, NETWORK }) {
+// now and prelaunchOverride default to the wall clock and the live env override; tests inject both.
+function createJsonRpcController({ encoder, NETWORK, now = Date.now, prelaunchOverride = prelaunchOverrideFromEnv }) {
     return Object.assign(
         buildReadinessMethods({ encoder }),
         buildFeeMethods({ encoder, NETWORK }),
-        buildTransactionMethods({ encoder }),
+        buildTransactionMethods({ encoder, now, prelaunchOverride }),
         buildCancelMethods({ encoder }),
         buildReleaseMethods({ encoder }),
         buildBroadcastMethods({ encoder }),
@@ -395,4 +431,4 @@ function createJsonRpcController({ encoder, NETWORK }) {
     )
 }
 
-module.exports = { createJsonRpcController }
+module.exports = { createJsonRpcController, MAINNET_LAUNCH_TS, VALIDATOR_ACTIONS }
