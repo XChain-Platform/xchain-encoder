@@ -81,13 +81,17 @@ describe('JSON-RPC node tier gate', () => {
   })
 
   it('the mainnet prelaunch refusal fires before the node tier check', async () => {
+    const realNow = Date.now
+    Date.now = () => 0
     const { encoder, entered } = testnetEncoderOn('main')
     encoder.consensusNetwork = 'mainnet'
-    const controller = createJsonRpcController({ encoder, NETWORK, now: () => 0 })
-    await assert.rejects(controller.create_tx(sendParams()), (err) => {
-      assert.strictEqual(err.data.reason, 'MAINNET_PRELAUNCH')
-      return true
-    })
+    const controller = createJsonRpcController({ encoder, NETWORK })
+    try {
+      await assert.rejects(controller.create_tx(sendParams()), (err) => {
+        assert.strictEqual(err.data.reason, 'MAINNET_PRELAUNCH')
+        return true
+      })
+    } finally { Date.now = realNow }
     assert.deepStrictEqual(entered, [])
   })
 })
