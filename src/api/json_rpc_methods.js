@@ -28,6 +28,7 @@ const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
+const config = require('../common/config')
 const logger = getLogger();
 
 // Each builder closes one group of methods over the encoder (and, for fees,
@@ -186,6 +187,7 @@ return {
             throw e
         }
 
+        config.assertNotMainnetPrelaunch(encoder, params)
         await assertNodeTierOrRpcError(encoder)
         let psbt
         try {

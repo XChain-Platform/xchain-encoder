@@ -67,6 +67,37 @@ const config = {
     get ENCODER_MAX_CONCURRENT_PROBES() { return process.env.ENCODER_MAX_CONCURRENT_PROBES; },
     get ENCODER_MAX_CONCURRENT_REQUESTS() { return process.env.ENCODER_MAX_CONCURRENT_REQUESTS; },
     get ENCODER_MAX_RPC_BATCH() { return process.env.ENCODER_MAX_RPC_BATCH; },
+    // Operator override of the mainnet prelaunch refusal; raw string, parsed by assertNotMainnetPrelaunch below.
+    get ENCODER_MAINNET_PRELAUNCH_OVERRIDE() { return process.env.ENCODER_MAINNET_PRELAUNCH_OVERRIDE; },
 };
 
+// Unix time (2027-01-01T00:00:00Z) before which a mainnet encoder builds only validator actions.
+const MAINNET_LAUNCH_TS = 1798761600
+const VALIDATOR_ACTIONS = new Set(['STAKE', 'UNSTAKE', 'DELEGATE', 'SLASH', 'NODEPROOF', 'ROLLCALL'])
+const OVERRIDE_TRUE = new Set(['1', 'true', 'yes', 'on'])
+
+// Canonical leading ACTION name of `data`, or null when there is none.
+function actionNameOf(data) {
+    if (typeof data !== 'string' && !Buffer.isBuffer(data)) return null
+    const raw = (Buffer.isBuffer(data) ? data.toString('utf8') : data).split('|')[0]
+    return raw ? (require('./validator').ACTION_ALIASES[raw] ?? raw) : null
+}
+
+// create_tx guard: a mainnet encoder refuses a non-validator build before launch (-32010
+// MAINNET_PRELAUNCH) unless ENCODER_MAINNET_PRELAUNCH_OVERRIDE is 1/true/yes/on, read live.
+function assertNotMainnetPrelaunch(encoder, params, now = Date.now) {
+    if (encoder.consensusNetwork !== 'mainnet' || Math.floor(now() / 1000) >= MAINNET_LAUNCH_TS) return
+    if (OVERRIDE_TRUE.has(String(config.ENCODER_MAINNET_PRELAUNCH_OVERRIDE || '').trim().toLowerCase())) return
+    if (VALIDATOR_ACTIONS.has(actionNameOf(params.data))) return
+    const e = new Error('Mainnet is not open yet: only validator actions can be built before launch')
+    e.code = -32010
+    e.data = { reason: 'MAINNET_PRELAUNCH', opens_at: MAINNET_LAUNCH_TS }
+    throw e
+}
+
 module.exports = config;
+Object.defineProperties(config, {
+    MAINNET_LAUNCH_TS: { value: MAINNET_LAUNCH_TS },
+    VALIDATOR_ACTIONS: { value: VALIDATOR_ACTIONS },
+    assertNotMainnetPrelaunch: { value: assertNotMainnetPrelaunch },
+})
