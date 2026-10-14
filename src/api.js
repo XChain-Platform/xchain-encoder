@@ -33,6 +33,12 @@ patchConsole({
     network: config.NETWORK
 });
 
+// Install the crash handlers before the singleton encoder below is built, so its
+// boot throws (unknown NETWORK, consensus-pin mismatch) leave a CRASH record.
+// Entry point only: a test that requires this file must not get them.
+const { installCrashHandlers } = require('./server/crash_handlers')
+if (require.main === module) installCrashHandlers()
+
 const bitcoin = require('bitcoinjs-lib');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -64,7 +70,6 @@ const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = requ
 const { parseCorsOrigin } = require('./server/cors_origin')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
-const { installCrashHandlers } = require('./server/crash_handlers')
 
 
 const NETWORK = config.NETWORK_RAW
@@ -356,9 +361,8 @@ if (require.main === module) {
   // boot if the deploy declares replicas > 1 (ENCODER_REPLICAS) or another
   // encoder process on this host already holds the instance lock. See
   // src/server/single_instance_guard.js.
-  // Before the instance guard, so a throw inside it is still a CRASH record
-  // rather than node's bare stderr dump.
-  installCrashHandlers()
+  // The crash handlers are already installed at the top of this file, so a
+  // throw from the instance guard is still a CRASH record.
   assertSingleInstance()
   const releaseInstanceLock = acquireInstanceLock()
   process.on('exit', releaseInstanceLock)

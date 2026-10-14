@@ -51,7 +51,8 @@ const METHODS = [
             + 'record ({commitTxid, commitVout, commitValue, commitAddress, internalPubkey, tapleafHash, '
             + 'controlBlock, revealFee}) that the wallet must persist durably BEFORE broadcasting the commit; '
             + 'sign both, broadcast commit then reveal. TAPROOT requires compressedPubKey (the envelope internal '
-            + 'key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling.',
+            + 'key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling. '
+            + 'An unknown top-level param is refused with -32602 rather than ignored, as unknown options keys are.',
         params: [
             { name: 'pubkey', required: true, schema: str('caller identity: sender address (base58 or bech32) or compressed public key hex (02/03 + 64 hex); uncompressed (04...) keys are rejected') },
             { name: 'data', schema: str('ACTION payload string (pipe-delimited, from xchain-sdk createAction)') },

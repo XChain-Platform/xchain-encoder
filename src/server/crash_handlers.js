@@ -26,10 +26,11 @@
  * a supervised restart. An unhandled rejection logs and CONTINUES: attaching
  * the listener turns off node's default exit on an unhandled rejection.
  *
- * They are installed from the entry-point guard in api.js, never at module
- * scope: several suites require api.js in-process under mocha, which installs
- * its own handlers, and a module-scope handler that exits would abort the whole
- * run instead of failing one test.
+ * They are installed behind an entry-point guard near the top of api.js, before
+ * the singleton encoder is built, never at module scope: several suites require
+ * api.js in-process under mocha, which installs its own handlers, and a
+ * module-scope handler that exits would abort the whole run instead of failing
+ * one test.
  *
  ********************************************************************/
 

@@ -16,8 +16,10 @@
 // execute without mocha's own handlers or a live process.exit taking part.
 
 const assert = require('assert')
+const childProcess = require('child_process')
 const { EventEmitter } = require('events')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 
 const crash = require('../../src/server/crash_handlers')
@@ -25,6 +27,7 @@ const observability = require('../../src/observability')
 
 const registerSignalTests = require('./crash_handlers.test/01_signal_registration.test.js')
 const registerExitPathTests = require('./crash_handlers.test/02_exit_paths.test.js')
+const registerBootOrderTests = require('./crash_handlers.test/03_boot_order.test.js')
 
 describe('encoder crash handlers', function () {
   let sink
@@ -61,4 +64,9 @@ describe('encoder crash handlers', function () {
 
   registerSignalTests({ assert, crash, fakeProc, lines, crashCount })
   registerExitPathTests({ assert, crash, observability, fakeProc, fs, path, __dirname })
+})
+
+// Kept out of the block above: its hooks reset the shim this process does not use here.
+describe('encoder crash handlers', function () {
+  registerBootOrderTests({ assert, childProcess, fs, os, path, dirname: __dirname })
 })

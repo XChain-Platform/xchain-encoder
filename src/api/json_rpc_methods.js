@@ -214,7 +214,6 @@ return {
 }
 }
 
-
 function buildCancelMethods({ encoder }) {
 return {
     // Key-path cancel of an unrevealed TAPROOT envelope commit: rebuilds the
@@ -241,7 +240,6 @@ return {
     },
 }
 }
-
 
 function buildReleaseMethods({ encoder }) {
 return {
@@ -386,7 +384,9 @@ return {
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
 function createJsonRpcController({ encoder, NETWORK }) {
+    // No prototype, so the router's `in` check cannot dispatch an inherited name (constructor, toString).
     return Object.assign(
+        Object.create(null),
         buildReadinessMethods({ encoder }),
         buildFeeMethods({ encoder, NETWORK }),
         buildTransactionMethods({ encoder }),

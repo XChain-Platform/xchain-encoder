@@ -17,6 +17,13 @@ const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
 const assertPubkeyOnCurve = (...args) => require('./transaction_checks').assertPubkeyOnCurve(...args)
 
+// Quote at most 32 characters of a caller string in an error message, so a -32602
+// never sends multi-megabyte junk back whole; a cut value carries its full length.
+function truncateForMessage(value, max = 32) {
+    const s = String(value)
+    return s.length > max ? `${s.slice(0, max)}...(${s.length} chars)` : s
+}
+
 // Exact-integer parse for satoshi/fee money fields. Unlike parseInt, this
 // rejects decimals, scientific notation, hex, and trailing garbage ("1e8" ->
 // 1, "100.5" -> 100, "5abc" -> 5, "0x20" -> 0) instead of silently truncating
@@ -40,7 +47,7 @@ function toExactInt(raw) {
 function validateOptionalBoolean(raw, label) {
     if (raw === undefined || raw === null) return undefined
     if (typeof raw !== 'boolean') {
-        throw new ParamTypeError(`${label} must be a boolean (got ${typeof raw}${typeof raw === 'string' ? ` "${raw}"` : ''}); string "false" would coerce to true`)
+        throw new ParamTypeError(`${label} must be a boolean (got ${typeof raw}${typeof raw === 'string' ? ` "${truncateForMessage(raw)}"` : ''}); string "false" would coerce to true`)
     }
     return raw
 }
@@ -87,11 +94,11 @@ function parseSatoshiAmount(raw, label, opts) {
         // guaranteed non-negative, so this BigInt parse cannot throw.
         const big = BigInt(raw.trim())
         if (big > MAX_SATOSHI_U64) {
-            throw new ParamRangeError(`${label} (${raw.trim()}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
+            throw new ParamRangeError(`${label} (${truncateForMessage(raw.trim())}) exceeds the maximum 64-bit satoshi amount (${MAX_SATOSHI_U64})`)
         }
         return big
     }
-    throw new ParamRangeError(`${label} (${typeof raw === 'string' ? raw : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
+    throw new ParamRangeError(`${label} (${typeof raw === 'string' ? truncateForMessage(raw) : num}) exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER}) and cannot be represented without precision loss${allowBig ? '; pass amounts above it as an exact decimal string' : ''}`)
 }
 
 // Uncompressed public key hex: 04 then the 64-byte X and Y coordinates.
@@ -123,6 +130,7 @@ function firstNonLatin1(str) {
 }
 
 module.exports = {
+    truncateForMessage,
     toExactInt,
     validateOptionalBoolean,
     parseSatoshiAmount,

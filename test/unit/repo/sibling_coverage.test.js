@@ -72,6 +72,9 @@ const SIBLINGS = [
     { repo: 'xchain-utxo-tracker', envs: ['XCHAIN_UTXO_TRACKER_DIR'],
       marker: 'src',
       guards: 'the inbound UTXO-record contract, the one seam carrying records INTO the encoder' },
+    { repo: 'xchain-indexer', envs: ['XCHAIN_INDEXER_DIR'],
+      marker: path.join('src', 'consensus', 'gates'),
+      guards: 'the mainnet prelaunch validator wire-format set against the consensus copy' },
 ];
 
 function resolve(entry) {

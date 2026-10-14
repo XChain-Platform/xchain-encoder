@@ -17,11 +17,13 @@ const {
     RAW_TX_HEX_RE,
     HEX_64_RE,
     MAX_BROADCAST_TX_HEX_LENGTH,
-    COMPRESSED_PUBKEY_RE
+    COMPRESSED_PUBKEY_RE,
+    VALID_CREATE_TX_PARAMS
 } = require('./constants')
 const {
     validateOptionalBoolean,
-    validatePubkey
+    validatePubkey,
+    truncateForMessage
 } = require('./value_checks')
 const {
     validateDataParam,
@@ -256,6 +258,13 @@ function validateAll(params, context) {
     // validateUtxoOutpoint, validateCustomOutput, validateFeeQuote).
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {
         throw new ParamTypeError('Request params must be an object')
+    }
+    // Refuse an unknown top-level param before any field check, so a misspelled
+    // money-path setting is named instead of silently falling back to its default.
+    for (const key of Object.keys(params)) {
+        if (!VALID_CREATE_TX_PARAMS.has(key)) {
+            throw new ParamTypeError(`Unknown create_tx param: "${truncateForMessage(key)}". Valid params: ${[...VALID_CREATE_TX_PARAMS].join(', ')}`)
+        }
     }
 
     const { data, rawData, encoding } = validateActionFields(params)

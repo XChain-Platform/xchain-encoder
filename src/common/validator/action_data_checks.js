@@ -21,7 +21,7 @@ const {
     ENVELOPE_MAX_PAYLOAD,
     VALID_ENCODINGS
 } = require('./constants')
-const { firstNonLatin1 } = require('./value_checks')
+const { firstNonLatin1, truncateForMessage } = require('./value_checks')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 // Gate `data` and `rawData` on what their wire encodings can actually carry, not
@@ -140,7 +140,7 @@ function validateActionName(data) {
     const rawActionName = unknownActionName(data)
     if (rawActionName == null) return
     throw new ParamRangeError(
-        `data has unknown ACTION name '${rawActionName.slice(0, 32)}'; ` +
+        `data has unknown ACTION name '${truncateForMessage(rawActionName)}'; ` +
         'the decoder rejects any leading token that is not a canonical action ' +
         'name or alias, silently dropping the ACTION on a fee-paid transaction')
 }
@@ -249,7 +249,9 @@ function validateCombinedDataLength(data, rawData, encoding) {
 function validateEncoding(encoding) {
     if (encoding == null) return null
     if (typeof encoding !== 'string' || !VALID_ENCODINGS.has(encoding)) {
-        throw new ParamTypeError(`Invalid encoding: "${encoding}". Valid values: ${[...VALID_ENCODINGS].join(', ')}`)
+        // Quote a string's prefix only, and name any other type rather than print [object Object]
+        const shown = typeof encoding === 'string' ? `"${truncateForMessage(encoding)}"` : `a value of type ${typeof encoding}`
+        throw new ParamTypeError(`Invalid encoding: ${shown}. Valid values: ${[...VALID_ENCODINGS].join(', ')}`)
     }
     return encoding
 }

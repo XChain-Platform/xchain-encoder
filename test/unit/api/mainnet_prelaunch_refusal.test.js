@@ -13,7 +13,7 @@
 
 const assert = require('assert')
 const { createJsonRpcController } = require('../../../src/api/json_rpc_methods')
-const { MAINNET_LAUNCH_TS } = require('../../../src/common/config')
+const { MAINNET_LAUNCH_TS, assertNotMainnetPrelaunch } = require('../../../src/common/config')
 const { makeEncoder, getTestAddress } = require('../../integration/helpers/utxoFactory')
 const actions = require('../../integration/helpers/actionFactory')
 
@@ -78,18 +78,50 @@ describe('mainnet prelaunch refusal', () => {
   })
 })
 
+// The validator wire set by name and format, the set consensus admits on mainnet before launch.
+const ADMITTED = ['ANCHOR|0', 'ANCHOR|1', 'ANCHOR|2', 'ANCHOR|3', 'PRICE|0', 'NODEPROOF|0',
+  'ROLLCALL|0', 'ROLLCALL|1', 'ATTEST|1', 'ATTEST|3', 'ATTEST|4', 'ATTEST|5', 'ATTEST|6']
+// User actions consensus skips before launch, including the user formats that share a validator name.
+const REFUSED = ['PRICE|1', 'ATTEST|0', 'ATTEST|2', 'ANCHOR|4', 'STAKE|0', 'UNSTAKE|0', 'DELEGATE|0', 'SLASH|0']
+
 describe('mainnet prelaunch validator actions', () => {
   isolateClockAndEnv()
 
-  for (const name of ['STAKE', 'UNSTAKE', 'DELEGATE', 'SLASH', 'NODEPROOF', 'ROLLCALL']) {
-    it(`lets ${name} through before launch`, async () => {
+  for (const head of ADMITTED) {
+    it(`lets ${head} through before launch`, async () => {
       setup('bitcoin-mainnet')
-      let refusal = null
-      try { await controller.create_tx(params(name + '|x')) } catch (err) { refusal = err }
-      // Either the stub build ran, or a later param check spoke; never the prelaunch gate.
-      assert.ok(built === 1 || (refusal && !(refusal.data && isPrelaunch(refusal))))
+      await controller.create_tx(params(head + '|x'))
+      assert.strictEqual(built, 1)
     })
   }
+
+  it('reads the name the way consensus does: trimmed and upper-cased, format optional, Buffer decoded', () => {
+    const guard = (data) => assertNotMainnetPrelaunch({ consensusNetwork: 'mainnet' }, { data }, () => BEFORE)
+    for (const data of [' anchor |0|x', 'NODEPROOF', 'PRICE|"0"|x', Buffer.from('ATTEST|5|x')]) {
+      assert.doesNotThrow(() => guard(data), `refused ${data}`)
+    }
+    for (const data of ['PRICE|01x', 'ATTEST|5.0', 'ANCHOR|256', null, '']) {
+      assert.throws(() => guard(data), isPrelaunch, `admitted ${data}`)
+    }
+  })
+})
+
+describe('mainnet prelaunch user actions sharing or missing the validator set', () => {
+  isolateClockAndEnv()
+
+  for (const head of REFUSED) {
+    it(`refuses ${head} before launch`, async () => {
+      setup('bitcoin-mainnet')
+      await assert.rejects(controller.create_tx(params(head + '|x')), isPrelaunch)
+      assert.strictEqual(built, 0)
+    })
+  }
+
+  it('builds a user format of a validator name at launch', async () => {
+    setup('bitcoin-mainnet', AT)
+    await controller.create_tx(params('PRICE|1|x'))
+    assert.strictEqual(built, 1)
+  })
 })
 
 describe('mainnet prelaunch operator override', () => {

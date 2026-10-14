@@ -24,7 +24,8 @@ const {
 const {
     validateOptionalBoolean,
     toExactInt,
-    parseSatoshiAmount
+    parseSatoshiAmount,
+    truncateForMessage
 } = require('./value_checks')
 const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
@@ -36,7 +37,7 @@ function validateCreateTxOptions(options) {
     }
     for (const key of Object.keys(options)) {
         if (!VALID_CREATE_TX_OPTIONS.has(key)) {
-            throw new ParamTypeError(`Unknown options key: "${key}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
+            throw new ParamTypeError(`Unknown options key: "${truncateForMessage(key)}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
         }
     }
     if (options.signerSupportsTapscript !== undefined) {
@@ -55,7 +56,7 @@ function validateFee(fee) {
     if (fee == null || fee === false) return null
     const num = toExactInt(fee)
     if (isNaN(num)) {
-        throw new ParamTypeError(`fee must be a valid integer, got: ${typeof fee === 'string' ? fee : typeof fee}`)
+        throw new ParamTypeError(`fee must be a valid integer, got: ${typeof fee === 'string' ? truncateForMessage(fee) : typeof fee}`)
     }
     if (num < 0) {
         throw new ParamRangeError('fee must be non-negative')
