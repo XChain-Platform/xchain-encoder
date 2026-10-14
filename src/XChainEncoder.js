@@ -151,6 +151,11 @@ class XChainEncoder {
           softDustFloorFor(network),
           (Number.isFinite(operatorDust) && operatorDust > 0) ? Math.floor(operatorDust) : 0
       )
+      // The relay dust threshold a caller's payment output must reach: the pinned hard
+      // threshold (BTC 546, LTC 5460, DOGE 100000). Not the DOGE 0.01 soft limit: wallet
+      // native-fee outputs are padded only to the hard threshold, and the smallest fees sit
+      // under the soft limit. Nor the operator DUST_AMOUNT, a floor on authored outputs.
+      this.paymentOutputFloor = this.dustAmount
       // Maximum fee rate in BTC/byte (null = no cap). Prevents runaway estimates
       // (e.g. regtest feedback loop) from producing fees that the node will reject.
       // MAX_FEE_RATE_KB is in sat/kB, convert to BTC/byte to match feePerBytes units.

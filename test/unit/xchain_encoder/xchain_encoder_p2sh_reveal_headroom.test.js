@@ -248,12 +248,17 @@ describe('XChainEncoder P2SH reveal headroom', () => {
   // XChainEncoder, so any drift on these lanes fails loudly. The BTC funding
   // change is one base unit lower (feeForVsize rounds a fee up), so the BTC
   // reveal spends a new txid and re-keys its obfuscated marker; values hold.
+  // Re-pinned when the single-transaction size estimate gained the 10-byte header
+  // and the segwit marker, and the P2WSH funding leg began pricing the reveal's pad
+  // output: BTC change fell 340 (11 vB + the 23-byte pad delta at 10 sat/vB, which
+  // also lifts the leg 230), LTC change 3100 (leg +2000) and DOGE change 10000 (the
+  // header at 1000 koinu/B). The reveals keep their values and re-key the marker.
   const PRE_FIX = {
-    btcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02020900000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fefad1f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
-    ltcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02405b00000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fe9849f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
-    btcP2wshReveal: '02000000018e1823ac37c2755d15f8a2b8a7865a7d6143d07eae6152191b64fae949bc0f850000000000ffffffff0200000000000000000b6a0975819111a938ed57e522020000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
-    ltcP2wshReveal: '0200000001e681017eda2e84c8f80a5d543af89041236fc9e7549630025e3d1588ef60e5c60000000000ffffffff0200000000000000000b6a09e56b6a299a4ddadb6654150000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
-    dogeOpReturn: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff0200000000000000002f6a2d09cb8e09635af4c5aa3a916a26c6652b18482f3a1ec3636bebdfa9f4d1599a8385426040f9baaff90aa6b137f0289ff105000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000'
+    btcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02e80900000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fea6d0f505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
+    ltcP2wshFunding: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff02106300000000000022002050efb27b1cb5812e1bb95788a3ffd8550464371c1d57a36e4649e9b5ae8ed1fe7c3df505000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
+    btcP2wshReveal: '0200000001d89df09a778e91773ab1a19027134f65f51e42bc7f0ec80ae8f15ed8e29308e70000000000ffffffff0200000000000000000b6a094bf148797506b449e022020000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
+    ltcP2wshReveal: '02000000010964edb1b808477b18d6126f863f88a86ebbaae1ab18ec09f9d607cb999773590000000000ffffffff0200000000000000000b6a094341679d879db7f9e654150000000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000',
+    dogeOpReturn: '0200000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff0200000000000000002f6a2d09cb8e09635af4c5aa3a916a26c6652b18482f3a1ec3636bebdfa9f4d1599a8385426040f9baaff90aa6b137f01878f105000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac00000000'
   }
 
   it('keeps the BTC default two-phase lane (P2WSH) byte-identical, funding and reveal', async () => {

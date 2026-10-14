@@ -25,12 +25,20 @@ const { OperationalError, ParamTypeError, ParamRangeError } = require('../../bui
 const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
 const { feeForVsize } = require('../fee_policy.js')
+const { isUnconfirmedUtxo } = require('./input_candidates.js')
 
 function initSelection(build){
-    let { estimatedTxSize, fee } = build
+    let { estimatedTxSize, fee, psbt } = build
     estimatedTxSize = estimatedTxSize + 43 // change output (worst case: taproot)
+    // The output-count varint is 1 byte up to 252 outputs and 3 bytes past that; the
+    // 10-byte header counted in initEmissionState assumed 1. A MULTISIGN payload plus
+    // the customOutputs cap can pass 252 outputs.
+    if (psbt && psbt.txOutputs.length + 1 > 252) estimatedTxSize = estimatedTxSize + 2
 
     let estimatedFee = 0
+    // The caller's explicit fee as asked, before the dust floor can raise it; errors
+    // name both when they differ.
+    let requestedFee = null
     if (fee != null && fee !== false) {
         // Re-parse with the same exact-integer arbiter the validator uses
         // (toExactInt-based), not parseInt: parseInt silently truncates a
@@ -39,20 +47,43 @@ function initSelection(build){
         // ("fee must be a non-negative integer") on any non-exact or negative
         // value, preserving the previous error contract.
         estimatedFee = parseSatoshiAmount(fee, 'fee')
+        requestedFee = estimatedFee
     }
 
     let selectedInputCount = 0
     // Txids of the SELECTED inputs that are still in the mempool. Their
-    // ancestor package is what CPFP sizing below has to pay for; an entry
-    // with no confirmations field is treated as confirmed, so a UTXO source
-    // that omits it degrades to per-transaction sizing rather than to a
-    // guess about someone else's fee.
+    // ancestor package is what CPFP sizing below has to pay for. An entry with no
+    // confirmations field counts as unconfirmed (isUnconfirmedUtxo), so it is sized as
+    // a mempool parent; a confirmed one reports an empty ancestor package and asks for nothing.
     const unconfirmedInputTxids = []
     // Candidates the loop skipped because another build holds them. Reported
     // when nothing could be selected, so the caller learns the inputs exist
     // and are spoken for rather than that the address is empty.
     let reservedCandidates = 0
-    Object.assign(build, { estimatedTxSize, estimatedFee, selectedInputCount, unconfirmedInputTxids, reservedCandidates })
+    // Whether the segwit marker and flag have been counted; see framingBytesForInput.
+    const segwitMarkerCounted = false
+    Object.assign(build, { estimatedTxSize, estimatedFee, requestedFee, selectedInputCount, unconfirmedInputTxids,
+        reservedCandidates, segwitMarkerCounted })
+}
+
+// The fee selection has to cover: the fee the build will finally charge, which the
+// post-selection floor (floorEstimatedFee) never lets fall under the dust threshold.
+// Stopping at the unfloored fee left a fundable spend one input short.
+function selectionTargetFee(estimatedFee){
+    return Math.max(estimatedFee, this.dustAmount)
+}
+
+// Transaction framing an input adds beyond its own estimated size: the segwit marker
+// and flag (2 weight units, rounded up to 1 vB) with the first witness input, and two
+// more bytes of input-count varint when the 253rd input is added.
+function framingBytesForInput(build, utxo, selectedInputCount){
+    let bytes = 0
+    if (!build.segwitMarkerCounted && this.isSegwitUTXO(utxo)){
+        build.segwitMarkerCounted = true
+        bytes = bytes + 1
+    }
+    if (selectedInputCount === 253) bytes = bytes + 2
+    return bytes
 }
 
 function* selectFundingInputs(build){
@@ -92,8 +123,9 @@ function* selectInputs(build){
         inputSatoshis = added.inputSatoshis
 
         selectedInputCount = selectedInputCount + 1
+        estimatedTxSize = estimatedTxSize + framingBytesForInput.call(this, build, nextUtxo, selectedInputCount)
 
-        if (nextUtxo.confirmations == 0){
+        if (isUnconfirmedUtxo(nextUtxo)){
             unconfirmedInputTxids.push(nextUtxo.txid)
         }
 
@@ -107,7 +139,7 @@ function* selectInputs(build){
         // at sufficiency is exactly the behaviour that made a stuck batch
         // unrescuable through this API. Any surplus goes to change, which
         // the shortfall/change math below already handles.
-        if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(estimatedFee)){
+        if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee))){
             break
         }
 
@@ -133,7 +165,7 @@ function refuseCappedSelection(build, nextUtxoIndex, inputSatoshis, estimatedFee
 
 function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimatedFee, now){
     const { utxos, exactInputs, firstReservedOutpoint, outputSatoshis } = build
-    const required = outputSatoshis + BigInt(estimatedFee)
+    const required = outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee))
     let available = inputSatoshis
     for (let index = nextUtxoIndex; index < utxos.length; index++){
         const candidate = utxos[index]
@@ -280,7 +312,9 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
 }
 
 function refuseEmptySelection(build){
-    let { selectedInputCount, reservedCandidates, outputSatoshis, estimatedFee } = build
+    let { selectedInputCount, reservedCandidates, outputSatoshis } = build
+    // Report the fee the build would charge, floor included.
+    const estimatedFee = selectionTargetFee.call(this, build.estimatedFee)
     // The caller-facing MAX_UTXO_COUNT cap is intentionally NOT
     // applied to the fetched set before selection (a rich address must
     // stay spendable). Bound the SELECTED input count instead: a tx that

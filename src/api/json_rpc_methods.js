@@ -180,7 +180,7 @@ return {
     async create_tx(rawParams) {
         let params
         try {
-            params = validator.validateAll(rawParams)
+            params = validator.validateAll(rawParams, { paymentOutputFloor: encoder.paymentOutputFloor }) // sub-dust payment: -32602
         } catch (err) {
             const e = new Error(err.message)
             e.code = -32602

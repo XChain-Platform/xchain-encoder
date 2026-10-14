@@ -162,7 +162,10 @@ module.exports = {
             + extraOutputsBytes
     },
 
-    estimateSpendingP2wshTx(witnessData){
+    // padOutputBytes is the serialized size of the pad output the reveal adds when it
+    // sits under the stripped-size floor; the funding side passes the change address's
+    // size, and the default is the largest standard output.
+    estimateSpendingP2wshTx(witnessData, padOutputBytes = 43){
         // Per-chunk embedded value sized to cover the P2WSH reveal tx's worst
         // case at 1 sat/vbyte. A native-segwit input keeps its scriptSig empty
         // and carries the reveal payload (sig + compressed pubkey + witness
@@ -195,15 +198,16 @@ module.exports = {
                 Buffer.from("p2wsh",'utf8')
             ]))
 
-        // A single-chunk reveal's stripped size (71 B) is below Litecoin's
-        // tx-size-small floor, so the reveal builder pads it up to the chain's
-        // minStandardTxNonWitnessSize with one extra output. Reflect that padded
-        // stripped size here so the fee estimate covers the larger reveal. (In
-        // normal fee regimes the dust floor dominates the embedded value, but
-        // this keeps the estimate honest on high-fee chains.)
+        // A single-chunk reveal's stripped size (71 B) is below the chain's
+        // tx-size-small floor, so the reveal builder adds one pad output to clear
+        // minStandardTxNonWitnessSize. That output is a whole output, not just the
+        // bytes up to the floor, so charge its full size, then keep the floor as a
+        // lower bound, as the P2SH and envelope reveal estimates price their
+        // outputs. Flooring to the threshold alone left a 34-byte pad unpriced and
+        // the reveal ~10% under the requested rate on high-fee chains.
         let strippedFloor = this.network.minStandardTxNonWitnessSize
         if (strippedFloor && nonWitnessBytes < strippedFloor){
-            nonWitnessBytes = strippedFloor
+            nonWitnessBytes = Math.max(nonWitnessBytes + padOutputBytes, strippedFloor)
         }
 
         // vsize = ceil(total weight / 4) = nonWitnessBytes + ceil(witnessBytes/4)

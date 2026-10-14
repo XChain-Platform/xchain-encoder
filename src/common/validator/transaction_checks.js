@@ -151,13 +151,13 @@ function validateActionFields(params) {
     return { data, rawData, encoding }
 }
 
-function validatePaymentFields(params) {
+function validatePaymentFields(params, context) {
     const pubkey = validatePubkey(params.pubkey)
     const fee = validateFee(params.fee)
     const feePerKb = validateFeePerKb(params.feePerKb)
     const dust = validateDust(params.dust)
     const utxos = validateUtxoArray(params.utxos)
-    const customOutputs = validateCustomOutputs(params.customOutputs)
+    const customOutputs = validateCustomOutputs(params.customOutputs, context && context.paymentOutputFloor)
     const feeQuote = validateFeeQuote(params.feeQuote)
     const { p2shHash, p2shHex } = validateP2shParams(params.p2shHash, params.p2shHex)
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
@@ -241,12 +241,14 @@ function validatePolicyFields(params) {
 /**
  * Validate and coerce every createTransaction parameter in one pass.
  * @param {object} params - the raw JSON-RPC params object for create_tx.
+ * @param {object} [context] - what the serving encoder knows about its coin:
+ *   { paymentOutputFloor }, the relay dust threshold every customOutputs value must reach.
  * @returns {object} the same fields, each coerced to its checked form
  *   (amounts to exact integers, hex strings to lowercase, etc).
  * @throws {TypeError} a field is missing, the wrong type, or the wrong shape.
  * @throws {RangeError} a field is the right type but outside its allowed bound.
  */
-function validateAll(params) {
+function validateAll(params, context) {
     // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
     // params cleared this gate and died 50 lines later on 'pubkey is required',
     // reporting a missing field for what is a shape error. Same guard the
@@ -260,7 +262,7 @@ function validateAll(params) {
     const {
         pubkey, fee, feePerKb, dust, utxos, customOutputs, feeQuote,
         p2shHash, p2shHex, compressedPubKey, change
-    } = validatePaymentFields(params)
+    } = validatePaymentFields(params, context)
     validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey)
     const {
         rbf, unconfirmed, attachPrevTx, compress, options

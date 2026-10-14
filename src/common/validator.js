@@ -58,7 +58,8 @@ const {
     validateOutpoint,
     validateUtxoArray,
     validateUtxoEntry,
-    validateCustomOutputs
+    validateCustomOutputs,
+    assertPaymentOverDust
 } = require('./validator/fee_and_utxo_checks')
 const {
     validateP2shParams,
@@ -101,7 +102,7 @@ const COMPRESSION_MAX_RATIO = 150
 // service (it holds an exclusive lockfile), so compression is async and bounded.
 const COMPRESSION_MAX_INPUT_BYTES = 16 * 1024 * 1024
 
-function validateAll(params) {
+function validateAll(params, context) {
     // API contract coverage tracks these validator inputs:
     // params.utxos, params.pubkey, params.customOutputs, params.data,
     // params.rawData, params.fee, params.rbf, params.encoding, params.change,
@@ -109,7 +110,7 @@ function validateAll(params) {
     // params.unconfirmed, params.feePerKb, params.dust, params.feeQuote,
     // params.attachPrevTx, params.compress, params.options
     return {
-        ...validateAllFields(params)
+        ...validateAllFields(params, context)
     }
 }
 
@@ -142,6 +143,7 @@ module.exports = {
     validateUtxoArray,
     validateUtxoEntry,
     validateCustomOutputs,
+    assertPaymentOverDust,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,

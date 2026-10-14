@@ -216,7 +216,17 @@ function validateUtxoArray(utxos) {
     return utxos
 }
 
-function validateCustomOutput(output, index) {
+// Refuse a payment output under the coin's hard relay dust threshold: a node will not
+// relay it, so the caller would sign a transaction that never reaches a miner. `floor`
+// is the encoder's paymentOutputFloor; a falsy floor (a network-agnostic caller) leaves
+// only the positive-amount rule.
+function assertPaymentOverDust(value, index, floor) {
+    if (floor && value < floor) {
+        throw new ParamRangeError(`customOutputs[${index}].value ${value} is below the ${floor} base-unit relay dust threshold for this coin`)
+    }
+}
+
+function validateCustomOutput(output, index, paymentOutputFloor) {
     if (typeof output !== 'object' || output === null || Array.isArray(output)) {
         throw new ParamTypeError(`customOutputs[${index}] must be an object`)
     }
@@ -227,18 +237,20 @@ function validateCustomOutput(output, index) {
     // A caller-supplied output of 0 sats is consensus-valid but relay-rejected
     // as an unspendable/dust output, so the caller signs a PSBT that can never
     // broadcast. Reject it at the trust boundary, matching validateFeeQuote's
-    // positive-amount contract. Interim safe rule: reject only value <= 0 (not a
-    // full per-network dust floor). The native-fee FEE_DESTINATION output is
+    // positive-amount contract. The per-coin dust floor below applies when the
+    // caller passes one (create_tx passes the encoder's). A feeQuote output is
     // injected into customOutputs AFTER validateCustomOutputs runs (see
-    // XChainEncoder.createTransaction), so it never passes through here and its
-    // sub-dust-but-positive DOGE fee values keep working.
+    // checkPayloadInput), so it keeps only its own positive-amount rule; a native-fee
+    // output a client appends to customOutputs itself (the SDK does) is a caller
+    // output here and is held to the floor like any payment.
     if (output.value <= 0) {
         throw new ParamRangeError(`customOutputs[${index}].value must be a positive integer (satoshis)`)
     }
+    assertPaymentOverDust(output.value, index, paymentOutputFloor)
     return output
 }
 
-function validateCustomOutputs(customOutputs) {
+function validateCustomOutputs(customOutputs, paymentOutputFloor) {
     if (customOutputs == null) return null
     if (!Array.isArray(customOutputs)) {
         throw new ParamTypeError('customOutputs must be an array')
@@ -247,7 +259,7 @@ function validateCustomOutputs(customOutputs) {
         throw new ParamRangeError(`customOutputs length (${customOutputs.length}) exceeds maximum (${MAX_CUSTOM_OUTPUTS})`)
     }
     for (let i = 0; i < customOutputs.length; i++) {
-        validateCustomOutput(customOutputs[i], i)
+        validateCustomOutput(customOutputs[i], i, paymentOutputFloor)
     }
     return customOutputs
 }
@@ -283,6 +295,7 @@ module.exports = {
     validateOutpoint,
     validateUtxoEntry,
     validateUtxoArray,
+    assertPaymentOverDust,
     validateCustomOutput,
     validateCustomOutputs,
     validateFeeQuote

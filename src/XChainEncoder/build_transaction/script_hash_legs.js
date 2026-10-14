@@ -249,7 +249,7 @@ function* spendP2wshLeg(build, nextDataBuffer){
 }
 
 function fundP2wshLeg(build, nextDataBuffer){
-    let { feePerBytes, finalDust, preparedData, revealCustomOutputsValue, revealCustomOutputsFee, psbt, outputSatoshis, estimatedTxSize } = build
+    let { feePerBytes, finalDust, preparedData, revealCustomOutputsValue, revealCustomOutputsFee, psbt, outputSatoshis, estimatedTxSize, change } = build
     // Size this P2WSH data output to fund its share of the
     // reveal (spending) transaction's fee, mirroring the
     // P2SH branch above. A flat per-output dust value leaves
@@ -259,7 +259,16 @@ function fundP2wshLeg(build, nextDataBuffer){
     // floor), so the broadcast is rejected. The estimate uses
     // witness-discounted sizing because P2WSH
     // reveal data lives in the (÷4-weighted) witness.
-    let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer)
+    // A reveal under the stripped-size floor carries a pad output (see
+    // fundRevealFloorPad), and its bytes are part of the reveal's fee. The pad goes
+    // to the change address, or to the caller's own address when there is none;
+    // that is resolved only on the reveal, so price it at the largest standard
+    // output here rather than resolve the caller now. A reveal over the floor has
+    // no pad and keeps the plain floored estimate.
+    const padOutputBytes = revealNeedsFloorPad.call(this, preparedData)
+        ? TxSizeEstimator.estimateOutputSizeForAddress(change || null, this.network)
+        : 0
+    let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer, padOutputBytes)
     let spendingP2wshEstimatedFee = feeForVsize(spendingP2wshEstimatedSize, feePerBytes, SATOSHI_UNIT)
 
     if (spendingP2wshEstimatedFee < finalDust){
@@ -308,10 +317,7 @@ function fundRevealFloorPad(preparedData, spendingP2wshEstimatedFee){
     // and addRevealSizeFloorPadding below), so fund that
     // output's value here (one dust); otherwise the reveal
     // has no satoshis left to create it after the fee floor.
-    let strippedFloor = this.network.minStandardTxNonWitnessSize
-    let chunkCount = preparedData["dataBufferArray"].length
-    let predictedRevealStripped = 30 + (41 * chunkCount)
-    if (strippedFloor && predictedRevealStripped < strippedFloor){
+    if (revealNeedsFloorPad.call(this, preparedData)){
         // Fund the reveal's stripped-size floor-padding output with
         // this.dustAmount, the SAME constant the reveal side spends
         // (see addRevealSizeFloorPadding below). Using finalDust here
@@ -320,6 +326,14 @@ function fundRevealFloorPad(preparedData, spendingP2wshEstimatedFee){
         spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + this.dustAmount
     }
     return spendingP2wshEstimatedFee
+}
+
+// Whether the P2WSH reveal's stripped size (10 header + 41 per chunk input + ~20
+// marker output) lands under the chain's relay floor, so the reveal adds a pad output.
+function revealNeedsFloorPad(preparedData){
+    const strippedFloor = this.network.minStandardTxNonWitnessSize
+    const predictedRevealStripped = 30 + (41 * preparedData["dataBufferArray"].length)
+    return !!(strippedFloor && predictedRevealStripped < strippedFloor)
 }
 
 module.exports = { emitP2shChunk, emitP2wshChunk }

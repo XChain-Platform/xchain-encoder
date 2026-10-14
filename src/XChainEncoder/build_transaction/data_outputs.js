@@ -20,7 +20,7 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
-const { parseSatoshiAmount } = require('../../common/validator')
+const { parseSatoshiAmount, assertPaymentOverDust } = require('../../common/validator')
 const { SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
@@ -123,7 +123,12 @@ function initEmissionState(build){
     //   revealFee   - the fee that output currently prefunds
     let revealPrefund = null
 
-    let estimatedTxSize = 0
+    // The transaction header: 4 version + 1 input-count varint + 1 output-count
+    // varint + 4 locktime. Every output and input below adds only its own bytes, so
+    // starting at 0 left each single-transaction fee 10 vB short, enough to put a
+    // many-input build at the relay rate under 1 sat/vB. The segwit marker and flag,
+    // and wider count varints, are added by input selection.
+    let estimatedTxSize = 10
     Object.assign(build, { outputSatoshis, voutPsbtIndex, obfuscatedData, p2shRevealHeadroomFunded, phaseLegInputSatoshis,
         p2shTx, envelopeContext, revealPrefund, estimatedTxSize })
 }
@@ -282,7 +287,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
 }
 
 function emitCustomOutputs(build){
-    let { p2shHash, isP2shFamily, customOutputs, psbt, outputSatoshis, estimatedTxSize } = build
+    let { p2shHash, isP2shFamily, customOutputs, feeQuoteOutput, psbt, outputSatoshis, estimatedTxSize } = build
     // Process custom outputs (e.g., COINPay native coin payment outputs, or
     // the native-fee protocol-fee output). On a P2SH/P2WSH FUNDING tx
     // (p2shHash null) these are NOT emitted here: their value was folded into
@@ -300,11 +305,15 @@ function emitCustomOutputs(build){
             // the effector too (not just the validator boundary), matching the
             // native-fee output which is always positive (guarded at injection
             // above), so this never rejects a legitimate sub-dust FEE_DESTINATION
-            // value. Interim safe rule: reject only value <= 0, not a full
-            // per-network dust floor.
+            // value.
             if (outputValue <= 0) {
                 throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
             }
+            // A caller payment also has to reach the coin's relay dust threshold
+            // (checkPaymentDust refused it already; this holds the effector to the
+            // same rule). The feeQuote protocol-fee output keeps only the positive
+            // rule above: its amount is priced by the hub, not chosen by the caller.
+            if (output !== feeQuoteOutput) assertPaymentOverDust(outputValue, i, this.paymentOutputFloor)
             psbt.addOutput({
                 address: output.address,
                 value:   outputValue

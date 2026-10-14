@@ -19,7 +19,7 @@
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
-const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, validateDataParam, validateActionPushDecodability, unknownActionName } = require('../../common/validator')
+const { MAX_COMPILED_ACTION_DATA_LENGTH, ENVELOPE_MAX_PAYLOAD, validateDataParam, validateActionPushDecodability, unknownActionName, parseSatoshiAmount, assertPaymentOverDust } = require('../../common/validator')
 const { compressPayloadForAction } = require('../../build/compression')
 const { Encoding } = require('../constants.js')
 const { ensureEccLib } = require('../script_amount_helpers.js')
@@ -75,13 +75,31 @@ function checkPayloadInput(build){
     const unknownAction = unknownActionName(data)
 
     checkOutputAddresses.call(this, build)
+    checkPaymentDust.call(this, build)
 
-    // If feeQuote is provided, inject it as a custom output
+    // If feeQuote is provided, inject it as a custom output. It is remembered so the
+    // emission step can tell the protocol-fee output from the caller's own payments.
+    let feeQuoteOutput = null
     if(feeQuote && feeQuote.address && feeQuote.amount > 0){
         if(!customOutputs) customOutputs = [];
-        customOutputs.push({ address: feeQuote.address, value: feeQuote.amount });
+        feeQuoteOutput = { address: feeQuote.address, value: feeQuote.amount }
+        customOutputs.push(feeQuoteOutput);
     }
-    Object.assign(build, { unknownAction, customOutputs })
+    Object.assign(build, { unknownAction, customOutputs, feeQuoteOutput })
+}
+
+// Refuse a caller payment under the coin's relay dust threshold in the first build
+// step. On a P2SH/P2WSH funding call the payments are only priced into the first leg
+// and emitted on the reveal, so a check at emission alone would let the commit confirm
+// with a reveal that can never relay. Runs before the feeQuote output is injected.
+function checkPaymentDust(build){
+    const { customOutputs } = build
+    if (!Array.isArray(customOutputs)) return
+    customOutputs.forEach((output, i) => {
+        const value = parseSatoshiAmount(output && output.value, `customOutputs[${i}].value`, { allowBig: true })
+        if (value <= 0) throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
+        assertPaymentOverDust(value, i, this.paymentOutputFloor)
+    })
 }
 
 // Verify every caller output address decodes on this network, inside the first

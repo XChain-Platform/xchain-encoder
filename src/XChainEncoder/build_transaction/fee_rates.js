@@ -110,6 +110,12 @@ function* useNodeFeeRate(build){
         }
         feePerBytes = suggestedCap
     }
+    // Never price a build under the node's own relay floor. An estimate can sit
+    // under relayfee (a stale or custom estimator, a misconfigured ceiling), and a
+    // caller who left the rate to the node has nothing to fix, so lift the rate here,
+    // before selection, rather than refuse the build afterwards.
+    const relayFeePerBytes = relayFeePerKb / 1000
+    if (feePerBytes < relayFeePerBytes) feePerBytes = relayFeePerBytes
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
 }
 
