@@ -20,7 +20,7 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
-const { MAGIC_WORD, SATOSHI_UNIT } = require('../constants.js')
+const { MAGIC_WORD, SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { asSatValue } = require('../script_amount_helpers.js')
 const { assertRevealFundingTxMatches } = require('../request_resolution.js')
 const { feeForVsize } = require('../fee_policy.js')
@@ -121,7 +121,6 @@ function fundP2shLeg(build, nextDataBuffer){
 }
 
 function topUpFirstP2shLeg(build, spendingP2shEstimatedFee){
-    let { p2shRevealHeadroomFunded, revealCustomOutputsBytes, preparedData, feePerBytes, finalDust, psbt, revealPrefund } = build
     // The reveal's ONLY inputs are these
     // funding legs (the reveal path runs no input selection),
     // so every satoshi the reveal spends - its miner fee AND
@@ -155,40 +154,52 @@ function topUpFirstP2shLeg(build, spendingP2shEstimatedFee){
     // output emittable is conditional. With customOutputs the
     // surplus then lands at zero, below the sweep's dust
     // threshold, and the reveal keeps exactly its two outputs.
+    return topUpFirstLeg.call(this, build, spendingP2shEstimatedFee, Encoding.P2SH)
+}
+
+// The one-time first-leg top-up both chunk carriers share; the rationale is above.
+function topUpFirstLeg(build, spendingEstimatedFee, encoding){
+    let { p2shRevealHeadroomFunded, revealCustomOutputsBytes, preparedData, feePerBytes, finalDust, psbt, revealPrefund } = build
     if (!p2shRevealHeadroomFunded){
         p2shRevealHeadroomFunded = true
         let needsChangeOutput = (revealCustomOutputsBytes === 0)
-        let { baseLegsTotal, revealFeeNeeded } = sumP2shRevealLegs.call(this, preparedData, feePerBytes, finalDust)
+        let { baseLegsTotal, revealFeeNeeded, revealSize } = sumRevealLegs.call(this, preparedData, feePerBytes, finalDust, encoding)
         let revealShortfall = Math.max(0, revealFeeNeeded - baseLegsTotal)
         // The reveal's change is an authored output, so its headroom is the relay floor.
         let changeHeadroom = needsChangeOutput ? BigInt(this.outputFloor) : 0n
-        spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
+        spendingEstimatedFee = asSatValue(BigInt(spendingEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
         // This leg is where the reveal's fee money lives, so it is
         // the one the package-prefund pass tops up.
         revealPrefund = {
             outputIndex: psbt.txOutputs.length,
-            revealSize: this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43),
+            revealSize,
             revealFee: revealFeeNeeded
         }
     }
     Object.assign(build, { p2shRevealHeadroomFunded, revealPrefund })
-    return spendingP2shEstimatedFee
+    return spendingEstimatedFee
 }
 
 // What the legs fund at their own per-chunk sizing, and what the whole reveal needs.
-function sumP2shRevealLegs(preparedData, feePerBytes, finalDust){
+// A P2WSH leg reaching here has no floor pad, so its per-chunk size carries none.
+function sumRevealLegs(preparedData, feePerBytes, finalDust, encoding){
+    const isP2sh = encoding === Encoding.P2SH
     let baseLegsTotal = 0
     for (const chunkBuffer of preparedData["dataBufferArray"]){
-        let chunkLegFee = feeForVsize(this.estimateSpendingP2shTx(chunkBuffer), feePerBytes, SATOSHI_UNIT)
+        const chunkSize = isP2sh ? this.estimateSpendingP2shTx(chunkBuffer) : this.estimateSpendingP2wshTx(chunkBuffer, 0)
+        let chunkLegFee = feeForVsize(chunkSize, feePerBytes, SATOSHI_UNIT)
         baseLegsTotal = baseLegsTotal + Math.max(chunkLegFee, finalDust)
     }
-    let revealFeeNeeded = feeForVsize(this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43), feePerBytes, SATOSHI_UNIT)
+    const revealSize = isP2sh
+        ? this.estimateP2shRevealTx(preparedData["dataBufferArray"], 43)
+        : this.estimateP2wshRevealTx(preparedData["dataBufferArray"], 43)
+    let revealFeeNeeded = feeForVsize(revealSize, feePerBytes, SATOSHI_UNIT)
     if (revealFeeNeeded < this.dustAmount){
         // Mirrors the reveal path's own dust floor on
         // estimatedFee, so both phases price the same fee.
         revealFeeNeeded = this.dustAmount
     }
-    return { baseLegsTotal, revealFeeNeeded }
+    return { baseLegsTotal, revealFeeNeeded, revealSize }
 }
 
 // A P2WSH chunk: a funding output on the commit, or an input spending it on the reveal.
@@ -209,7 +220,7 @@ function* emitP2wshChunk(build, nextDataBuffer){
 }
 
 function* spendP2wshLeg(build, nextDataBuffer){
-    let { psbt, txidFirstInput, p2shTx, voutPsbtIndex, utxoSequence, p2shHash, estimatedTxSize } = build
+    let { psbt, txidFirstInput, p2shTx, voutPsbtIndex, utxoSequence, p2shHash, estimatedTxSize, phaseLegInputSatoshis } = build
     if (!psbt){
         psbt = new bitcoin.Psbt({ network: this.network })
         psbt.addOutput({
@@ -244,8 +255,10 @@ function* spendP2wshLeg(build, nextDataBuffer){
     psbt.addInput(nextInput)
 
     estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
+    // Leg value this reveal input consumes, for the surplus sweep, as on the P2SH reveal.
+    phaseLegInputSatoshis = phaseLegInputSatoshis + BigInt(p2shTx.outs[voutPsbtIndex].value)
     voutPsbtIndex = voutPsbtIndex + 1
-    Object.assign(build, { psbt, estimatedTxSize, voutPsbtIndex })
+    Object.assign(build, { psbt, estimatedTxSize, phaseLegInputSatoshis, voutPsbtIndex })
 }
 
 function fundP2wshLeg(build, nextDataBuffer){
@@ -286,6 +299,9 @@ function fundP2wshLeg(build, nextDataBuffer){
         revealCustomOutputsValue = 0n
         revealCustomOutputsFee = 0
     }
+
+    // A reveal with no floor pad leaves no value output of its own: fund it as on P2SH.
+    if (!padOutputBytes) spendingP2wshEstimatedFee = topUpFirstLeg.call(this, build, spendingP2wshEstimatedFee, Encoding.P2WSH)
 
     psbt.addOutput({
         address: bitcoin.payments.p2wsh({ redeem: {output:nextDataBuffer}, network:this.network}).address,
@@ -336,4 +352,4 @@ function revealNeedsFloorPad(preparedData){
     return !!(strippedFloor && predictedRevealStripped < strippedFloor)
 }
 
-module.exports = { emitP2shChunk, emitP2wshChunk }
+module.exports = { emitP2shChunk, emitP2wshChunk, revealNeedsFloorPad }

@@ -53,6 +53,11 @@ function inputSizeForScript(scriptPubKey, isSegwit) {
             // P2WSH: 0020{32-byte hash} - Assuming 2-3 Multisig
             return 105
         }
+        if (scriptHex.length === 46 && scriptHex.startsWith('a914') && scriptHex.endsWith('87')) {
+            // P2SH-P2WPKH: 64 non-witness bytes (outpoint, sequence, 23-byte scriptSig
+            // pushing the redeem script) plus a 108-weight sig and key witness = 91 vB.
+            return 91
+        }
         if (scriptHex.startsWith('5120')) {
             // P2TR: 5120{32-byte x-only key}. Key-path spend = 1 Schnorr
             // witness (~57.5 vbytes incl. prevout + sequence). Without this it

@@ -49,6 +49,7 @@ const { prepareDataChunks, priceRevealCustomOutputs, initEmissionState, emitData
 const { initSelection, selectFundingInputs } = require('./XChainEncoder/build_transaction/input_selection.js')
 const { refuseExcessiveFee, refuseInsufficientRelayFee, upliftForAncestors, floorEstimatedFee, prefundRevealPackage, computeChange } = require('./XChainEncoder/build_transaction/fee_settlement.js')
 const { emitChangeAndPad, sweepP2shReveal, buildEnvelopeReveal } = require('./XChainEncoder/build_transaction/reveal_outputs.js')
+const { refuseUnderStrippedFloor } = require('./XChainEncoder/build_transaction/stripped_floor.js')
 const { finishBuild } = require('./XChainEncoder/build_transaction/build_result.js')
 
 
@@ -266,6 +267,7 @@ function* buildSteps(build){
     prefundRevealPackage.call(this, build)
     computeChange.call(this, build)
     emitChangeAndPad.call(this, build)
+    refuseUnderStrippedFloor.call(this, build)
     const outputsBeforeSweep = build.psbt.txOutputs.length
     yield* sweepP2shReveal.call(this, build)
     noteUndersizedRevealLeg.call(this, build, outputsBeforeSweep)

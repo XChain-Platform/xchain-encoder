@@ -26,7 +26,9 @@ const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, feeForVsize } = require('../
 
 // The caller-fee ceilings: the rate cap, then the absolute burn backstop.
 function refuseExcessiveFee(build){
-    let { fee, capFeePerBytes, estimatedTxSize, estimatedFee, nodeFeePerBytes, feePerBytes } = build
+    let { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, feePerBytes } = build
+    // The rate ceilings judge the caller's own fee; the soft-dust surcharge is policy.
+    const estimatedFee = build.estimatedFee - (build.softDustSurcharge || 0)
     // Reject a caller-supplied absolute fee whose effective rate exceeds the
     // fee-rate cap for a transaction of this estimated size. Unlike feePerKb
     // (clamped above), an explicit fee is an exact amount the caller believes
@@ -71,12 +73,15 @@ function refuseInsufficientRelayFee(build){
     const { fee, feePerKb, feePerBytes, p2shHash, estimatedTxSize, estimatedFee, relayFeePerKb } = build
     const hasExplicitFee = fee != null && fee !== false
     const hasCallerRate = feePerKb != null && feePerKb !== false
+    // The node adds the soft-dust surcharge to its relay minimum, and every fee here
+    // already carries it on top, so the size-based check reads the fee without it.
+    const surcharge = build.softDustSurcharge || 0
 
     const rateFee = hasExplicitFee
-        ? estimatedFee
+        ? estimatedFee - surcharge
         : p2shHash
             ? feeForVsize(estimatedTxSize, feePerBytes, SATOSHI_UNIT)
-            : estimatedFee
+            : estimatedFee - surcharge
     // A caller's fee or rate is judged as supplied. The node path is judged on the fee
     // it will charge, which floorEstimatedFee never lets fall under the dust threshold.
     const isNodePath = !hasExplicitFee && !hasCallerRate

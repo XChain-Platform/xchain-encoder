@@ -26,9 +26,11 @@ const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js'
 const { jsonSafeSat } = require('../script_amount_helpers.js')
 const { feeForVsize } = require('../fee_policy.js')
 const { isUnconfirmedUtxo } = require('./input_candidates.js')
+const { nestedP2wpkhRedeem } = require('./nested_segwit.js')
+const { clearsStrippedFloor } = require('./stripped_floor.js')
 
 function initSelection(build){
-    let { estimatedTxSize, fee, psbt } = build
+    let { estimatedTxSize, fee, psbt, softDustSurcharge } = build
     estimatedTxSize = estimatedTxSize + 43 // change output (worst case: taproot)
     // The output-count varint is 1 byte up to 252 outputs and 3 bytes past that; the
     // 10-byte header counted in initEmissionState assumed 1. A MULTISIGN payload plus
@@ -46,8 +48,9 @@ function initSelection(build){
         // bypass validateFee. parseSatoshiAmount throws RangeError
         // ("fee must be a non-negative integer") on any non-exact or negative
         // value, preserving the previous error contract.
-        estimatedFee = parseSatoshiAmount(fee, 'fee')
-        requestedFee = estimatedFee
+        requestedFee = parseSatoshiAmount(fee, 'fee')
+        // An explicit fee pays for size; the soft-dust relay surcharge rides on top.
+        estimatedFee = requestedFee + (softDustSurcharge || 0)
     }
 
     let selectedInputCount = 0
@@ -76,9 +79,9 @@ function selectionTargetFee(estimatedFee){
 // Transaction framing an input adds beyond its own estimated size: the segwit marker
 // and flag (2 weight units, rounded up to 1 vB) with the first witness input, and two
 // more bytes of input-count varint when the 253rd input is added.
-function framingBytesForInput(build, utxo, selectedInputCount){
+function framingBytesForInput(build, utxo, selectedInputCount, nested){
     let bytes = 0
-    if (!build.segwitMarkerCounted && this.isSegwitUTXO(utxo)){
+    if (!build.segwitMarkerCounted && (nested || this.isSegwitUTXO(utxo))){
         build.segwitMarkerCounted = true
         bytes = bytes + 1
     }
@@ -100,7 +103,7 @@ function* selectFundingInputs(build){
 function* selectInputs(build){
     let { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
         attachPrevTx, fee, feePerBytes, outputSatoshis, estimatedTxSize, estimatedFee, inputSatoshis,
-        selectedInputCount, unconfirmedInputTxids, reservedCandidates } = build
+        selectedInputCount, unconfirmedInputTxids, reservedCandidates, softDustSurcharge } = build
     const now = Date.now()
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
@@ -118,19 +121,21 @@ function* selectInputs(build){
 
         nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
 
-        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker)
+        const nestedRedeem = nestedP2wpkhRedeem.call(this, build, nextUtxo)
+        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker, nestedRedeem)
         estimatedTxSize = added.estimatedTxSize
         inputSatoshis = added.inputSatoshis
 
         selectedInputCount = selectedInputCount + 1
-        estimatedTxSize = estimatedTxSize + framingBytesForInput.call(this, build, nextUtxo, selectedInputCount)
+        estimatedTxSize = estimatedTxSize + framingBytesForInput.call(this, build, nextUtxo, selectedInputCount, !!nestedRedeem)
 
         if (isUnconfirmedUtxo(nextUtxo)){
             unconfirmedInputTxids.push(nextUtxo.txid)
         }
 
+        // A rate-priced fee also carries the soft-dust relay surcharge (0 off Dogecoin).
         if (fee == null || fee === false) {
-            estimatedFee = feeForVsize(estimatedTxSize, feePerBytes, SATOSHI_UNIT)
+            estimatedFee = feeForVsize(estimatedTxSize, feePerBytes, SATOSHI_UNIT) + (softDustSurcharge || 0)
         }
 
         // Exact-input mode never stops early: the caller named this set
@@ -139,7 +144,8 @@ function* selectInputs(build){
         // at sufficiency is exactly the behaviour that made a stuck batch
         // unrescuable through this API. Any surplus goes to change, which
         // the shortfall/change math below already handles.
-        if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee))){
+        const targetFee = selectionTargetFee.call(this, estimatedFee)
+        if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(targetFee) && clearsStrippedFloor.call(this, build, inputSatoshis, targetFee)){
             break
         }
 
@@ -263,8 +269,9 @@ function assertPrevOutValueMatches(prevTxHex, utxo, fetchedFromTracker){
     throw new ParamRangeError(problem)
 }
 
-function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker){
-    if (this.isSegwitUTXO(nextUtxo)){
+// nestedRedeem is the P2WPKH redeem script of a P2SH-P2WPKH input, signed as segwit.
+function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker, nestedRedeem){
+    if (nestedRedeem || this.isSegwitUTXO(nextUtxo)){
         let nextInput = {
             hash: nextUtxo.txid,
             index: nextUtxo.vout,
@@ -274,6 +281,7 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
                 value: nextUtxo.value,
             }
         }
+        if (nestedRedeem) nextInput.redeemScript = nestedRedeem
         // A hardware signer needs the FULL previous
         // transaction even for a segwit input, because Ledger takes
         // the outpoint it signs from those bytes rather than from

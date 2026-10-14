@@ -217,4 +217,28 @@ module.exports = {
 
         return sizeEstimated
     },
+
+    // Whole-tx vsize of the P2WSH reveal: every chunk input with its witness (sig,
+    // pubkey, witness script), the OP_RETURN marker, plus extraOutputsBytes for the
+    // value outputs it emits. The P2WSH twin of estimateP2shRevealTx, and both phases
+    // price the reveal with it for the same reason given there.
+    estimateP2wshRevealTx(dataBufferArray, extraOutputsBytes = 0){
+        let witnessBytes = 2 // marker + flag
+        for (const witnessData of dataBufferArray){
+            witnessBytes = witnessBytes + 1 + (1 + 72) + (1 + 33)
+                + compactSizeLen(witnessData.length) + witnessData.length
+        }
+        let nonWitnessBytes = 10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
+            + (36 + 1 + 4) * dataBufferArray.length
+            + TxSizeEstimator.estimateOpReturnOutput(Buffer.concat([
+                Buffer.from(MAGIC_WORD,'utf8'),
+                Buffer.from("p2wsh",'utf8')
+            ]))
+            + extraOutputsBytes
+        // A reveal under the chain's stripped-size floor is padded up to it.
+        const strippedFloor = this.network.minStandardTxNonWitnessSize
+        if (strippedFloor && nonWitnessBytes < strippedFloor) nonWitnessBytes = strippedFloor
+        return nonWitnessBytes + Math.ceil(witnessBytes / 4)
+            + 8 // safety margin for DER-sig length jitter, as in the per-chunk estimate
+    },
 }

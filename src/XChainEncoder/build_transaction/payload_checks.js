@@ -29,7 +29,7 @@ const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 // The caller's payload as handed over: wire-safety re-checks, the ACTION-name
 // read, and the fee-quote output injected ahead of every other output.
 function checkPayloadInput(build){
-    let { data, rawData, feeQuote, customOutputs } = build
+    let { data, rawData } = build
     // Re-check what the wire encodings can actually carry, for direct library
     // callers. api.js runs validateAll before createTransaction, but
     // createTransaction is a supported library entry point of its own and
@@ -76,16 +76,23 @@ function checkPayloadInput(build){
 
     checkOutputAddresses.call(this, build)
     checkPaymentDust.call(this, build)
+    injectFeeQuoteOutput(build)
+    Object.assign(build, { unknownAction })
+}
 
-    // If feeQuote is provided, inject it as a custom output. It is remembered so the
-    // emission step can tell the protocol-fee output from the caller's own payments.
+// If feeQuote is provided, inject it as a custom output. It is remembered so the
+// emission step can tell the protocol-fee output from the caller's own payments.
+function injectFeeQuoteOutput(build){
+    let { feeQuote, customOutputs } = build
     let feeQuoteOutput = null
     if(feeQuote && feeQuote.address && feeQuote.amount > 0){
-        if(!customOutputs) customOutputs = [];
+        // Push onto a copy: the array is the caller's, and an in-process caller that
+        // reuses it for a second build would otherwise carry the first build's fee output.
+        customOutputs = Array.isArray(customOutputs) ? customOutputs.slice() : [];
         feeQuoteOutput = { address: feeQuote.address, value: feeQuote.amount }
         customOutputs.push(feeQuoteOutput);
     }
-    Object.assign(build, { unknownAction, customOutputs, feeQuoteOutput })
+    Object.assign(build, { customOutputs, feeQuoteOutput })
 }
 
 // Refuse a caller payment under the coin's relay dust threshold in the first build

@@ -24,7 +24,8 @@ const { parseSatoshiAmount, assertPaymentOverDust } = require('../../common/vali
 const { SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
-const { feeForVsize } = require('../fee_policy.js')
+const { feeForVsize, softDustSurchargeFor } = require('../fee_policy.js')
+const { softDustFloorFor } = require('../script_amount_helpers.js')
 const { ParamRangeError } = require('../../build/errors')
 
 function prepareDataChunks(build){
@@ -85,6 +86,11 @@ function priceRevealCustomOutputs(build){
     let revealCustomOutputsFee = (revealCustomOutputsBytes > 0 && feePerBytes > 0)
         ? feeForVsize(revealCustomOutputsBytes, feePerBytes, SATOSHI_UNIT)
         : 0
+    // A reveal payment under the coin's soft dust limit also costs the reveal that
+    // limit in relay fee, and only the first leg can carry it.
+    if (revealCustomOutputsBytes > 0){
+        revealCustomOutputsFee = revealCustomOutputsFee + softDustSurchargeFor(customOutputs.map(o => o.value), softDustFloorFor(this.networkKey))
+    }
     Object.assign(build, { isP2shFamily, revealCustomOutputsValue, revealCustomOutputsBytes, revealCustomOutputsFee })
 }
 
@@ -322,7 +328,10 @@ function emitCustomOutputs(build){
             estimatedTxSize += 43 // Taproot output size estimate (most expensive)
         }
     }
-    Object.assign(build, { outputSatoshis, estimatedTxSize })
+    // Every value output is emitted by now except change, which is never under the
+    // soft limit, so this is the transaction's whole soft-dust relay surcharge.
+    const softDustSurcharge = softDustSurchargeFor(psbt.txOutputs.map(o => o.value), softDustFloorFor(this.networkKey))
+    Object.assign(build, { outputSatoshis, estimatedTxSize, softDustSurcharge })
 }
 
 module.exports = { prepareDataChunks, priceRevealCustomOutputs, initEmissionState, emitDataOutputs, emitCustomOutputs }
