@@ -69,6 +69,7 @@ function* spendP2shLeg(build, nextDataBuffer){
     if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
         throw new ParamRangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
+    assertLegFundsScript.call(this, p2shTx, voutPsbtIndex, Encoding.P2SH, nextDataBuffer)
     let nextInput = {
         sequence: utxoSequence,
         hash:p2shHash,
@@ -202,6 +203,18 @@ function sumRevealLegs(preparedData, feePerBytes, finalDust, encoding){
     return { baseLegsTotal, revealFeeNeeded, revealSize }
 }
 
+// The reveal rebuilds each chunk script from its own payload, so a payload that differs
+// from the funded one yields a script that does not hash to the output it spends and a
+// reveal no node will accept. Refuse it here rather than hand back an unspendable PSBT.
+function assertLegFundsScript(p2shTx, vout, encoding, script){
+    const payment = encoding === Encoding.P2SH ? bitcoin.payments.p2sh : bitcoin.payments.p2wsh
+    const expected = payment({ redeem: { output: script }, network: this.network }).output
+    if (!p2shTx.outs[vout].script.equals(expected)){
+        throw new ParamRangeError(`${encoding} reveal chunk ${vout} does not match the funded output at index ${vout}: ` +
+            'the reveal payload differs from the one the funding transaction committed to')
+    }
+}
+
 // A P2WSH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2wshChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
@@ -242,6 +255,7 @@ function* spendP2wshLeg(build, nextDataBuffer){
     if (!p2shTx || !p2shTx.outs || voutPsbtIndex >= p2shTx.outs.length) {
         throw new ParamRangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
+    assertLegFundsScript.call(this, p2shTx, voutPsbtIndex, Encoding.P2WSH, nextDataBuffer)
     let nextInput = {
         sequence: utxoSequence,
         hash:p2shHash,

@@ -160,7 +160,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
 
 describe('E2E-6: Multi-Chain Validation', () => {
   describe('E2E-6.9: Litecoin MULTISIGN (dust=5460)', () => {
-    it('multisig output at 5460 sats', async () => {
+    it('multisig output at 7860 sats', async () => {
       const encoder = makeEncoder('litecoin-regtest')
       const address = getTestAddress('litecoin-regtest')
       const utxo = makeUtxo('litecoin-regtest', TXID_MULTISIGN, 0, 100000000)
@@ -172,8 +172,8 @@ describe('E2E-6: Multi-Chain Validation', () => {
       )
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
-      const msOutput = result.psbt.txOutputs.find(o => o.value === 5460)
-      assert.ok(msOutput, 'Litecoin multisig output should be 5460 sats')
+      const msOutput = result.psbt.txOutputs.find(o => o.value === 7860)
+      assert.ok(msOutput, 'Litecoin multisig output should be 7860 sats, the bare-multisig relay floor at 30 sat/byte')
     })
   })
 })

@@ -25,7 +25,7 @@ const { SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
 const { feeForVsize, softDustSurchargeFor } = require('../fee_policy.js')
-const { softDustFloorFor } = require('../script_amount_helpers.js')
+const { softDustFloorFor, dustRelayFeePerByteFor } = require('../script_amount_helpers.js')
 const { ParamRangeError } = require('../../build/errors')
 
 function prepareDataChunks(build){
@@ -212,11 +212,13 @@ function* emitMultisignChunk(build, nextDataBuffer){
     // below the node's relay dust threshold and the broadcast is
     // rejected with {"code":-26,"message":"dust"}. Never hard-code a
     // flat 546 here: DOGE shares this path at 100000. Size the floor
-    // from the actual output script using Bitcoin Core's dust formula:
-    // (output_bytes + spend_input_bytes) * 3 sat/byte. The spend cost
-    // assumes a 148-byte P2PKH-style input. For standard 1-of-3
-    // compressed-key scripts (105 bytes) this is ~786 sat.
-    let bareMultisigDust = Math.ceil((8 + 1 + multisignScript.output.length + 148) * 3)
+    // from the actual output script using the node's dust formula:
+    // (output_bytes + spend_input_bytes) * the coin's dust relay rate
+    // (3 per byte on Bitcoin, 30 on Litecoin). The spend cost assumes a
+    // 148-byte P2PKH-style input. For standard 1-of-3 compressed-key
+    // scripts (105 bytes) this is 786 sat on Bitcoin and 7860 litoshi on
+    // Litecoin, where the flat 5460 would be relay dust.
+    let bareMultisigDust = Math.ceil((8 + 1 + multisignScript.output.length + 148) * dustRelayFeePerByteFor(this.networkKey))
     let multisigOutputValue = Math.max(finalDust, bareMultisigDust)
 
     psbt.addOutput({

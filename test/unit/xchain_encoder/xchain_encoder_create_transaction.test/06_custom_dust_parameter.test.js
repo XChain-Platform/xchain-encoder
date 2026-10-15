@@ -8,6 +8,7 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
+const bitcoin = require('bitcoinjs-lib')
 const {
   assert,
   pubkeyBuf,
@@ -24,8 +25,9 @@ describe('XChainEncoder.createTransaction()', () => {
       const encoder = makeEncoder()
       const utxo = makeSegwitUtxo(TXID_MS, 0, 100000000)
       const compressedPubKey = pubkeyBuf.toString('hex')
-      // Above the LTC output floor (5460), so the caller's value is honoured.
-      const customDust = 6000
+      // Above the LTC output floor (5460) and the 1-of-3 bare-multisig relay floor
+      // (262 bytes at Litecoin's 30 per byte = 7860), so the caller's value is honoured.
+      const customDust = 9000
       assert.ok(customDust > encoder.outputFloor)
 
       const MS_DATA = 'A'.repeat(59)
@@ -38,7 +40,7 @@ describe('XChainEncoder.createTransaction()', () => {
       )
 
       const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
-      assert.ok(msOutput, 'MULTISIGN output should use custom dust value of 6000')
+      assert.ok(msOutput, 'MULTISIGN output should use custom dust value of 9000')
     })
   })
 })
@@ -63,7 +65,11 @@ describe('XChainEncoder.createTransaction()', () => {
       )
 
       assert.ok(!result.psbt.txOutputs.find(o => o.value === customDust), 'no output at the sub-floor value')
-      assert.ok(result.psbt.txOutputs.find(o => o.value === encoder.outputFloor), 'the data output sits at the floor')
+      // The data output sits at the larger of the output floor and the bare-multisig
+      // relay floor, which on Litecoin is 7860 (262 bytes at 30 per byte).
+      const msOutputs = result.psbt.txOutputs.filter(o => o.script[o.script.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG)
+      assert.ok(msOutputs.length > 0, 'a multisig data output')
+      for (const o of msOutputs) assert.strictEqual(o.value, Math.max(encoder.outputFloor, 7860), 'the data output sits at the floor')
     })
 
     it('does NOT override the fee floor (fee floor uses this.dustAmount)', async () => {

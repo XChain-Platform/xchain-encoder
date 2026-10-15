@@ -1396,7 +1396,7 @@
       "E2E-6: Multi-Chain Validation E2E-6.3: litecoin-regtest OP_RETURN creates valid OP_RETURN PSBT with correct dust threshold",
       "E2E-6: Multi-Chain Validation E2E-6.7: Bitcoin P2WSH creates P2WSH witness output on bitcoin-regtest",
       "E2E-6: Multi-Chain Validation E2E-6.8: Bitcoin MULTISIGN (dust=546) multisig output at 546 sats",
-      "E2E-6: Multi-Chain Validation E2E-6.9: Litecoin MULTISIGN (dust=5460) multisig output at 5460 sats",
+      "E2E-6: Multi-Chain Validation E2E-6.9: Litecoin MULTISIGN (dust=5460) multisig output at 7860 sats",
       "E2E-6: Multi-Chain Validation Fee floor uses chain-specific dust Litecoin fee floor is 5460, not 546",
       "E2E-6: Multi-Chain Validation bitcoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
       "E2E-6: Multi-Chain Validation dogecoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
