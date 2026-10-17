@@ -329,16 +329,18 @@ describe('BlockchainConnector.getFeePerKilobyte()', () => {
       assert.ok(errorSpy.some(m => /sanity ceiling/.test(m)), 'expected a loud diagnostic')
     })
 
-    it('clamps a spiked testnet estimate using the dogecoin-scale default when NETWORK says dogecoin', async () => {
+    it('treats a spiked testnet estimate as unavailable and uses the relayfee fallback', async () => {
       process.env.NETWORK = 'dogecoin-testnet'
       axios.post = async (url, data) => {
         if (data.method === 'getblockchaininfo') return { data: { result: { chain: 'test' } } }
         if (data.method === 'estimatesmartfee') return { data: { result: { feerate: 5000 } } } // 5000 DOGE/kB: absurd
+        if (data.method === 'getnetworkinfo') return { data: { result: { relayfee: 0.001 } } }
         return { data: { result: {} } }
       }
       const c = makeConnector()
       const feerate = await c.getFeePerKilobyte(6)
-      assert.strictEqual(feerate, 10, 'expected clamp to the dogecoin default ceiling 10 DOGE/kB')
+      assert.ok(Math.abs(feerate - 0.01) < 1e-12, 'expected 10x the 0.001 relay floor, got ' + feerate)
+      assert.ok(errorSpy.some(m => /treating it as no estimate/.test(m)), 'expected a loud diagnostic')
     })
   })
 })

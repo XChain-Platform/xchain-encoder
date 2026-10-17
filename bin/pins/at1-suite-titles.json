@@ -684,6 +684,9 @@
       "Encoder input validator validateDataParam rejects a rawData code point above U+00FF (latin-1 would truncate it)",
       "Encoder input validator validateDataParam still accepts every value the wire encodings carry losslessly"
     ],
+    "4d2fee8572bf0a2f": [
+      "BlockchainConnector.getFeePerKilobyte() test-chain implausible estimate uses the no-estimate fallback instead of clamping an estimate above the sanity ceiling"
+    ],
     "4dd0d30bb214ff45": [
       "two-phase reveal package prefund @regression @tier1 MAX_CPFP_UPLIFT_SAT=0 turns the prefund off entirely",
       "two-phase reveal package prefund @regression @tier1 adds nothing when the commit already pays the target rate on its own bytes",
@@ -2229,7 +2232,7 @@
       "REG-04: Validator Functions REG-04.7: validateDust() throws RangeError for negative value",
       "REG-04: Validator Functions REG-04.7: validateDust() throws TypeError for non-integer string"
     ],
-    "fae26ed352b38e34": [
+    "e1b10cc67b1fee13": [
       "BlockchainConnector.getFeePerKilobyte() does NOT fall back to the relayfee floor on mainnet",
       "BlockchainConnector.getFeePerKilobyte() falls back to 10x the relayfee floor on testnet when estimatesmartfee has no data",
       "BlockchainConnector.getFeePerKilobyte() falls back to the regtest default when relayfee is unavailable",
@@ -2242,10 +2245,10 @@
       "BlockchainConnector.getFeePerKilobyte() rethrows transport errors",
       "BlockchainConnector.getFeePerKilobyte() returns feerate when present (non-regtest)",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate clamps a spiked mainnet estimate to the coin-default ceiling and logs loudly",
-      "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate clamps a spiked testnet estimate using the dogecoin-scale default when NETWORK says dogecoin",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate honours FEE_ESTIMATE_SANITY_CEILING as an override",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate ignores a non-positive or unparseable override and keeps the coin default",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate passes through an estimate under the ceiling unchanged",
+      "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate treats a spiked testnet estimate as unavailable and uses the relayfee fallback",
       "BlockchainConnector.getFeePerKilobyte() sends estimatesmartfee with the blocksNumber param (non-regtest)",
       "BlockchainConnector.getFeePerKilobyte() still prefers the estimate over the relayfee floor on testnet when one exists",
       "BlockchainConnector.getFeePerKilobyte() throws on testnet when neither an estimate nor a relayfee is available",
@@ -2330,11 +2333,12 @@
         "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
-        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
+        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "e1b10cc67b1fee13",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
         "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
         "test/unit/blockchain_connector.test/09_get_block_count.test.js": "8034f6c2b890b23c",
         "test/unit/blockchain_connector.test/10_sanitize_rpc_error_parity.test.js": "2883f0e9d248552e",
+        "test/unit/blockchain_connector.test/13_test_chain_implausible_estimate.test.js": "4d2fee8572bf0a2f",
         "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
@@ -2617,11 +2621,12 @@
         "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
-        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
+        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "e1b10cc67b1fee13",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
         "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
         "test/unit/blockchain_connector.test/09_get_block_count.test.js": "8034f6c2b890b23c",
         "test/unit/blockchain_connector.test/10_sanitize_rpc_error_parity.test.js": "2883f0e9d248552e",
+        "test/unit/blockchain_connector.test/13_test_chain_implausible_estimate.test.js": "4d2fee8572bf0a2f",
         "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",

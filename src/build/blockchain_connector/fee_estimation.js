@@ -135,16 +135,16 @@ async function requestSmartFee(connector, blocksNumber) {
     return response.data;
 }
 
-// Non-regtest estimates must be positive and below the configured ceiling.
-function usableSmartFee(responseData) {
+async function usableSmartFee(connector, responseData) {
     if (!responseData.result || !(Number(responseData.result.feerate) > 0)) return null
     const feerate = Number(responseData.result.feerate);
     const ceiling = feeEstimateSanityCeiling();
     if (feerate > ceiling) {
-        logger.error('estimatesmartfee returned ' + feerate + '/kB on a non-regtest ' +
-            'chain, above the ' + ceiling + '/kB sanity ceiling; clamping to the ceiling. ' +
-            'Set FEE_ESTIMATE_SANITY_CEILING to override.');
-        return ceiling;
+        const mainnet = (await connector.chainName()) === 'main';
+        logger.error('estimatesmartfee returned ' + feerate + '/kB, above the ' + ceiling +
+            '/kB sanity ceiling; ' + (mainnet ? 'clamping to the ceiling' : 'treating it as no estimate') +
+            '. Set FEE_ESTIMATE_SANITY_CEILING to override.');
+        return mainnet ? ceiling : null;
     }
     return feerate;
 }
@@ -242,7 +242,7 @@ module.exports = {
         try {
             if (await this.isRegtest()) return await regtestFee(this)
             const responseData = await requestSmartFee(this, blocksNumber)
-            const feerate = usableSmartFee(responseData)
+            const feerate = await usableSmartFee(this, responseData)
             if (feerate !== null) return feerate
             return await requireNoEstimateFallback(this, responseData)
         } catch (error) {
