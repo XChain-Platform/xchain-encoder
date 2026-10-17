@@ -121,6 +121,23 @@ const METHODS = [
         result: { name: 'utxos', schema: { type: 'array', items: { type: 'object' } } },
     },
     {
+        name: 'get_tx_status',
+        summary: 'Classify a transaction as present in the node mempool, confirmed on chain, or unknown.',
+        description: 'Checks the coin node mempool first, then the UTXO tracker chain index. '
+            + 'A lookup failure is an error and is never reported as an unknown transaction.',
+        params: [{ name: 'txid', required: true, schema: str('transaction id (64-character hexadecimal string)') }],
+        result: {
+            name: 'transaction_status',
+            schema: {
+                type: 'object',
+                properties: {
+                    status: str('transaction location', { enum: ['mempool', 'chain', 'unknown'] }),
+                },
+                required: ['status'],
+            },
+        },
+    },
+    {
         name: 'get_tx_block',
         summary: 'Locate the confirmed block containing a transaction (proxied from xchain-utxo-tracker).',
         description: 'Returns null when the well-formed txid is unknown, unindexed, or was rolled back. '

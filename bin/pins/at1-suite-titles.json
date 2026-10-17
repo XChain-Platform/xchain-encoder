@@ -1071,6 +1071,19 @@
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.27: LIST comma-separated items encoded successfully",
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.27: LIST full addresses auto-select P2SH"
     ],
+    "87462cdada9ac477": [
+      "BlockchainConnector getMempoolEntry returns null for an HTTP 200 RPC -5 mempool miss",
+      "BlockchainConnector getMempoolEntry returns null for an HTTP 500 RPC -5 mempool miss",
+      "BlockchainConnector getMempoolEntry sends getmempoolentry with the txid and returns the entry",
+      "BlockchainConnector getMempoolEntry throws a transport error instead of treating it as absent",
+      "BlockchainConnector getMempoolEntry throws an unexpected RPC error instead of treating it as absent",
+      "get_tx_status transaction location rejects a malformed txid before either lookup",
+      "get_tx_status transaction location returns chain after a mempool miss when get_tx_block finds the txid",
+      "get_tx_status transaction location returns mempool and does not ask the tracker when getmempoolentry finds the txid",
+      "get_tx_status transaction location returns unknown only when both the mempool and chain lookups miss",
+      "get_tx_status transaction location throws rather than returning unknown when the node lookup fails",
+      "get_tx_status transaction location throws rather than returning unknown when the tracker lookup fails"
+    ],
     "880c961e264c0519": [
       "XChainEncoder TAPROOT envelope sign/finalize/extract round trip (commit -> reveal -> estimator accuracy) signs both halves; the signed commit txid matches the pre-built reveal outpoint"
     ],
@@ -2298,13 +2311,14 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 135,
-      "titleCount": 1020,
+      "fileCount": 136,
+      "titleCount": 1031,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
+        "test/unit/api/get_tx_status.test.js": "87462cdada9ac477",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
@@ -2584,13 +2598,14 @@
       }
     },
     "test:unit": {
-      "fileCount": 135,
-      "titleCount": 1020,
+      "fileCount": 136,
+      "titleCount": 1031,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
+        "test/unit/api/get_tx_status.test.js": "87462cdada9ac477",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
