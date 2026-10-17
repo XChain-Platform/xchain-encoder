@@ -142,7 +142,7 @@
     {
       "name": "create_tx",
       "summary": "Build an unsigned PSBT embedding an XChain ACTION payload. The caller signs and broadcasts.",
-      "description": "Encoding auto-selects OP_RETURN for payloads ≤76 bytes, else P2SH (two-transaction flow: call once for the funding tx, then again with p2shHash/p2shHex to build the reveal tx). rawData is decoded as Latin-1 so arbitrary bytes round-trip losslessly. Dogecoin has no segwit: P2WSH and TAPROOT encodings are rejected on DOGE networks. encoding:\"TAPROOT\" (BTC/LTC, explicit only) is a single-call two-transaction flow: the result carries the commit PSBT (psbt), the pre-built reveal PSBT (revealPsbt) and an `envelope` recovery record ({commitTxid, commitVout, commitValue, commitAddress, internalPubkey, tapleafHash, controlBlock, revealFee}) that the wallet must persist durably BEFORE broadcasting the commit; sign both, broadcast commit then reveal. TAPROOT requires compressedPubKey (the envelope internal key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling.",
+      "description": "Encoding auto-selects OP_RETURN for payloads ≤76 bytes, else P2SH (two-transaction flow: call once for the funding tx, then again with p2shHash/p2shHex to build the reveal tx). rawData is decoded as Latin-1 so arbitrary bytes round-trip losslessly. Dogecoin has no segwit: P2WSH and TAPROOT encodings are rejected on DOGE networks. encoding:\"TAPROOT\" (BTC/LTC, explicit only) is a single-call two-transaction flow: the result carries the commit PSBT (psbt), the pre-built reveal PSBT (revealPsbt) and an `envelope` recovery record ({commitTxid, commitVout, commitValue, commitAddress, internalPubkey, tapleafHash, controlBlock, revealFee}) that the wallet must persist durably BEFORE broadcasting the commit; sign both, broadcast commit then reveal. TAPROOT requires compressedPubKey (the envelope internal key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling. An unknown top-level param is refused with -32602 rather than ignored, as unknown options keys are.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -593,6 +593,42 @@
           "items": {
             "type": "object"
           }
+        }
+      }
+    },
+    {
+      "name": "get_tx_status",
+      "summary": "Classify a transaction as present in the node mempool, confirmed on chain, or unknown.",
+      "description": "Checks the coin node mempool first, then the UTXO tracker chain index. A lookup failure is an error and is never reported as an unknown transaction.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "txid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "transaction id (64-character hexadecimal string)"
+          }
+        }
+      ],
+      "result": {
+        "name": "transaction_status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "description": "transaction location",
+              "enum": [
+                "mempool",
+                "chain",
+                "unknown"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
         }
       }
     },

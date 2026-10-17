@@ -17,11 +17,13 @@ const {
     RAW_TX_HEX_RE,
     HEX_64_RE,
     MAX_BROADCAST_TX_HEX_LENGTH,
-    COMPRESSED_PUBKEY_RE
+    COMPRESSED_PUBKEY_RE,
+    VALID_CREATE_TX_PARAMS
 } = require('./constants')
 const {
     validateOptionalBoolean,
-    validatePubkey
+    validatePubkey,
+    truncateForMessage
 } = require('./value_checks')
 const {
     validateDataParam,
@@ -151,13 +153,13 @@ function validateActionFields(params) {
     return { data, rawData, encoding }
 }
 
-function validatePaymentFields(params) {
+function validatePaymentFields(params, context) {
     const pubkey = validatePubkey(params.pubkey)
     const fee = validateFee(params.fee)
     const feePerKb = validateFeePerKb(params.feePerKb)
     const dust = validateDust(params.dust)
     const utxos = validateUtxoArray(params.utxos)
-    const customOutputs = validateCustomOutputs(params.customOutputs)
+    const customOutputs = validateCustomOutputs(params.customOutputs, context && context.paymentOutputFloor)
     const feeQuote = validateFeeQuote(params.feeQuote)
     const { p2shHash, p2shHex } = validateP2shParams(params.p2shHash, params.p2shHex)
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
@@ -241,12 +243,14 @@ function validatePolicyFields(params) {
 /**
  * Validate and coerce every createTransaction parameter in one pass.
  * @param {object} params - the raw JSON-RPC params object for create_tx.
+ * @param {object} [context] - what the serving encoder knows about its coin:
+ *   { paymentOutputFloor }, the relay dust threshold every customOutputs value must reach.
  * @returns {object} the same fields, each coerced to its checked form
  *   (amounts to exact integers, hex strings to lowercase, etc).
  * @throws {TypeError} a field is missing, the wrong type, or the wrong shape.
  * @throws {RangeError} a field is the right type but outside its allowed bound.
  */
-function validateAll(params) {
+function validateAll(params, context) {
     // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
     // params cleared this gate and died 50 lines later on 'pubkey is required',
     // reporting a missing field for what is a shape error. Same guard the
@@ -255,12 +259,19 @@ function validateAll(params) {
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {
         throw new ParamTypeError('Request params must be an object')
     }
+    // Refuse an unknown top-level param before any field check, so a misspelled
+    // money-path setting is named instead of silently falling back to its default.
+    for (const key of Object.keys(params)) {
+        if (!VALID_CREATE_TX_PARAMS.has(key)) {
+            throw new ParamTypeError(`Unknown create_tx param: "${truncateForMessage(key)}". Valid params: ${[...VALID_CREATE_TX_PARAMS].join(', ')}`)
+        }
+    }
 
     const { data, rawData, encoding } = validateActionFields(params)
     const {
         pubkey, fee, feePerKb, dust, utxos, customOutputs, feeQuote,
         p2shHash, p2shHex, compressedPubKey, change
-    } = validatePaymentFields(params)
+    } = validatePaymentFields(params, context)
     validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey)
     const {
         rbf, unconfirmed, attachPrevTx, compress, options

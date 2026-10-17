@@ -39,5 +39,13 @@ describe('Encoder input validator', function () {
             assert.throws(() => v.validateFeePerKb([50]), TypeError);     // array -> 50
             assert.throws(() => v.validateFeePerKb({}), TypeError);       // object -> NaN
         });
+        it('rejects a rate above the money-field ceiling on both the number and string paths', function () {
+            const max = v.MAX_FEE_SATOSHIS;
+            assert.strictEqual(v.validateFeePerKb(max), max);
+            assert.strictEqual(v.validateFeePerKb(String(max)), max);
+            assert.throws(() => v.validateFeePerKb(max + 1), RangeError);
+            assert.throws(() => v.validateFeePerKb(String(max + 1)), RangeError);
+            assert.throws(() => v.validateFeePerKb(1e300), RangeError);
+        });
     });
 });

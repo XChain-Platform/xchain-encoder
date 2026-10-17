@@ -36,6 +36,9 @@ const {
 // sub-100000 fees, so this suite runs on bitcoin-regtest; LTC dust (5460) has
 // its own tests below using a local litecoin-regtest encoder.
 const NETWORK = 'bitcoin-regtest'
+// One input, an OP_RETURN and no change output is 79 stripped bytes with 'SEND|0|X|1|a',
+// under Litecoin Core's 82-byte relay floor, so the Litecoin case carries a longer action.
+const LTC_FOLDING_ACTION = 'SEND|0|XCHAIN|1|abcdef'
 const BTC_DUST = 546
 const LTC_DUST = 5460
 
@@ -183,7 +186,7 @@ describe('Change Address Boundaries', () => {
 
       const result = await ltcEncoder.createTransaction(
         [utxo], ltcAddress, null,
-        'SEND|0|X|1|a', null, fee, false, null, null,
+        LTC_FOLDING_ACTION, null, fee, false, null, null,
         null, null, null, true, 0.00001
       )
 

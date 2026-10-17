@@ -136,4 +136,17 @@ function feeForVsize(vsize, feePerBytes, satoshiUnit){
     return Math.ceil(exact - Math.abs(exact) * 1e-12)
 }
 
-module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, capCallerFeeRate, clampLimitLabel, feeForVsize }
+// The relay surcharge the soft dust rule (SOFT_DUST_FLOOR_BY_COIN) puts on a transaction:
+// the whole soft limit once for every value output under it. A zero-value data carrier
+// is not a payment output and adds nothing; a coin with no soft limit adds nothing.
+function softDustSurchargeFor(outputValues, softDustFloor){
+    if (!(softDustFloor > 0)) return 0
+    let surcharge = 0
+    for (const value of outputValues){
+        const v = BigInt(value)
+        if (v > 0n && v < BigInt(softDustFloor)) surcharge = surcharge + softDustFloor
+    }
+    return surcharge
+}
+
+module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, capCallerFeeRate, clampLimitLabel, feeForVsize, softDustSurchargeFor }

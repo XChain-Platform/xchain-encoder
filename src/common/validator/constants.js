@@ -60,7 +60,8 @@ const MAX_OP_RETURN_COMPILED_LENGTH = OP_RETURN_OUTPUT_SIZE - OP_RETURN_MAGIC_WO
 const ENVELOPE_MAX_PAYLOAD = 390_000
 const MAX_UTXO_COUNT = 500
 const MAX_CUSTOM_OUTPUTS = 100
-// Sanity ceiling on the fee/dust/feeQuote money fields: 21,000 BTC in satoshis.
+// Sanity ceiling on the fee/dust/feeQuote money fields and the feePerKb rate
+// (base units per kB): 21,000 BTC in satoshis.
 // This is deliberately far tighter than the 21M-BTC supply, and the value is the
 // contract, not a rounding of it. Do NOT "repair" it to 2_100_000_000_000_000 to
 // chase a supply figure: that loosens every fee-path ceiling 1000x. Large output
@@ -144,6 +145,14 @@ const MAX_SATOSHI_U64 = 0xffffffffffffffffn
 // signer down the P2WSH path at 2x the cost with no signal, and a misspelled one
 // that silently meant "yes" would be worse.
 const VALID_CREATE_TX_OPTIONS = new Set(['signerSupportsTapscript', 'exactInputs'])
+// The create_tx top-level params, refused when unknown for the options-bag reason
+// above: a misspelled unconfirmed, feePerKb or rbf would silently build under the
+// default policy. Must equal the create_tx params in docs/openrpc.build.js.
+const VALID_CREATE_TX_PARAMS = new Set([
+    'utxos', 'pubkey', 'customOutputs', 'data', 'rawData', 'fee', 'rbf',
+    'encoding', 'change', 'p2shHash', 'p2shHex', 'compressedPubKey',
+    'unconfirmed', 'feePerKb', 'dust', 'feeQuote', 'attachPrevTx', 'compress', 'options'
+])
 
 module.exports = {
     MAX_COMPILED_ACTION_DATA_LENGTH,
@@ -163,5 +172,6 @@ module.exports = {
     VALID_ACTION_NAMES,
     ACTION_ALIASES,
     MAX_SATOSHI_U64,
-    VALID_CREATE_TX_OPTIONS
+    VALID_CREATE_TX_OPTIONS,
+    VALID_CREATE_TX_PARAMS
 }

@@ -19,7 +19,8 @@
 // own estimatesmartfee(1) estimate (default 100×). feePerKb is clamped; an
 // explicit absolute fee is rejected with a RangeError (silently lowering an
 // exact amount would change what the caller signs). The cap degrades
-// gracefully when the node cannot produce an estimate (quiet testnets).
+// gracefully when the node cannot produce an estimate (mainnet with no
+// estimatesmartfee data, or a failed relayfee fallback query).
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')

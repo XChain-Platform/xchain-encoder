@@ -19,6 +19,11 @@ const { sanitizeRpcError, rpcErrorDetail } = require('./rpc_helpers');
 const { chainTierMismatch } = require('./chain_identity');
 const { OperationalError } = require('../errors');
 
+function mempoolEntryAbsent(body) {
+    const error = body && body.error;
+    return Boolean(error && error.code === -5);
+}
+
 module.exports = {
     // Refuse a node whose getblockchaininfo chain is a recognized tier other than the configured network.
     // (Fails open, warning once, when no network was configured or the chain cannot be read; a pass is cached.)
@@ -33,7 +38,10 @@ module.exports = {
             return;
         }
         const reason = chainTierMismatch(this.consensusNetwork, chain);
-        if (reason) throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
+        if (reason) {
+            this.nodeTierMismatch = reason;
+            throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
+        }
         this.nodeTierOk = true;
     },
 
@@ -185,6 +193,41 @@ module.exports = {
             // No RPC body: a transport failure keeps its original error object.
             if (!detail) throw error;
             throw new Error(`Error getting transaction hex: ${message}${detail}`);
+        }
+    },
+
+    // Return null only for the node's normal "not in mempool" answer. A node
+    // or transport failure must remain distinguishable from an absent txid so
+    // callers never classify an outage as a dropped transaction.
+    async getMempoolEntry(txid) {
+        try {
+            const response = await axios.post(this.url, {
+                jsonrpc: '2.0',
+                method: 'getmempoolentry',
+                params: [txid],
+                id: 1,
+            }, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
+                },
+                timeout: RPC_TIMEOUT
+            });
+            const body = response && response.data;
+
+            if (mempoolEntryAbsent(body)) return null;
+            if (body && body.result && typeof body.result === 'object' && !Array.isArray(body.result)) {
+                return body.result;
+            }
+            throw new Error('Error getting mempool entry' + rpcErrorDetail(body));
+        } catch (error) {
+            const body = error && error.response && error.response.data;
+            if (mempoolEntryAbsent(body)) return null;
+            const detail = rpcErrorDetail(body);
+            const message = sanitizeRpcError(error);
+            logger.error(util.format('Error:', message + detail));
+            if (!detail) throw error;
+            throw new Error(`Error getting mempool entry: ${message}${detail}`);
         }
     },
 }

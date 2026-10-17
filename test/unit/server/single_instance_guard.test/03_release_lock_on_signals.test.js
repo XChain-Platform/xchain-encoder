@@ -110,11 +110,11 @@ describe('singleInstanceGuard', function () {
 
 describe('singleInstanceGuard', function () {
     describe('releaseLockOnSignals', function () {
-        // PID 1 is what the container CMD makes this process, and the kernel
-        // drops signals PID 1 has no handler for, so the re-raise above is a
-        // no-op and nothing would ever exit: docker stop would hang out its
-        // full 10s timeout and SIGKILL, which is the one death that cannot
-        // release anything.
+        // The safety-net case: node running as PID 1 with no init in front of
+        // it. The kernel drops signals PID 1 has no handler for, so the
+        // re-raise above is a no-op and nothing would ever exit: docker stop
+        // would hang out its full 10s timeout and SIGKILL, which is the one
+        // death that cannot release anything.
         it('forces exit 143 when a re-raised SIGTERM is ignored (PID 1)', async function () {
             const proc = fakeProcess({ diesOnReraise: false })
             releaseLockOnSignals(() => {}, proc)

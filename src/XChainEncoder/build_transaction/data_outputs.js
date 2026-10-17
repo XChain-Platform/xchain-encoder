@@ -20,11 +20,12 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
-const { parseSatoshiAmount } = require('../../common/validator')
+const { parseSatoshiAmount, assertPaymentOverDust } = require('../../common/validator')
 const { SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
-const { feeForVsize } = require('../fee_policy.js')
+const { feeForVsize, softDustSurchargeFor } = require('../fee_policy.js')
+const { softDustFloorFor, dustRelayFeePerByteFor } = require('../script_amount_helpers.js')
 const { ParamRangeError } = require('../../build/errors')
 
 function prepareDataChunks(build){
@@ -85,6 +86,11 @@ function priceRevealCustomOutputs(build){
     let revealCustomOutputsFee = (revealCustomOutputsBytes > 0 && feePerBytes > 0)
         ? feeForVsize(revealCustomOutputsBytes, feePerBytes, SATOSHI_UNIT)
         : 0
+    // A reveal payment under the coin's soft dust limit also costs the reveal that
+    // limit in relay fee, and only the first leg can carry it.
+    if (revealCustomOutputsBytes > 0){
+        revealCustomOutputsFee = revealCustomOutputsFee + softDustSurchargeFor(customOutputs.map(o => o.value), softDustFloorFor(this.networkKey))
+    }
     Object.assign(build, { isP2shFamily, revealCustomOutputsValue, revealCustomOutputsBytes, revealCustomOutputsFee })
 }
 
@@ -123,7 +129,12 @@ function initEmissionState(build){
     //   revealFee   - the fee that output currently prefunds
     let revealPrefund = null
 
-    let estimatedTxSize = 0
+    // The transaction header: 4 version + 1 input-count varint + 1 output-count
+    // varint + 4 locktime. Every output and input below adds only its own bytes, so
+    // starting at 0 left each single-transaction fee 10 vB short, enough to put a
+    // many-input build at the relay rate under 1 sat/vB. The segwit marker and flag,
+    // and wider count varints, are added by input selection.
+    let estimatedTxSize = 10
     Object.assign(build, { outputSatoshis, voutPsbtIndex, obfuscatedData, p2shRevealHeadroomFunded, phaseLegInputSatoshis,
         p2shTx, envelopeContext, revealPrefund, estimatedTxSize })
 }
@@ -201,11 +212,13 @@ function* emitMultisignChunk(build, nextDataBuffer){
     // below the node's relay dust threshold and the broadcast is
     // rejected with {"code":-26,"message":"dust"}. Never hard-code a
     // flat 546 here: DOGE shares this path at 100000. Size the floor
-    // from the actual output script using Bitcoin Core's dust formula:
-    // (output_bytes + spend_input_bytes) * 3 sat/byte. The spend cost
-    // assumes a 148-byte P2PKH-style input. For standard 1-of-3
-    // compressed-key scripts (105 bytes) this is ~786 sat.
-    let bareMultisigDust = Math.ceil((8 + 1 + multisignScript.output.length + 148) * 3)
+    // from the actual output script using the node's dust formula:
+    // (output_bytes + spend_input_bytes) * the coin's dust relay rate
+    // (3 per byte on Bitcoin, 30 on Litecoin). The spend cost assumes a
+    // 148-byte P2PKH-style input. For standard 1-of-3 compressed-key
+    // scripts (105 bytes) this is 786 sat on Bitcoin and 7860 litoshi on
+    // Litecoin, where the flat 5460 would be relay dust.
+    let bareMultisigDust = Math.ceil((8 + 1 + multisignScript.output.length + 148) * dustRelayFeePerByteFor(this.networkKey))
     let multisigOutputValue = Math.max(finalDust, bareMultisigDust)
 
     psbt.addOutput({
@@ -282,7 +295,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
 }
 
 function emitCustomOutputs(build){
-    let { p2shHash, isP2shFamily, customOutputs, psbt, outputSatoshis, estimatedTxSize } = build
+    let { p2shHash, isP2shFamily, customOutputs, feeQuoteOutput, psbt, outputSatoshis, estimatedTxSize } = build
     // Process custom outputs (e.g., COINPay native coin payment outputs, or
     // the native-fee protocol-fee output). On a P2SH/P2WSH FUNDING tx
     // (p2shHash null) these are NOT emitted here: their value was folded into
@@ -300,11 +313,15 @@ function emitCustomOutputs(build){
             // the effector too (not just the validator boundary), matching the
             // native-fee output which is always positive (guarded at injection
             // above), so this never rejects a legitimate sub-dust FEE_DESTINATION
-            // value. Interim safe rule: reject only value <= 0, not a full
-            // per-network dust floor.
+            // value.
             if (outputValue <= 0) {
                 throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
             }
+            // A caller payment also has to reach the coin's relay dust threshold
+            // (checkPaymentDust refused it already; this holds the effector to the
+            // same rule). The feeQuote protocol-fee output keeps only the positive
+            // rule above: its amount is priced by the hub, not chosen by the caller.
+            if (output !== feeQuoteOutput) assertPaymentOverDust(outputValue, i, this.paymentOutputFloor)
             psbt.addOutput({
                 address: output.address,
                 value:   outputValue
@@ -313,7 +330,10 @@ function emitCustomOutputs(build){
             estimatedTxSize += 43 // Taproot output size estimate (most expensive)
         }
     }
-    Object.assign(build, { outputSatoshis, estimatedTxSize })
+    // Every value output is emitted by now except change, which is never under the
+    // soft limit, so this is the transaction's whole soft-dust relay surcharge.
+    const softDustSurcharge = softDustSurchargeFor(psbt.txOutputs.map(o => o.value), softDustFloorFor(this.networkKey))
+    Object.assign(build, { outputSatoshis, estimatedTxSize, softDustSurcharge })
 }
 
 module.exports = { prepareDataChunks, priceRevealCustomOutputs, initEmissionState, emitDataOutputs, emitCustomOutputs }

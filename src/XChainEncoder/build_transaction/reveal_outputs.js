@@ -25,6 +25,7 @@ const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, Encoding } = require('../con
 const { envelopeTapLeafHash, asSatValue } = require('../script_amount_helpers.js')
 const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, feeForVsize } = require('../fee_policy.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
+const { revealNeedsFloorPad } = require('./script_hash_legs.js')
 
 // The change output, then the P2WSH reveal's stripped-size floor pad.
 function emitChangeAndPad(build){
@@ -61,8 +62,9 @@ function emitChangeAndPad(build){
     // (see the P2WSH funding branch) so the output's value is available.
     let strippedFloor = this.network.minStandardTxNonWitnessSize
     if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
-        let padAddress = change || resolveCallerAddress(pubkey, this.network)
-        if (padAddress && this.strippedTxSize(psbt) < strippedFloor){
+        // Resolved only when the pad is added, so an unused caller identity is never refused here.
+        let padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        if (padAddress){
             psbt.addOutput({
                 address: padAddress,
                 value: this.dustAmount
@@ -73,7 +75,7 @@ function emitChangeAndPad(build){
 
 function* sweepP2shReveal(build){
     let { p2shHash, preparedData, phaseLegInputSatoshis, customOutputs, feePerBytes, estimatedFee, outputSatoshis,
-        change, pubkey, psbt } = build
+        change, pubkey, psbt, softDustSurcharge } = build
     // Sweep the P2SH reveal's leg surplus back to the
     // caller. The funding tx (P2SH funding branch above) tops the first leg
     // up by the reveal's own fee plus one dust precisely so this output can
@@ -87,31 +89,46 @@ function* sweepP2shReveal(build){
     // everything above it returns to `change` or the caller's own address.
     // Legs funded before this fix carry no headroom, leave no surplus at or
     // above dust, and produce a byte-identical (still outputless) reveal.
-    if (p2shHash && preparedData["encoding"] === Encoding.P2SH && phaseLegInputSatoshis > 0n){
+    // A multi-chunk P2WSH reveal is swept the same way: its first leg carries the same
+    // headroom. A single-chunk one was funded a floor pad instead and is not swept.
+    if (p2shHash && sweepsRevealSurplus.call(this, build) && phaseLegInputSatoshis > 0n){
         let revealEmittedOutputBytes = 43 // change output (worst case), matching the reserve above
         if (customOutputs && Array.isArray(customOutputs)){
             for (let i = 0; i < customOutputs.length; i++){
                 revealEmittedOutputBytes = revealEmittedOutputBytes + TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
             }
         }
-        const revealSizeForFee = this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
+        const revealSizeForFee = preparedData["encoding"] === Encoding.P2SH
+            ? this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
+            : this.estimateP2wshRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
         let revealFeeKept = feeForVsize(revealSizeForFee, feePerBytes, SATOSHI_UNIT)
         if (revealFeeKept < estimatedFee){
             revealFeeKept = estimatedFee
         }
+        // The soft-dust relay surcharge for the reveal's own sub-limit payments is fee too.
+        revealFeeKept = revealFeeKept + (softDustSurcharge || 0)
 
         revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
         let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
-        let sweepAddress = change || resolveCallerAddress(pubkey, this.network)
-        // The sweep is an authored output: below the relay floor the surplus stays as fee.
-        if (sweepAddress && revealSurplus >= BigInt(this.outputFloor)){
+        // The sweep is an authored output: below the relay floor the surplus stays as fee,
+        // and the caller identity is resolved only when the sweep is added.
+        let sweepAddress = revealSurplus >= BigInt(this.outputFloor) ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        if (sweepAddress){
             psbt.addOutput({
                 address: sweepAddress,
                 value: asSatValue(revealSurplus)
             })
         }
     }
+}
+
+// Which chunk reveals end with a surplus sweep back to the caller: those whose first
+// funding leg was topped up with reveal headroom (see topUpFirstLeg).
+function sweepsRevealSurplus(build){
+    const { preparedData } = build
+    const encoding = preparedData["encoding"]
+    return encoding === Encoding.P2SH || (encoding === Encoding.P2WSH && !revealNeedsFloorPad.call(this, preparedData))
 }
 
 function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
@@ -126,11 +143,12 @@ function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
     // leaving the package exactly as under-target as it was.
     //
     // The commit's fee is read from the node's mempool rather than
-    // re-derived: the commit is a broadcast transaction by now, its ACTUAL
-    // size and fee are what the miner sees, and this also picks up any
-    // unconfirmed ancestors it inherited. An already-confirmed commit
-    // reports an empty package and asks for nothing, which is correct - a
-    // confirmed parent is no longer part of anyone's package. Any failure
+    // re-derived: a broadcast commit's ACTUAL size and fee are what the
+    // miner sees, and this also picks up any unconfirmed ancestors it
+    // inherited. A commit the node does not hold reports an empty package
+    // and asks for nothing: one already confirmed is in no package, and one
+    // not yet broadcast (the SDK builds its reveal before broadcasting the
+    // commit, so it can refuse first) gets no uplift. Any failure
     // (no method, unreachable node, RPC error) leaves the fee exactly as
     // it was; the reveal is then priced per-transaction, as before.
     const revealUpliftBound = maxCpfpUpliftSat()

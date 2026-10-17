@@ -24,6 +24,14 @@ const { upstreamErrorMessage } = require('../../common/error_sanitize')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { isRemoteProfile, throwIfRefused, trackerUnreachableError } = require('../trackerless_profile.js')
 
+// Whether a candidate is still in the mempool. A missing confirmations field counts
+// as 0, the default validateUtxoEntry writes on the API and tracker paths; a library
+// caller skips that validator, and its UTXO objects are read here, never rewritten.
+// Loose == 0 keeps the validator's coercion ('0' and 0 alike).
+function isUnconfirmedUtxo(utxo){
+    return utxo.confirmations == null || utxo.confirmations == 0
+}
+
 function initInputState(build){
     let { replacebyfee, p2shHash } = build
     let psbt = null
@@ -102,9 +110,11 @@ function* gatherUtxos(build){
 
 function* fetchTrackerUtxos(build){
     let { pubkey } = build
+    // Resolved outside the try so an unresolvable caller identity stays a -32602, not a tracker fault.
+    const callerAddress = resolveCallerAddress(pubkey, this.network)
     let fetched
     try {
-        fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(resolveCallerAddress(pubkey, this.network)))
+        fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(callerAddress))
     } catch (err) {
         if (isRemoteProfile(this.trackerProfile)){
             throw err.operational ? err : trackerUnreachableError(err)
@@ -190,7 +200,7 @@ function refuseShrunkExactInputs(build){
     // hand back a child that descends from nothing and still does not mine.
     if (exactInputs){
         if (!unconfirmed){
-            const mempoolInput = utxos.find((u) => u.confirmations == 0)
+            const mempoolInput = utxos.find(isUnconfirmedUtxo)
             if (mempoolInput){
                 throw new ParamTypeError(
                     `options.exactInputs names unconfirmed utxo ${mempoolInput.txid}:${mempoolInput.vout}, ` +
@@ -234,7 +244,7 @@ function filterAndOrderUtxos(build){
     for (let utxoReadIndex = 0; utxoReadIndex < utxos.length; utxoReadIndex++){
         const nextUtxo = utxos[utxoReadIndex]
         // if the tx is in the mempool, drop it if unconfirmed is false
-        if (!unconfirmed && (nextUtxo.confirmations == 0)) continue
+        if (!unconfirmed && isUnconfirmedUtxo(nextUtxo)) continue
         // Loose-equality txid/vout matching became string-key matching: both sides
         // are concatenated through the same String() coercion, so a numeric 0 and a
         // string '0' vout still collide exactly as `==` made them collide.
@@ -261,8 +271,20 @@ function filterAndOrderUtxos(build){
     // lands at ins[0] - and on the OP_RETURN/MULTISIGN path that outpoint is the
     // obfuscation key, which coin-control callers pick deliberately.
     if (!exactInputs){
-        utxos.sort((a,b)=> a.value < b.value ? 1 : a.value > b.value ? -1 : 0)
+        utxos.sort(compareCandidates)
     }
 }
 
-module.exports = { initInputState, checkExactInputs, gatherUtxos, refuseShrunkExactInputs, filterAndOrderUtxos }
+// Value descending, then txid and vout ascending. The tie-break makes the input set
+// and its order a function of the UTXO set alone, so the same set listed in another
+// order (a tracker page, a wallet cache) builds the same transaction.
+function compareCandidates(a, b){
+    if (a.value < b.value) return 1
+    if (a.value > b.value) return -1
+    const txidA = String(a.txid).toLowerCase()
+    const txidB = String(b.txid).toLowerCase()
+    if (txidA !== txidB) return txidA < txidB ? -1 : 1
+    return Number(a.vout) - Number(b.vout)
+}
+
+module.exports = { initInputState, checkExactInputs, gatherUtxos, refuseShrunkExactInputs, filterAndOrderUtxos, isUnconfirmedUtxo }

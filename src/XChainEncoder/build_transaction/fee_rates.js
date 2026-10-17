@@ -44,7 +44,7 @@ function* resolveRelayFeeRate(build){
     const info = yield this.connector.getNetworkInfo()
     const relayFeePerKb = Number(info && info.relayfee)
     // Refuse a node that reports no usable relay floor. A plain Error, not a
-    // RangeError: this is the node's fault, so the API answers retryable -32603.
+    // RangeError: the node is at fault, not the input, so the API answers -32603.
     if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0){
         throw new Error('Node did not report a positive relayfee; transaction fee safety cannot be verified')
     }
@@ -73,11 +73,11 @@ function* useCallerFeeRate(build){
     try {
         nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1))/1000
     } catch (err) {
-        // The node cannot produce an estimate (e.g. a quiet testnet,
-        // exactly the case where callers must pass feePerKb to begin
-        // with). The relative cap has no anchor; fall back to the
-        // relayfee anchor below and the absolute MAX_FEE_RATE_KB cap,
-        // if configured.
+        // No estimate: mainnet with an empty or failed estimatesmartfee,
+        // or any chain whose connector relayfee fallback fails (a test
+        // chain without an estimate gets relayfee x multiplier instead).
+        // The relative cap has no anchor; fall back to the relayfee
+        // anchor below and the absolute MAX_FEE_RATE_KB cap, if configured.
         logger.warn(util.format('Relative fee cap skipped: node fee estimate unavailable:', err.message))
     }
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
@@ -110,20 +110,28 @@ function* useNodeFeeRate(build){
         }
         feePerBytes = suggestedCap
     }
+    // Never price a build under the node's own relay floor. An estimate can sit
+    // under relayfee (a stale or custom estimator, a misconfigured ceiling), and a
+    // caller who left the rate to the node has nothing to fix, so lift the rate here,
+    // before selection, rather than refuse the build afterwards.
+    const relayFeePerBytes = relayFeePerKb / 1000
+    if (feePerBytes < relayFeePerBytes) feePerBytes = relayFeePerBytes
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
 }
 
 function* anchorRelayFeeRate(build){
     let { nodeFeePerBytes, relayFeePerKb } = build
-    // Relative-cap anchor fallback. On non-regtest chains getFeePerKilobyte
-    // THROWS when estimatesmartfee has no data (fresh node, warming mempool,
-    // low activity), so the caller-supplied feePerKb path above leaves
-    // nodeFeePerBytes null. Without an anchor the relative cap can't bound
-    // feePerKb, and if no absolute MAX_FEE_RATE_KB is set either, the whole
-    // fee-drain guard is OFF exactly when a caller supplies its own rate: a
-    // hostile feePerKb then drains every input into miner fee. Fall back to
-    // the node's min-relay fee (always available, coin-correct) as the cap
-    // anchor, matching the regtest path in getFeePerKilobyte. This anchors
+    // Relative-cap anchor fallback. getFeePerKilobyte THROWS on mainnet when
+    // estimatesmartfee has no data (fresh node, warming mempool, low
+    // activity) or errors, and on any chain when the connector's relayfee
+    // fallback fails, so the caller-supplied feePerKb path above leaves
+    // nodeFeePerBytes null; test chains normally get relayfee x multiplier
+    // (bare relayfee on regtest) instead. Without an anchor the relative cap
+    // can't bound feePerKb, and if no absolute MAX_FEE_RATE_KB is set either,
+    // the whole fee-drain guard is OFF exactly when a caller supplies its own
+    // rate: a hostile feePerKb then drains every input into miner fee. Fall
+    // back to the node's min-relay fee (always available, coin-correct) as the
+    // cap anchor, matching the regtest path in getFeePerKilobyte. This anchors
     // ONLY the ceiling, never the fee actually charged; a legitimate rate on
     // an empty mempool sits well under relayfee x multiplier anyway.
     // Deliberately NOT gated on maxFeeRateMultiplier: the absolute burn

@@ -123,8 +123,12 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       const changeWithCustom = resultWithCustom.psbt.txOutputs
         .reduce((max, o) => o.value > max ? o.value : max, 0)
 
-      assert.strictEqual(changeNoCustom - changeWithCustom, 500000,
-        'change should decrease by exactly the custom output value')
+      // On Dogecoin a 500000-koinu payment sits under the 0.01 DOGE soft dust limit, so
+      // its fee carries the whole 1000000 limit on top of the explicit 10000 (1010000),
+      // where the build without it pays the 100000 dust floor. Change drops by the
+      // payment plus that 910000 fee difference.
+      assert.strictEqual(changeNoCustom - changeWithCustom, 500000 + (10000 + 1000000 - 100000),
+        'change should decrease by the custom output value plus its soft-dust surcharge')
     })
   })
 })

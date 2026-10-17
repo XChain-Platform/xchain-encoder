@@ -65,6 +65,20 @@ const BTC_REGTEST_ADDR = bitcoin.payments.p2pkh({
 
 const RAW_TX_HEX = buildRawP2pkhTxHex(100000000)
 
+// The real funding transaction for `data`, cut down to its first output: the first
+// chunk leg matches the reveal's first script, and every later chunk has no output.
+async function fundingWithFirstLegOnly (encoder, utxo, address, data, encoding) {
+  const funding = await encoder.createTransaction(
+    [utxo], address, null, data, null, 10000, false, encoding, address,
+    null, null, null, true, 0.00001)
+  const full = funding.psbt.__CACHE.__TX
+  const cut = new bitcoin.Transaction()
+  cut.version = full.version
+  for (const input of full.ins) cut.addInput(input.hash, input.index, input.sequence)
+  cut.addOutput(full.outs[0].script, full.outs[0].value)
+  return cut
+}
+
 function makeEncoder (network) {
   const net = network || 'dogecoin-regtest'
   const encoder = new XChainEncoder(
@@ -121,20 +135,12 @@ describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
     const encoder = makeEncoder('bitcoin-regtest')
     const utxo = makeSegwitUtxo(TXID_A, 0, 100000000)
 
-    // Build a minimal tx with just ONE output but request it for two chunks
-    // (The data will be split into 2 chunks but the funding tx only has 1 output)
-    const smallTx = new bitcoin.Transaction()
-    smallTx.addInput(Buffer.alloc(32, 0x11), 0)
-    const script = bitcoin.payments.p2pkh({
-      pubkey: pubkeyBuf, network: bitcoin.networks.regtest
-    }).output
-    smallTx.addOutput(script, 10000) // only 1 P2WSH-sized output at index 0
+    // Data that will produce 2 chunks: each P2WSH chunk holds 476 bytes, so 480
+    // forces 2. The funding tx keeps only its first leg, so chunk 1 has no output.
+    const bigData = 'x'.repeat(480)
+    const smallTx = await fundingWithFirstLegOnly(encoder, utxo, BTC_REGTEST_ADDR, bigData, 'P2WSH')
     const smallTxHex = smallTx.toHex()
     const smallTxId = smallTx.getId()
-
-    // Data that will produce 2 chunks (> 76 bytes for OP_RETURN, so P2WSH means 2 chunks)
-    // Each P2WSH chunk uses 476 bytes of data; let's use data > 476 to force 2 chunks
-    const bigData = 'x'.repeat(480)
 
     await assert.rejects(
       () => encoder.createTransaction(
@@ -154,18 +160,12 @@ describe('XChainEncoder.createTransaction(): P2WSH tx2 (spending)', () => {
     const encoder = makeEncoder() // dogecoin-regtest (P2SH, no segwit)
     const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
 
-    // Funding tx with a SINGLE output, but a payload that splits into >=2 chunks.
-    const smallTx = new bitcoin.Transaction()
-    smallTx.addInput(Buffer.alloc(32, 0x11), 0)
-    const script = bitcoin.payments.p2pkh({
-      pubkey: pubkeyBuf, network: bitcoin.networks.regtest
-    }).output
-    smallTx.addOutput(script, 10000) // only 1 P2SH-sized output at index 0
+    // >476 compiled bytes forces 2 P2SH chunks, but the funding tx keeps only its first leg.
+    // The second chunk's index is past the funding outputs, so the bounds check refuses it.
+    const bigData = 'x'.repeat(480)
+    const smallTx = await fundingWithFirstLegOnly(encoder, utxo, TEST_ADDRESS, bigData, 'P2SH')
     const smallTxHex = smallTx.toHex()
     const smallTxId = smallTx.getId()
-
-    // >476 compiled bytes forces 2 P2SH chunks, but the funding tx has 1 output.
-    const bigData = 'x'.repeat(480)
 
     await assert.rejects(
       () => encoder.createTransaction(

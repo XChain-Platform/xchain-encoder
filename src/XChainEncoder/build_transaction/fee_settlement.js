@@ -26,7 +26,9 @@ const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, feeForVsize } = require('../
 
 // The caller-fee ceilings: the rate cap, then the absolute burn backstop.
 function refuseExcessiveFee(build){
-    let { fee, capFeePerBytes, estimatedTxSize, estimatedFee, nodeFeePerBytes, feePerBytes } = build
+    let { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, feePerBytes } = build
+    // The rate ceilings judge the caller's own fee; the soft-dust surcharge is policy.
+    const estimatedFee = build.estimatedFee - (build.softDustSurcharge || 0)
     // Reject a caller-supplied absolute fee whose effective rate exceeds the
     // fee-rate cap for a transaction of this estimated size. Unlike feePerKb
     // (clamped above), an explicit fee is an exact amount the caller believes
@@ -71,17 +73,29 @@ function refuseInsufficientRelayFee(build){
     const { fee, feePerKb, feePerBytes, p2shHash, estimatedTxSize, estimatedFee, relayFeePerKb } = build
     const hasExplicitFee = fee != null && fee !== false
     const hasCallerRate = feePerKb != null && feePerKb !== false
-    if (!hasExplicitFee && !hasCallerRate) return
+    // The node adds the soft-dust surcharge to its relay minimum, and every fee here
+    // already carries it on top, so the size-based check reads the fee without it.
+    const surcharge = build.softDustSurcharge || 0
 
-    const suppliedFee = hasExplicitFee
-        ? estimatedFee
+    const rateFee = hasExplicitFee
+        ? estimatedFee - surcharge
         : p2shHash
             ? feeForVsize(estimatedTxSize, feePerBytes, SATOSHI_UNIT)
-            : estimatedFee
+            : estimatedFee - surcharge
+    // A caller's fee or rate is judged as supplied. The node path is judged on the fee
+    // it will charge, which floorEstimatedFee never lets fall under the dust threshold.
+    const isNodePath = !hasExplicitFee && !hasCallerRate
+    const suppliedFee = isNodePath ? Math.max(rateFee, this.dustAmount) : rateFee
     const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
     const minimumRelayFee = Math.ceil(estimatedTxSize * relayFeeBaseUnitsPerKb / 1000)
     if (suppliedFee >= minimumRelayFee) return
 
+    // The node-estimate path: resolveFeeRates lifted the rate to the relay floor, so a
+    // fee under it here is an estimator or operator-cap fault, not a caller error. A
+    // plain Error (API -32603) refuses the unrelayable build without blaming the params.
+    if (isNodePath){
+        throw new Error(`fee ${suppliedFee} from the node fee estimate is below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
+    }
     if (hasExplicitFee){
         throw new ParamRangeError(`fee ${suppliedFee} is below the node relay minimum ${minimumRelayFee} base units for a ~${estimatedTxSize}-byte transaction`)
     }
@@ -286,7 +300,7 @@ if (allowed > 0){
 }
 
 function computeChange(build){
-    let { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change } = build
+    let { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change, requestedFee } = build
     // Validate the fee BEFORE the BigInt conversion below: BigInt(estimatedFee)
     // throws an opaque error on a NaN/Infinity fee, where this check names the cause.
     // A plain Error (API -32603): the validator already bounds every caller fee
@@ -320,10 +334,15 @@ function computeChange(build){
             ? `; ${reservedCandidates} candidate input(s) are reserved by a transaction built in the last ` +
               `${Math.round(RESERVATION_TTL_MS / 60000)} minutes; broadcast that transaction or wait for the reservation to lapse`
             : ''
+        // The fee named is the one this build charges. When the floor raised an
+        // explicit fee, say so: the caller asked for less and should see why more is required.
+        const raised = (requestedFee != null && requestedFee !== estimatedFee)
+        const raisedNote = raised ? `, raised from the requested fee ${requestedFee}` : ''
         throw new OperationalError(
             'INSUFFICIENT_FUNDS',
-            `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee})${held}`,
-            { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee, reservedCandidates }
+            `insufficient funds: selected inputs total ${inputSatoshis} but ${required} is required (outputs ${outputSatoshis} + fee ${estimatedFee}${raisedNote})${held}`,
+            { required: jsonSafeSat(required), available: jsonSafeSat(inputSatoshis), outputs: jsonSafeSat(outputSatoshis), fee: estimatedFee,
+                ...(raised ? { requestedFee } : {}), reservedCandidates }
         )
     }
 

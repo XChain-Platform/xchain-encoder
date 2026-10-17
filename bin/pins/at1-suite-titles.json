@@ -684,6 +684,9 @@
       "Encoder input validator validateDataParam rejects a rawData code point above U+00FF (latin-1 would truncate it)",
       "Encoder input validator validateDataParam still accepts every value the wire encodings carry losslessly"
     ],
+    "4d2fee8572bf0a2f": [
+      "BlockchainConnector.getFeePerKilobyte() test-chain implausible estimate uses the no-estimate fallback instead of clamping an estimate above the sanity ceiling"
+    ],
     "4dd0d30bb214ff45": [
       "two-phase reveal package prefund @regression @tier1 MAX_CPFP_UPLIFT_SAT=0 turns the prefund off entirely",
       "two-phase reveal package prefund @regression @tier1 adds nothing when the commit already pays the target rate on its own bytes",
@@ -1071,6 +1074,19 @@
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.27: LIST comma-separated items encoded successfully",
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.27: LIST full addresses auto-select P2SH"
     ],
+    "87462cdada9ac477": [
+      "BlockchainConnector getMempoolEntry returns null for an HTTP 200 RPC -5 mempool miss",
+      "BlockchainConnector getMempoolEntry returns null for an HTTP 500 RPC -5 mempool miss",
+      "BlockchainConnector getMempoolEntry sends getmempoolentry with the txid and returns the entry",
+      "BlockchainConnector getMempoolEntry throws a transport error instead of treating it as absent",
+      "BlockchainConnector getMempoolEntry throws an unexpected RPC error instead of treating it as absent",
+      "get_tx_status transaction location rejects a malformed txid before either lookup",
+      "get_tx_status transaction location returns chain after a mempool miss when get_tx_block finds the txid",
+      "get_tx_status transaction location returns mempool and does not ask the tracker when getmempoolentry finds the txid",
+      "get_tx_status transaction location returns unknown only when both the mempool and chain lookups miss",
+      "get_tx_status transaction location throws rather than returning unknown when the node lookup fails",
+      "get_tx_status transaction location throws rather than returning unknown when the tracker lookup fails"
+    ],
     "880c961e264c0519": [
       "XChainEncoder TAPROOT envelope sign/finalize/extract round trip (commit -> reveal -> estimator accuracy) signs both halves; the signed commit txid matches the pre-built reveal outpoint"
     ],
@@ -1396,7 +1412,7 @@
       "E2E-6: Multi-Chain Validation E2E-6.3: litecoin-regtest OP_RETURN creates valid OP_RETURN PSBT with correct dust threshold",
       "E2E-6: Multi-Chain Validation E2E-6.7: Bitcoin P2WSH creates P2WSH witness output on bitcoin-regtest",
       "E2E-6: Multi-Chain Validation E2E-6.8: Bitcoin MULTISIGN (dust=546) multisig output at 546 sats",
-      "E2E-6: Multi-Chain Validation E2E-6.9: Litecoin MULTISIGN (dust=5460) multisig output at 5460 sats",
+      "E2E-6: Multi-Chain Validation E2E-6.9: Litecoin MULTISIGN (dust=5460) multisig output at 7860 sats",
       "E2E-6: Multi-Chain Validation Fee floor uses chain-specific dust Litecoin fee floor is 5460, not 546",
       "E2E-6: Multi-Chain Validation bitcoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
       "E2E-6: Multi-Chain Validation dogecoin-regtest P2SH creates P2SH with output value >= chain dust threshold",
@@ -2216,7 +2232,7 @@
       "REG-04: Validator Functions REG-04.7: validateDust() throws RangeError for negative value",
       "REG-04: Validator Functions REG-04.7: validateDust() throws TypeError for non-integer string"
     ],
-    "fae26ed352b38e34": [
+    "e1b10cc67b1fee13": [
       "BlockchainConnector.getFeePerKilobyte() does NOT fall back to the relayfee floor on mainnet",
       "BlockchainConnector.getFeePerKilobyte() falls back to 10x the relayfee floor on testnet when estimatesmartfee has no data",
       "BlockchainConnector.getFeePerKilobyte() falls back to the regtest default when relayfee is unavailable",
@@ -2229,10 +2245,10 @@
       "BlockchainConnector.getFeePerKilobyte() rethrows transport errors",
       "BlockchainConnector.getFeePerKilobyte() returns feerate when present (non-regtest)",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate clamps a spiked mainnet estimate to the coin-default ceiling and logs loudly",
-      "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate clamps a spiked testnet estimate using the dogecoin-scale default when NETWORK says dogecoin",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate honours FEE_ESTIMATE_SANITY_CEILING as an override",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate ignores a non-positive or unparseable override and keeps the coin default",
       "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate passes through an estimate under the ceiling unchanged",
+      "BlockchainConnector.getFeePerKilobyte() sanity ceiling on the raw non-regtest estimate treats a spiked testnet estimate as unavailable and uses the relayfee fallback",
       "BlockchainConnector.getFeePerKilobyte() sends estimatesmartfee with the blocksNumber param (non-regtest)",
       "BlockchainConnector.getFeePerKilobyte() still prefers the estimate over the relayfee floor on testnet when one exists",
       "BlockchainConnector.getFeePerKilobyte() throws on testnet when neither an estimate nor a relayfee is available",
@@ -2298,13 +2314,14 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 135,
-      "titleCount": 1020,
+      "fileCount": 136,
+      "titleCount": 1031,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
+        "test/unit/api/get_tx_status.test.js": "87462cdada9ac477",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
@@ -2316,11 +2333,12 @@
         "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
-        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
+        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "e1b10cc67b1fee13",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
         "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
         "test/unit/blockchain_connector.test/09_get_block_count.test.js": "8034f6c2b890b23c",
         "test/unit/blockchain_connector.test/10_sanitize_rpc_error_parity.test.js": "2883f0e9d248552e",
+        "test/unit/blockchain_connector.test/13_test_chain_implausible_estimate.test.js": "4d2fee8572bf0a2f",
         "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
@@ -2584,13 +2602,14 @@
       }
     },
     "test:unit": {
-      "fileCount": 135,
-      "titleCount": 1020,
+      "fileCount": 136,
+      "titleCount": 1031,
       "files": {
         "test/unit/adapters/evm_adapter.test.js": "2c605d4ec40ce8e5",
         "test/unit/api/broadcast_tx_logging.test.js": "2f6d87eaf711d8a0",
         "test/unit/api/cors_preflight.test.js": "78e833e8f04d5380",
         "test/unit/api/encoder_stress_sweep.test.js": "358184203c4ccfba",
+        "test/unit/api/get_tx_status.test.js": "87462cdada9ac477",
         "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
@@ -2602,11 +2621,12 @@
         "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "e65ba2021038db9f",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
-        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "fae26ed352b38e34",
+        "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "e1b10cc67b1fee13",
         "test/unit/blockchain_connector.test/07_rpc_credential_log_sanitization.test.js": "72c9c5f2d2749796",
         "test/unit/blockchain_connector.test/08_fee_estimate_rpc_error_detail.test.js": "2842761e884c6f3b",
         "test/unit/blockchain_connector.test/09_get_block_count.test.js": "8034f6c2b890b23c",
         "test/unit/blockchain_connector.test/10_sanitize_rpc_error_parity.test.js": "2883f0e9d248552e",
+        "test/unit/blockchain_connector.test/13_test_chain_implausible_estimate.test.js": "4d2fee8572bf0a2f",
         "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "68868c37d76d5eb2",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",

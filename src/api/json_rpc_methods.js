@@ -28,6 +28,7 @@ const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
+const config = require('../common/config')
 const logger = getLogger();
 
 // Each builder closes one group of methods over the encoder (and, for fees,
@@ -129,7 +130,7 @@ return {
                 const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
                 let perVbyte = Math.max(1, Math.round(Number(feerate) * 100000));         // -> base-unit/byte
                 if (capPerVbyte != null && perVbyte > capPerVbyte) perVbyte = capPerVbyte;
-                out[tier] = perVbyte;
+                out[tier] = Math.max(perVbyte, ...Object.values(out));
             }
         } catch (err) {
             logger.error(util.format('Fee estimation error:', err))
@@ -179,13 +180,14 @@ return {
     async create_tx(rawParams) {
         let params
         try {
-            params = validator.validateAll(rawParams)
+            params = validator.validateAll(rawParams, { paymentOutputFloor: encoder.paymentOutputFloor }) // sub-dust payment: -32602
         } catch (err) {
             const e = new Error(err.message)
             e.code = -32602
             throw e
         }
 
+        config.assertNotMainnetPrelaunch(encoder, params)
         await assertNodeTierOrRpcError(encoder)
         let psbt
         try {
@@ -196,7 +198,8 @@ return {
                 params.compressedPubKey, params.unconfirmed, params.feePerKb, params.dust,
                 params.feeQuote, params.attachPrevTx, params.compress, params.options)
         } catch (err) {
-            // Node and tracker faults inside the build throw plain Error, so they stay retryable
+            // Map the fault: a tracker refusal is operational (-32010), a plain node Error a
+            // generic -32603; the SDK retries neither body error, so any retry is the caller's
             throw toRpcError(err)
         }
 
@@ -210,7 +213,6 @@ return {
     },
 }
 }
-
 
 function buildCancelMethods({ encoder }) {
 return {
@@ -238,7 +240,6 @@ return {
     },
 }
 }
-
 
 function buildReleaseMethods({ encoder }) {
 return {
@@ -328,26 +329,26 @@ return {
     },
 }
 }
-
-// Tracker-facing lookups; upstream error text is sanitized before it leaves.
+function validateLookupTxid(rawParams) { const txid = rawParams && rawParams.txid
+    if (typeof txid === 'string' && /^[0-9a-fA-F]{64}$/.test(txid)) return txid
+    throw Object.assign(new Error('txid must be a 64-hex-character string'), { code: -32602 })
+}
+function lookupFailure(err, name) {
+    logger.error(util.format(`${name} lookup error:`, err)); return Object.assign(new Error(upstreamErrorMessage(err, `${name} lookup failed`)), { code: -32603 })
+}
+// Transaction and UTXO lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
 return {
-    async get_tx_block(rawParams) {
-        const txid = rawParams && rawParams.txid
-        if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
-            const e = new Error('txid must be a 64-hex-character string')
-            e.code = -32602
-            throw e
-        }
-
+    async get_tx_status(rawParams) {
+        const txid = validateLookupTxid(rawParams)
         try {
-            return await encoder.utxoTrackerConnector.getTxBlock(txid)
-        } catch (err) {
-            logger.error(util.format('Transaction block lookup error:', err))
-            const e = new Error(upstreamErrorMessage(err, 'Transaction block lookup failed'))
-            e.code = -32603
-            throw e
-        }
+            if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
+            return { status: await encoder.utxoTrackerConnector.getTxBlock(txid) === null ? 'unknown' : 'chain' }
+        } catch (err) { throw lookupFailure(err, 'Transaction status') }
+    },
+    async get_tx_block(rawParams) {
+        const txid = validateLookupTxid(rawParams)
+        try { return await encoder.utxoTrackerConnector.getTxBlock(txid) } catch (err) { throw lookupFailure(err, 'Transaction block') }
     },
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
@@ -383,7 +384,9 @@ return {
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
 function createJsonRpcController({ encoder, NETWORK }) {
+    // No prototype, so the router's `in` check cannot dispatch an inherited name (constructor, toString).
     return Object.assign(
+        Object.create(null),
         buildReadinessMethods({ encoder }),
         buildFeeMethods({ encoder, NETWORK }),
         buildTransactionMethods({ encoder }),

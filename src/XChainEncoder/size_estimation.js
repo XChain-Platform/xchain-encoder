@@ -162,7 +162,10 @@ module.exports = {
             + extraOutputsBytes
     },
 
-    estimateSpendingP2wshTx(witnessData){
+    // padOutputBytes is the serialized size of the pad output the reveal adds when it
+    // sits under the stripped-size floor; the funding side passes the change address's
+    // size, and the default is the largest standard output.
+    estimateSpendingP2wshTx(witnessData, padOutputBytes = 43){
         // Per-chunk embedded value sized to cover the P2WSH reveal tx's worst
         // case at 1 sat/vbyte. A native-segwit input keeps its scriptSig empty
         // and carries the reveal payload (sig + compressed pubkey + witness
@@ -195,15 +198,16 @@ module.exports = {
                 Buffer.from("p2wsh",'utf8')
             ]))
 
-        // A single-chunk reveal's stripped size (71 B) is below Litecoin's
-        // tx-size-small floor, so the reveal builder pads it up to the chain's
-        // minStandardTxNonWitnessSize with one extra output. Reflect that padded
-        // stripped size here so the fee estimate covers the larger reveal. (In
-        // normal fee regimes the dust floor dominates the embedded value, but
-        // this keeps the estimate honest on high-fee chains.)
+        // A single-chunk reveal's stripped size (71 B) is below the chain's
+        // tx-size-small floor, so the reveal builder adds one pad output to clear
+        // minStandardTxNonWitnessSize. That output is a whole output, not just the
+        // bytes up to the floor, so charge its full size, then keep the floor as a
+        // lower bound, as the P2SH and envelope reveal estimates price their
+        // outputs. Flooring to the threshold alone left a 34-byte pad unpriced and
+        // the reveal ~10% under the requested rate on high-fee chains.
         let strippedFloor = this.network.minStandardTxNonWitnessSize
         if (strippedFloor && nonWitnessBytes < strippedFloor){
-            nonWitnessBytes = strippedFloor
+            nonWitnessBytes = Math.max(nonWitnessBytes + padOutputBytes, strippedFloor)
         }
 
         // vsize = ceil(total weight / 4) = nonWitnessBytes + ceil(witnessBytes/4)
@@ -212,5 +216,29 @@ module.exports = {
             + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
 
         return sizeEstimated
+    },
+
+    // Whole-tx vsize of the P2WSH reveal: every chunk input with its witness (sig,
+    // pubkey, witness script), the OP_RETURN marker, plus extraOutputsBytes for the
+    // value outputs it emits. The P2WSH twin of estimateP2shRevealTx, and both phases
+    // price the reveal with it for the same reason given there.
+    estimateP2wshRevealTx(dataBufferArray, extraOutputsBytes = 0){
+        let witnessBytes = 2 // marker + flag
+        for (const witnessData of dataBufferArray){
+            witnessBytes = witnessBytes + 1 + (1 + 72) + (1 + 33)
+                + compactSizeLen(witnessData.length) + witnessData.length
+        }
+        let nonWitnessBytes = 10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
+            + (36 + 1 + 4) * dataBufferArray.length
+            + TxSizeEstimator.estimateOpReturnOutput(Buffer.concat([
+                Buffer.from(MAGIC_WORD,'utf8'),
+                Buffer.from("p2wsh",'utf8')
+            ]))
+            + extraOutputsBytes
+        // A reveal under the chain's stripped-size floor is padded up to it.
+        const strippedFloor = this.network.minStandardTxNonWitnessSize
+        if (strippedFloor && nonWitnessBytes < strippedFloor) nonWitnessBytes = strippedFloor
+        return nonWitnessBytes + Math.ceil(witnessBytes / 4)
+            + 8 // safety margin for DER-sig length jitter, as in the per-chunk estimate
     },
 }

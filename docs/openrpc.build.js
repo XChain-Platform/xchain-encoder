@@ -51,7 +51,8 @@ const METHODS = [
             + 'record ({commitTxid, commitVout, commitValue, commitAddress, internalPubkey, tapleafHash, '
             + 'controlBlock, revealFee}) that the wallet must persist durably BEFORE broadcasting the commit; '
             + 'sign both, broadcast commit then reveal. TAPROOT requires compressedPubKey (the envelope internal '
-            + 'key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling.',
+            + 'key), segwit-only inputs, and accepts payloads up to the 400,000-byte envelope ceiling. '
+            + 'An unknown top-level param is refused with -32602 rather than ignored, as unknown options keys are.',
         params: [
             { name: 'pubkey', required: true, schema: str('caller identity: sender address (base58 or bech32) or compressed public key hex (02/03 + 64 hex); uncompressed (04...) keys are rejected') },
             { name: 'data', schema: str('ACTION payload string (pipe-delimited, from xchain-sdk createAction)') },
@@ -118,6 +119,23 @@ const METHODS = [
         summary: 'List UTXOs for an address (proxied from xchain-utxo-tracker).',
         params: [{ name: 'address', required: true, schema: str('address to query') }],
         result: { name: 'utxos', schema: { type: 'array', items: { type: 'object' } } },
+    },
+    {
+        name: 'get_tx_status',
+        summary: 'Classify a transaction as present in the node mempool, confirmed on chain, or unknown.',
+        description: 'Checks the coin node mempool first, then the UTXO tracker chain index. '
+            + 'A lookup failure is an error and is never reported as an unknown transaction.',
+        params: [{ name: 'txid', required: true, schema: str('transaction id (64-character hexadecimal string)') }],
+        result: {
+            name: 'transaction_status',
+            schema: {
+                type: 'object',
+                properties: {
+                    status: str('transaction location', { enum: ['mempool', 'chain', 'unknown'] }),
+                },
+                required: ['status'],
+            },
+        },
     },
     {
         name: 'get_tx_block',
