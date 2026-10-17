@@ -36,6 +36,10 @@ function controllerWith ({ mempoolEntry = null, block = null, nodeError, tracker
   }
 }
 
+function connector () {
+  return new BlockchainConnector('127.0.0.1', 22555, 'rpcuser', 'rpcpass')
+}
+
 describe('get_tx_status transaction location', function () {
   it('returns mempool and does not ask the tracker when getmempoolentry finds the txid', async function () {
     const { controller, calls } = controllerWith({ mempoolEntry: { vsize: 250 } })
@@ -57,7 +61,9 @@ describe('get_tx_status transaction location', function () {
     assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'unknown' })
     assert.deepStrictEqual(calls, [['mempool', TXID], ['chain', TXID]])
   })
+})
 
+describe('get_tx_status transaction location', function () {
   it('throws rather than returning unknown when the node lookup fails', async function () {
     const { controller, calls } = controllerWith({ nodeError: new Error('node warming up') })
     const originalError = console.error
@@ -111,10 +117,6 @@ describe('BlockchainConnector getMempoolEntry', function () {
     axios.post = originalPost
   })
 
-  function connector () {
-    return new BlockchainConnector('127.0.0.1', 22555, 'rpcuser', 'rpcpass')
-  }
-
   it('sends getmempoolentry with the txid and returns the entry', async function () {
     const expected = { vsize: 250 }
     let request
@@ -146,6 +148,18 @@ describe('BlockchainConnector getMempoolEntry', function () {
     }
 
     assert.strictEqual(await connector().getMempoolEntry(TXID), null)
+  })
+})
+
+describe('BlockchainConnector getMempoolEntry', function () {
+  let originalPost
+
+  beforeEach(function () {
+    originalPost = axios.post
+  })
+
+  afterEach(function () {
+    axios.post = originalPost
   })
 
   it('throws an unexpected RPC error instead of treating it as absent', async function () {
