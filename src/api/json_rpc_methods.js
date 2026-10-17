@@ -330,9 +330,30 @@ return {
 }
 }
 
-// Tracker-facing lookups; upstream error text is sanitized before it leaves.
+// Transaction and UTXO lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
 return {
+    async get_tx_status(rawParams) {
+        const txid = rawParams && rawParams.txid
+        if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
+            const e = new Error('txid must be a 64-hex-character string')
+            e.code = -32602
+            throw e
+        }
+
+        try {
+            const mempoolEntry = await encoder.connector.getMempoolEntry(txid)
+            if (mempoolEntry !== null) return { status: 'mempool' }
+
+            const block = await encoder.utxoTrackerConnector.getTxBlock(txid)
+            return { status: block === null ? 'unknown' : 'chain' }
+        } catch (err) {
+            logger.error(util.format('Transaction status lookup error:', err))
+            const e = new Error(upstreamErrorMessage(err, 'Transaction status lookup failed'))
+            e.code = -32603
+            throw e
+        }
+    },
     async get_tx_block(rawParams) {
         const txid = rawParams && rawParams.txid
         if (typeof txid !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txid)) {
