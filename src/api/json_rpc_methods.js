@@ -120,6 +120,7 @@ return {
     async estimate_fee() {
         const targets = { low: 6, medium: 3, high: 1 };
         const out = {};
+        let slowerTierRate = 1;
         // Same test-chain ceiling createTx applies to a caller who supplies no
         // rate, so the quote matches what the build would actually charge.
         const capPerByte = XChainEncoder.suggestedFeeCeilingPerByte(NETWORK, 100000000);
@@ -130,7 +131,9 @@ return {
                 const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
                 let perVbyte = Math.max(1, Math.round(Number(feerate) * 100000));         // -> base-unit/byte
                 if (capPerVbyte != null && perVbyte > capPerVbyte) perVbyte = capPerVbyte;
+                perVbyte = Math.max(perVbyte, slowerTierRate);
                 out[tier] = perVbyte;
+                slowerTierRate = perVbyte;
             }
         } catch (err) {
             logger.error(util.format('Fee estimation error:', err))
