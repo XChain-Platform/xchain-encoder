@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-17
+
+### Added
+- Added a transaction status lookup method and exposed a node tier mismatch in status readiness.
+
+### Changed
+- Priced transactions at their full size, selected inputs against the final fee and refused sub-dust payments.
+- Funded multi-chunk P2WSH reveals with first-leg headroom and a surplus sweep.
+- Refused non-validator transaction creation on mainnet before launch.
+
+### Fixed
+- Sized bare-multisig dust from each coin's relay rate and refused a reveal that does not spend its funded scripts.
+- Kept fee tiers ordered by confirmation speed and used the relay fallback for implausible test-chain fees.
+
+### Security
+- Bumped axios, fast-uri, ip-address, proxy-addr and brace-expansion to resolve security advisories.
+
 ## [0.23.0] - 2026-10-11
 
 ### Added
