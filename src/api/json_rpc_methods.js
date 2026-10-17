@@ -130,7 +130,7 @@ return {
                 const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
                 let perVbyte = Math.max(1, Math.round(Number(feerate) * 100000));         // -> base-unit/byte
                 if (capPerVbyte != null && perVbyte > capPerVbyte) perVbyte = capPerVbyte;
-                out[tier] = perVbyte;
+                out[tier] = Math.max(perVbyte, ...Object.values(out));
             }
         } catch (err) {
             logger.error(util.format('Fee estimation error:', err))

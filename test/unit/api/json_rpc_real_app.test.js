@@ -126,6 +126,7 @@ async function routeEachPublicHandler () {
   }
   assert.deepStrictEqual(broadcast.body.result, { txid })
   assert.deepStrictEqual(calls.broadcast, [txHex])
+  assert.deepStrictEqual(fees.body.result, { low: 6, medium: 6, high: 6 })
   assert.deepStrictEqual(calls.fees, [6, 3, 1])
   assert.deepStrictEqual(cancel.body.result, { psbt: 'cancel-psbt', encoding: 'TAPROOT', cancel: true })
   assert.deepStrictEqual(calls.cancel, [cancelParams])
