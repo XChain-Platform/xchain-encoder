@@ -165,10 +165,10 @@ describe('BlockchainConnector getMempoolEntry', function () {
   it('throws an unexpected RPC error instead of treating it as absent', async function () {
     const originalError = console.error
     console.error = () => {}
-    axios.post = async () => ({ data: { error: { code: -28, message: 'Loading block index' } } })
+    axios.post = async () => ({ data: { error: { code: -28, message: 'Transaction not in mempool' } } })
 
     try {
-      await assert.rejects(() => connector().getMempoolEntry(TXID), /Loading block index/)
+      await assert.rejects(() => connector().getMempoolEntry(TXID), /Transaction not in mempool/)
     } finally {
       console.error = originalError
     }

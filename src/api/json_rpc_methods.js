@@ -31,31 +31,43 @@ const { readMaintenanceWindow } = require('../server/maintenance_window')   // o
 const config = require('../common/config')
 const logger = getLogger();
 
-// Each builder closes one group of methods over the encoder (and, for fees, the network name); the factory composes
-// the groups into one controller. The method text keeps its entry indentation so the openrpc guard still matches.
+// Each builder closes one group of methods over the encoder (and, for fees,
+// the network name); the factory composes the groups into one controller. The
+// method text keeps its entry indentation so the openrpc guard still matches.
 
-// Serve-readiness probe shared by the JSON-RPC health() method and GET /status, so the two endpoints can never drift
-// apart: probes the UTXO tracker and returns its reachability / sync state. Fields: tracker_reachable (bool),
-// tracker_synced (bool), tracker_lag (number|null), tracker_halted (bool), tracker_mempool_ready (bool), maintenance (object|null).
+// Serve-readiness probe shared by the JSON-RPC health() method and GET
+// /status, so the two endpoints can never drift apart: probes the
+// UTXO tracker and returns its reachability / sync state. Fields:
+// tracker_reachable (bool), tracker_synced (bool), tracker_lag (number|null),
+// tracker_halted (bool), tracker_mempool_ready (bool), maintenance (object|null).
 //
-// maintenance is the operator's DECLARED scheduled-outage window (see src/server/maintenance_window.js), carried
-// alongside the readiness fields and never folded into them: it cannot make an unready encoder read ready, and it does
-// not move the 503. A planned tracker stop and a broken tracker are the same readiness verdict - the difference is only
-// that somebody meant one of them, which is exactly the distinction the public board had no way to draw.
+// maintenance is the operator's DECLARED scheduled-outage window (see
+// src/server/maintenance_window.js), carried alongside the readiness fields and never
+// folded into them: it cannot make an unready encoder read ready, and it does
+// not move the 503. A planned tracker stop and a broken tracker are the same
+// readiness verdict - the difference is only that somebody meant one of them,
+// which is exactly the distinction the public board had no way to draw.
 //
-// tracker_synced is SERVE-readiness, not the tracker's raw verdict: it applies the same maxUtxoTrackerLagBlocks ceiling
-// create_tx enforces (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money safety). Without the extra gate
-// a 3-block lag read synced:true here while create_tx refused UTXO_TRACKER_STALE, so the status board painted Online on an
-// un-serveable encoder. Null lag fails open, exactly like create_tx's overLag gate.
+// tracker_synced is SERVE-readiness, not the tracker's raw verdict: it
+// applies the same maxUtxoTrackerLagBlocks ceiling create_tx enforces
+// (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money
+// safety). Without the extra gate a 3-block lag read synced:true here while
+// create_tx refused UTXO_TRACKER_STALE, so the status board painted Online
+// on an un-serveable encoder. Null lag fails open, exactly like
+// create_tx's overLag gate.
 //
-// A halted tracker (stopped polling on an unrecoverable reorg) and a negative lag (its committed tip sits above the node's,
-// so its outputs are orphaned) are both un-serveable regardless of what `synced` says, and both were painting Online here
-// because only the upper lag bound was checked. A tracker whose mempool has not reconverged is un-serveable for the same
-// reason: create_tx refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe recreated the same board-versus-encoder divergence the probe exists to prevent.
+// A halted tracker (stopped polling on an unrecoverable reorg) and a negative
+// lag (its committed tip sits above the node's, so its outputs are orphaned)
+// are both un-serveable regardless of what `synced` says, and both were painting
+// Online here because only the upper lag bound was checked. A tracker whose
+// mempool has not reconverged is un-serveable for the same reason: create_tx
+// refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe recreated
+// the same board-versus-encoder divergence the probe exists to prevent.
 function buildReadinessMethods({ encoder }) {
 async function getServeReadiness() {
-    // Read first and independently of the tracker probe: the window is what explains a deliberately down tracker, so it must
-    // survive the catch below rather than depend on the probe it annotates.
+    // Read first and independently of the tracker probe: the window is what
+    // explains a tracker that is deliberately down, so it must survive the
+    // catch below rather than depend on the probe it annotates.
     const maintenance = await readMaintenanceWindow()
     let tracker_reachable = false
     let tracker_synced = false
@@ -65,10 +77,13 @@ async function getServeReadiness() {
     try {
         const status = await encoder.utxoTrackerConnector.getSyncStatus()
         tracker_reachable = true
-        // This probe applies the SAME freshness classifier create_tx refuses a tracker with, against this endpoint's payload, so the board and encoder
-        // cannot drift apart: both read getSyncStatus() through classifyTrackerFreshness instead of each re-deriving
-        // over-lag, behind-node, halted and mempool-ready. The remaining asymmetry is intentional: readiness needs the
-        // tracker's POSITIVE synced assertion (syncedClaimed), while the create_tx gate refuses only on negatives.
+        // This probe applies the SAME freshness classifier create_tx refuses a
+        // tracker with, against this endpoint's payload, so the board and the
+        // encoder cannot drift apart: both read getSyncStatus() through
+        // classifyTrackerFreshness instead of each re-deriving over-lag,
+        // behind-node, halted and mempool-ready. The remaining asymmetry is
+        // intentional: readiness needs the tracker's POSITIVE synced assertion
+        // (syncedClaimed), while the create_tx gate refuses only on negatives.
         const freshness = XChainEncoder.classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
         tracker_halted = freshness.halted
         tracker_mempool_ready = freshness.mempoolReady
@@ -84,8 +99,10 @@ return {
     async ping() {
         return {status:"success", version: ENCODER_VERSION};
     },
-    // Probes hard dependencies (UTXO tracker) and returns their reachability / sync state. Unlike ping, a health failure means the encoder
-    // cannot serve requests correctly. See getServeReadiness() for the readiness gate shared with GET /status below.
+    // Probes hard dependencies (UTXO tracker) and returns their reachability /
+    // sync state. Unlike ping, a health failure means the encoder cannot serve
+    // requests correctly. See getServeReadiness() for the readiness gate,
+    // shared with GET /status below.
     async health() {
         return getServeReadiness()
     },
@@ -315,39 +332,31 @@ return {
 function validateLookupTxid(rawParams) {
     const txid = rawParams && rawParams.txid
     if (typeof txid === 'string' && /^[0-9a-fA-F]{64}$/.test(txid)) return txid
-    const e = new Error('txid must be a 64-hex-character string')
-    e.code = -32602
-    throw e
+    throw Object.assign(new Error('txid must be a 64-hex-character string'), { code: -32602 })
 }
-
-async function getTxStatus(encoder, rawParams) {
-    const txid = validateLookupTxid(rawParams)
-    try {
-        if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
-        const block = await encoder.utxoTrackerConnector.getTxBlock(txid)
-        return { status: block === null ? 'unknown' : 'chain' }
-    } catch (err) {
-        logger.error(util.format('Transaction status lookup error:', err))
-        const e = new Error(upstreamErrorMessage(err, 'Transaction status lookup failed'))
-        e.code = -32603
-        throw e
-    }
+function lookupFailure(err, label, fallback) {
+    logger.error(util.format(`${label} error:`, err))
+    return Object.assign(new Error(upstreamErrorMessage(err, fallback)), { code: -32603 })
 }
 // Transaction and UTXO lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
 return {
     async get_tx_status(rawParams) {
-        return getTxStatus(encoder, rawParams)
+        const txid = validateLookupTxid(rawParams)
+        try {
+            if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
+            const block = await encoder.utxoTrackerConnector.getTxBlock(txid)
+            return { status: block === null ? 'unknown' : 'chain' }
+        } catch (err) {
+            throw lookupFailure(err, 'Transaction status lookup', 'Transaction status lookup failed')
+        }
     },
     async get_tx_block(rawParams) {
         const txid = validateLookupTxid(rawParams)
         try {
             return await encoder.utxoTrackerConnector.getTxBlock(txid)
         } catch (err) {
-            logger.error(util.format('Transaction block lookup error:', err))
-            const e = new Error(upstreamErrorMessage(err, 'Transaction block lookup failed'))
-            e.code = -32603
-            throw e
+            throw lookupFailure(err, 'Transaction block lookup', 'Transaction block lookup failed')
         }
     },
     async get_utxos(rawParams) {

@@ -21,8 +21,7 @@ const { OperationalError } = require('../errors');
 
 function mempoolEntryAbsent(body) {
     const error = body && body.error;
-    if (!error) return false;
-    return error.code === -5 || /not in mempool|No such mempool/i.test(error.message || '');
+    return Boolean(error && error.code === -5);
 }
 
 module.exports = {
