@@ -329,14 +329,12 @@ return {
     },
 }
 }
-function validateLookupTxid(rawParams) {
-    const txid = rawParams && rawParams.txid
+function validateLookupTxid(rawParams) { const txid = rawParams && rawParams.txid
     if (typeof txid === 'string' && /^[0-9a-fA-F]{64}$/.test(txid)) return txid
     throw Object.assign(new Error('txid must be a 64-hex-character string'), { code: -32602 })
 }
-function lookupFailure(err, label, fallback) {
-    logger.error(util.format(`${label} error:`, err))
-    return Object.assign(new Error(upstreamErrorMessage(err, fallback)), { code: -32603 })
+function lookupFailure(err, name) {
+    logger.error(util.format(`${name} lookup error:`, err)); return Object.assign(new Error(upstreamErrorMessage(err, `${name} lookup failed`)), { code: -32603 })
 }
 // Transaction and UTXO lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
@@ -345,19 +343,12 @@ return {
         const txid = validateLookupTxid(rawParams)
         try {
             if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
-            const block = await encoder.utxoTrackerConnector.getTxBlock(txid)
-            return { status: block === null ? 'unknown' : 'chain' }
-        } catch (err) {
-            throw lookupFailure(err, 'Transaction status lookup', 'Transaction status lookup failed')
-        }
+            return { status: await encoder.utxoTrackerConnector.getTxBlock(txid) === null ? 'unknown' : 'chain' }
+        } catch (err) { throw lookupFailure(err, 'Transaction status') }
     },
     async get_tx_block(rawParams) {
         const txid = validateLookupTxid(rawParams)
-        try {
-            return await encoder.utxoTrackerConnector.getTxBlock(txid)
-        } catch (err) {
-            throw lookupFailure(err, 'Transaction block lookup', 'Transaction block lookup failed')
-        }
+        try { return await encoder.utxoTrackerConnector.getTxBlock(txid) } catch (err) { throw lookupFailure(err, 'Transaction block') }
     },
     async get_utxos(rawParams) {
         let address = rawParams && rawParams.address
