@@ -50,9 +50,33 @@ describe('encoder stress-sweep unit @regression', function () {
         })
         it('passes a batch at the cap and a single request', function () {
             let n1 = false, n2 = false
-            makeRpcBatchGuard(20)({ body: new Array(20).fill({ method: 'ping' }) }, fakeRes(), () => { n1 = true })
+            makeRpcBatchGuard(20)({ body: Array.from({ length: 20 }, (_, i) => ({ jsonrpc: '2.0', id: i, method: 'ping' })) }, fakeRes(), () => { n1 = true })
             makeRpcBatchGuard(20)({ body: { method: 'ping' } }, fakeRes(), () => { n2 = true })
             assert.ok(n1 && n2)
+        })
+        // The router starts an id-less batch entry without awaiting it, so it would run outside the concurrency slot.
+        it('rejects a batch carrying an id-less, null-id or non-object entry with -32600 and does not call next', function () {
+            const withIds = [{ jsonrpc: '2.0', id: 1, method: 'ping' }, { jsonrpc: '2.0', id: 2, method: 'ping' }]
+            const bodies = [
+                withIds.concat([{ jsonrpc: '2.0', method: 'ping' }]),
+                withIds.concat([{ jsonrpc: '2.0', id: null, method: 'ping' }]),
+                [null],
+                [[{ jsonrpc: '2.0', id: 1, method: 'ping' }]],
+                ['ping']
+            ]
+            for (const body of bodies) {
+                const res = fakeRes()
+                let next = false
+                makeRpcBatchGuard(20)({ body }, res, () => { next = true })
+                assert.strictEqual(res._code, 400, JSON.stringify(body))
+                assert.strictEqual(res._json.error.code, -32600, JSON.stringify(body))
+                assert.strictEqual(next, false, JSON.stringify(body))
+            }
+        })
+        it('passes batch entries whose id is 0 or an empty string', function () {
+            let next = false
+            makeRpcBatchGuard(20)({ body: [{ jsonrpc: '2.0', id: 0, method: 'ping' }, { jsonrpc: '2.0', id: '', method: 'ping' }] }, fakeRes(), () => { next = true })
+            assert.strictEqual(next, true)
         })
     })
 

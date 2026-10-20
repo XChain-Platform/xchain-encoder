@@ -153,6 +153,13 @@ const VALID_CREATE_TX_PARAMS = new Set([
     'encoding', 'change', 'p2shHash', 'p2shHex', 'compressedPubKey',
     'unconfirmed', 'feePerKb', 'dust', 'feeQuote', 'attachPrevTx', 'compress', 'options'
 ])
+// The create_envelope_cancel_tx params, refused when unknown for the same reason: a
+// misspelled feePerKb, or create_tx's rbf in place of replacebyfee, would silently
+// build the cancel under the default policy. Must equal that method's params in docs/openrpc.build.js.
+const VALID_CREATE_ENVELOPE_CANCEL_PARAMS = new Set([
+    'commitTxid', 'commitVout', 'commitValue', 'internalPubkey', 'tapleafHash',
+    'destination', 'feePerKb', 'replacebyfee'
+])
 
 module.exports = {
     MAX_COMPILED_ACTION_DATA_LENGTH,
@@ -173,5 +180,6 @@ module.exports = {
     ACTION_ALIASES,
     MAX_SATOSHI_U64,
     VALID_CREATE_TX_OPTIONS,
-    VALID_CREATE_TX_PARAMS
+    VALID_CREATE_TX_PARAMS,
+    VALID_CREATE_ENVELOPE_CANCEL_PARAMS
 }

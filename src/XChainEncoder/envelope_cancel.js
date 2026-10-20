@@ -22,7 +22,7 @@ const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
-const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint, assertPubkeyOnCurve } = require('../common/validator')
+const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint, assertPubkeyOnCurve, validateEnvelopeCancelParamKeys } = require('../common/validator')
 const { OperationalError, ParamTypeError, ParamRangeError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
@@ -216,6 +216,8 @@ module.exports = {
     // `reservation` receipt create_tx does, so an abandoned cancel can hand the
     // commit outpoint back instead of blocking every rebuild for the whole TTL.
     async createEnvelopeCancelTransaction(params = {}){
+        // Refuse an unknown or misspelled param as -32602 before any claim or fee RPC (create_tx's rule)
+        validateEnvelopeCancelParamKeys(params)
         const callReservations = []
         let result
         try {

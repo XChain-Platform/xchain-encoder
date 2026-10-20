@@ -11,7 +11,7 @@
 'use strict'
 
 const assert = require('assert')
-const { app, encoder } = require('../../../src/api')
+const { app, encoder, jsonRpcController } = require('../../../src/api')
 const { assertNodeTier } = require('../../../src/build/blockchain_connector/node_queries')
 
 async function statusResponse () {
@@ -44,21 +44,34 @@ describe('assertNodeTier mismatch state', function () {
   })
 })
 
+// Connector fields the tier check reads or caches; each test starts from none of them set.
+const TIER_FIELDS = ['nodeTierOk', 'nodeTierMismatch', 'nodeTierWarned', '_chainNameCache', 'consensusNetwork', 'chainName']
+
 describe('GET /status node-tier readiness', function () {
   let originalSyncStatus
-  let originalMismatch
+  let savedTier
 
   beforeEach(function () {
     originalSyncStatus = encoder.utxoTrackerConnector.getSyncStatus
-    originalMismatch = encoder.connector.nodeTierMismatch
+    savedTier = {}
+    for (const field of TIER_FIELDS) {
+      savedTier[field] = Object.prototype.hasOwnProperty.call(encoder.connector, field)
+        ? { own: true, value: encoder.connector[field] }
+        : { own: false }
+      delete encoder.connector[field]
+    }
     encoder.utxoTrackerConnector.getSyncStatus = async () => ({ synced: true, lag: 0 })
-    delete encoder.connector.nodeTierMismatch
+    // A node on the configured tier unless a test says otherwise, so no test makes a real node RPC.
+    encoder.connector.consensusNetwork = 'testnet'
+    encoder.connector.chainName = async () => 'test'
   })
 
   afterEach(function () {
     encoder.utxoTrackerConnector.getSyncStatus = originalSyncStatus
-    if (originalMismatch === undefined) delete encoder.connector.nodeTierMismatch
-    else encoder.connector.nodeTierMismatch = originalMismatch
+    for (const field of TIER_FIELDS) {
+      delete encoder.connector[field]
+      if (savedTier[field].own) encoder.connector[field] = savedTier[field].value
+    }
   })
 
   it('returns 503 and publishes a recorded node-tier mismatch reason', async function () {
@@ -78,5 +91,42 @@ describe('GET /status node-tier readiness', function () {
     assert.strictEqual(response.code, 200)
     assert.strictEqual(response.body.status, 'healthy')
     assert.strictEqual(response.body.node_tier_mismatch, null)
+    assert.strictEqual(response.body.node_tier_checked, true)
+  })
+
+  it('checks the tier itself and returns 503 for a wrong-network node no money call has touched', async function () {
+    encoder.connector.chainName = async () => 'main'
+    const reason = 'node reports chain="main" (mainnet) but this encoder is configured for testnet'
+
+    const response = await statusResponse()
+
+    assert.strictEqual(response.code, 503)
+    assert.strictEqual(response.body.status, 'unhealthy')
+    assert.strictEqual(response.body.node_tier_mismatch, reason)
+    assert.strictEqual(response.body.node_tier_checked, true)
+    const health = await jsonRpcController.health()
+    assert.strictEqual(health.node_tier_mismatch, reason)
+  })
+
+  it('stays 200 but reads unchecked when the node chain cannot be read', async function () {
+    encoder.connector.chainName = async () => { throw new Error('connect ECONNREFUSED') }
+
+    const response = await statusResponse()
+
+    assert.strictEqual(response.code, 200)
+    assert.strictEqual(response.body.node_tier_mismatch, null)
+    assert.strictEqual(response.body.node_tier_checked, false)
+  })
+
+  it('answers within the probe deadline when the node never replies', async function () {
+    this.timeout(10000)
+    encoder.connector.chainName = () => new Promise(() => {})
+    const started = Date.now()
+
+    const response = await statusResponse()
+
+    assert.ok(Date.now() - started < 4500, `took ${Date.now() - started}ms`)
+    assert.strictEqual(response.code, 200)
+    assert.strictEqual(response.body.node_tier_checked, false)
   })
 })

@@ -53,8 +53,8 @@
     },
     {
       "name": "health",
-      "summary": "Probe hard dependencies (UTXO tracker) and report reachability and sync state.",
-      "description": "Unlike ping, a health failure means the encoder cannot serve requests correctly. When the tracker is unreachable the fields stay at their defaults (false / null).",
+      "summary": "Probe hard dependencies (UTXO tracker, coin-node network tier) and report reachability and sync state.",
+      "description": "Unlike ping, a health failure means the encoder cannot serve requests correctly. When the tracker is unreachable the fields stay at their defaults (false / null). The coin node's network tier is checked on every probe under a short deadline; an unchecked tier reads node_tier_checked false and does not by itself make the encoder unready.",
       "paramStructure": "by-name",
       "params": [],
       "result": {
@@ -84,6 +84,17 @@
             "tracker_mempool_ready": {
               "type": "boolean",
               "description": "tracker has reconverged its mempool, so an already-spent confirmed output can be filtered out"
+            },
+            "node_tier_mismatch": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "why the coin node is on the wrong network tier, or null; a non-null value means every money method refuses the node"
+            },
+            "node_tier_checked": {
+              "type": "boolean",
+              "description": "the coin node's network tier has been confirmed (matching or mismatched); false means it could not be read yet"
             },
             "maintenance": {
               "type": [

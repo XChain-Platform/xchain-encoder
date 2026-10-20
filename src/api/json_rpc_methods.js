@@ -63,8 +63,40 @@ const logger = getLogger();
 // mempool has not reconverged is un-serveable for the same reason: create_tx
 // refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe recreated
 // the same board-versus-encoder divergence the probe exists to prevent.
+//
+// node_tier_mismatch / node_tier_checked: the probe runs the same coin-node tier
+// check the money methods refuse a wrong-network node with, instead of reading a
+// flag only an earlier money call could have set. Only a confirmed mismatch is
+// unready; an unchecked tier (node unreachable, or slower than the deadline below)
+// stays fail-open exactly as the money methods are, and reads node_tier_checked:false.
 function buildReadinessMethods({ encoder }) {
+// Cap the tier check well under NODE_RPC_TIMEOUT: a failed chain read is not
+// cached, so an unreachable node would otherwise hold every probe for 30s.
+const NODE_TIER_PROBE_DEADLINE_MS = 3000
+
+// Run the connector's tier check under the deadline and report what it settled.
+async function probeNodeTier() {
+    const connector = encoder.connector
+    if (connector && typeof connector.assertNodeTier === 'function') {
+        let timer
+        const deadline = new Promise(resolve => { timer = setTimeout(resolve, NODE_TIER_PROBE_DEADLINE_MS) })
+        // Swallow every outcome: a mismatch is read back from the connector below,
+        // and a late rejection after the deadline must not surface as unhandled.
+        const check = Promise.resolve().then(() => connector.assertNodeTier()).catch(() => {})
+        try {
+            await Promise.race([check, deadline])
+        } finally {
+            clearTimeout(timer)
+        }
+    }
+    const node_tier_mismatch = (connector && connector.nodeTierMismatch) || null
+    const node_tier_checked = Boolean(node_tier_mismatch) || Boolean(connector && connector.nodeTierOk === true)
+    return { node_tier_mismatch, node_tier_checked }
+}
+
 async function getServeReadiness() {
+    // Start the node-tier check beside the tracker probe, so the probe waits for the slower of the two, not their sum.
+    const nodeTier = probeNodeTier()
     // Read first and independently of the tracker probe: the window is what
     // explains a tracker that is deliberately down, so it must survive the
     // catch below rather than depend on the probe it annotates.
@@ -92,7 +124,8 @@ async function getServeReadiness() {
     } catch (_err) {
         // tracker unreachable; fields stay at defaults
     }
-    return { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, maintenance }
+    const { node_tier_mismatch, node_tier_checked } = await nodeTier
+    return { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, node_tier_mismatch, node_tier_checked, maintenance }
 }
 
 return {
