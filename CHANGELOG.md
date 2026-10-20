@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-20
+
+### Changed
+- Bounded public UTXO result sets.
+- Held batch notifications in the request gate and refused unknown cancel parameters.
+- Mapped validation errors and checked block-0 hashes in node tier checks.
+
 ## [0.25.0] - 2026-10-18
 
 ### Changed
