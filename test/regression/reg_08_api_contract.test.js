@@ -29,6 +29,8 @@ const {
   attachPrevTxs
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
+const { createJsonRpcController } = require('../../src/api/json_rpc_methods')
+const UtxoTracker = require('../../src/build/utxo_tracker')
 
 const NETWORK = 'dogecoin-regtest'
 
@@ -106,6 +108,75 @@ describe('REG-08: API Contract Regression', function () {
 
       assert.ok(result.psbt)
     })
+  })
+})
+
+describe('REG-08: API Contract Regression', function () {
+  describe('REG-08.5: get_utxos result-cap refusal', function () {
+    const address = getTestAddress(NETWORK)
+
+    function controllerWithTracker (getUtxosFromAddress) {
+      return createJsonRpcController({
+        NETWORK,
+        encoder: { utxoTrackerConnector: { getUtxosFromAddress } }
+      })
+    }
+
+    it('returns a complete in-cap result unchanged', async function () {
+      const expected = { utxos: [{ txid: TXID_A, vout: 0 }] }
+      const controller = controllerWithTracker(async () => expected)
+
+      assert.strictEqual(await controller.get_utxos({ address }), expected)
+    })
+
+    it('surfaces an oversized set as -32010 and never as an empty result', async function () {
+      const trackerError = Object.assign(
+        new Error('Address holds more than 10000 UTXOs; refusing to return a partial set'),
+        { code: 'UTXO_SET_TOO_LARGE', utxoCap: 10000 }
+      )
+      const controller = controllerWithTracker(async () => { throw trackerError })
+
+      await assert.rejects(
+        () => controller.get_utxos({ address }),
+        err => {
+          assert.strictEqual(err.code, -32010)
+          assert.strictEqual(err.data.reason, 'UTXO_SET_TOO_LARGE')
+          assert.strictEqual(err.data.limit, 10000)
+          assert.match(err.message, /more than 10000 UTXOs/)
+          return true
+        }
+      )
+    })
+
+    it('wires application configuration into the public tracker connector', function () {
+      const tracker = new UtxoTracker('127.0.0.1', 18420)
+
+      createJsonRpcController({
+        NETWORK,
+        encoder: { utxoTrackerConnector: tracker },
+        configuration: { UTXO_TRACKER_MAX_ADDRESS_UTXOS: '37' }
+      })
+
+      assert.strictEqual(tracker.maxAddressUtxos, 37)
+    })
+
+  })
+})
+
+describe('REG-08: get_utxos application configuration', function () {
+  it('wires the public application environment into its existing connector', function () {
+    const key = 'UTXO_TRACKER_MAX_ADDRESS_UTXOS'
+    const previous = process.env[key]
+    const tracker = new UtxoTracker('127.0.0.1', 18420)
+    process.env[key] = '41'
+
+    try {
+      createJsonRpcController({ NETWORK, encoder: { utxoTrackerConnector: tracker } })
+      assert.strictEqual(tracker.maxAddressUtxos, 41)
+    } finally {
+      if (previous === undefined) delete process.env[key]
+      else process.env[key] = previous
+    }
   })
 })
 

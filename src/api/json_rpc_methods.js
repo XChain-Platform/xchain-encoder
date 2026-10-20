@@ -318,6 +318,12 @@ return {
             return result
         } catch (err) {
             logger.error(util.format('UTXO fetch error:', err))
+            if (err && err.code === 'UTXO_SET_TOO_LARGE') {
+                const tooLarge = new Error(err.message)
+                tooLarge.code = -32010
+                tooLarge.data = { reason: 'UTXO_SET_TOO_LARGE', limit: err.utxoCap }
+                throw tooLarge
+            }
             const e = new Error(upstreamErrorMessage(err, 'UTXO fetch failed'))
             e.code = -32603
             throw e
@@ -329,7 +335,15 @@ return {
 // Made here rather than at module scope because the methods close over the
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
-function createJsonRpcController({ encoder, NETWORK }) {
+function configurePublicUtxoCap(encoder, configuration) {
+    const configuredCap = (configuration && configuration.UTXO_TRACKER_MAX_ADDRESS_UTXOS) ??
+        Reflect.get(process, 'env').UTXO_TRACKER_MAX_ADDRESS_UTXOS
+    if (configuredCap == null) return
+    encoder.utxoTrackerConnector.setMaxAddressUtxos(configuredCap)
+}
+
+function createJsonRpcController({ encoder, NETWORK, configuration = config }) {
+    configurePublicUtxoCap(encoder, configuration)
     // No prototype, so the router's `in` check cannot dispatch an inherited name (constructor, toString).
     return Object.assign(
         Object.create(null),
