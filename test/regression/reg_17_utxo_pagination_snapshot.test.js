@@ -89,6 +89,32 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
   const origPost = axios.post
   afterEach(() => { axios.post = origPost })
 
+  it('refuses when the tip hash changes while height and reorg count hold', async function () {
+    // A counter reset by a restart, or a rollback it never recorded, leaves reorg_count
+    // equal across a same-height swap; the committed tip hash still names the chain.
+    stubPages([
+      { utxos: [utxo('a')], nextCursor: 'PAGE2', sync: { tracker_height: 100, lag: 0, synced: true, reorg_count: 0, committed_hash: 'aa'.repeat(32) } },
+      { utxos: [utxo('b')], sync: { tracker_height: 100, lag: 0, synced: true, reorg_count: 0, committed_hash: 'bb'.repeat(32) } }
+    ])
+    const tracker = new UtxoTracker('127.0.0.1', '1234')
+    await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), /switched to a different chain tip mid-fetch/)
+  })
+
+  it('merges pages read on one chain tip', async function () {
+    stubPages([
+      { utxos: [utxo('a')], nextCursor: 'PAGE2', sync: { tracker_height: 100, lag: 0, synced: true, reorg_count: 0, committed_hash: 'aa'.repeat(32) } },
+      { utxos: [utxo('b')], sync: { tracker_height: 100, lag: 0, synced: true, reorg_count: 0, committed_hash: 'aa'.repeat(32) } }
+    ])
+    const tracker = new UtxoTracker('127.0.0.1', '1234')
+    const out = await tracker.getUtxosFromAddress('someaddr')
+    assert.strictEqual(out.utxos.length, 2)
+  })
+})
+
+describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
+
   it('merges pages that share one snapshot', async function () {
     stubPages([
       { utxos: [utxo('a')], nextCursor: 'PAGE2', sync: { tracker_height: 100, node_height: 100, lag: 0, synced: true, reorg_count: 4 } },

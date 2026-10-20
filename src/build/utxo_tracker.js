@@ -62,8 +62,10 @@ function assertWithinUtxoCap(count, cap){
 // Any height movement counts as a different snapshot, not just a backward one: a rewind
 // that re-applies to a HIGHER height looks like forward progress on height alone. Each page
 // sibling also carries the tracker's reorg_count (the counter get_sync_status reports), the
-// only way to catch a rewind that re-applies to the SAME height; it is typeof-guarded, so a
-// page without it still gets the height check. Erring toward a refusal is the direction
+// first signal of a rewind that re-applies to the SAME height. The committed_hash a page was
+// read at names its chain exactly, so it also catches a same-height swap the counter missed
+// (a reset counter after a restart, or a rollback the counter never recorded). Both are
+// typeof-guarded, so a page without them still gets the height check. Erring toward a refusal is the direction
 // every other gate on this path takes, and it costs a retry only on an address holding more
 // than one page of UTXOs.
 //
@@ -80,6 +82,11 @@ function snapshotDivergence(first, later){
     if (typeof first.reorg_count === 'number' && typeof later.reorg_count === 'number' &&
         first.reorg_count !== later.reorg_count){
         return 'the tracker recorded a reorg mid-fetch (reorg_count ' + first.reorg_count + ' to ' + later.reorg_count + ')'
+    }
+    // Refuse when the pages were read on different chains at one height (hashes are not echoed: upstream text).
+    if (typeof first.committed_hash === 'string' && typeof later.committed_hash === 'string' &&
+        first.committed_hash !== later.committed_hash){
+        return 'the tracker switched to a different chain tip mid-fetch'
     }
     return null
 }

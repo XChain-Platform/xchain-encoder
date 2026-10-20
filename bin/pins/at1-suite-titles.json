@@ -1,5 +1,23 @@
 {
   "titleSets": {
+    "0020e16cf1da5482": [
+      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping fee=null flows through as null (auto-fee mode)",
+      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping feePerKb bypasses RPC call",
+      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping utxos passed as array are forwarded correctly",
+      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping valid params flow through without error",
+      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) data > 65536 bytes produces RangeError",
+      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) invalid encoding value produces TypeError",
+      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) negative fee produces RangeError",
+      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) null params produces TypeError",
+      "REG-08: API Contract Regression REG-08.3: Encoder errors (code -32603 pattern) no UTXOs error is a plain Error",
+      "REG-08: API Contract Regression REG-08.4: PSBT serialization encoding is one of the four valid encoding strings",
+      "REG-08: API Contract Regression REG-08.4: PSBT serialization psbt hex can be parsed back by Psbt.fromHex()",
+      "REG-08: API Contract Regression REG-08.4: PSBT serialization result.psbt hex is non-empty and valid hex",
+      "REG-08: API Contract Regression REG-08.5: get_utxos result-cap refusal returns a complete in-cap result unchanged",
+      "REG-08: API Contract Regression REG-08.5: get_utxos result-cap refusal surfaces an oversized set as -32010 and never as an empty result",
+      "REG-08: API Contract Regression REG-08.5: get_utxos result-cap refusal wires application configuration into the public tracker connector",
+      "REG-08: get_utxos application configuration wires the public application environment into its existing connector"
+    ],
     "01301310489a6d18": [
       "XChainEncoder.createTransaction() unconfirmed filtering excludes mempool UTXOs when unconfirmed=false",
       "XChainEncoder.createTransaction() unconfirmed filtering keeps mempool UTXOs when unconfirmed=true"
@@ -413,6 +431,17 @@
       "XChainEncoder.createTransaction() attachPrevTx attaches the full previous transaction when asked",
       "XChainEncoder.createTransaction() attachPrevTx leaves segwit inputs witnessUtxo-only by default",
       "XChainEncoder.createTransaction() attachPrevTx still attaches nothing when the input is legacy anyway"
+    ],
+    "2409e773dee9d7dc": [
+      "BlockchainConnector.assertNodeTier() block-0 hash pin never asks for the hash when the tier already refused the node",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin passes a matching hash in any case and caches the pass",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin refuses a node on the same tier with a different block-0 hash, every call",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin sends no getblockhash while the pin is \"\"",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin sends no getblockhash while the pin is null",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin when the node cannot answer lets a malformed result through, warning once and retrying on the next call",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin when the node cannot answer lets an error body through, warning once and retrying on the next call",
+      "BlockchainConnector.assertNodeTier() block-0 hash pin when the node cannot answer still checks the hash when the tier cannot be read",
+      "CryptoNetworks.getChainGenesisHash() returns null for every supported network while the registry pins none, and for an unknown key"
     ],
     "2442df610ebb6911": [
       "coin-registry conformance (vendored copy) @regression byte-identity to canonical xchain-hub/src/coins BTC.js is byte-identical to the canonical xchain-hub copy",
@@ -1494,22 +1523,6 @@
       "openrpc.json method coverage extracts a sane validateAll param list",
       "openrpc.json method coverage spec methods === controller methods"
     ],
-    "99abb4fef6f98fbc": [
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native RangeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native TypeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native RangeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native TypeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native RangeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native TypeError",
-      "REG-32: create_envelope_cancel_tx draws the same line as create_tx answers -32602 with the reason for a feePerKb below the relay minimum",
-      "REG-32: create_tx answers a caller fault with -32602 keeps the message of a TypeError the build raises",
-      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for a fee below the node relay minimum",
-      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for an explicit compress request on a non-FILE action",
-      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers -32603, generic, when the node reports no relayfee",
-      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_TRACKER_ERROR, never -32602, for a malformed tracker row",
-      "REG-32: the other build paths keep node faults off -32602 answers -32603 from create_envelope_cancel_tx when the node reports no relayfee",
-      "REG-32: the other build paths keep node faults off -32602 raises a plain Error, not a RangeError, from the output-uplift invariant"
-    ],
     "99f2a27c2274c9bc": [
       "TxSizeEstimator .estimateInputSize(utxo) Legacy inputs (nonWitnessUtxo) returns 180 for P2PKH nonWitnessUtxo",
       "TxSizeEstimator .estimateInputSize(utxo) Legacy inputs (nonWitnessUtxo) returns 289 for P2SH nonWitnessUtxo",
@@ -1634,20 +1647,6 @@
     ],
     "9f193c2caff73160": [
       "XChainEncoder concurrent input selection two builds racing for the same outpoints: one succeeds with both, one is refused"
-    ],
-    "9f36f327b577990e": [
-      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping fee=null flows through as null (auto-fee mode)",
-      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping feePerKb bypasses RPC call",
-      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping utxos passed as array are forwarded correctly",
-      "REG-08: API Contract Regression REG-08.1: validateAll \u2192 createTransaction parameter mapping valid params flow through without error",
-      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) data > 65536 bytes produces RangeError",
-      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) invalid encoding value produces TypeError",
-      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) negative fee produces RangeError",
-      "REG-08: API Contract Regression REG-08.2: Validation errors (code -32602 pattern) null params produces TypeError",
-      "REG-08: API Contract Regression REG-08.3: Encoder errors (code -32603 pattern) no UTXOs error is a plain Error",
-      "REG-08: API Contract Regression REG-08.4: PSBT serialization encoding is one of the four valid encoding strings",
-      "REG-08: API Contract Regression REG-08.4: PSBT serialization psbt hex can be parsed back by Psbt.fromHex()",
-      "REG-08: API Contract Regression REG-08.4: PSBT serialization result.psbt hex is non-empty and valid hex"
     ],
     "9fbc06b5565c3384": [
       "firstNonLatin1 returns minus one when every character fits in Latin-1",
@@ -1778,14 +1777,6 @@
     "a7ccb078a2beb124": [
       "Encoder input validator validateCustomOutputs (+ validateCustomOutput via wrapper) coerces value and rejects malformed entries",
       "Encoder input validator validateCustomOutputs (+ validateCustomOutput via wrapper) null passes; non-array and over-cap throw"
-    ],
-    "a8137cddea506ba3": [
-      "paginated utxo fetch is one chain-state snapshot @regression leaves the single-page path untouched",
-      "paginated utxo fetch is one chain-state snapshot @regression merges pages that share one snapshot",
-      "paginated utxo fetch is one chain-state snapshot @regression refuses to merge pages read at different tracker heights",
-      "paginated utxo fetch is one chain-state snapshot @regression refuses when a later page reports the tracker halted",
-      "paginated utxo fetch is one chain-state snapshot @regression refuses when the reorg counter moves at an unchanged height",
-      "paginated utxo fetch is one chain-state snapshot @regression still merges for a tracker that publishes no per-page sync sibling"
     ],
     "aa6df06a6ffcd257": [
       "Security: rate-limit refusal counter/logger limitedHandler logs nothing more for refusals inside the same window",
@@ -2420,6 +2411,15 @@
       "create_tx and health() reach the same verdict on the same tracker @regression agrees on: tracker de-asserts synced",
       "create_tx and health() reach the same verdict on the same tracker @regression reports the halt and the mempool state alongside the verdict"
     ],
+    "df3f001bb98aacbf": [
+      "UtxoTracker constructor accepts application configuration after connector construction",
+      "UtxoTracker constructor builds the correct URL from host and port",
+      "UtxoTracker constructor falls back to the default for an invalid result cap",
+      "UtxoTracker constructor stores the port",
+      "UtxoTracker default result cap probes only one row past a full default page before refusing",
+      "UtxoTracker public result cap refuses a set above the configured cap without returning a partial set",
+      "UtxoTracker public result cap returns a complete set at exactly the configured cap"
+    ],
     "df4be611311f4206": [
       "REG-04: Validator Functions REG-04.14: validateAll() integration rejects non-boolean rbf and unconfirmed, passes real booleans through",
       "REG-04: Validator Functions REG-04.14: validateAll() integration returns sanitized object with all fields for valid input",
@@ -2468,6 +2468,16 @@
       "BlockchainConnector.getFeePerKilobyte() throws when feerate is missing and chain is not regtest",
       "BlockchainConnector.getFeePerKilobyte() throws when result is entirely missing (non-regtest)",
       "BlockchainConnector.getFeePerKilobyte() uses the relayfee floor on regtest and never consults estimatesmartfee"
+    ],
+    "e299d421ed80822c": [
+      "paginated utxo fetch is one chain-state snapshot @regression leaves the single-page path untouched",
+      "paginated utxo fetch is one chain-state snapshot @regression merges pages read on one chain tip",
+      "paginated utxo fetch is one chain-state snapshot @regression merges pages that share one snapshot",
+      "paginated utxo fetch is one chain-state snapshot @regression refuses to merge pages read at different tracker heights",
+      "paginated utxo fetch is one chain-state snapshot @regression refuses when a later page reports the tracker halted",
+      "paginated utxo fetch is one chain-state snapshot @regression refuses when the reorg counter moves at an unchanged height",
+      "paginated utxo fetch is one chain-state snapshot @regression refuses when the tip hash changes while height and reorg count hold",
+      "paginated utxo fetch is one chain-state snapshot @regression still merges for a tracker that publishes no per-page sync sibling"
     ],
     "e29fba7018c99cf3": [
       "XChainEncoder stripped-size floor on single-transaction builds bitcoin-regtest: builds a one-input OP_RETURN-only transaction, which clears 65 bytes",
@@ -2611,9 +2621,30 @@
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.8: ISSUE v1 description edit version 1 format with description preserved",
       "E2E-1: Full ACTION-to-PSBT Pipeline E2E-1.9: MINT tick and amount preserved"
     ],
-    "f4d480d0b43ad2e9": [
-      "UtxoTracker constructor builds the correct URL from host and port",
-      "UtxoTracker constructor stores the port"
+    "f363fba602611c7c": [
+      "REG-32: a caller fault the validator names keeps -32602 and its reason broadcast_tx answers -32602 for hex that does not decode as a transaction",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason broadcast_tx answers -32602 for odd-length tx_hex",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason create_tx answers -32602 for a negative fee",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason get_utxos answers -32602 for an over-length address",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason release_inputs answers -32602 for a malformed reservationId",
+      "REG-32: a validator throw that is not a caller fault is an internal error broadcast_tx answers -32603, generic, when validateRawTxHex throws a native TypeError",
+      "REG-32: a validator throw that is not a caller fault is an internal error create_tx answers -32603, generic, when validateAll throws a native TypeError",
+      "REG-32: a validator throw that is not a caller fault is an internal error get_utxos answers -32603, generic, when validateAddress throws a native TypeError",
+      "REG-32: a validator throw that is not a caller fault is an internal error release_inputs answers -32603, generic, when validateReservationId throws a native TypeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native RangeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native TypeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native RangeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native TypeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native RangeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native TypeError",
+      "REG-32: create_envelope_cancel_tx draws the same line as create_tx answers -32602 with the reason for a feePerKb below the relay minimum",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the message of a TypeError the build raises",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for a fee below the node relay minimum",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for an explicit compress request on a non-FILE action",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers -32603, generic, when the node reports no relayfee",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_TRACKER_ERROR, never -32602, for a malformed tracker row",
+      "REG-32: the other build paths keep node faults off -32602 answers -32603 from create_envelope_cancel_tx when the node reports no relayfee",
+      "REG-32: the other build paths keep node faults off -32602 raises a plain Error, not a RangeError, from the output-uplift invariant"
     ],
     "f557fd05ee550b78": [
       "REG-33: create_envelope_cancel_tx refuses a network-invalid destination a mainnet destination on regtest",
@@ -2717,8 +2748,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 177,
-      "titleCount": 1332,
+      "fileCount": 178,
+      "titleCount": 1346,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -2758,6 +2789,7 @@
         "test/unit/blockchain_connector.test/11_rpc_timeout_env.test.js": "03e0966ef3abab8e",
         "test/unit/blockchain_connector.test/12_node_tier.test.js": "90700e68ae785acd",
         "test/unit/blockchain_connector.test/13_test_chain_implausible_estimate.test.js": "4d2fee8572bf0a2f",
+        "test/unit/blockchain_connector.test/14_node_genesis.test.js": "2409e773dee9d7dc",
         "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "41e23c0843778aa7",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
@@ -2773,7 +2805,7 @@
         "test/unit/build/package_fee_sizing.test/03_two_phase_reveal_package_prefund.test.js": "4dd0d30bb214ff45",
         "test/unit/build/package_fee_sizing.test/04_p2sh_two_phase_package_prefund.test.js": "6f8680c56c04f0ef",
         "test/unit/build/tx_size_estimator.test.js": "99f2a27c2274c9bc",
-        "test/unit/build/utxo_tracker.test.js": "f4d480d0b43ad2e9",
+        "test/unit/build/utxo_tracker.test.js": "df3f001bb98aacbf",
         "test/unit/build/utxo_tracker.test/01_get_sync_status.test.js": "fea0d5dcb2b90bb0",
         "test/unit/build/utxo_tracker.test/02_get_utxos_from_address.test.js": "149a2b69c0c72f7f",
         "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "a54b04e2034f9891",
@@ -2995,7 +3027,7 @@
     },
     "test:regression": {
       "fileCount": 29,
-      "titleCount": 328,
+      "titleCount": 343,
       "files": {
         "test/regression/reg_01_encoding_types.test.js": "c438a1275387f62b",
         "test/regression/reg_02_obfuscation.test.js": "6c8feaefe1116923",
@@ -3011,7 +3043,7 @@
         "test/regression/reg_05_multi_chain.test.js": "0e91f384a4f7fca1",
         "test/regression/reg_06_p2sh_p2wsh_sequence.test.js": "68346d71243fcd6b",
         "test/regression/reg_07_action_pipeline.test.js": "393ef05040e4ada2",
-        "test/regression/reg_08_api_contract.test.js": "9f36f327b577990e",
+        "test/regression/reg_08_api_contract.test.js": "0020e16cf1da5482",
         "test/regression/reg_09_deepdive_fixes.test.js": "ef8432a4a1ba859e",
         "test/regression/reg_10_utxo_tracker_freshness.test.js": "140130fb419b99c8",
         "test/regression/reg_11_minimal_op_canonicalization.test.js": "76410d2234a85853",
@@ -3019,8 +3051,8 @@
         "test/regression/reg_14_p2sh_reveal_fee_floor.test.js": "3675428cec810c11",
         "test/regression/reg_15_uppercase_txid_key_binding.test.js": "926d15e7ddd15fee",
         "test/regression/reg_16_rawdata_only_warning.test.js": "145ea55c07323321",
-        "test/regression/reg_17_utxo_pagination_snapshot.test.js": "a8137cddea506ba3",
-        "test/regression/reg_32_create_tx_error_code_split.test.js": "99abb4fef6f98fbc",
+        "test/regression/reg_17_utxo_pagination_snapshot.test.js": "e299d421ed80822c",
+        "test/regression/reg_32_create_tx_error_code_split.test.js": "f363fba602611c7c",
         "test/regression/reg_33_network_invalid_address.test.js": "f557fd05ee550b78",
         "test/regression/reservations.test/reg_13_reservation_release_on_throw.test.js": "4f79a402f81e163a",
         "test/regression/reservations.test/reg_18_chained_send_reservation.test.js": "9716e0ba5467b267",
@@ -3047,8 +3079,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 177,
-      "titleCount": 1332,
+      "fileCount": 178,
+      "titleCount": 1346,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3088,6 +3120,7 @@
         "test/unit/blockchain_connector.test/11_rpc_timeout_env.test.js": "03e0966ef3abab8e",
         "test/unit/blockchain_connector.test/12_node_tier.test.js": "90700e68ae785acd",
         "test/unit/blockchain_connector.test/13_test_chain_implausible_estimate.test.js": "4d2fee8572bf0a2f",
+        "test/unit/blockchain_connector.test/14_node_genesis.test.js": "2409e773dee9d7dc",
         "test/unit/build/apply_bufferutils_patch.test.js": "3eb6eaeabe786d34",
         "test/unit/build/compression.test.js": "41e23c0843778aa7",
         "test/unit/build/compression.test/01_action_string_helpers.test.js": "f6cecc24770508b5",
@@ -3103,7 +3136,7 @@
         "test/unit/build/package_fee_sizing.test/03_two_phase_reveal_package_prefund.test.js": "4dd0d30bb214ff45",
         "test/unit/build/package_fee_sizing.test/04_p2sh_two_phase_package_prefund.test.js": "6f8680c56c04f0ef",
         "test/unit/build/tx_size_estimator.test.js": "99f2a27c2274c9bc",
-        "test/unit/build/utxo_tracker.test.js": "f4d480d0b43ad2e9",
+        "test/unit/build/utxo_tracker.test.js": "df3f001bb98aacbf",
         "test/unit/build/utxo_tracker.test/01_get_sync_status.test.js": "fea0d5dcb2b90bb0",
         "test/unit/build/utxo_tracker.test/02_get_utxos_from_address.test.js": "149a2b69c0c72f7f",
         "test/unit/build/utxo_tracker.test/03_get_utxos_from_address_validation.test.js": "a54b04e2034f9891",

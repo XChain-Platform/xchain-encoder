@@ -150,3 +150,46 @@ describe('REG-32: an unmarked TypeError or RangeError from the build is an inter
     }
   }
 })
+
+// The validator step draws the same line: only a Param* error is a caller fault.
+describe('REG-32: a validator throw that is not a caller fault is an internal error', () => {
+  const validator = require('../../src/common/validator')
+  const cases = [
+    ['create_tx', 'validateAll', sendParams()],
+    ['release_inputs', 'validateReservationId', { reservationId: 'f'.repeat(32) }],
+    ['get_utxos', 'validateAddress', { address }],
+    ['broadcast_tx', 'validateRawTxHex', { tx_hex: 'deadbeef' }]
+  ]
+
+  for (const [method, check, params] of cases) {
+    it(method + ' answers -32603, generic, when ' + check + ' throws a native TypeError', async () => {
+      const original = validator[check]
+      validator[check] = () => { throw new TypeError("Cannot read properties of undefined (reading 'x')") }
+      try {
+        const caught = await rejectionOf(method, null, params)
+        assert.strictEqual(caught.code, -32603)
+        assert.strictEqual(caught.message, 'Internal encoder error')
+      } finally {
+        validator[check] = original
+      }
+    })
+  }
+})
+
+describe('REG-32: a caller fault the validator names keeps -32602 and its reason', () => {
+  const cases = [
+    ['create_tx', 'a negative fee', sendParams({ fee: -1 }), /fee must be/],
+    ['release_inputs', 'a malformed reservationId', { reservationId: 'xyz' }, /reservationId/],
+    ['get_utxos', 'an over-length address', { address: 'a'.repeat(101) }, /address/],
+    ['broadcast_tx', 'odd-length tx_hex', { tx_hex: 'abc' }, /tx_hex/],
+    ['broadcast_tx', 'hex that does not decode as a transaction', { tx_hex: 'deadbeef' }, /^tx_hex is not a parseable transaction$/]
+  ]
+
+  for (const [method, label, params, reason] of cases) {
+    it(method + ' answers -32602 for ' + label, async () => {
+      const caught = await rejectionOf(method, null, params)
+      assert.strictEqual(caught.code, -32602, caught.message)
+      assert.ok(reason.test(caught.message), caught.message)
+    })
+  }
+})

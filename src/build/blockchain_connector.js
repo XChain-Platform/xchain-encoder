@@ -23,12 +23,14 @@ const broadcast = require('./blockchain_connector/broadcast.js')
 const feeEstimation = require('./blockchain_connector/fee_estimation.js')
 
 class BlockchainConnector {
-    // consensusNetwork ('mainnet'|'testnet'|'regtest') arms assertNodeTier; omitted, the check is skipped.
-    constructor(url, port, rpcUser, rpcPassword, consensusNetwork = null) {
+    // consensusNetwork ('mainnet'|'testnet'|'regtest') arms assertNodeTier's tier step and chainGenesisHash
+    // (the coin registry's block-0 pin) its genesis step; either omitted, that step is skipped.
+    constructor(url, port, rpcUser, rpcPassword, consensusNetwork = null, chainGenesisHash = null) {
         this.url = "http://"+url+":"+port
         this.rpcUser = rpcUser
         this.rpcPassword = rpcPassword
         this.consensusNetwork = consensusNetwork
+        this.chainGenesisHash = chainGenesisHash
     }
 }
 

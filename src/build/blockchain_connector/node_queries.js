@@ -16,7 +16,7 @@ const axios = require('axios')
 const util = require('node:util');
 const { logger, RPC_TIMEOUT } = require('./constants');
 const { sanitizeRpcError, rpcErrorDetail } = require('./rpc_helpers');
-const { chainTierMismatch } = require('./chain_identity');
+const { chainTierMismatch, chainGenesisMismatch, chainGenesisUnpinned } = require('./chain_identity');
 const { OperationalError } = require('../errors');
 
 function mempoolEntryAbsent(body) {
@@ -24,25 +24,73 @@ function mempoolEntryAbsent(body) {
     return Boolean(error && error.code === -5);
 }
 
+// Refuse a node whose block-0 hash differs from the pinned chainGenesisHash, as the decoder's verifyChainGenesis does.
+// (Skipped while unpinned; an unreadable hash warns once and is retried, and only a match is cached.)
+async function assertNodeGenesis(connector){
+    if (chainGenesisUnpinned(connector.chainGenesisHash) || connector.nodeGenesisOk) return;
+    let reported;
+    try {
+        reported = await connector.getBlockHash(0);
+    } catch (error) {
+        if (!connector.nodeGenesisWarned) logger.warn(`Node block-0 hash unchecked: ${error && error.message}`);
+        connector.nodeGenesisWarned = true;
+        return;
+    }
+    const reason = chainGenesisMismatch(connector.chainGenesisHash, reported);
+    if (reason) {
+        connector.nodeTierMismatch = reason;
+        throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong chain: ' + reason);
+    }
+    connector.nodeGenesisOk = true;
+}
+
 module.exports = {
-    // Refuse a node whose getblockchaininfo chain is a recognized tier other than the configured network.
-    // (Fails open, warning once, when no network was configured or the chain cannot be read; a pass is cached.)
+    // Refuse a node whose getblockchaininfo chain is a recognized tier other than the configured network,
+    // then one whose block-0 hash proves a different coin or chain at that tier (assertNodeGenesis).
+    // (Each step fails open, warning once, when unconfigured, unpinned or unreadable; only a pass is cached.)
     async assertNodeTier(){
-        if (!this.consensusNetwork || this.nodeTierOk) return;
-        let chain;
+        if (this.consensusNetwork && !this.nodeTierOk) {
+            let chain;
+            try {
+                chain = await this.chainName();
+            } catch (error) {
+                if (!this.nodeTierWarned) logger.warn(`Node chain tier unchecked: ${error && error.message}`);
+                this.nodeTierWarned = true;
+            }
+            const reason = chainTierMismatch(this.consensusNetwork, chain);
+            if (reason) {
+                this.nodeTierMismatch = reason;
+                throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
+            }
+            if (chain !== undefined) this.nodeTierOk = true;
+        }
+        await assertNodeGenesis(this);
+    },
+
+    // The node's block hash at a height, lowercased. Throws on a transport error, an error
+    // body or a result that is not 64 hex characters, so no caller compares an unusable value.
+    async getBlockHash(height){
+        const data = {
+            jsonrpc: '2.0',
+            method: 'getblockhash',
+            params: [Number(height)],
+            id: 1
+        };
         try {
-            chain = await this.chainName();
+            const response = await axios.post(this.url, data, {
+                auth: {
+                    username: this.rpcUser,
+                    password: this.rpcPassword,
+                },
+                timeout: RPC_TIMEOUT
+            });
+            const result = response.data && response.data.result;
+            if (typeof result === 'string' && /^[0-9a-fA-F]{64}$/.test(result)) return result.toLowerCase();
+            throw new Error('Error getting block hash' + rpcErrorDetail(response.data));
         } catch (error) {
-            if (!this.nodeTierWarned) logger.warn(`Node chain tier unchecked: ${error && error.message}`);
-            this.nodeTierWarned = true;
-            return;
+            const detail = rpcErrorDetail(error.response && error.response.data);
+            throw new Error(`Error in network request: ${sanitizeRpcError(error)}${detail}`);
         }
-        const reason = chainTierMismatch(this.consensusNetwork, chain);
-        if (reason) {
-            this.nodeTierMismatch = reason;
-            throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong network: ' + reason);
-        }
-        this.nodeTierOk = true;
     },
 
 

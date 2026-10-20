@@ -95,7 +95,7 @@ async function assertNodeTierOrRpcError(encoder) {
     try { await encoder.connector.assertNodeTier() } catch (err) { throw toRpcError(err) }
 }
 
-// Map a build-path error to its JSON-RPC code: OperationalError to -32010 with its
+// Map a validation or build-path error to its JSON-RPC code: OperationalError to -32010 with its
 // xchainCode, an encoder-raised ParamTypeError/ParamRangeError to -32602, and anything
 // else (a Node or library TypeError included) to a logged, generic -32603.
 // The SDK treats every JSON-RPC body error as final; callers own any retries.
@@ -128,9 +128,8 @@ return {
         try {
             params = validator.validateAll(rawParams, { paymentOutputFloor: encoder.paymentOutputFloor }) // sub-dust payment: -32602
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            // Only a ParamTypeError/ParamRangeError is a caller fault; any other throw is internal (-32603)
+            throw toRpcError(err)
         }
 
         config.assertNotMainnetPrelaunch(encoder, params)
@@ -210,9 +209,7 @@ return {
             }
             reservationId = validator.validateReservationId(rawParams.reservationId)
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            throw toRpcError(err)
         }
         try {
             return encoder.releaseReservation(reservationId)
@@ -247,11 +244,15 @@ return {
         let localTxid
         try {
             validator.validateRawTxHex(tx_hex)
-            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            throw toRpcError(err)
+        }
+        // A well-formed hex string that does not decode is still the caller's fault: the
+        // library's native RangeError is renamed so toRpcError keeps it at -32602
+        try {
+            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
+        } catch {
+            throw toRpcError(new ParamTypeError('tx_hex is not a parseable transaction'))
         }
 
         await assertNodeTierOrRpcError(encoder)
@@ -308,9 +309,7 @@ return {
         try {
             validator.validateAddress(address)
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            throw toRpcError(err)
         }
 
         try {
