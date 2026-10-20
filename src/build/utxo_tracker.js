@@ -33,6 +33,25 @@ const TRACKER_TIMEOUT = 15000
 // it reach bitcoinjs-lib's psbt.addInput() and throw at construction time.
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 
+// Hard bound on the UTXOs one get_utxos / getUtxosFromAddress call will assemble.
+// A set above it is refused, never truncated: a silently cut set looks like a
+// smaller wallet and would reach selection as if it were complete. The default is
+// one full tracker page; operators can tune it with XCHAIN_MAX_ADDRESS_UTXOS.
+const DEFAULT_MAX_ADDRESS_UTXOS = 10000
+const UTXO_SET_TOO_LARGE = 'UTXO_SET_TOO_LARGE'
+function maxAddressUtxos(){
+    const raw = Number(process.env.XCHAIN_MAX_ADDRESS_UTXOS)
+    return Number.isSafeInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_ADDRESS_UTXOS
+}
+function assertWithinUtxoCap(count, cap){
+    if (count > cap) {
+        const e = new Error(`Address holds more than ${cap} UTXOs; refusing to return a partial set (${UTXO_SET_TOO_LARGE}). Consolidate the address or build with a caller-supplied utxos set`)
+        e.code = UTXO_SET_TOO_LARGE
+        e.utxoCap = cap
+        throw e
+    }
+}
+
 // Do two pages of one paginated fetch describe the SAME chain state?
 //
 // Every get_utxos page carries its own `sync` sibling, and a multi-page fetch is
@@ -324,6 +343,7 @@ class UtxoTracker {
         const seenCursors = new Set()
         let cursor = undefined
         let pageCount = 0
+        const cap = maxAddressUtxos()
         // Snapshot identity of page 1, compared against every later page (see
         // snapshotDivergence). Stays null against a tracker that predates the per-page
         // `sync` sibling: the single up-front get_sync_status above is then the only
@@ -334,7 +354,11 @@ class UtxoTracker {
                 if (++pageCount > MAX_PAGES) {
                     throw new Error(`utxo-tracker returned more than ${MAX_PAGES} pages for ${address}; aborting (buggy or hostile tracker)`)
                 }
-                const responseData = await fetchUtxoPage(this, address, PAGE_LIMIT, cursor)
+                // Once the set reaches the cap, ask for just one more row. That
+                // distinguishes an exact-cap complete set from an oversized one
+                // without assembling another full page in memory.
+                const pageLimit = Math.min(PAGE_LIMIT, cap - allUtxos.length + 1)
+                const responseData = await fetchUtxoPage(this, address, pageLimit, cursor)
                 const result = readUtxoResult(responseData)
 
                 // Refuse a merged set that spans two chain states. Checked BEFORE the
@@ -346,6 +370,7 @@ class UtxoTracker {
                     assertSameSnapshot(firstPageSync, pageSync, address)
                 }
 
+                assertWithinUtxoCap(allUtxos.length + result.utxos.length, cap)
                 appendPageUtxos(result.utxos, allUtxos)
 
                 // Continue only if the tracker signals another page.
@@ -366,3 +391,5 @@ class UtxoTracker {
 }
 
 module.exports = UtxoTracker
+module.exports.UTXO_SET_TOO_LARGE = UTXO_SET_TOO_LARGE
+module.exports.DEFAULT_MAX_ADDRESS_UTXOS = DEFAULT_MAX_ADDRESS_UTXOS

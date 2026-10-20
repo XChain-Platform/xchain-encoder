@@ -29,6 +29,7 @@ const {
   attachPrevTxs
 } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
+const { createJsonRpcController } = require('../../src/api/json_rpc_methods')
 
 const NETWORK = 'dogecoin-regtest'
 
@@ -105,6 +106,45 @@ describe('REG-08: API Contract Regression', function () {
       }, encoder)
 
       assert.ok(result.psbt)
+    })
+  })
+})
+
+describe('REG-08: API Contract Regression', function () {
+  describe('REG-08.5: get_utxos result-cap refusal', function () {
+    const address = getTestAddress(NETWORK)
+
+    function controllerWithTracker (getUtxosFromAddress) {
+      return createJsonRpcController({
+        NETWORK,
+        encoder: { utxoTrackerConnector: { getUtxosFromAddress } }
+      })
+    }
+
+    it('returns a complete in-cap result unchanged', async function () {
+      const expected = { utxos: [{ txid: TXID_A, vout: 0 }] }
+      const controller = controllerWithTracker(async () => expected)
+
+      assert.strictEqual(await controller.get_utxos({ address }), expected)
+    })
+
+    it('surfaces an oversized set as -32010 and never as an empty result', async function () {
+      const trackerError = Object.assign(
+        new Error('Address holds more than 10000 UTXOs; refusing to return a partial set'),
+        { code: 'UTXO_SET_TOO_LARGE', utxoCap: 10000 }
+      )
+      const controller = controllerWithTracker(async () => { throw trackerError })
+
+      await assert.rejects(
+        () => controller.get_utxos({ address }),
+        err => {
+          assert.strictEqual(err.code, -32010)
+          assert.strictEqual(err.data.reason, 'UTXO_SET_TOO_LARGE')
+          assert.strictEqual(err.data.limit, 10000)
+          assert.match(err.message, /more than 10000 UTXOs/)
+          return true
+        }
+      )
     })
   })
 })

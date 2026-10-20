@@ -318,6 +318,12 @@ return {
             return result
         } catch (err) {
             logger.error(util.format('UTXO fetch error:', err))
+            if (err && err.code === 'UTXO_SET_TOO_LARGE') {
+                const tooLarge = new Error(err.message)
+                tooLarge.code = -32010
+                tooLarge.data = { reason: 'UTXO_SET_TOO_LARGE', limit: err.utxoCap }
+                throw tooLarge
+            }
             const e = new Error(upstreamErrorMessage(err, 'UTXO fetch failed'))
             e.code = -32603
             throw e

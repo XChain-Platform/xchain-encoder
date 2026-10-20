@@ -119,6 +119,9 @@ const METHODS = [
     {
         name: 'get_utxos',
         summary: 'List UTXOs for an address (proxied from xchain-utxo-tracker).',
+        description: 'The response is bounded (default 10000 UTXOs, operator-tunable with XCHAIN_MAX_ADDRESS_UTXOS). '
+            + 'An address holding more is refused with error -32010 (data.reason UTXO_SET_TOO_LARGE, data.limit the cap); '
+            + 'the set is never truncated and a refusal is never returned as an empty set.',
         params: [{ name: 'address', required: true, schema: str('address to query') }],
         result: { name: 'utxos', schema: { type: 'array', items: { type: 'object' } } },
     },
@@ -176,7 +179,7 @@ const spec = {
             + 'LTC/TLTC, DOGE/TDOGE). Auth is optional: when the operator configures an API key, requests '
             + 'need an x-api-key header; the public instances run open. Errors follow JSON-RPC 2.0 '
             + '({code, message}): -32602 invalid params, -32603 internal, -32001 unauthorized, -32029 rate '
-            + 'limited. See the registry at https://docs.xchain.io/protocol/Error_Codes.md. '
+            + 'limited, -32010 UTXO set too large (get_utxos). See the registry at https://docs.xchain.io/protocol/Error_Codes.md. '
             + 'LLM-friendly docs: https://docs.xchain.io/llms.txt',
         license: { name: 'AGPL-3.0-or-later', url: 'https://docs.xchain.io/legal/LICENSING.md' },
     },
