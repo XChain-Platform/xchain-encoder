@@ -295,7 +295,7 @@ if (encoder.consensusNetwork === 'mainnet' && config.ENCODER_MAINNET_PRELAUNCH_O
 // `health` method so load-balancer / uptime monitors can rely on the HTTP status
 // code directly (the JSON-RPC catch-all routes all GETs to 200 today). Shares
 // the readiness gate with health() by calling that very method (its
-// getServeReadiness() lives in src/api/json_rpc_methods.js) so the two
+// getServeReadiness() lives in src/api/serve_readiness.js) so the two
 // endpoints cannot drift apart.
 // probeGate.hold, not requestGate.hold: /status is exempted from the main cap by
 // `skip`, so its slot lives in the probe reserve and only that gate's hold() can

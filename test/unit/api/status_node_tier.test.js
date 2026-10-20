@@ -46,43 +46,54 @@ describe('assertNodeTier mismatch state', function () {
 
 // Connector fields the tier check reads or caches; each test starts from none of them set.
 const TIER_FIELDS = ['nodeTierOk', 'nodeTierMismatch', 'nodeTierWarned', '_chainNameCache', 'consensusNetwork', 'chainName']
+const MAINNET_MISMATCH_REASON = 'node reports chain="main" (mainnet) but this encoder is configured for testnet'
+
+// What the stubbing hook replaced, so the restoring hook can put it back.
+let originalSyncStatus
+let savedTier
+
+// Clear every cached tier field and stub a synced tracker and a node on the configured tier.
+function isolateTierFields () {
+  originalSyncStatus = encoder.utxoTrackerConnector.getSyncStatus
+  savedTier = {}
+  for (const field of TIER_FIELDS) {
+    savedTier[field] = Object.prototype.hasOwnProperty.call(encoder.connector, field)
+      ? { own: true, value: encoder.connector[field] }
+      : { own: false }
+    delete encoder.connector[field]
+  }
+  encoder.utxoTrackerConnector.getSyncStatus = async () => ({ synced: true, lag: 0 })
+  // A node on the configured tier unless a test says otherwise, so no test makes a real node RPC.
+  encoder.connector.consensusNetwork = 'testnet'
+  encoder.connector.chainName = async () => 'test'
+}
+
+// Put back the tracker probe and every tier field isolateTierFields cleared.
+function restoreTierFields () {
+  encoder.utxoTrackerConnector.getSyncStatus = originalSyncStatus
+  for (const field of TIER_FIELDS) {
+    delete encoder.connector[field]
+    if (savedTier[field].own) encoder.connector[field] = savedTier[field].value
+  }
+}
+
+// Assert a /status answer is the 503 unhealthy verdict carrying the given mismatch reason.
+function assertUnhealthyMismatch (response, reason) {
+  assert.strictEqual(response.code, 503)
+  assert.strictEqual(response.body.status, 'unhealthy')
+  assert.strictEqual(response.body.node_tier_mismatch, reason)
+}
 
 describe('GET /status node-tier readiness', function () {
-  let originalSyncStatus
-  let savedTier
-
-  beforeEach(function () {
-    originalSyncStatus = encoder.utxoTrackerConnector.getSyncStatus
-    savedTier = {}
-    for (const field of TIER_FIELDS) {
-      savedTier[field] = Object.prototype.hasOwnProperty.call(encoder.connector, field)
-        ? { own: true, value: encoder.connector[field] }
-        : { own: false }
-      delete encoder.connector[field]
-    }
-    encoder.utxoTrackerConnector.getSyncStatus = async () => ({ synced: true, lag: 0 })
-    // A node on the configured tier unless a test says otherwise, so no test makes a real node RPC.
-    encoder.connector.consensusNetwork = 'testnet'
-    encoder.connector.chainName = async () => 'test'
-  })
-
-  afterEach(function () {
-    encoder.utxoTrackerConnector.getSyncStatus = originalSyncStatus
-    for (const field of TIER_FIELDS) {
-      delete encoder.connector[field]
-      if (savedTier[field].own) encoder.connector[field] = savedTier[field].value
-    }
-  })
+  beforeEach(isolateTierFields)
+  afterEach(restoreTierFields)
 
   it('returns 503 and publishes a recorded node-tier mismatch reason', async function () {
-    const reason = 'node reports chain="main" (mainnet) but this encoder is configured for testnet'
-    encoder.connector.nodeTierMismatch = reason
+    encoder.connector.nodeTierMismatch = MAINNET_MISMATCH_REASON
 
     const response = await statusResponse()
 
-    assert.strictEqual(response.code, 503)
-    assert.strictEqual(response.body.status, 'unhealthy')
-    assert.strictEqual(response.body.node_tier_mismatch, reason)
+    assertUnhealthyMismatch(response, MAINNET_MISMATCH_REASON)
   })
 
   it('returns 200 with a null mismatch when no mismatch has been recorded', async function () {
@@ -96,16 +107,13 @@ describe('GET /status node-tier readiness', function () {
 
   it('checks the tier itself and returns 503 for a wrong-network node no money call has touched', async function () {
     encoder.connector.chainName = async () => 'main'
-    const reason = 'node reports chain="main" (mainnet) but this encoder is configured for testnet'
 
     const response = await statusResponse()
 
-    assert.strictEqual(response.code, 503)
-    assert.strictEqual(response.body.status, 'unhealthy')
-    assert.strictEqual(response.body.node_tier_mismatch, reason)
+    assertUnhealthyMismatch(response, MAINNET_MISMATCH_REASON)
     assert.strictEqual(response.body.node_tier_checked, true)
     const health = await jsonRpcController.health()
-    assert.strictEqual(health.node_tier_mismatch, reason)
+    assert.strictEqual(health.node_tier_mismatch, MAINNET_MISMATCH_REASON)
   })
 
   it('stays 200 but reads unchecked when the node chain cannot be read', async function () {
