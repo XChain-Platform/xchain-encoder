@@ -18,7 +18,8 @@ const {
     HEX_64_RE,
     MAX_BROADCAST_TX_HEX_LENGTH,
     COMPRESSED_PUBKEY_RE,
-    VALID_CREATE_TX_PARAMS
+    VALID_CREATE_TX_PARAMS,
+    VALID_CREATE_ENVELOPE_CANCEL_PARAMS
 } = require('./constants')
 const {
     validateOptionalBoolean,
@@ -284,6 +285,27 @@ function validateAll(params, context) {
     }
 }
 
+/**
+ * Refuse a create_envelope_cancel_tx params bag that is not an object or that
+ * carries a key the method does not take, the cancel path's twin of the
+ * unknown-param loop in validateAll.
+ *
+ * @param {object} params The caller's params bag.
+ * @throws {ParamTypeError} params is not an object, or names an unknown key.
+ */
+function validateEnvelopeCancelParamKeys(params) {
+    // Array.isArray, because typeof [] is 'object' (same shape guard as validateAll)
+    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+        throw new ParamTypeError('Request params must be an object')
+    }
+    // Refuse an unknown key, so a misspelled money-path setting is named instead of silently defaulting
+    for (const key of Object.keys(params)) {
+        if (!VALID_CREATE_ENVELOPE_CANCEL_PARAMS.has(key)) {
+            throw new ParamTypeError(`Unknown create_envelope_cancel_tx param: "${truncateForMessage(key)}". Valid params: ${[...VALID_CREATE_ENVELOPE_CANCEL_PARAMS].join(', ')}`)
+        }
+    }
+}
+
 module.exports = {
     validateP2shParams,
     validateRawTxHex,
@@ -292,5 +314,6 @@ module.exports = {
     validateAddress,
     validateReservationId,
     validateChange,
+    validateEnvelopeCancelParamKeys,
     validateAll
 }

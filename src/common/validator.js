@@ -69,6 +69,7 @@ const {
     validateChange,
     validateAddress,
     validateReservationId,
+    validateEnvelopeCancelParamKeys,
     validateAll: validateAllFields
 } = require('./validator/transaction_checks')
 
@@ -151,6 +152,7 @@ module.exports = {
     validateChange,
     validateAddress,
     validateReservationId,
+    validateEnvelopeCancelParamKeys,
     validateAll,
     parseSatoshiAmount,
     MAX_SATOSHI_U64,

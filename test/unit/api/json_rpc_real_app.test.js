@@ -107,6 +107,8 @@ async function routeEachPublicHandler () {
     calls.cancel.push(params)
     return { psbt: { toHex: () => 'cancel-psbt' }, encoding: 'TAPROOT', cancel: true }
   }
+  // A node on the configured tier, so health() settles its tier check without a real node RPC.
+  api.encoder.connector.chainName = async () => 'regtest'
   api.encoder.utxoTrackerConnector.getSyncStatus = async () => {
     calls.health += 1
     return { synced: true, lag: 0, halted: false, mempool_ready: true }
@@ -137,6 +139,8 @@ async function routeEachPublicHandler () {
     tracker_lag: 0,
     tracker_halted: false,
     tracker_mempool_ready: true,
+    node_tier_mismatch: null,
+    node_tier_checked: true,
     maintenance: null
   })
   assert.strictEqual(calls.health, 1)
