@@ -98,22 +98,21 @@ describe('Fee Calculation Boundaries', () => {
 })
 
 describe('Fee Calculation Boundaries', () => {
-  describe('negative feePerKb → floored to dustAmount', () => {
+  describe('negative feePerKb → refused below the relay minimum', () => {
     it('negative feePerKb does not produce negative fee', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, null, false, null, address,
-        null, null, null, true, -0.001 // negative feePerKb
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], address, null,
+          'SEND|0|X|1|a', null, null, false, null, address,
+          null, null, null, true, -0.001 // negative feePerKb
+        ),
+        (err) => err instanceof RangeError &&
+                 /below the node relay minimum/.test(err.message)
       )
-
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
-      assert.ok(impliedFee >= BTC_DUST,
-        `fee ${impliedFee} should be >= dustAmount ${BTC_DUST} even with negative feePerKb`)
     })
   })
 })
@@ -127,6 +126,7 @@ describe('Fee Calculation Boundaries', () => {
       )
       capped.connector = {
         getFeePerKilobyte: async () => 0.00001,
+        getNetworkInfo: async () => ({ relayfee: 0.00001 }),
         getTransactionHex: async () => buildRawTxHex(100000000, NETWORK),
         isRegtest: async () => true
       }
@@ -166,6 +166,7 @@ describe('Fee Calculation Boundaries', () => {
       )
       capped.connector = {
         getFeePerKilobyte: async () => 0.00001,
+        getNetworkInfo: async () => ({ relayfee: 0.00001 }),
         getTransactionHex: async () => buildRawTxHex(100000000, NETWORK),
         isRegtest: async () => true
       }
@@ -223,9 +224,9 @@ describe('Fee Calculation Boundaries', () => {
 
 describe('Fee Calculation Boundaries', () => {
   describe('fee exceeding total inputs', () => {
-    // M-8: the dust-floored fee (546) exceeds the 1-sat input, so the encoder
+    // M-8: a relay-valid fee exceeds the 1-sat input, so the encoder
     // throws INSUFFICIENT_FUNDS instead of returning a PSBT with negative change.
-    it('1-sat UTXO with dust-floored fee throws INSUFFICIENT_FUNDS', async () => {
+    it('1-sat UTXO with a relay-valid fee throws INSUFFICIENT_FUNDS', async () => {
       const encoder = makeEncoder(NETWORK)
       const address = getTestAddress(NETWORK)
       const utxo = makeUtxo(NETWORK, TXID_A, 0, 1)
@@ -234,7 +235,7 @@ describe('Fee Calculation Boundaries', () => {
         () => encoder.createTransaction(
           [utxo], address, null,
           'SEND|0|X|1|a', null, null, false, null, address,
-          null, null, null, true, 0.0000001
+          null, null, null, true, 1000
         ),
         (err) => err.operational === true &&
                  err.xchainCode === 'INSUFFICIENT_FUNDS' &&
@@ -286,38 +287,22 @@ describe('Fee Calculation Boundaries', () => {
       assert.strictEqual(changeOutput.value, 100000000 - 10000)
     })
 
-    it('explicit fee=0 still gets floored to dustAmount', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+    for (const explicitFee of [0, 1]) {
+      it(`explicit fee=${explicitFee} is refused below the relay minimum`, async () => {
+        const encoder = makeEncoder(NETWORK)
+        const address = getTestAddress(NETWORK)
+        const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
 
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, 0, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
-      assert.strictEqual(impliedFee, BTC_DUST,
-        `explicit fee=0 should be floored to ${BTC_DUST}`)
-    })
-
-    it('explicit fee=1 still gets floored to dustAmount', async () => {
-      const encoder = makeEncoder(NETWORK)
-      const address = getTestAddress(NETWORK)
-      const utxo = makeUtxo(NETWORK, TXID_A, 0, 100000000)
-
-      const result = await encoder.createTransaction(
-        [utxo], address, null,
-        'SEND|0|X|1|a', null, 1, false, null, address,
-        null, null, null, true, 0.00001
-      )
-
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
-      assert.strictEqual(impliedFee, BTC_DUST,
-        `explicit fee=1 should be floored to ${BTC_DUST}`)
-    })
+        await assert.rejects(
+          () => encoder.createTransaction(
+            [utxo], address, null,
+            'SEND|0|X|1|a', null, explicitFee, false, null, address,
+            null, null, null, true, 0.00001
+          ),
+          (err) => err instanceof RangeError &&
+                   new RegExp(`fee ${explicitFee} is below the node relay minimum`).test(err.message)
+        )
+      })
+    }
   })
 })

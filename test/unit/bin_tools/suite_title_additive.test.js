@@ -36,9 +36,13 @@ function setTitles(pin, file, titles, suffix) {
     pin.scripts.test.files[file] = key;
 }
 
-function pinnedFileWithTitles(pin) {
+function pinnedFilesWithTitles(pin) {
     return Object.keys(pin.scripts.test.files)
-        .find((file) => file.startsWith('test/unit/') && titlesFor(pin, file).length);
+        .filter((file) => file.startsWith('test/unit/') && titlesFor(pin, file).length);
+}
+
+function pinnedFileWithTitles(pin) {
+    return pinnedFilesWithTitles(pin)[0];
 }
 
 function compareThroughCli(pin) {
@@ -62,17 +66,18 @@ function compareThroughCli(pin) {
 describe('suite title comparison additive growth', () => {
     it('prints added files and titles without failing the compare CLI', () => {
         const pin = loadPin();
-        const file = pinnedFileWithTitles(pin);
-        assert.ok(file);
+        const [file, addedFile] = pinnedFilesWithTitles(pin);
+        assert.ok(file && addedFile);
         const [addedTitle, ...remainingTitles] = titlesFor(pin, file);
         setTitles(pin, file, remainingTitles, 'additive');
+        // A file the tree has and the pin lacks, taken out of the pin itself so the
+        // case holds whichever suites the pin was last generated from.
+        delete pin.scripts.test.files[addedFile];
 
         const result = compareThroughCli(pin);
 
         assert.strictEqual(result.status, 0, result.output);
-        assert.ok(result.output.includes(
-            '[test] file_added test/unit/bin_tools/suite_title_additive.test.js',
-        ), result.output);
+        assert.ok(result.output.includes(`[test] file_added ${addedFile}`), result.output);
         assert.ok(result.output.includes(`[test] title_added ${file} :: ${addedTitle}`), result.output);
     });
 

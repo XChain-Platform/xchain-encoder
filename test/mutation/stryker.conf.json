@@ -27,11 +27,7 @@
       "test/integration/multi_chain.test.js",
       "test/integration/obfuscation_roundtrip.test.js",
       "test/boundary/encoding_chunk_boundaries.test/05_multisign_encoding_boundaries.test.js",
-      "test/chaos/network_failures.test.js",
-      "test/unit/bin_tools/suite_title_additive.test.js",
-      "test/boundary/custom_output_boundaries.test.js",
-      "test/boundary/fee_calculation_boundaries.test.js",
-      "test/boundary/txsize_estimator_boundaries.test.js"
+      "test/chaos/network_failures.test.js"
     ]
   },
   "reporters": ["html", "clear-text", "json"],
