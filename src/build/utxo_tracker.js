@@ -305,6 +305,10 @@ class UtxoTracker {
         this.port = port
         this.profile = profile
         this.maxLagBlocks = maxLagBlocks
+        this.setMaxAddressUtxos(maxUtxos)
+    }
+
+    setMaxAddressUtxos(maxUtxos) {
         this.maxAddressUtxos = maxAddressUtxos(maxUtxos)
     }
 

@@ -335,7 +335,15 @@ return {
 // Made here rather than at module scope because the methods close over the
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
-function createJsonRpcController({ encoder, NETWORK }) {
+function configurePublicUtxoCap(encoder, configuration) {
+    const configuredCap = (configuration && configuration.UTXO_TRACKER_MAX_ADDRESS_UTXOS) ??
+        Reflect.get(process, 'env').UTXO_TRACKER_MAX_ADDRESS_UTXOS
+    if (configuredCap == null) return
+    encoder.utxoTrackerConnector.setMaxAddressUtxos(configuredCap)
+}
+
+function createJsonRpcController({ encoder, NETWORK, configuration = config }) {
+    configurePublicUtxoCap(encoder, configuration)
     // No prototype, so the router's `in` check cannot dispatch an inherited name (constructor, toString).
     return Object.assign(
         Object.create(null),

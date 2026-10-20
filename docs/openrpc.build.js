@@ -119,7 +119,7 @@ const METHODS = [
     {
         name: 'get_utxos',
         summary: 'List UTXOs for an address (proxied from xchain-utxo-tracker).',
-        description: 'The response is bounded (default 10000 UTXOs, configurable per tracker connector). '
+        description: 'The response is bounded (default 10000 UTXOs, configurable with UTXO_TRACKER_MAX_ADDRESS_UTXOS). '
             + 'An address holding more is refused with error -32010 (data.reason UTXO_SET_TOO_LARGE, data.limit the cap); '
             + 'the set is never truncated and a refusal is never returned as an empty set.',
         params: [{ name: 'address', required: true, schema: str('address to query') }],

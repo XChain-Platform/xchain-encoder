@@ -40,6 +40,14 @@ describe('UtxoTracker constructor', () => {
     assert.strictEqual(new UtxoTracker('h', 9999, null, null, 0).maxAddressUtxos, DEFAULT_MAX_ADDRESS_UTXOS)
     assert.strictEqual(new UtxoTracker('h', 9999, null, null, 'invalid').maxAddressUtxos, DEFAULT_MAX_ADDRESS_UTXOS)
   })
+
+  it('accepts application configuration after connector construction', () => {
+    const tracker = new UtxoTracker('h', 9999)
+
+    tracker.setMaxAddressUtxos('73')
+
+    assert.strictEqual(tracker.maxAddressUtxos, 73)
+  })
 })
 
 describe('UtxoTracker public result cap', () => {
