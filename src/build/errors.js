@@ -17,12 +17,16 @@
  * A caller-actionable failure the encoder can name precisely: no spendable
  * UTXOs, an under-funded selection, a missing change address, an unreachable
  * or stale tracker. These are distinct from an unexpected internal (a bug, an upstream
- * transport failure that embeds host:port). api.js forwards an OperationalError
- * message + its stable `xchainCode` to the caller, but collapses everything
- * else to a generic message so internals and credentials never reach a
- * response. The message here is encoder-authored; any upstream text it embeds
- * (a tracker error or halt reason) has first passed safeUpstreamReason
- * (leak-checked, printable ASCII, length-capped), so it is safe to forward.
+ * transport failure that embeds host:port). toRpcError in
+ * src/api/json_rpc_methods.js forwards an OperationalError message + its
+ * stable `xchainCode` to the caller (-32010), returns a ParamTypeError or
+ * ParamRangeError message as -32602, and collapses everything else to a
+ * logged, generic -32603 so internals and credentials never reach a response.
+ * The message here is encoder-authored; any upstream text it embeds (a tracker
+ * error or halt reason) has first passed upstreamErrorMessage (a transport
+ * failure, or any URL, dotted quad or host:port, collapses to a fallback) or
+ * safeUpstreamReason (the same leak check, plus printable ASCII and a length
+ * cap), so it carries no topology or credentials and is safe to forward.
  *
  ********************************************************************/
 

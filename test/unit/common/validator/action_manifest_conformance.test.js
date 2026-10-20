@@ -25,6 +25,7 @@ const assert = require('assert');
 const fs   = require('fs');
 const path = require('path');
 const v = require('../../../../src/common/validator.js');
+const { isValidatorWireAction } = require('../../../../src/protocol/validator_wire_actions.js');
 
 const VENDORED = path.join(__dirname, '../../../fixtures/action-manifest.json');
 const MANIFEST = JSON.parse(fs.readFileSync(VENDORED, 'utf8'));
@@ -56,6 +57,12 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
 
     it('records BET version 4 as user-encodable', function () {
         assert.deepStrictEqual(MANIFEST.actions.BET.userEncodableVersions, [0, 1, 2, 3, 4]);
+        // Bind every recorded version to the encoder: its name gate admits it, and the prelaunch check keeps it a user action.
+        for (const version of MANIFEST.actions.BET.userEncodableVersions) {
+            const data = 'BET|' + version + '|x';
+            assert.strictEqual(v.unknownActionName(data), null, 'encoder name gate rejects ' + data);
+            assert.strictEqual(isValidatorWireAction(data), false, 'encoder reads user action ' + data + ' as a validator wire action');
+        }
     });
 
     it('keeps settlement anchors outside the encoder ACTION-name gate', function () {

@@ -27,11 +27,13 @@ const METHODS = [
     },
     {
         name: 'health',
-        summary: 'Probe hard dependencies (UTXO tracker) and report reachability and sync state.',
+        summary: 'Probe hard dependencies (UTXO tracker, coin-node network tier) and report reachability and sync state.',
         description: 'Unlike ping, a health failure means the encoder cannot serve requests correctly. '
-            + 'When the tracker is unreachable the fields stay at their defaults (false / null).',
+            + 'When the tracker is unreachable the fields stay at their defaults (false / null). '
+            + 'The coin node\'s network tier is checked on every probe under a short deadline; an unchecked tier '
+            + 'reads node_tier_checked false and does not by itself make the encoder unready.',
         params: [],
-        result: { name: 'health', schema: { type: 'object', properties: { tracker_reachable: bool('UTXO tracker reachable'), tracker_synced: bool('tracker is serveable: synced, inside our lag bounds on both sides, not halted, and mempool-reconverged'), tracker_lag: { type: ['integer', 'null'], description: 'tracker block lag, or null when unknown/unreachable; negative means the tracker is ahead of the node' }, tracker_halted: bool('tracker stopped polling on an unrecoverable reorg'), tracker_mempool_ready: bool('tracker has reconverged its mempool, so an already-spent confirmed output can be filtered out'), maintenance: { type: ['object', 'null'], description: 'operator-declared scheduled-maintenance window, or null; context only, it never changes the readiness fields above', properties: { active: { type: 'boolean' }, reason: { type: 'string' }, since: { type: ['string', 'null'] }, until: { type: 'string' } } } } } },
+        result: { name: 'health', schema: { type: 'object', properties: { tracker_reachable: bool('UTXO tracker reachable'), tracker_synced: bool('tracker is serveable: synced, inside our lag bounds on both sides, not halted, and mempool-reconverged'), tracker_lag: { type: ['integer', 'null'], description: 'tracker block lag, or null when unknown/unreachable; negative means the tracker is ahead of the node' }, tracker_halted: bool('tracker stopped polling on an unrecoverable reorg'), tracker_mempool_ready: bool('tracker has reconverged its mempool, so an already-spent confirmed output can be filtered out'), node_tier_mismatch: { type: ['string', 'null'], description: 'why the coin node is on the wrong network tier, or null; a non-null value means every money method refuses the node' }, node_tier_checked: bool('the coin node\'s network tier has been confirmed (matching or mismatched); false means it could not be read yet'), maintenance: { type: ['object', 'null'], description: 'operator-declared scheduled-maintenance window, or null; context only, it never changes the readiness fields above', properties: { active: { type: 'boolean' }, reason: { type: 'string' }, since: { type: ['string', 'null'] }, until: { type: 'string' } } } } } },
     },
     {
         name: 'estimate_fee',
@@ -117,6 +119,9 @@ const METHODS = [
     {
         name: 'get_utxos',
         summary: 'List UTXOs for an address (proxied from xchain-utxo-tracker).',
+        description: 'The response is bounded (default 10000 UTXOs, configurable with UTXO_TRACKER_MAX_ADDRESS_UTXOS). '
+            + 'An address holding more is refused with error -32010 (data.reason UTXO_SET_TOO_LARGE, data.limit the cap); '
+            + 'the set is never truncated and a refusal is never returned as an empty set.',
         params: [{ name: 'address', required: true, schema: str('address to query') }],
         result: { name: 'utxos', schema: { type: 'array', items: { type: 'object' } } },
     },
@@ -174,7 +179,7 @@ const spec = {
             + 'LTC/TLTC, DOGE/TDOGE). Auth is optional: when the operator configures an API key, requests '
             + 'need an x-api-key header; the public instances run open. Errors follow JSON-RPC 2.0 '
             + '({code, message}): -32602 invalid params, -32603 internal, -32001 unauthorized, -32029 rate '
-            + 'limited. See the registry at https://docs.xchain.io/protocol/Error_Codes.md. '
+            + 'limited, -32010 UTXO set too large (get_utxos). See the registry at https://docs.xchain.io/protocol/Error_Codes.md. '
             + 'LLM-friendly docs: https://docs.xchain.io/llms.txt',
         license: { name: 'AGPL-3.0-or-later', url: 'https://docs.xchain.io/legal/LICENSING.md' },
     },

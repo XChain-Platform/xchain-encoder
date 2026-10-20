@@ -28,6 +28,7 @@ const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
+const { createServeReadiness } = require('./serve_readiness')
 const config = require('../common/config')
 const logger = getLogger();
 
@@ -35,65 +36,10 @@ const logger = getLogger();
 // the network name); the factory composes the groups into one controller. The
 // method text keeps its entry indentation so the openrpc guard still matches.
 
-// Serve-readiness probe shared by the JSON-RPC health() method and GET
-// /status, so the two endpoints can never drift apart: probes the
-// UTXO tracker and returns its reachability / sync state. Fields:
-// tracker_reachable (bool), tracker_synced (bool), tracker_lag (number|null),
-// tracker_halted (bool), tracker_mempool_ready (bool), maintenance (object|null).
-//
-// maintenance is the operator's DECLARED scheduled-outage window (see
-// src/server/maintenance_window.js), carried alongside the readiness fields and never
-// folded into them: it cannot make an unready encoder read ready, and it does
-// not move the 503. A planned tracker stop and a broken tracker are the same
-// readiness verdict - the difference is only that somebody meant one of them,
-// which is exactly the distinction the public board had no way to draw.
-//
-// tracker_synced is SERVE-readiness, not the tracker's raw verdict: it
-// applies the same maxUtxoTrackerLagBlocks ceiling create_tx enforces
-// (deliberately tighter than the tracker's own SYNCED_THRESHOLD, money
-// safety). Without the extra gate a 3-block lag read synced:true here while
-// create_tx refused UTXO_TRACKER_STALE, so the status board painted Online
-// on an un-serveable encoder. Null lag fails open, exactly like
-// create_tx's overLag gate.
-//
-// A halted tracker (stopped polling on an unrecoverable reorg) and a negative
-// lag (its committed tip sits above the node's, so its outputs are orphaned)
-// are both un-serveable regardless of what `synced` says, and both were painting
-// Online here because only the upper lag bound was checked. A tracker whose
-// mempool has not reconverged is un-serveable for the same reason: create_tx
-// refuses it UTXO_TRACKER_NOT_READY, so leaving it out of this probe recreated
-// the same board-versus-encoder divergence the probe exists to prevent.
+// Serve-readiness probe shared by the JSON-RPC health() method and GET /status;
+// its fields and gates are documented in src/api/serve_readiness.js.
 function buildReadinessMethods({ encoder }) {
-async function getServeReadiness() {
-    // Read first and independently of the tracker probe: the window is what
-    // explains a tracker that is deliberately down, so it must survive the
-    // catch below rather than depend on the probe it annotates.
-    const maintenance = await readMaintenanceWindow()
-    let tracker_reachable = false
-    let tracker_synced = false
-    let tracker_lag = null
-    let tracker_halted = false
-    let tracker_mempool_ready = false
-    try {
-        const status = await encoder.utxoTrackerConnector.getSyncStatus()
-        tracker_reachable = true
-        // This probe applies the SAME freshness classifier create_tx refuses a
-        // tracker with, against this endpoint's payload, so the board and the
-        // encoder cannot drift apart: both read getSyncStatus() through
-        // classifyTrackerFreshness instead of each re-deriving over-lag,
-        // behind-node, halted and mempool-ready. The remaining asymmetry is
-        // intentional: readiness needs the tracker's POSITIVE synced assertion
-        // (syncedClaimed), while the create_tx gate refuses only on negatives.
-        const freshness = XChainEncoder.classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
-        tracker_halted = freshness.halted
-        tracker_mempool_ready = freshness.mempoolReady
-        tracker_synced = freshness.syncedClaimed && freshness.code === null
-        tracker_lag = freshness.lag
-    } catch (_err) {
-        // tracker unreachable; fields stay at defaults
-    }
-    return { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, maintenance }
-}
+const getServeReadiness = createServeReadiness({ encoder, readMaintenanceWindow })
 
 return {
     async ping() {
@@ -149,7 +95,7 @@ async function assertNodeTierOrRpcError(encoder) {
     try { await encoder.connector.assertNodeTier() } catch (err) { throw toRpcError(err) }
 }
 
-// Map a build-path error to its JSON-RPC code: OperationalError to -32010 with its
+// Map a validation or build-path error to its JSON-RPC code: OperationalError to -32010 with its
 // xchainCode, an encoder-raised ParamTypeError/ParamRangeError to -32602, and anything
 // else (a Node or library TypeError included) to a logged, generic -32603.
 // The SDK treats every JSON-RPC body error as final; callers own any retries.
@@ -182,9 +128,8 @@ return {
         try {
             params = validator.validateAll(rawParams, { paymentOutputFloor: encoder.paymentOutputFloor }) // sub-dust payment: -32602
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            // Only a ParamTypeError/ParamRangeError is a caller fault; any other throw is internal (-32603)
+            throw toRpcError(err)
         }
 
         config.assertNotMainnetPrelaunch(encoder, params)
@@ -264,9 +209,7 @@ return {
             }
             reservationId = validator.validateReservationId(rawParams.reservationId)
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            throw toRpcError(err)
         }
         try {
             return encoder.releaseReservation(reservationId)
@@ -301,11 +244,15 @@ return {
         let localTxid
         try {
             validator.validateRawTxHex(tx_hex)
-            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            throw toRpcError(err)
+        }
+        // A well-formed hex string that does not decode is still the caller's fault: the
+        // library's native RangeError is renamed so toRpcError keeps it at -32602
+        try {
+            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
+        } catch {
+            throw toRpcError(new ParamTypeError('tx_hex is not a parseable transaction'))
         }
 
         await assertNodeTierOrRpcError(encoder)
@@ -362,9 +309,7 @@ return {
         try {
             validator.validateAddress(address)
         } catch (err) {
-            const e = new Error(err.message)
-            e.code = -32602
-            throw e
+            throw toRpcError(err)
         }
 
         try {
@@ -372,6 +317,12 @@ return {
             return result
         } catch (err) {
             logger.error(util.format('UTXO fetch error:', err))
+            if (err && err.code === 'UTXO_SET_TOO_LARGE') {
+                const tooLarge = new Error(err.message)
+                tooLarge.code = -32010
+                tooLarge.data = { reason: 'UTXO_SET_TOO_LARGE', limit: err.utxoCap }
+                throw tooLarge
+            }
             const e = new Error(upstreamErrorMessage(err, 'UTXO fetch failed'))
             e.code = -32603
             throw e
@@ -383,7 +334,15 @@ return {
 // Made here rather than at module scope because the methods close over the
 // encoder and network the entry builds from its environment, so requiring this
 // file constructs nothing. Group order is the dispatch table's key order.
-function createJsonRpcController({ encoder, NETWORK }) {
+function configurePublicUtxoCap(encoder, configuration) {
+    const configuredCap = (configuration && configuration.UTXO_TRACKER_MAX_ADDRESS_UTXOS) ??
+        Reflect.get(process, 'env').UTXO_TRACKER_MAX_ADDRESS_UTXOS
+    if (configuredCap == null) return
+    encoder.utxoTrackerConnector.setMaxAddressUtxos(configuredCap)
+}
+
+function createJsonRpcController({ encoder, NETWORK, configuration = config }) {
+    configurePublicUtxoCap(encoder, configuration)
     // No prototype, so the router's `in` check cannot dispatch an inherited name (constructor, toString).
     return Object.assign(
         Object.create(null),

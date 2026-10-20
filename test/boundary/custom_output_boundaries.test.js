@@ -126,7 +126,7 @@ describe('Custom Output Boundaries', () => {
       // size is 430 bytes larger. With auto fee, the fee should be measurably higher.
       const resultWithOutputs = await encoder.createTransaction(
         [utxo], address,
-        Array.from({ length: 10 }, () => ({ address, value: 1 })),
+        Array.from({ length: 10 }, () => ({ address, value: 546 })),
         'SEND|0|X|1|a', null, null, false, null, address,
         null, null, null, true, 100000 // sat/kB: 100 sat/byte, moderate fee rate
       )
@@ -139,7 +139,7 @@ describe('Custom Output Boundaries', () => {
         null, null, null, true, 100000
       )
 
-      const feeWith = 100000000 - 10 - resultWithOutputs.psbt.txOutputs
+      const feeWith = 100000000 - 10 * 546 - resultWithOutputs.psbt.txOutputs
         .reduce((max, o) => o.value > max.value ? o : max, { value: 0 }).value
       const feeWithout = 100000000 - resultWithout.psbt.txOutputs
         .find(o => o.value > 0).value

@@ -60,6 +60,13 @@ class CryptoNetworks {
         return p ? coins.getCoinConfig(p.tick, p.net).firstBlock : 0;
     }
 
+    // The coin node's pinned block-0 hash for a network key, or null when unpinned or unknown.
+    // (Identifies the endpoint, not consensus: assertNodeTier compares it with getblockhash 0.)
+    static getChainGenesisHash(networkName){
+        const p = parseNetworkName(networkName);
+        return p ? (coins.getCoinConfig(p.tick, p.net).chainGenesisHash ?? null) : null;
+    }
+
     // The LOCAL block height at/above which decoders recognize
     // Taproot-envelope reveals as action-bearing. Like firstBlock above, this IS
     // consensus-visible (pinned by a different mechanism, not consensusSubset()):

@@ -159,7 +159,7 @@ describe('TxSizeEstimator Boundaries', () => {
       const result = await encoder.createTransaction(
         [utxo], address, null,
         'SEND|0|JDOG|1|addr', null, null, false, null, address,
-        null, null, null, true, 0.00001
+        null, null, null, true, 1000
       )
 
       // The fallback ensures fee estimation is conservative rather than
