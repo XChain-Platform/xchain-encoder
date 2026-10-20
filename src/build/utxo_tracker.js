@@ -33,14 +33,12 @@ const TRACKER_TIMEOUT = 15000
 // it reach bitcoinjs-lib's psbt.addInput() and throw at construction time.
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 
-// Hard bound on the UTXOs one get_utxos / getUtxosFromAddress call will assemble.
-// A set above it is refused, never truncated: a silently cut set looks like a
-// smaller wallet and would reach selection as if it were complete. The default is
-// one full tracker page; operators can tune it with XCHAIN_MAX_ADDRESS_UTXOS.
 const DEFAULT_MAX_ADDRESS_UTXOS = 10000
 const UTXO_SET_TOO_LARGE = 'UTXO_SET_TOO_LARGE'
-function maxAddressUtxos(){
-    const raw = Number(process.env.XCHAIN_MAX_ADDRESS_UTXOS)
+const UTXO_PAGE_LIMIT = 10000
+const MAX_UTXO_PAGES = 1000
+function maxAddressUtxos(raw){
+    raw = Number(raw)
     return Number.isSafeInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_ADDRESS_UTXOS
 }
 function assertWithinUtxoCap(count, cap){
@@ -264,12 +262,50 @@ function assertFreshCursor(nextCursor, seenCursors, address){
     seenCursors.add(nextCursor)
 }
 
+function mergeUtxoPage(result, state, address){
+    const pageSync = (result.sync && typeof result.sync === 'object') ? result.sync : null
+    if (state.pageCount === 1) {
+        state.firstPageSync = pageSync
+    } else {
+        assertSameSnapshot(state.firstPageSync, pageSync, address)
+    }
+
+    assertWithinUtxoCap(state.utxos.length + result.utxos.length, state.cap)
+    appendPageUtxos(result.utxos, state.utxos)
+
+    if (!result.nextCursor) return false
+    assertFreshCursor(result.nextCursor, state.seenCursors, address)
+    state.cursor = result.nextCursor
+    return true
+}
+
+async function fetchAllUtxoPages(tracker, address, cap){
+    const state = {
+        cap,
+        cursor: undefined,
+        firstPageSync: null,
+        pageCount: 0,
+        seenCursors: new Set(),
+        utxos: []
+    }
+    while (++state.pageCount <= MAX_UTXO_PAGES) {
+        const pageLimit = Math.min(UTXO_PAGE_LIMIT, cap - state.utxos.length + 1)
+        const responseData = await fetchUtxoPage(tracker, address, pageLimit, state.cursor)
+        const result = readUtxoResult(responseData)
+        if (!mergeUtxoPage(result, state, address)) {
+            return { ...result, utxos: state.utxos }
+        }
+    }
+    throw new Error(`utxo-tracker returned more than ${MAX_UTXO_PAGES} pages for ${address}; aborting (buggy or hostile tracker)`)
+}
+
 class UtxoTracker {
-    constructor(url, port, profile, maxLagBlocks) {
+    constructor(url, port, profile, maxLagBlocks, maxUtxos) {
         this.url = "http://"+url+":"+port
         this.port = port
         this.profile = profile
         this.maxLagBlocks = maxLagBlocks
+        this.maxAddressUtxos = maxAddressUtxos(maxUtxos)
     }
 
     // Probe the tracker's lag behind the chain tip. Returns the parsed
@@ -327,62 +363,8 @@ class UtxoTracker {
 
     async getUtxosFromAddress(address) {
         await assertTrackerReady(this)
-
-        // Paginate to handle addresses with more UTXOs than the tracker's
-        // MAX_ADDRESS_OUTPUTS limit. Each page passes limit=10000 and threads
-        // the nextCursor from the previous response via an `after` param until
-        // the tracker signals no more pages by returning an empty/absent cursor.
-        const PAGE_LIMIT = 10000
-        // Backstop against a buggy/hostile/MITM'd tracker that never terminates pagination
-        // (always returns a non-empty nextCursor, or cycles the same cursor): without a bound
-        // the while(true) loop threads forever and allUtxos grows until the encoder OOMs on a
-        // single request. MAX_PAGES * PAGE_LIMIT (10M utxos) is far beyond any real address; a
-        // repeated cursor is treated as an immediate stall.
-        const MAX_PAGES = 1000
-        const allUtxos = []
-        const seenCursors = new Set()
-        let cursor = undefined
-        let pageCount = 0
-        const cap = maxAddressUtxos()
-        // Snapshot identity of page 1, compared against every later page (see
-        // snapshotDivergence). Stays null against a tracker that predates the per-page
-        // `sync` sibling: the single up-front get_sync_status above is then the only
-        // freshness evidence available, exactly as before this guard existed.
-        let firstPageSync = null
         try {
-            while (true) {
-                if (++pageCount > MAX_PAGES) {
-                    throw new Error(`utxo-tracker returned more than ${MAX_PAGES} pages for ${address}; aborting (buggy or hostile tracker)`)
-                }
-                // Once the set reaches the cap, ask for just one more row. That
-                // distinguishes an exact-cap complete set from an oversized one
-                // without assembling another full page in memory.
-                const pageLimit = Math.min(PAGE_LIMIT, cap - allUtxos.length + 1)
-                const responseData = await fetchUtxoPage(this, address, pageLimit, cursor)
-                const result = readUtxoResult(responseData)
-
-                // Refuse a merged set that spans two chain states. Checked BEFORE the
-                // page's rows are appended, so a diverged page contributes nothing.
-                const pageSync = (result.sync && typeof result.sync === 'object') ? result.sync : null
-                if (pageCount === 1) {
-                    firstPageSync = pageSync
-                } else {
-                    assertSameSnapshot(firstPageSync, pageSync, address)
-                }
-
-                assertWithinUtxoCap(allUtxos.length + result.utxos.length, cap)
-                appendPageUtxos(result.utxos, allUtxos)
-
-                // Continue only if the tracker signals another page.
-                const nextCursor = result.nextCursor
-                if (nextCursor) {
-                    assertFreshCursor(nextCursor, seenCursors, address)
-                    cursor = nextCursor
-                } else {
-                    // No more pages; return accumulated result with utxos merged.
-                    return { ...result, utxos: allUtxos }
-                }
-            }
+            return await fetchAllUtxoPages(this, address, this.maxAddressUtxos)
         } catch (error) {
             logger.error(util.format('Error fetching UTXOs:', error));
             throw error;
@@ -391,5 +373,3 @@ class UtxoTracker {
 }
 
 module.exports = UtxoTracker
-module.exports.UTXO_SET_TOO_LARGE = UTXO_SET_TOO_LARGE
-module.exports.DEFAULT_MAX_ADDRESS_UTXOS = DEFAULT_MAX_ADDRESS_UTXOS
