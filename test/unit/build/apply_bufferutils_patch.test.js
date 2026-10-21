@@ -205,6 +205,8 @@ describe('applyBufferutilsPatch', function () {
         const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
 
         it('is byte-identical to the SDK copy below the banner', function () {
+            // A standalone encoder checkout has no sibling to compare. When
+            // the SDK is present, every shared per-major module must exist.
             if (!sdkRoot) return this.skip();
             const shared = ['compat.js', 'u64.js', 'v7.js', 'version.js'];
             for (const name of shared) {

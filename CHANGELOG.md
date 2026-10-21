@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-10-21
+
+### Changed
+- Pinned the bufferutils patch twin guard to the last converged SDK body while the encoder stays on bitcoinjs-lib 6.
+
 ## [0.26.0] - 2026-10-20
 
 ### Changed
