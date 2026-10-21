@@ -18,8 +18,8 @@
  * 
  ********************************************************************/
 
-// Must load before any PSBT is built: teaches bitcoinjs-lib/bip174 to carry
-// satoshi values above 2^53-1 as BigInt (DOGE has no supply cap).
+// Must load before any PSBT is built: preserves exact satoshi values above
+// 2^53-1 while adapting bitcoinjs-lib 7 to the encoder's legacy value types.
 require('./build/apply_bufferutils_patch')
 const bitcoin = require('bitcoinjs-lib');
 const crypto = require('crypto');

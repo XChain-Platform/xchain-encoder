@@ -86,7 +86,7 @@ function ensureEccLib() {
 // Narrow a satoshi amount computed in BigInt back to a Number when it is
 // exactly representable, so consumers predating BigInt support (tests, PSBT
 // inspectors) keep seeing Number for every value they could handle; only a
-// genuinely >2^53-1 amount stays BigInt (the patched bitcoinjs/bip174
+// genuinely >2^53-1 amount stays BigInt (the patched bitcoinjs-lib 7
 // serializers accept both).
 function asSatValue(v) {
     return (typeof v === 'bigint' && v <= MAX_SAFE_SATOSHI_BIG) ? Number(v) : v
