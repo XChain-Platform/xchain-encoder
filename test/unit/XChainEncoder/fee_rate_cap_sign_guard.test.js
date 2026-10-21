@@ -42,7 +42,7 @@ async function nodeRatedFee (encoder) {
     TEST_ADDRESS, null, 'test', null, null, false, null, TEST_ADDRESS,
     null, null, null, true, null
   )
-  return INPUT_VALUE - result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
+  return INPUT_VALUE - result.psbt.txOutputs.reduce((sum, o) => sum + Number(o.value), 0)
 }
 
 describe('XChainEncoder fee-rate cap sign guard', () => {

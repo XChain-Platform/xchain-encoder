@@ -100,7 +100,7 @@ describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
     )
 
     // Should have OP_RETURN (0) + feeQuote (99000) + change
-    const feeQuoteOutput = result.psbt.txOutputs.find(o => o.value === 99000)
+    const feeQuoteOutput = result.psbt.txOutputs.find(o => Number(o.value) === 99000)
     assert.ok(feeQuoteOutput, 'should have a feeQuote output with the correct value')
   })
 

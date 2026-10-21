@@ -145,7 +145,7 @@ describe('XChainEncoder create_tx options.exactInputs', () => {
     const outputs = psbt.txOutputs
     assert.strictEqual(outputs.length, 1, 'payment-only rescue emits change alone')
     assert.strictEqual(outputs[0].address, TEST_ADDRESS)
-    assert.strictEqual(outputs[0].value, total - RESCUE_FEE)
+    assert.strictEqual(Number(outputs[0].value), total - RESCUE_FEE)
   })
 
   it('signals RBF on every input when rbf is set, not just the first', async () => {

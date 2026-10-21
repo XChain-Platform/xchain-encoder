@@ -234,7 +234,7 @@ describe('XChainEncoder TAPROOT envelope', function () {
         encoder.connector.getFeePerKilobyte = noEstimate
         const cancel = await encoder.createEnvelopeCancelTransaction(
           Object.assign({ feePerKb, destination: callerAddress(encoder.network) }, base))
-        assert.strictEqual(cancel.psbt.txOutputs[0].value, base.commitValue - cancel.fee)
+        assert.strictEqual(Number(cancel.psbt.txOutputs[0].value), base.commitValue - cancel.fee)
         return cancel.fee
       }
       const hostile = await cancelAt(makeEncoder(), 1000000)

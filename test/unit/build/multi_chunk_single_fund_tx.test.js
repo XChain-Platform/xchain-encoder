@@ -64,7 +64,7 @@ async function buildReveal (encoder, fundingTx, payload) {
 
 const isLeg = (o) => o.script.toString('hex').startsWith('a914')
 const legs = (tx) => tx.outs.map((o, vout) => ({ o, vout })).filter(({ o }) => isLeg(o))
-const sum = (outs) => outs.reduce((s, o) => s + o.value, 0)
+const sum = (outs) => outs.reduce((s, o) => s + Number(o.value), 0)
 
 describe('multi-chunk payload through a single P2SH fund tx @regression @tier1', () => {
 

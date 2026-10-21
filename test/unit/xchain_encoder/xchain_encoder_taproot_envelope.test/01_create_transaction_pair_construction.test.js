@@ -86,7 +86,7 @@ describe('XChainEncoder TAPROOT envelope', function () {
       }).output
       assert.strictEqual(result.envelope.commitVout, 0)
       assert.deepStrictEqual(commitTx.outs[0].script, expected)
-      assert.strictEqual(commitTx.outs[0].value, result.envelope.commitValue)
+      assert.strictEqual(Number(commitTx.outs[0].value), result.envelope.commitValue)
       assert.strictEqual(result.envelope.commitTxid, commitTx.getId())
 
       // Reveal input 0 is the commit outpoint, with the tapLeafScript attached.
@@ -125,7 +125,7 @@ describe('XChainEncoder TAPROOT envelope', function () {
         null, false, 'TAPROOT', callerAddress(network), null, null, PUBKEY_HEX)
       const commitTx = unsignedTx(result.psbt)
       // vout 0 = envelope commit; the custom output follows it on the commit.
-      const found = commitTx.outs.slice(1).some(o => o.value === 12345)
+      const found = commitTx.outs.slice(1).some(o => Number(o.value) === 12345)
       assert.ok(found, 'custom output present on the commit after the envelope output')
       // ...and the reveal carries no custom outputs (change/pad only).
       for (const out of result.revealPsbt.txOutputs) {

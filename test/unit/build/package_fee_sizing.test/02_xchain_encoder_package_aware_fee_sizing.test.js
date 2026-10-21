@@ -81,7 +81,7 @@ async function create (encoder, utxos) {
 
 // inputs − all outputs = the fee actually embedded in the PSBT
 function paidFee (result) {
-  const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
+  const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + Number(o.value), 0)
   return INPUT_VALUE - outputs
 }
 
@@ -255,9 +255,8 @@ describe('XChainEncoder package-aware fee sizing @regression @tier1', () => {
       [utxo], TEST_ADDRESS, null, 'test', null, null, false, null, TEST_ADDRESS,
       null, null, null, true, null
     )
-    const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
+    const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + Number(o.value), 0)
     assert.ok(outputs <= 400000, 'the transaction may never pay out more than it takes in')
   })
 
 })
-

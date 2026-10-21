@@ -107,7 +107,8 @@ module.exports = {
         if (!Array.isArray(outs) || !outs[outputIndex]){
             throw new Error(`no output at index ${outputIndex} to raise`)
         }
-        const raised = outs[outputIndex].value + delta
+        const current = outs[outputIndex].value
+        const raised = typeof current === 'bigint' ? current + BigInt(delta) : current + delta
         outs[outputIndex].value = raised
         // Verify bitcoinjs serializes the raised value (see the note above)
         if (psbt.txOutputs[outputIndex].value !== raised){

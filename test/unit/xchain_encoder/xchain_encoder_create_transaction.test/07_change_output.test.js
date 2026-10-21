@@ -33,7 +33,7 @@ describe('XChainEncoder.createTransaction()', () => {
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
       assert.ok(changeOutput, 'change output should exist')
-      assert.strictEqual(changeOutput.value, 100000000 - 10000)
+      assert.strictEqual(Number(changeOutput.value), 100000000 - 10000)
     })
 
     it('throws when change address is falsy and change would be burned', async () => {
