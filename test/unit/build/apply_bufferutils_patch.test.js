@@ -20,6 +20,19 @@ function patchBody(file) {
     return source.slice(end + BANNER_END.length);
 }
 
+// The SDK moved to bitcoinjs-lib 7 and split its copy into per-major parts
+// (xchain-sdk f378c75c, 7fa52bc8). While the encoder stays on bitcoinjs-lib 6
+// its body is pinned to the last converged SDK body (the SDK copy at f378c75c^);
+// the live twin compare returns with the encoder's own upgrade.
+const LAST_CONVERGED_SDK_BODY_SHA256 = '7937f9503b5fb643b9e4fe295de3f67deb3e654c72e5694035f0cc054c4642d3';
+const ENCODER_BITCOINJS_MAJOR = Number(String(require('../../../package.json').dependencies['bitcoinjs-lib']).replace(/^[^0-9]*/, '').split('.')[0]);
+
+function assertPinnedToLastConvergedBody(file) {
+    const digest = require('crypto').createHash('sha256').update(patchBody(file)).digest('hex');
+    assert.strictEqual(digest, LAST_CONVERGED_SDK_BODY_SHA256,
+        'applyBufferutilsPatch.js has drifted from the last SDK body it converged with');
+}
+
 describe('applyBufferutilsPatch', function () {
     it('exposes the patched bufferutils surface', function () {
         assert.strictEqual(typeof bufferutils.readUInt64LE, 'function');
@@ -208,6 +221,7 @@ describe('applyBufferutilsPatch', function () {
             // Skipped ONLY where the sibling repo is absent entirely (a
             // standalone encoder checkout); inside the monorepo it must run,
             // so a missing twin file next to a present xchain-sdk is a failure.
+            if (ENCODER_BITCOINJS_MAJOR < 7) return assertPinnedToLastConvergedBody(mine);
             if (!fs.existsSync(sdkRoot)) return this.skip();
             assert.ok(fs.existsSync(twin), 'xchain-sdk is present but its copy of the patch is missing: ' + twin);
             assert.strictEqual(patchBody(mine), patchBody(twin),
