@@ -9,6 +9,32 @@ const fs = require('fs');
 const path = require('path');
 const bufferutils = require('../../../src/build/apply_bufferutils_patch.js');
 
+function findSdkRoot(repoRoot) {
+    let cursor = path.dirname(repoRoot);
+    while (cursor !== path.dirname(cursor)) {
+        const candidate = path.join(cursor, 'xchain-sdk');
+        if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate;
+        cursor = path.dirname(cursor);
+    }
+    return null;
+}
+
+function patchModuleSources(entry) {
+    const pending = [entry];
+    const sources = new Map();
+    while (pending.length > 0) {
+        const file = pending.pop();
+        if (sources.has(file)) continue;
+        const source = fs.readFileSync(file, 'utf8');
+        sources.set(file, source);
+        for (const match of source.matchAll(/require\('([^']+)'\)/g)) {
+            if (!match[1].startsWith('.')) continue;
+            pending.push(require.resolve(path.resolve(path.dirname(file), match[1])));
+        }
+    }
+    return sources;
+}
+
 describe('applyBufferutilsPatch', function () {
     it('exposes the patched bufferutils surface', function () {
         assert.strictEqual(typeof bufferutils.readUInt64LE, 'function');
@@ -174,18 +200,34 @@ describe('applyBufferutilsPatch', function () {
 
 describe('applyBufferutilsPatch', function () {
     describe('twin guard against the SDK copy', function () {
+        const repoRoot = path.resolve(__dirname, '../../..');
+        const sdkRoot = findSdkRoot(repoRoot);
         const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
 
-        it.skip('is byte-identical to the SDK copy below the banner');
+        it('is byte-identical to the SDK copy below the banner', function () {
+            if (!sdkRoot) return this.skip();
+            const shared = ['compat.js', 'u64.js', 'v7.js', 'version.js'];
+            for (const name of shared) {
+                const encoderFile = path.join(repoRoot, 'src/build/apply_bufferutils_patch', name);
+                const sdkFile = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch', name);
+                assert.ok(fs.existsSync(sdkFile), 'xchain-sdk is present but its patch module is missing: ' + sdkFile);
+                assert.strictEqual(fs.readFileSync(encoderFile, 'utf8'), fs.readFileSync(sdkFile, 'utf8'),
+                    name + ' has drifted from the SDK copy; converge SDK-ward');
+            }
+        });
 
         it('declares every package it deep-requires', function () {
             const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
-            const source = fs.readFileSync(mine, 'utf8');
+            const sources = patchModuleSources(mine);
+            assert.ok(sources.has(path.join(repoRoot, 'src/build/apply_bufferutils_patch/v7.js')),
+                'dependency check did not reach the bitcoinjs-lib 7 patch module');
             const required = new Set();
-            for (const m of source.matchAll(/require\('([^']+)'\)/g)) {
-                if (m[1].startsWith('.')) continue;
-                const parts = m[1].split('/');
-                required.add(m[1].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]);
+            for (const source of sources.values()) {
+                for (const match of source.matchAll(/require\('([^']+)'\)/g)) {
+                    if (match[1].startsWith('.')) continue;
+                    const parts = match[1].split('/');
+                    required.add(match[1].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]);
+                }
             }
             for (const name of required) {
                 assert.ok(
