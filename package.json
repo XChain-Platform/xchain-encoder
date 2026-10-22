@@ -37,7 +37,7 @@
   "scripts": {
     "api": "node ./src/api.js",
     "lint": "eslint .",
-    "pretest": "node ./test/clean-install.js",
+    "pretest": "node ./test/helpers/clean_install.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
     "test": "npx mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --recursive --exit",
     "test:regtest": "mocha --timeout 0 --require ./test/prepare_regtest.test.js",

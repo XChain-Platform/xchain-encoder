@@ -3,7 +3,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../..');
 const scratchRoot = path.join(repoRoot, 'tmp');
 fs.mkdirSync(scratchRoot, { recursive: true });
 const installRoot = fs.mkdtempSync(path.join(scratchRoot, 'clean-install-'));
