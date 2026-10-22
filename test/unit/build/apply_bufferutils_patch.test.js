@@ -35,6 +35,16 @@ function patchModuleSources(entry) {
     return sources;
 }
 
+function installedPackageVersion(name) {
+    let cursor = path.dirname(require.resolve(name));
+    while (cursor !== path.dirname(cursor)) {
+        const manifest = path.join(cursor, 'package.json');
+        if (fs.existsSync(manifest)) return JSON.parse(fs.readFileSync(manifest, 'utf8')).version;
+        cursor = path.dirname(cursor);
+    }
+    throw new Error('could not find installed package manifest for ' + name);
+}
+
 describe('applyBufferutilsPatch', function () {
     it('exposes the patched bufferutils surface', function () {
         assert.strictEqual(typeof bufferutils.readUInt64LE, 'function');
@@ -242,6 +252,12 @@ describe('applyBufferutilsPatch', function () {
         it('does not pin bitcoinjs-lib transitive dependencies', function () {
             const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
             assert.strictEqual(Object.prototype.hasOwnProperty.call(pkg.dependencies || {}, 'bip174'), false);
+        });
+
+        it('runs against the exact declared bitcoinjs-lib version', function () {
+            const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
+            assert.strictEqual(installedPackageVersion('bitcoinjs-lib'), pkg.dependencies['bitcoinjs-lib']);
+            assert.match(pkg.dependencies['bitcoinjs-lib'], /^7\./);
         });
     });
 });
