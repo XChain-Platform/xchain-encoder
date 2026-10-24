@@ -90,7 +90,8 @@ function* sweepP2shReveal(build){
     // Legs funded before this fix carry no headroom, leave no surplus at or
     // above dust, and produce a byte-identical (still outputless) reveal.
     // A multi-chunk P2WSH reveal is swept the same way: its first leg carries the same
-    // headroom. A single-chunk one was funded a floor pad instead and is not swept.
+    // headroom, and so is a single-chunk one whose caller outputs clear the stripped
+    // floor. A single-chunk one under the floor was funded a floor pad instead and is not swept.
     if (p2shHash && sweepsRevealSurplus.call(this, build) && phaseLegInputSatoshis > 0n){
         let revealEmittedOutputBytes = 43 // change output (worst case), matching the reserve above
         if (customOutputs && Array.isArray(customOutputs)){
@@ -124,11 +125,12 @@ function* sweepP2shReveal(build){
 }
 
 // Which chunk reveals end with a surplus sweep back to the caller: those whose first
-// funding leg was topped up with reveal headroom (see topUpFirstLeg).
+// funding leg was topped up with reveal headroom (see topUpFirstLeg). The pad question
+// counts the caller's reveal outputs exactly as the funding side asked it.
 function sweepsRevealSurplus(build){
-    const { preparedData } = build
+    const { preparedData, customOutputs } = build
     const encoding = preparedData["encoding"]
-    return encoding === Encoding.P2SH || (encoding === Encoding.P2WSH && !revealNeedsFloorPad.call(this, preparedData))
+    return encoding === Encoding.P2SH || (encoding === Encoding.P2WSH && !revealNeedsFloorPad.call(this, preparedData, customOutputs))
 }
 
 function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
