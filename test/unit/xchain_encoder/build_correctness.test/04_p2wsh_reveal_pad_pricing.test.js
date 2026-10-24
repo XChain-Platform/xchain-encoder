@@ -77,7 +77,7 @@ describe('a single-chunk P2WSH reveal with a caller output funds no unused pad',
 
         assert.strictEqual(reveal.psbt.inputCount, 1, 'one data chunk')
         assert.ok(a.stripped >= F.net(coin).minStandardTxNonWitnessSize, 'the caller output clears the stripped floor')
-        assert.ok(outs.some((o) => o.address === customOutputs[0].address && o.value === PAID), 'the caller output is paid')
+        assert.ok(outs.some((o) => o.address === customOutputs[0].address && Number(o.value) === PAID), 'the caller output is paid')
         const rate = Number(a.fee) / a.vsize
         assert.ok(rate >= feePerKb / 1000, `reveal pays ${rate.toFixed(3)} sat/vB of ${feePerKb / 1000}`)
 
@@ -92,8 +92,8 @@ describe('a single-chunk P2WSH reveal with a caller output funds no unused pad',
 
         // Conservation: every output beyond the marker and the caller's own is a sweep at or
         // above the floor, and whatever was not swept is under the floor.
-        const extra = outs.filter((o) => o.value > 0 && !(o.address === customOutputs[0].address && o.value === PAID))
-        for (const o of extra) assert.ok(o.value >= encoder.outputFloor, `output ${o.value} is under the floor`)
+        const extra = outs.filter((o) => Number(o.value) > 0 && !(o.address === customOutputs[0].address && Number(o.value) === PAID))
+        for (const o of extra) assert.ok(Number(o.value) >= encoder.outputFloor, `output ${o.value} is under the floor`)
         assert.ok(a.ins - BigInt(PAID) - BigInt(owed) - extra.reduce((s, o) => s + BigInt(o.value), 0n) < BigInt(encoder.outputFloor),
           'leg value left after the owed fee and every output stays under the output floor')
       })
