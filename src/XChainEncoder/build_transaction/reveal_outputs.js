@@ -102,12 +102,15 @@ function* sweepP2shReveal(build){
         const revealSizeForFee = preparedData["encoding"] === Encoding.P2SH
             ? this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
             : this.estimateP2wshRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
+        // estimatedFee already carries the soft-dust surcharge. Compare the two base
+        // fees, then put that surcharge back exactly once after the larger base wins.
+        const surcharge = softDustSurcharge || 0
         let revealFeeKept = feeForVsize(revealSizeForFee, feePerBytes, SATOSHI_UNIT)
-        if (revealFeeKept < estimatedFee){
-            revealFeeKept = estimatedFee
+        const estimatedBaseFee = estimatedFee - surcharge
+        if (revealFeeKept < estimatedBaseFee){
+            revealFeeKept = estimatedBaseFee
         }
-        // The soft-dust relay surcharge for the reveal's own sub-limit payments is fee too.
-        revealFeeKept = revealFeeKept + (softDustSurcharge || 0)
+        revealFeeKept = revealFeeKept + surcharge
 
         revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
