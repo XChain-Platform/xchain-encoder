@@ -208,11 +208,8 @@ if (allowed > 0){
 
 function floorEstimatedFee(build){
     let { estimatedFee } = build
-    // The floor binds the base fee. The soft-dust relay surcharge rides on top of it
-    // (as on the P2SH reveal path), so compare against the floor plus the surcharge.
-    const floor = this.dustAmount + (build.softDustSurcharge || 0)
-    if (estimatedFee < floor){
-        estimatedFee = floor
+    if (estimatedFee < this.dustAmount){
+        estimatedFee = this.dustAmount
     }
     Object.assign(build, { estimatedFee })
 }
