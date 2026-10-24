@@ -199,7 +199,22 @@ describe('XChainEncoder create_tx options.exactInputs', () => {
       () => createTx(encoder, dupes, { options: { exactInputs: true } }),
       new RegExp(`exactInputs names outpoint ${TXID_MID}:1 more than once`))
   })
+})
 
+describe('XChainEncoder create_tx options.exactInputs', () => {
+  it('refuses a repeated outpoint whose txid differs only by case', async () => {
+    const encoder = makeEncoder()
+    const dupes = [
+      makeSegwitUtxo(TXID_MID.toUpperCase(), 1, 6000, 0),
+      makeSegwitUtxo(TXID_MID, 1, 6000, 0)
+    ]
+    await assert.rejects(
+      () => createTx(encoder, dupes, { options: { exactInputs: true } }),
+      new RegExp(`exactInputs names outpoint ${TXID_MID}:1 more than once`, 'i'))
+  })
+})
+
+describe('XChainEncoder create_tx options.exactInputs', () => {
   it('leaves greedy selection alone when the flag is absent or explicitly false', async () => {
     const encoder = makeEncoder()
     for (const options of [null, {}, { exactInputs: false }]) {

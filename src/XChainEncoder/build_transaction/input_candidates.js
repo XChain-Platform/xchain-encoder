@@ -32,6 +32,12 @@ function isUnconfirmedUtxo(utxo){
     return utxo.confirmations == null || utxo.confirmations == 0
 }
 
+// Transaction ids are byte strings whose hex spelling is case-insensitive. Keep
+// every deduplication and reservation lookup on one canonical outpoint identity.
+function outpointKey(utxo){
+    return String(utxo.txid).toLowerCase() + ':' + utxo.vout
+}
+
 function initInputState(build){
     let { replacebyfee, p2shHash } = build
     let psbt = null
@@ -209,7 +215,7 @@ function refuseShrunkExactInputs(build){
         }
         const seenOutpoints = new Set()
         for (const u of utxos){
-            const k = u.txid + ':' + u.vout
+            const k = outpointKey(u)
             if (seenOutpoints.has(k)){
                 throw new ParamTypeError(
                     `options.exactInputs names outpoint ${k} more than once; a transaction cannot spend the same output twice`)
@@ -248,9 +254,9 @@ function filterAndOrderUtxos(build){
         // Loose-equality txid/vout matching became string-key matching: both sides
         // are concatenated through the same String() coercion, so a numeric 0 and a
         // string '0' vout still collide exactly as `==` made them collide.
-        const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
-        if (seenUtxoOutpoints.has(outpointKey)) continue
-        seenUtxoOutpoints.add(outpointKey)
+        const key = outpointKey(nextUtxo)
+        if (seenUtxoOutpoints.has(key)) continue
+        seenUtxoOutpoints.add(key)
         utxos[utxoWriteIndex++] = nextUtxo
     }
     utxos.length = utxoWriteIndex
@@ -287,4 +293,4 @@ function compareCandidates(a, b){
     return Number(a.vout) - Number(b.vout)
 }
 
-module.exports = { initInputState, checkExactInputs, gatherUtxos, refuseShrunkExactInputs, filterAndOrderUtxos, isUnconfirmedUtxo }
+module.exports = { initInputState, checkExactInputs, gatherUtxos, refuseShrunkExactInputs, filterAndOrderUtxos, isUnconfirmedUtxo, outpointKey }

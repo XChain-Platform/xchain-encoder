@@ -8,10 +8,9 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// A P2SH-P2WPKH (nested segwit) funding UTXO is a segwit spend: it needs witnessUtxo
-// and its P2WPKH redeemScript to be signable, and it costs about 91 vbytes, not the
-// 289 a legacy multisig P2SH input is priced at. The redeem script comes from the
-// public key the request carries; without one the input stays legacy.
+// Treat P2SH-P2WPKH as a segwit spend with witnessUtxo and its P2WPKH redeemScript.
+// It costs about 91 vbytes, versus 299 for worst-case legacy 2-of-3 multisig.
+// Derive the redeem script from the request key; without one the input stays legacy.
 
 const assert = require('assert')
 const bitcoin = require('bitcoinjs-lib')
