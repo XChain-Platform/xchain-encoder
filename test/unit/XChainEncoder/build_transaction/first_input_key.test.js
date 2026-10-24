@@ -15,6 +15,10 @@ const TXID_FIRST = 'A'.repeat(64)
 const TXID_AVAILABLE = 'B'.repeat(64)
 const NOW = 1700000000000
 
+function canonicalOutpoint (txid, vout) {
+  return `${txid.toLowerCase()}:${vout}`
+}
+
 function makeContext () {
   return Object.assign({ outpointReservations: new Map() }, reservations)
 }
@@ -32,7 +36,7 @@ function withFixedNow (run) {
 describe('bindObfuscationKey', () => {
   it('binds the key to the available outpoint moved into the first-input slot', () => {
     const context = makeContext()
-    const firstKey = `${TXID_FIRST}:0`
+    const firstKey = canonicalOutpoint(TXID_FIRST, 0)
     context.outpointReservations.set(firstKey, NOW + 1)
     const build = {
       utxos: [
@@ -47,14 +51,14 @@ describe('bindObfuscationKey', () => {
 
     assert.strictEqual(build.utxos[0].txid, TXID_AVAILABLE)
     assert.strictEqual(build.txidFirstInput, TXID_AVAILABLE.toLowerCase())
-    assert.strictEqual(build.firstReservedOutpoint, `${TXID_AVAILABLE}:1`)
+    assert.strictEqual(build.firstReservedOutpoint, canonicalOutpoint(TXID_AVAILABLE, 1))
   })
 })
 
 describe('bindObfuscationKey exact inputs', () => {
   it('raises OperationalError when exact mode cannot claim its first input', () => {
     const context = makeContext()
-    const firstKey = `${TXID_FIRST}:0`
+    const firstKey = canonicalOutpoint(TXID_FIRST, 0)
     context.outpointReservations.set(firstKey, NOW + 1)
     const build = {
       utxos: [{ txid: TXID_FIRST, vout: 0 }],
@@ -81,7 +85,7 @@ describe('bindObfuscationKey reservation lifetime', () => {
   it('reserves the first input for the configured TTL', () => {
     const context = makeContext()
     const callReservations = []
-    const key = `${TXID_FIRST}:2`
+    const key = canonicalOutpoint(TXID_FIRST, 2)
     const build = {
       utxos: [{ txid: TXID_FIRST, vout: 2 }],
       exactInputs: false,

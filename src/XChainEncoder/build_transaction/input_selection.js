@@ -25,7 +25,8 @@ const { OperationalError, ParamTypeError, ParamRangeError } = require('../../bui
 const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
 const { feeForVsize } = require('../fee_policy.js')
-const { isUnconfirmedUtxo } = require('./input_candidates.js')
+const { isUnconfirmedUtxo, outpointKey } = require('./input_candidates.js')
+const { matchingLegacyRedeemScript } = require('./legacy_p2sh.js')
 const { nestedP2wpkhRedeem } = require('./nested_segwit.js')
 const { clearsStrippedFloor } = require('./stripped_floor.js')
 
@@ -175,8 +176,8 @@ function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimat
     let available = inputSatoshis
     for (let index = nextUtxoIndex; index < utxos.length; index++){
         const candidate = utxos[index]
-        const outpointKey = candidate.txid + ':' + candidate.vout
-        if (!exactInputs && outpointKey !== firstReservedOutpoint && this.isOutpointReserved(outpointKey, now)){
+        const key = outpointKey(candidate)
+        if (!exactInputs && key !== firstReservedOutpoint && this.isOutpointReserved(key, now)){
             continue
         }
         available += BigInt(parseSatoshiAmount(candidate.value, `utxos[${index}].value`, { allowBig: true }))
@@ -232,14 +233,14 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
     // named outpoint, or refused the build. Re-checking here would see
     // this call's OWN claims and skip the whole set.
     if (!exactInputs){
-        const outpointKey = nextUtxo.txid + ':' + nextUtxo.vout
+        const key = outpointKey(nextUtxo)
         // Skip outpoints reserved by OTHER calls, but NOT the one this
         // call pre-reserved for ins[0] above (the obfuscation key binds to it).
-        if (outpointKey !== firstReservedOutpoint && this.isOutpointReserved(outpointKey, now)){
+        if (key !== firstReservedOutpoint && this.isOutpointReserved(key, now)){
             return true
         }
-        if (outpointKey !== firstReservedOutpoint){
-            this.claimOutpoint(callReservations, outpointKey, now)
+        if (key !== firstReservedOutpoint){
+            this.claimOutpoint(callReservations, key, now)
         }
     }
     return false
@@ -312,6 +313,8 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
             sequence: utxoSequence,
             nonWitnessUtxo: Buffer.from(wholeUtxoHex, 'hex')
         }
+        const redeemScript = matchingLegacyRedeemScript(nextUtxo)
+        if (redeemScript) nextInput.redeemScript = redeemScript
         psbt.addInput(nextInput)
         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
         inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)

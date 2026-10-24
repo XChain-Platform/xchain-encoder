@@ -85,7 +85,35 @@ describe('_buildTransaction outpoint dedup / mempool filter', function () {
         assert.deepStrictEqual(outpoints(utxos), [TXID_A + ':0', TXID_B + ':0'])
         assert.strictEqual(utxos[0], first, 'the FIRST occurrence must be the survivor, not the last')
     })
+})
 
+describe('_buildTransaction outpoint dedup / mempool filter', function () {
+    it('treats uppercase and lowercase txids as the same outpoint', async function () {
+        const encoder = makeEncoder(NETWORK)
+        const address = getTestAddress(NETWORK)
+        const first = makeUtxo(NETWORK, TXID_A.toUpperCase(), 0, 100000000)
+        const duplicate = makeUtxo(NETWORK, TXID_A, 0, 100000000)
+        const utxos = [first, duplicate, makeUtxo(NETWORK, TXID_B, 0, 100000000)]
+
+        const result = await build(encoder, address, utxos, true)
+        assert.ok(result.psbt)
+        assert.strictEqual(utxos.length, 2)
+        assert.strictEqual(utxos[0], first, 'the first casing is retained')
+        assert.strictEqual(utxos[1].txid, TXID_B)
+    })
+
+    it('shares one reservation across uppercase and lowercase txids', async function () {
+        const encoder = makeEncoder(NETWORK)
+        const address = getTestAddress(NETWORK)
+        await build(encoder, address, [makeUtxo(NETWORK, TXID_A.toUpperCase(), 0, 100000000)], true)
+
+        await assert.rejects(
+            build(encoder, address, [makeUtxo(NETWORK, TXID_A, 0, 100000000)], true),
+            (err) => err.xchainCode === 'INSUFFICIENT_FUNDS' && err.details.reservedCandidates === 1)
+    })
+})
+
+describe('_buildTransaction outpoint dedup / mempool filter', function () {
     it('preserves the relative order of the survivors', async function () {
         const encoder = makeEncoder(NETWORK)
         const address = getTestAddress(NETWORK)

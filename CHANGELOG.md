@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.2] - 2026-10-21
+
+### Changed
+- Released with the testnet arming patch; this component carries no code change.
+- Updated the Node base image to 22.23.4, which fixes ten Node security issues.
+
 ## [0.26.1] - 2026-10-21
 
 ### Changed
@@ -40,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Bumped axios, fast-uri, ip-address, proxy-addr and brace-expansion to resolve security advisories.
+
+## [0.23.3] - 2026-10-21
+
+### Security
+- Updated the Node base image to 22.23.4 for the CVE-2026-111497 Brotli decoder fix.
 
 ## [0.23.0] - 2026-10-11
 

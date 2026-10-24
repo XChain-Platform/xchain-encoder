@@ -20,6 +20,7 @@
 
 const { OperationalError } = require('../../build/errors')
 const { RESERVATION_TTL_MS } = require('../constants.js')
+const { outpointKey } = require('./input_candidates.js')
 
 function bindObfuscationKey(build){
     let { utxos, exactInputs, callReservations } = build
@@ -83,7 +84,7 @@ function claimExactInputs(callReservations, utxos, txidFirstInput){
     const nowFirst = Date.now()
     this.evictExpiredReservations(nowFirst)
     const heldByOthers = utxos
-        .map((u) => u.txid + ':' + u.vout)
+        .map(outpointKey)
         .filter((k) => this.isOutpointReserved(k, nowFirst))
     if (heldByOthers.length){
         throw new OperationalError(
@@ -96,7 +97,7 @@ function claimExactInputs(callReservations, utxos, txidFirstInput){
         )
     }
     for (const u of utxos){
-        this.claimOutpoint(callReservations, u.txid + ':' + u.vout, nowFirst)
+        this.claimOutpoint(callReservations, outpointKey(u), nowFirst)
     }
     // No head-of-order splice: the caller's order IS the input order here,
     // and firstReservedOutpoint stays null so the selection loop below
@@ -111,7 +112,7 @@ function claimFirstFreeInput(callReservations, utxos, firstReservedOutpoint, txi
     this.evictExpiredReservations(nowFirst)
     for (let i = 0; i < utxos.length; i++){
         const u = utxos[i]
-        const k = u.txid + ':' + u.vout
+        const k = outpointKey(u)
         if (!this.isOutpointReserved(k, nowFirst)){
             this.claimOutpoint(callReservations, k, nowFirst)
             firstReservedOutpoint = k
