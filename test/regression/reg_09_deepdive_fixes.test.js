@@ -97,7 +97,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
         null, null, null, true, 0.00001
       )
 
-      const positive = result.psbt.txOutputs.filter(o => o.value > 0)
+      const positive = result.psbt.txOutputs.filter(o => Number(o.value) > 0)
       assert.strictEqual(positive.length, 0, '1-sat change must be folded into fee')
     })
 
@@ -111,7 +111,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
         'test', null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
-      assert.ok(atDust.psbt.txOutputs.find(o => o.value === 546),
+      assert.ok(atDust.psbt.txOutputs.find(o => Number(o.value) === 546),
         'change equal to the dust threshold must be emitted')
 
       // change == dust - 1 (545): folded. Same outpoint as above, so release the
@@ -122,7 +122,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
         'test', null, 10000, false, null, address,
         null, null, null, true, 0.00001
       )
-      assert.strictEqual(belowDust.psbt.txOutputs.filter(o => o.value > 0).length, 0,
+      assert.strictEqual(belowDust.psbt.txOutputs.filter(o => Number(o.value) > 0).length, 0,
         'change one sat below dust must be folded')
     })
   })

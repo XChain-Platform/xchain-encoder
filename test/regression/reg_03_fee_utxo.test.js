@@ -193,7 +193,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
 
       // Change = input - outputs - fee. With explicit fee=50000:
       const outputs = result.psbt.txOutputs
-      const totalOutput = outputs.reduce((sum, o) => sum + o.value, 0)
+      const totalOutput = outputs.reduce((sum, o) => sum + Number(o.value), 0)
       const impliedFee = 100000000 - totalOutput
       assert.strictEqual(impliedFee, 50000)
     })
@@ -233,7 +233,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
         null, null, null, true, null
       )
       const outputs = result.psbt.txOutputs
-      const totalOutput = outputs.reduce((sum, o) => sum + o.value, 0)
+      const totalOutput = outputs.reduce((sum, o) => sum + Number(o.value), 0)
       const impliedFee = 100000000 - totalOutput
       assert.ok(impliedFee >= encoder.dustAmount,
         `fee ${impliedFee} should be >= dust ${encoder.dustAmount}`)
@@ -270,8 +270,8 @@ describe('REG-03: Fee & UTXO Selection', function () {
         action.data, null, null, false, null, address,
         null, null, null, true, 100000000 // same high rate, but capped
       )
-      const uncappedOut = resultUncapped.psbt.txOutputs.reduce((s, o) => s + o.value, 0)
-      const cappedOut = resultCapped.psbt.txOutputs.reduce((s, o) => s + o.value, 0)
+      const uncappedOut = resultUncapped.psbt.txOutputs.reduce((s, o) => s + Number(o.value), 0)
+      const cappedOut = resultCapped.psbt.txOutputs.reduce((s, o) => s + Number(o.value), 0)
       // Capped should return more change (lower fee)
       assert.ok(cappedOut > uncappedOut,
         `capped output ${cappedOut} should be > uncapped ${uncappedOut}`)
@@ -294,7 +294,7 @@ describe('REG-03: Fee & UTXO Selection', function () {
         null, null, null, true, 0.00001
       )
       const outputs = result.psbt.txOutputs
-      const totalOutput = outputs.reduce((sum, o) => sum + o.value, 0)
+      const totalOutput = outputs.reduce((sum, o) => sum + Number(o.value), 0)
       assert.strictEqual(100000000 - totalOutput, explicitFee)
     })
 

@@ -69,9 +69,9 @@ async function buildP2shRevealFee (paymentValue) {
     reveal.psbt.data.globalMap.unsignedTx.toBuffer()
   )
   let spent = 0
-  for (const input of revealTx.ins) spent += fundingTx.outs[input.index].value
+  for (const input of revealTx.ins) spent += Number(fundingTx.outs[input.index].value)
   let paid = 0
-  for (const output of revealTx.outs) paid += output.value
+  for (const output of revealTx.outs) paid += Number(output.value)
   return {
     fee: spent - paid,
     outputFloor: encoder.outputFloor,
@@ -124,7 +124,7 @@ describe('soft-dust fee parity across one-phase and P2SH reveal builds', () => {
         onePhaseFee: onePhase.fee,
         revealFee: reveal.fee,
         feesMatch: reveal.fee === onePhase.fee,
-        sweepReturned: reveal.revealTx.outs.some(output => output.value === expectedSweep)
+        sweepReturned: reveal.revealTx.outs.some(output => Number(output.value) === expectedSweep)
       }, {
         onePhaseFee: expectedFee,
         revealFee: expectedFee,

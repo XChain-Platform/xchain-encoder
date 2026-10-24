@@ -84,12 +84,12 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       const { tx1, encoder } = await createTxPair(action)
 
       const p2shOutput = tx1.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
       assert.ok(p2shOutput, 'tx1 should have P2SH output')
-      assert.ok(p2shOutput.value >= encoder.dustAmount)
+      assert.ok(Number(p2shOutput.value) >= encoder.dustAmount)
     })
 
     it('tx1 has change output', async function () {
@@ -99,8 +99,8 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       const outputs = tx1.psbt.txOutputs
       // Change is the largest non-zero, non-P2SH output
       const changeOutput = outputs.reduce((max, o) =>
-        o.value > max.value ? o : max, { value: 0 })
-      assert.ok(changeOutput.value > 0, 'should have a change output')
+        Number(o.value) > Number(max.value) ? o : max, { value: 0 })
+      assert.ok(Number(changeOutput.value) > 0, 'should have a change output')
     })
   })
 })
@@ -135,7 +135,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       const action = actions.makeIssueFull('REGTEST')
       const { tx2 } = await createTxPair(action)
 
-      const marker = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const marker = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.ok(marker, 'tx2 should have OP_RETURN marker')
       assert.strictEqual(marker.script[0], bitcoin.opcodes.OP_RETURN)
     })
@@ -165,7 +165,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       const action = actions.makeIssueFull('MARKER')
       const { tx2, tx1Id } = await createTxPair(action)
 
-      const marker = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const marker = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       const d = bitcoin.script.decompile(marker.script)
       const decrypted = deobfuscate(d[1], tx1Id)
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2sh')
@@ -200,7 +200,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
       assert.strictEqual(tx1.encoding, 'P2WSH')
 
       const p2wshOutput = tx1.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
@@ -244,7 +244,7 @@ describe('REG-06: P2SH/P2WSH Two-Transaction Sequence', function () {
         network: NETWORK_P2WSH
       })
 
-      const marker = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const marker = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       const d = bitcoin.script.decompile(marker.script)
       const decrypted = deobfuscate(d[1], tx1Id)
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2wsh')

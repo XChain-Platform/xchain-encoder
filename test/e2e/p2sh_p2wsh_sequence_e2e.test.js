@@ -82,7 +82,7 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
 
       // tx1 should have P2SH output
       const p2shOutput = tx1.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
@@ -114,7 +114,7 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
       const action = actions.makeIssueFull('BIGTOKEN')
       const { tx2, tx1Id } = await createTxPair(action)
 
-      const markerOutput = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const markerOutput = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
       assert.strictEqual(markerOutput.script[0], bitcoin.opcodes.OP_RETURN)
 
@@ -162,7 +162,7 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
 
       // tx1: P2WSH output OP_0 <32-byte-hash>
       const p2wshOutput = tx1.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
@@ -192,7 +192,7 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
         network: 'bitcoin-regtest'
       })
 
-      const markerOutput = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const markerOutput = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.ok(markerOutput, 'tx2 should have OP_RETURN marker')
 
       const decompiled = bitcoin.script.decompile(markerOutput.script)
@@ -284,7 +284,7 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
 
       // Count P2SH outputs (OP_HASH160 pattern)
       const p2shOutputs = tx1.psbt.txOutputs.filter(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
@@ -295,7 +295,7 @@ describe('E2E-2: Two-Transaction P2SH/P2WSH Orchestration', () => {
 
       // All P2SH outputs should have value >= dust
       for (const o of p2shOutputs) {
-        assert.ok(o.value >= encoder.dustAmount,
+        assert.ok(Number(o.value) >= encoder.dustAmount,
           `P2SH output value ${o.value} should be >= dust ${encoder.dustAmount}`)
       }
     })

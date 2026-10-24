@@ -65,7 +65,7 @@ describe('E2E-4: Obfuscation Integrity', () => {
       assert.strictEqual(decompiled[0].toString('utf8'), action.data)
 
       // Also verify raw obfuscated bytes differ from plaintext
-      const opReturnOutput = result.psbt.txOutputs.find(o => o.value === 0)
+      const opReturnOutput = result.psbt.txOutputs.find(o => Number(o.value) === 0)
       const scriptDecompiled = bitcoin.script.decompile(opReturnOutput.script)
       const rawObfuscated = scriptDecompiled[1]
       assert.notStrictEqual(
@@ -126,7 +126,7 @@ describe('E2E-4: Obfuscation Integrity', () => {
       )
 
       // The OP_RETURN marker in tx2 IS obfuscated (unlike redeemScript data)
-      const markerOutput = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const markerOutput = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       const decompiled = bitcoin.script.decompile(markerOutput.script)
       const decrypted = deobfuscate(decompiled[1], tx1Id)
 
@@ -162,10 +162,10 @@ describe('E2E-4: Obfuscation Integrity', () => {
         null, null, null, true, 0.00001
       )
 
-      const outputA = resultA.psbt.txOutputs.find(o => o.value === 0)
+      const outputA = resultA.psbt.txOutputs.find(o => Number(o.value) === 0)
       const dataA = bitcoin.script.decompile(outputA.script)[1]
 
-      const outputB = resultB.psbt.txOutputs.find(o => o.value === 0)
+      const outputB = resultB.psbt.txOutputs.find(o => Number(o.value) === 0)
       const dataB = bitcoin.script.decompile(outputB.script)[1]
 
       assert.ok(!dataA.equals(dataB), 'different TXIDs should produce different ciphertext')

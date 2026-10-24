@@ -298,7 +298,7 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
         true, 0.00001, customDust
       )
 
-      const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
+      const msOutput = result.psbt.txOutputs.find(o => Number(o.value) === customDust)
       assert.ok(msOutput, 'MULTISIGN output should use custom dust')
     })
 
@@ -315,8 +315,8 @@ describe('E2E-7: Complex Parameter & Edge Case Handling', () => {
         true, null, 100 // custom dust = 100
       )
 
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
+      const changeOutput = result.psbt.txOutputs.find(o => Number(o.value) > 0)
+      const impliedFee = 100000000 - Number(changeOutput.value)
       assert.ok(impliedFee >= encoder.dustAmount,
         `fee ${impliedFee} should be >= network dust ${encoder.dustAmount}, not custom 100`)
     })

@@ -93,12 +93,12 @@ describe('E2E-6: Multi-Chain Validation', () => {
         assert.strictEqual(result.encoding, 'P2SH')
 
         const p2shOutput = result.psbt.txOutputs.find(o => {
-          if (o.value <= 0 || o.value >= 100000000) return false
+          if (Number(o.value) <= 0 || Number(o.value) >= 100000000) return false
           const d = bitcoin.script.decompile(o.script)
           return d && d[0] === bitcoin.opcodes.OP_HASH160
         })
         assert.ok(p2shOutput, 'should have P2SH output')
-        assert.ok(p2shOutput.value >= chain.dust,
+        assert.ok(Number(p2shOutput.value) >= chain.dust,
           `P2SH output ${p2shOutput.value} should be >= ${chain.name} dust ${chain.dust}`)
       })
     })
@@ -122,7 +122,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
       assert.strictEqual(result.encoding, 'P2WSH')
 
       const p2wshOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
@@ -152,7 +152,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
         const d = bitcoin.script.decompile(o.script)
         return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
       })
-      assert.ok(msOutput && msOutput.value >= 546,
+      assert.ok(msOutput && Number(msOutput.value) >= 546,
         'Bitcoin multisig output should clear the 546-sat dust floor')
     })
   })
@@ -172,7 +172,7 @@ describe('E2E-6: Multi-Chain Validation', () => {
       )
 
       assert.strictEqual(result.encoding, 'MULTISIGN')
-      const msOutput = result.psbt.txOutputs.find(o => o.value === 7860)
+      const msOutput = result.psbt.txOutputs.find(o => Number(o.value) === 7860)
       assert.ok(msOutput, 'Litecoin multisig output should be 7860 sats, the bare-multisig relay floor at 30 sat/byte')
     })
   })
@@ -211,8 +211,8 @@ describe('E2E-6: Multi-Chain Validation', () => {
         null, null, null, true, null
       )
 
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
+      const changeOutput = result.psbt.txOutputs.find(o => Number(o.value) > 0)
+      const impliedFee = 100000000 - Number(changeOutput.value)
       assert.ok(impliedFee >= 5460, `Litecoin fee ${impliedFee} should be >= 5460`)
     })
   })

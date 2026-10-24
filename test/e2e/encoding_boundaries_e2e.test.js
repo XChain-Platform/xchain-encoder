@@ -120,7 +120,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
 
       // Should have P2SH output
       const p2shOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
@@ -141,7 +141,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
 
       // P2WSH output: OP_0 <32-byte>
       const p2wshOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
@@ -163,7 +163,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.strictEqual(result.encoding, 'MULTISIGN')
 
       const encoder = makeEncoder(NETWORK)
-      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.outputFloor)
+      const msOutput = result.psbt.txOutputs.find(o => Number(o.value) === encoder.outputFloor)
       assert.ok(msOutput, 'should have multisig output at dust value')
 
       const decompiled = bitcoin.script.decompile(msOutput.script)
@@ -183,7 +183,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
 
       // Count P2SH outputs
       const p2shOutputs = result.psbt.txOutputs.filter(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
@@ -206,7 +206,7 @@ describe('E2E-3: Encoding Type Selection & Boundaries', () => {
       assert.strictEqual(result.encoding, 'P2WSH')
 
       const p2wshOutputs = result.psbt.txOutputs.filter(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
