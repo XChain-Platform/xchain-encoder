@@ -23,6 +23,7 @@ const {
     sanitizeRpcError,
     rpcErrorDetail,
 } = require('./rpc_helpers');
+const { OperationalError } = require('../errors');
 
 function uniqueTxids(txids) {
     const roots = []
@@ -105,14 +106,20 @@ function sumPackageEntries(packageEntries) {
 // the node's actual config. Checked first so regtest skips estimatesmartfee
 // entirely. isRegtest is memoized, so this costs one getblockchaininfo per
 // connector lifetime, not per call.
+// The default covers only a node that answers without a usable relayfee. A
+// node that does not answer at all is a failure: inventing a rate for it would
+// let a fee quote report success off a dead node, and a caller looping over
+// tiers would wait one full RPC timeout per tier before seeing that success.
 async function regtestFee(connector) {
+    let info;
     try {
-        const info = await connector.getNetworkInfo();
-        const relayfee = Number(info && info.relayfee);
-        if (relayfee > 0) return relayfee;
-    } catch (_) {
-        // Fall through to the conservative default below.
+        info = await connector.getNetworkInfo();
+    } catch (err) {
+        logger.error(util.format('Regtest fee query failed:', err && err.message));
+        throw new OperationalError('NODE_UNREACHABLE', 'Coin node did not answer the fee query; retry once the node is reachable');
     }
+    const relayfee = Number(info && info.relayfee);
+    if (relayfee > 0) return relayfee;
     return 0.00001000
 }
 
@@ -246,6 +253,9 @@ module.exports = {
             if (feerate !== null) return feerate
             return await requireNoEstimateFallback(this, responseData)
         } catch (error) {
+            // Already a typed node failure: the recovery path would only ask
+            // the same dead node again and wait out a second timeout.
+            if (error && error.operational === true) throw error
             return await recoverFeeEstimate(this, error)
         }
     },
