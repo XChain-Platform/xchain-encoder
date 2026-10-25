@@ -36,8 +36,9 @@
   "scripts": {
     "api": "node ./src/api.js",
     "lint": "eslint .",
+    "pretest": "node --check test/unit/pretest_offline.test.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
-    "test": "npx mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --recursive --exit",
+    "test": "mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --recursive --exit",
     "test:regtest": "mocha --timeout 0 --require ./test/prepare_regtest.test.js",
     "coverage": "c8 --all --reporter=text --reporter=html --include 'src/**/*.js' mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --exit",
     "coverage:check": "c8 --all --check-coverage --lines 95.1 --statements 95.1 --branches 87.1 --functions 94.1 --reporter=text-summary --include 'src/**/*.js' mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --exit",

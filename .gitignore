@@ -1,5 +1,6 @@
 .env
 node_modules/
+tmp/
 .DS_Store
 .stryker-tmp/
 reports/mutation/
