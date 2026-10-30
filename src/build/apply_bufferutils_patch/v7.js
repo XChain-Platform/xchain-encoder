@@ -39,8 +39,15 @@ if (IS_BITCOINJS_V7 && !Transaction.prototype.__xchainNumberValues) {
     bitcoinTypes.SatoshiSchema = valibot.pipe(
         valibot.bigint(), valibot.minValue(0n), valibot.maxValue(MAX_U64)
     )
-    uint8Tools.writeInt64 = uint8Tools.writeUInt64
-    uint8Tools.readInt64 = uint8Tools.readUInt64
+    const canPatchUint8Tools = Object.isExtensible(uint8Tools)
+        && ['writeInt64', 'readInt64'].every((name) => {
+            const descriptor = Object.getOwnPropertyDescriptor(uint8Tools, name)
+            return !descriptor || descriptor.writable || typeof descriptor.set === 'function'
+        })
+    if (canPatchUint8Tools) {
+        uint8Tools.writeInt64 = uint8Tools.writeUInt64
+        uint8Tools.readInt64 = uint8Tools.readUInt64
+    }
     bufferutils.readUInt64LE = function (buffer, offset) {
         return narrowU64(uint8Tools.readUInt64(buffer, offset, 'LE'))
     }
