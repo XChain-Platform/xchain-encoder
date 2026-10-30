@@ -65,6 +65,8 @@ async function assertNodeGenesis(connector){
         connector.nodeTierMismatch = reason;
         throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong chain: ' + reason);
     }
+    // Clear an earlier genesis mismatch only on a confirmed match, so readiness reopens with the money methods.
+    connector.nodeTierMismatch = null;
     connector.nodeGenesisOk = true;
 }
 

@@ -193,3 +193,13 @@ describe('REG-32: a caller fault the validator names keeps -32602 and its reason
     })
   }
 })
+
+describe('REG-32: a reveal funding hex that does not decode is a caller fault', () => {
+  for (const encoding of ['P2SH', 'P2WSH']) {
+    it('create_tx answers -32602 for a ' + encoding + ' p2shHex that is hex but not a transaction', async () => {
+      const caught = await rejectionOf('create_tx', null, sendParams({ encoding, p2shHash: 'a'.repeat(64), p2shHex: 'deadbeef' }))
+      assert.strictEqual(caught.code, -32602, caught.message)
+      assert.strictEqual(caught.message, 'p2shHex is not a parseable transaction')
+    })
+  }
+})

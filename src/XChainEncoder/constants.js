@@ -58,15 +58,17 @@ const SOFT_DUST_FLOOR_BY_COIN = {
     DOGE: 1000000
 }
 
-// Dust relay rate per coin in base units per byte, the node's DUST_RELAY_TX_FEE over 1000:
-// an output is relay dust when spending it costs more than it holds at this rate. A coin
-// not listed takes Bitcoin Core's 3000 sat/kB (src/policy/policy.h). Litecoin Core sets
-// DUST_RELAY_TX_FEE = 30'000 in src/policy/policy.h, which is also where LTC's 5460
-// (182 bytes x 30) comes from. Relay policy only; nothing here is consensus-pinned.
-const DEFAULT_DUST_RELAY_FEE_PER_BYTE = 3
+// Dust relay rate in base units per byte for coins whose node prices dust by size, the
+// node's DUST_RELAY_TX_FEE over 1000: Bitcoin Core 3000 sat/kB, Litecoin Core 30'000
+// (src/policy/policy.h, also the source of LTC's 5460 = 182 bytes x 30). Relay policy only.
 const DUST_RELAY_FEE_PER_BYTE_BY_COIN = {
+    BTC: 3,
     LTC: 30
 }
+
+// Coins whose node judges dust against a flat limit instead of a per-byte rate. Dogecoin
+// Core refuses an output under its 0.001 DOGE hard limit, the coin's pinned dustThreshold.
+const FLAT_RELAY_DUST_COINS = ['DOGE']
 
 // Ceiling on the SUGGESTED fee rate (base units per vByte) for a caller that
 // supplies none, applied on test chains only. estimatesmartfee needs a populated
@@ -128,4 +130,4 @@ const Encoding = {
     AUTO: "AUTO"
 }
 
-module.exports = { logger, OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_LEAF_VERSION, TAPROOT_ENVELOPE_FORMAT_V0, SATOSHI_UNIT, MAX_SAFE_SATOSHI_BIG, SOFT_DUST_FLOOR_BY_COIN, DEFAULT_DUST_RELAY_FEE_PER_BYTE, DUST_RELAY_FEE_PER_BYTE_BY_COIN, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, TEST_NETWORK_SUFFIXES, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, BURN_BACKSTOP_MULTIPLIER, RESERVATION_TTL_MS, Encoding }
+module.exports = { logger, OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_LEAF_VERSION, TAPROOT_ENVELOPE_FORMAT_V0, SATOSHI_UNIT, MAX_SAFE_SATOSHI_BIG, SOFT_DUST_FLOOR_BY_COIN, DUST_RELAY_FEE_PER_BYTE_BY_COIN, FLAT_RELAY_DUST_COINS, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, TEST_NETWORK_SUFFIXES, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, BURN_BACKSTOP_MULTIPLIER, RESERVATION_TTL_MS, Encoding }
