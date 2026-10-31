@@ -43,6 +43,7 @@ const path = require('path')
 const crypto = require('crypto')
 const { getLogger } = require('../observability');
 const config = require('../common/config');
+const { breakStaleLock, withStaleBreakMutex } = require('./stale_lock_breaker')
 const logger = getLogger();
 
 // Filesystems that cannot hard-link. The atomic publication below falls back to
@@ -59,12 +60,6 @@ const NO_HARDLINK_CODES = new Set(['EPERM', 'ENOSYS', 'EOPNOTSUPP', 'ENOTSUP', '
 // a genuinely corrupt lock is still recoverable.
 const INITIALIZING_RECHECK_PASSES = 10
 const INITIALIZING_RECHECK_MS = 10
-
-// Break-and-retake passes. Two processes can judge one dead lock stale at the
-// same moment; the loser's re-take throws EEXIST, and the retry loop absorbs it
-// so it cannot escape acquireInstanceLock raw and kill boot with an opaque error
-// in place of the guard's own conflict message.
-const BREAK_PASSES = 5
 
 // Synchronous pause. This is a boot path that runs before the event loop has
 // any work on it, so there is nothing to yield to and no async seam to thread
@@ -150,29 +145,33 @@ function selfDescription() {
 // is never observable as a zero-byte file that a contender reads as stale.
 // openSync('wx') + a separate write cannot promise that, and the window is
 // wide: self() reads /proc between the two.
+// Publication also takes the stale-break mutex, so a fresh owner cannot occupy
+// the path between a breaker's verified read and unlink.
 // `token` is the acquisition's ownership token, `self` describes this process.
 function publishLock(file, token, self) {
-    const record = JSON.stringify({ pid: process.pid, cmd: self(), token })
-    const tmp = file + '.' + process.pid + '.' + token.slice(0, 8) + '.tmp'
-    let tmpWritten = false
-    try {
-        const fd = fs.openSync(tmp, 'wx')
-        try { fs.writeSync(fd, record) } finally { fs.closeSync(fd) }
-        tmpWritten = true
-        fs.linkSync(tmp, file)
-    } catch (err) {
-        if (tmpWritten && NO_HARDLINK_CODES.has(err.code)) {
-            // No hard links on this mount. Fall back to the original
-            // non-atomic publication, which is why the reader below still
-            // treats an illegible record as an initializing owner.
-            const fd = fs.openSync(file, 'wx')
+    return withStaleBreakMutex(file, token, () => {
+        const record = JSON.stringify({ pid: process.pid, cmd: self(), token })
+        const tmp = file + '.' + process.pid + '.' + token.slice(0, 8) + '.tmp'
+        let tmpWritten = false
+        try {
+            const fd = fs.openSync(tmp, 'wx')
             try { fs.writeSync(fd, record) } finally { fs.closeSync(fd) }
-            return
+            tmpWritten = true
+            fs.linkSync(tmp, file)
+        } catch (err) {
+            if (tmpWritten && NO_HARDLINK_CODES.has(err.code)) {
+                // No hard links on this mount. Fall back to the original
+                // non-atomic publication, which is why the reader below still
+                // treats an illegible record as an initializing owner.
+                const fd = fs.openSync(file, 'wx')
+                try { fs.writeSync(fd, record) } finally { fs.closeSync(fd) }
+                return
+            }
+            throw err
+        } finally {
+            if (tmpWritten) { try { fs.unlinkSync(tmp) } catch (e) { /* already gone */ } }
         }
-        throw err
-    } finally {
-        if (tmpWritten) { try { fs.unlinkSync(tmp) } catch (e) { /* already gone */ } }
-    }
+    })
 }
 
 // Read the record at the lock path. Accepts three shapes: the JSON written
@@ -182,8 +181,8 @@ function publishLock(file, token, self) {
 // record that names no usable pid".
 function readLockHolder(file) {
     let text
-    try { text = fs.readFileSync(file, 'utf8') } catch (e) { return { pid: NaN, cmd: null, token: null, legible: false } }
-    if (text.trim() === '') return { pid: NaN, cmd: null, token: null, legible: false }
+    try { text = fs.readFileSync(file, 'utf8') } catch (e) { return { pid: NaN, cmd: null, token: null, legible: false, text: null } }
+    if (text.trim() === '') return { pid: NaN, cmd: null, token: null, legible: false, text }
     // NB: a bare pid is itself valid JSON ('1' parses to the number 1), so the
     // object check is what keeps a legacy lock on the legacy path instead of
     // reading it as a record with no pid and breaking a live holder's lock.
@@ -191,11 +190,11 @@ function readLockHolder(file) {
         const parsed = JSON.parse(text)
         if (parsed && typeof parsed === 'object') {
             const pid = parseInt(parsed.pid, 10)
-            return { pid, cmd: parsed.cmd || null, token: parsed.token || null, legible: Number.isInteger(pid) }
+            return { pid, cmd: parsed.cmd || null, token: parsed.token || null, legible: Number.isInteger(pid), text }
         }
     } catch (e) { /* not JSON at all: fall through to the bare-pid reading */ }
     const pid = parseInt(text, 10)
-    return { pid, cmd: null, token: null, legible: Number.isInteger(pid) }
+    return { pid, cmd: null, token: null, legible: Number.isInteger(pid), text }
 }
 
 // Re-read an illegible lock a bounded number of times before judging it.
@@ -246,26 +245,6 @@ function refuseLiveEncoder(holder, file, describe) {
         '. This is pid reuse after an unclean shutdown, not a second instance.')
 }
 
-// Stale (dead holder, garbage contents, or a reused pid): break and
-// re-take. A second process can reach this same verdict on the same lock,
-// so the re-take is not guaranteed to win. Losing it is a normal outcome:
-// go round again and re-evaluate whoever now holds the lock, and only
-// when the passes run out does the conflict error below stand in place of
-// a raw EEXIST escaping acquireInstanceLock and killing boot.
-function breakStaleLock(file, pass) {
-    try { fs.unlinkSync(file) } catch (e) { /* somebody else broke it first */ }
-    if (pass >= BREAK_PASSES) {
-        throw new Error(
-            'Another xchain-encoder instance keeps re-taking the instance lock ' + file +
-            ' faster than this one can. The outpoint-reservation, recent-build, ' +
-            'envelope-cancel owner and reservation-ticket stores are in-process; ' +
-            'running two encoder instances against one UTXO set risks ' +
-            'conflicting double-spend PSBTs. Stop the other instance, or set ' +
-            'ENCODER_INSTANCE_LOCK_FILE to isolate intentionally separate deployments.'
-        )
-    }
-}
-
 // The release function handed to the acquirer, idempotent.
 function lockReleaser(file, token) {
     let released = false
@@ -314,10 +293,7 @@ function acquireInstanceLock(lockPath, env = config, deps = {}) {
         env.ENCODER_INSTANCE_LOCK_FILE ||
         path.join(os.tmpdir(), 'xchain-encoder-' + (env.ENCODER_API_PORT || 'default') + '.lock')
 
-    // This acquisition's ownership token. It is what release() and the break path
-    // test against, so a lock that has changed hands since is left alone: the old
-    // release unlinked by PATH, so the first owner out deleted whatever record
-    // happened to sit at that name, including a successor's.
+    // This acquisition's token protects release and the serialized stale-break mutex.
     const token = crypto.randomBytes(16).toString('hex')
 
     for (let pass = 0; ; pass++) {
@@ -331,7 +307,7 @@ function acquireInstanceLock(lockPath, env = config, deps = {}) {
             if (Number.isInteger(holderPid) && holderPid > 0 && alive(holderPid) && holderPid !== process.pid) {
                 refuseLiveEncoder(holder, file, describe)
             }
-            breakStaleLock(file, pass)
+            breakStaleLock(file, holder.text, token, pass)
         }
     }
 
