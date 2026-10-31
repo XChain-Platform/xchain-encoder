@@ -83,6 +83,20 @@ describe('REG-32: create_tx answers a server fault with -32603 or a tracker erro
     assert.strictEqual(caught.code, -32010)
     assert.strictEqual(caught.data.reason, 'UTXO_TRACKER_ERROR')
   })
+
+  it('answers UTXO_SET_TOO_LARGE with the cap for a tracker cap refusal', async () => {
+    const caught = await rejectionOf('create_tx', (encoder) => {
+      encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
+        throw Object.assign(new Error('Address holds more than 10000 UTXOs'), {
+          code: 'UTXO_SET_TOO_LARGE',
+          utxoCap: 10000
+        })
+      }
+    }, sendParams())
+    assert.strictEqual(caught.code, -32010)
+    assert.strictEqual(caught.data.reason, 'UTXO_SET_TOO_LARGE')
+    assert.strictEqual(caught.data.limit, 10000)
+  })
 })
 
 describe('REG-32: create_envelope_cancel_tx draws the same line as create_tx', () => {

@@ -108,6 +108,20 @@ function registerUtxoResponseTests() {
     }
   })
 
+  it('preserves a cap refusal instead of reporting the remote tracker unreachable', async () => {
+    const enc = makeEncoder('remote')
+    enc.utxoTrackerConnector.getUtxosFromAddress = async () => {
+      throw Object.assign(new Error('Address holds more than 10000 UTXOs'), {
+        code: 'UTXO_SET_TOO_LARGE',
+        utxoCap: 10000
+      })
+    }
+    try { await drive(enc); assert.fail('expected refusal') } catch (e) {
+      assert.strictEqual(e.xchainCode, 'UTXO_SET_TOO_LARGE')
+      assert.deepStrictEqual(e.details, { limit: 10000 })
+    }
+  })
+
   it('keeps the default profile failing open on a missing sync field', async () => {
     const enc = makeEncoder(null)
     enc.utxoTrackerConnector.getUtxosFromAddress = async () => ({ utxos: [{ txid: 'a'.repeat(64), vout: 0, value: 100000, scriptPubKey: '0014' + 'b'.repeat(40), confirmations: 3 }] })

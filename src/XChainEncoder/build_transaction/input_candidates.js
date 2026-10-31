@@ -122,14 +122,19 @@ function* fetchTrackerUtxos(build){
     try {
         fetched = (yield this.utxoTrackerConnector.getUtxosFromAddress(callerAddress))
     } catch (err) {
+        // The local cap refusal is permanent for this candidate set, not a
+        // tracker outage. Preserve its registered non-retryable reason.
+        if (err && err.code === 'UTXO_SET_TOO_LARGE'){
+            throw new OperationalError('UTXO_SET_TOO_LARGE', err.message, { limit: err.utxoCap })
+        }
         if (isRemoteProfile(this.trackerProfile)){
             throw err.operational ? err : trackerUnreachableError(err)
         }
         // Surface a typed, credential-free operational error. A
         // transport failure embeds the tracker's internal host:port,
         // so upstreamErrorMessage collapses it to the generic
-        // fallback; the tracker's own application messages (lag,
-        // address-too-large) pass through, already sanitized and capped by readUtxoResult.
+        // fallback; the tracker's other application messages pass through,
+        // already sanitized and capped by readUtxoResult.
         throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
     }
 
