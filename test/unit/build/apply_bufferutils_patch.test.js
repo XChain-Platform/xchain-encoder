@@ -261,3 +261,36 @@ describe('applyBufferutilsPatch', function () {
         });
     });
 });
+
+// Allow exactly one SDK-only line: the require of its bitcoinjs-lib 6 fallback part.
+const SDK_ONLY_LINE = "require('./apply_bufferutils_patch/v6')";
+
+function bodyBelowHeader(file) {
+    const source = fs.readFileSync(file, 'utf8');
+    const end = source.indexOf('*/');
+    assert.ok(source.startsWith('/*') && end > 0, 'no leading header comment in ' + file);
+    return source.slice(end + 2);
+}
+
+describe('applyBufferutilsPatch', function () {
+    describe('entry twin guard against the SDK copy', function () {
+        const repoRoot = path.resolve(__dirname, '../../..');
+        const sdkRoot = findSdkRoot(repoRoot);
+
+        it('keeps the entry body below the header identical to the SDK copy apart from its v6 require', function () {
+            if (!sdkRoot) return this.skip();
+            const sdkEntry = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch.js');
+            const sdkBody = bodyBelowHeader(sdkEntry).split('\n').filter((line) => line !== SDK_ONLY_LINE).join('\n');
+            assert.ok(/require\('\.\/apply_bufferutils_patch\/v7'\)/.test(sdkBody), 'SDK entry body lost its v7 require');
+            assert.strictEqual(bodyBelowHeader(path.join(repoRoot, 'src/build/apply_bufferutils_patch.js')), sdkBody,
+                'src/build/apply_bufferutils_patch.js body has drifted from the SDK copy; converge SDK-ward');
+        });
+
+        it('holds the same patch part files as the SDK apart from its v6 fallback', function () {
+            if (!sdkRoot) return this.skip();
+            const parts = (dir) => fs.readdirSync(dir).filter((name) => name.endsWith('.js')).sort();
+            const sdkParts = parts(path.join(sdkRoot, 'src/utils/apply_bufferutils_patch')).filter((name) => name !== 'v6.js');
+            assert.deepStrictEqual(parts(path.join(repoRoot, 'src/build/apply_bufferutils_patch')), sdkParts);
+        });
+    });
+});

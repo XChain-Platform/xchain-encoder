@@ -45,7 +45,8 @@ describe('assertNodeTier mismatch state', function () {
 })
 
 // Connector fields the tier check reads or caches; each test starts from none of them set.
-const TIER_FIELDS = ['nodeTierOk', 'nodeTierMismatch', 'nodeTierWarned', '_chainNameCache', 'consensusNetwork', 'chainName']
+const TIER_FIELDS = ['nodeTierOk', 'nodeTierMismatch', 'nodeTierWarned', '_chainNameCache', 'consensusNetwork', 'chainName',
+  'nodeGenesisOk', 'nodeGenesisWarned', 'chainGenesisHash', 'getBlockHash']
 const MAINNET_MISMATCH_REASON = 'node reports chain="main" (mainnet) but this encoder is configured for testnet'
 
 // What the stubbing hook replaced, so the restoring hook can put it back.
@@ -136,5 +137,27 @@ describe('GET /status node-tier readiness', function () {
     assert.ok(Date.now() - started < 4500, `took ${Date.now() - started}ms`)
     assert.strictEqual(response.code, 200)
     assert.strictEqual(response.body.node_tier_checked, false)
+  })
+})
+
+describe('GET /status node-tier readiness after a genesis mismatch clears', function () {
+  beforeEach(isolateTierFields)
+  afterEach(restoreTierFields)
+
+  it('returns to 200 with a null mismatch once a wrong-chain node answers the pinned genesis hash', async function () {
+    encoder.connector.chainGenesisHash = 'a'.repeat(64)
+    encoder.connector.getBlockHash = async () => 'b'.repeat(64)
+    const refused = await statusResponse()
+    assert.strictEqual(refused.code, 503)
+    assert.ok(refused.body.node_tier_mismatch, 'the wrong genesis must read as a mismatch first')
+
+    encoder.connector.getBlockHash = async () => 'a'.repeat(64)
+    const recovered = await statusResponse()
+
+    assert.strictEqual(recovered.code, 200)
+    assert.strictEqual(recovered.body.status, 'healthy')
+    assert.strictEqual(recovered.body.node_tier_mismatch, null)
+    assert.strictEqual(recovered.body.node_tier_checked, true)
+    assert.strictEqual((await jsonRpcController.health()).node_tier_mismatch, null)
   })
 })

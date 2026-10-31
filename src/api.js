@@ -78,6 +78,7 @@ function makeRpcBatchGuard(maxBatch){
 }
 const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./server/single_instance_guard')
 const { parseCorsOrigin } = require('./server/cors_origin')
+const { jsonErrorHandler } = require('./server/json_error_handler')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
 
@@ -360,6 +361,8 @@ app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next();
 // RPCs - the cap then admits unbounded real work with in_flight reading zero.
 // A route added below this line without the wrapper sits outside the cap again.
 app.use(requestGate.hold(jsonRouter({methods: jsonRpcController})))
+// Keep this the last app.use: a body-parser refusal answers JSON-RPC here, never Express's stack page.
+app.use(jsonErrorHandler)
 
 
 // Start the server only when run directly (node src/api.js). When required by a

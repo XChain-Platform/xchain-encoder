@@ -24,13 +24,22 @@ const { MAGIC_WORD, SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { asSatValue } = require('../script_amount_helpers.js')
 const { assertRevealFundingTxMatches } = require('../request_resolution.js')
 const { feeForVsize } = require('../fee_policy.js')
-const { ParamRangeError } = require('../../build/errors')
+const { ParamRangeError, ParamTypeError } = require('../../build/errors')
+
+// Decode the reveal's funding transaction; well-formed hex that does not decode is the caller's fault, as in broadcast_tx.
+function parseFundingTx(p2shHex){
+    try {
+        return bitcoin.Transaction.fromHex(p2shHex)
+    } catch {
+        throw new ParamTypeError('p2shHex is not a parseable transaction')
+    }
+}
 
 // A P2SH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2shChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
     if (p2shHex && !p2shTx){
-        p2shTx = bitcoin.Transaction.fromHex(p2shHex)
+        p2shTx = parseFundingTx(p2shHex)
         txidFirstInput = p2shTx.getId()
         assertRevealFundingTxMatches(p2shHash, txidFirstInput)
     }
@@ -219,7 +228,7 @@ function assertLegFundsScript(p2shTx, vout, encoding, script){
 function* emitP2wshChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
     if (p2shHex && !p2shTx){
-        p2shTx = bitcoin.Transaction.fromHex(p2shHex)
+        p2shTx = parseFundingTx(p2shHex)
         txidFirstInput = p2shTx.getId()
         assertRevealFundingTxMatches(p2shHash, txidFirstInput)
     }

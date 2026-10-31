@@ -98,6 +98,32 @@ describe('BlockchainConnector.assertNodeTier() block-0 hash pin', () => {
   })
 })
 
+describe('BlockchainConnector.assertNodeTier() block-0 hash pin after a recorded mismatch', () => {
+  registerHooks([])
+
+  it('clears a recorded genesis mismatch once the node answers the pinned hash', async () => {
+    const counts = {}
+    const connector = makeConnector('mainnet', BTC_MAINNET)
+    stubNode('main', { result: DOGE_MAINNET }, counts)
+    await assert.rejects(connector.assertNodeTier(), isChainMismatch)
+    assert.ok(connector.nodeTierMismatch)
+    stubNode('main', { result: BTC_MAINNET }, counts)
+    await connector.assertNodeTier()
+    assert.strictEqual(connector.nodeTierMismatch, null)
+    assert.strictEqual(connector.nodeGenesisOk, true)
+  })
+
+  it('keeps a recorded genesis mismatch when the next hash is only unreadable', async () => {
+    const counts = {}
+    const connector = makeConnector('mainnet', BTC_MAINNET)
+    stubNode('main', { result: DOGE_MAINNET }, counts)
+    await assert.rejects(connector.assertNodeTier(), isChainMismatch)
+    stubNode('main', { error: { code: -8, message: 'x' } }, counts)
+    await connector.assertNodeTier()
+    assert.ok(connector.nodeTierMismatch.includes(DOGE_MAINNET), connector.nodeTierMismatch)
+  })
+})
+
 describe('BlockchainConnector.assertNodeTier() block-0 hash pin when the node cannot answer', () => {
   const warnings = []
   registerHooks(warnings)

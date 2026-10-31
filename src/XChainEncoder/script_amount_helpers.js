@@ -20,7 +20,7 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const coins = require('../coins')
-const { SOFT_DUST_FLOOR_BY_COIN, DEFAULT_DUST_RELAY_FEE_PER_BYTE, DUST_RELAY_FEE_PER_BYTE_BY_COIN, TAPROOT_LEAF_VERSION, MAX_SAFE_SATOSHI_BIG } = require('./constants.js')
+const { SOFT_DUST_FLOOR_BY_COIN, DUST_RELAY_FEE_PER_BYTE_BY_COIN, FLAT_RELAY_DUST_COINS, TAPROOT_LEAF_VERSION, MAX_SAFE_SATOSHI_BIG } = require('./constants.js')
 
 // The coin tick of a "<fullname>-<network>" key, or undefined.
 function tickOf(networkKey){
@@ -34,10 +34,15 @@ function softDustFloorFor(networkKey){
     return (tick && SOFT_DUST_FLOOR_BY_COIN[tick]) || 0
 }
 
-// The coin's dust relay rate in base units per byte, keyed on the coin like the soft limit.
-function dustRelayFeePerByteFor(networkKey){
+// Relay dust floor of a bare-multisig output by the coin's own node rule: per-byte coins
+// price output plus a 148-byte spend; flat-limit coins take the pinned hard threshold.
+function bareMultisigRelayDustFor(networkKey, scriptLength, hardDustThreshold){
     const tick = tickOf(networkKey)
-    return (tick && DUST_RELAY_FEE_PER_BYTE_BY_COIN[tick]) || DEFAULT_DUST_RELAY_FEE_PER_BYTE
+    const perByte = tick && DUST_RELAY_FEE_PER_BYTE_BY_COIN[tick]
+    if (perByte) return Math.ceil((8 + 1 + scriptLength + 148) * perByte)
+    if (tick && FLAT_RELAY_DUST_COINS.includes(tick)) return hardDustThreshold
+    // Fail closed: a coin with no entry must never borrow another coin's relay rule.
+    throw new Error(`No dust relay model for network ${networkKey}`)
 }
 
 // Byte width of the compactSize varint that prefixes a length on the wire.
@@ -100,4 +105,4 @@ function jsonSafeSat(v) {
     return v <= MAX_SAFE_SATOSHI_BIG ? Number(v) : v.toString()
 }
 
-module.exports = { softDustFloorFor, dustRelayFeePerByteFor, compactSizeLen, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSafeSat }
+module.exports = { softDustFloorFor, bareMultisigRelayDustFor, compactSizeLen, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSafeSat }
