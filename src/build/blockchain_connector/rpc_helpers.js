@@ -13,7 +13,9 @@
  ********************************************************************/
 
 const config = require('../../common/config');
-const { DEFAULT_FEE_ESTIMATE_SANITY_CEILING } = require('./constants');
+const { isTransportError, safeUpstreamReason } = require('../../common/error_sanitize');
+const { OperationalError } = require('../errors');
+const { DEFAULT_FEE_ESTIMATE_SANITY_CEILING, logger } = require('./constants');
 
 // Fee-rate multiple of the node's relay floor used on non-mainnet chains when
 // estimatesmartfee has no data. Rationale at getFeePerKilobyte.
@@ -78,6 +80,21 @@ function rpcErrorDetail(body){
     return ` (RPC error ${code === undefined ? 'unknown' : code}: ${message})`
 }
 
+// A failed node query as the error its callers branch on. A node that never
+// answered is a retryable outage; a node that answered keeps its RPC detail.
+function nodeRequestError(error) {
+    const response = error && error.response;
+    const detail = rpcErrorDetail(response && response.data);
+    const message = sanitizeRpcError(error);
+    if (!response && isTransportError(error)) {
+        logger.warn(`Coin node did not answer: ${message}`);
+        const reason = safeUpstreamReason(message);
+        return new OperationalError('NODE_UNREACHABLE',
+            `Error in network request: coin node did not answer${reason ? ` (${reason})` : ''}; retry once the node is reachable`);
+    }
+    return new Error(`Error in network request: ${message}${detail}`);
+}
+
 // Type before coercion: Number(null), Number('') and Number(false) are all a
 // finite 0, and Number(true) is 1, so a bare Number() cast turns an unreadable
 // field into a priceable value. Only real numbers, and strings that spell one,
@@ -115,6 +132,7 @@ module.exports = {
     feeEstimateSanityCeiling,
     sanitizeRpcError,
     rpcErrorDetail,
+    nodeRequestError,
     entrySize,
     entryFee,
 }

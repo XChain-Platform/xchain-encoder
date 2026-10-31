@@ -109,6 +109,25 @@ describe('paginated utxo fetch is one chain-state snapshot @regression', functio
     const out = await tracker.getUtxosFromAddress('someaddr')
     assert.strictEqual(out.utxos.length, 2)
   })
+
+  it('refuses when the mempool changes at an unchanged chain tip', async function () {
+    stubPages([
+      { utxos: [utxo('a')], nextCursor: 'PAGE2', sync: { tracker_height: 100, lag: 0, synced: true, mempool_epoch: 10 } },
+      { utxos: [utxo('b')], sync: { tracker_height: 100, lag: 0, synced: true, mempool_epoch: 11 } }
+    ])
+    const tracker = new UtxoTracker('127.0.0.1', '1234')
+    await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), /mempool changed mid-fetch/)
+  })
+
+  it('keeps compatibility when a later page omits the mempool epoch', async function () {
+    stubPages([
+      { utxos: [utxo('a')], nextCursor: 'PAGE2', sync: { tracker_height: 100, lag: 0, synced: true, mempool_epoch: 10 } },
+      { utxos: [utxo('b')], sync: { tracker_height: 100, lag: 0, synced: true } }
+    ])
+    const tracker = new UtxoTracker('127.0.0.1', '1234')
+    const out = await tracker.getUtxosFromAddress('someaddr')
+    assert.strictEqual(out.utxos.length, 2)
+  })
 })
 
 describe('paginated utxo fetch is one chain-state snapshot @regression', function () {

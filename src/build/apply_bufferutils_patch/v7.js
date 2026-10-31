@@ -89,7 +89,7 @@ if (IS_BITCOINJS_V7 && !Transaction.prototype.__xchainNumberValues) {
 
     const addOutput = Transaction.prototype.addOutput
     Transaction.prototype.addOutput = function (script, value) {
-        return addOutput.call(this, script, typeof value === 'number' ? BigInt(value) : value)
+        return addOutput.call(this, script, typeof value === 'number' ? verifyU64(value) : value)
     }
     Transaction.prototype.__xchainNumberValues = true
 
@@ -112,13 +112,13 @@ if (IS_BITCOINJS_V7 && !Transaction.prototype.__xchainNumberValues) {
     const hashForWitnessV0 = Transaction.prototype.hashForWitnessV0
     Transaction.prototype.hashForWitnessV0 = function (index, script, value, hashType) {
         return compatibleValue(hashForWitnessV0.call(
-            this, index, script, typeof value === 'number' ? BigInt(value) : value, hashType
+            this, index, script, typeof value === 'number' ? verifyU64(value) : value, hashType
         ))
     }
     const hashForWitnessV1 = Transaction.prototype.hashForWitnessV1
     Transaction.prototype.hashForWitnessV1 = function (index, scripts, values, ...args) {
         return compatibleValue(hashForWitnessV1.call(
-            this, index, scripts, values.map((value) => typeof value === 'number' ? BigInt(value) : value), ...args
+            this, index, scripts, values.map((value) => typeof value === 'number' ? verifyU64(value) : value), ...args
         ))
     }
 
