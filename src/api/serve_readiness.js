@@ -19,7 +19,8 @@
  *
  ********************************************************************/
 
-const XChainEncoder  = require('../XChainEncoder');
+const { classifyTrackerFreshness } = require('../XChainEncoder/request_resolution.js')
+const { classifyRemoteSync } = require('../XChainEncoder/trackerless_profile.js')
 
 // Cap the tier check well under NODE_RPC_TIMEOUT: a failed chain read is not
 // cached, so an unreachable node would otherwise hold every probe for 30s.
@@ -44,7 +45,8 @@ const NODE_TIER_PROBE_DEADLINE_MS = 3000
 // safety). Without the extra gate a 3-block lag read synced:true here while
 // create_tx refused UTXO_TRACKER_STALE, so the status board painted Online
 // on an un-serveable encoder. Null lag fails open, exactly like
-// create_tx's overLag gate.
+// create_tx's default-profile gate. The remote profile additionally requires
+// a numeric lag and a positive synced assertion.
 //
 // A halted tracker (stopped polling on an unrecoverable reorg) and a negative
 // lag (its committed tip sits above the node's, so its outputs are orphaned)
@@ -99,17 +101,14 @@ async function getServeReadiness() {
     try {
         const status = await encoder.utxoTrackerConnector.getSyncStatus()
         tracker_reachable = true
-        // This probe applies the SAME freshness classifier create_tx refuses a
-        // tracker with, against this endpoint's payload, so the board and the
-        // encoder cannot drift apart: both read getSyncStatus() through
-        // classifyTrackerFreshness instead of each re-deriving over-lag,
-        // behind-node, halted and mempool-ready. The remaining asymmetry is
-        // intentional: readiness needs the tracker's POSITIVE synced assertion
-        // (syncedClaimed), while the create_tx gate refuses only on negatives.
-        const freshness = XChainEncoder.classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
+        // Use the same profile-aware refusal create_tx applies. The default
+        // profile remains fail-open for legacy trackers, while remote requires
+        // an attested numeric lag and positive synced assertion.
+        const freshness = classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
+        const refusal = classifyRemoteSync(encoder.trackerProfile, status, encoder.maxUtxoTrackerLagBlocks)
         tracker_halted = freshness.halted
         tracker_mempool_ready = freshness.mempoolReady
-        tracker_synced = freshness.syncedClaimed && freshness.code === null
+        tracker_synced = freshness.syncedClaimed && refusal === null
         tracker_lag = freshness.lag
     } catch (_err) {
         // tracker unreachable; fields stay at defaults

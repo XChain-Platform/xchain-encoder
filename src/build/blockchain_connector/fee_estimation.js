@@ -22,8 +22,10 @@ const {
     feeEstimateSanityCeiling,
     sanitizeRpcError,
     rpcErrorDetail,
+    nodeRequestError,
 } = require('./rpc_helpers');
 const { OperationalError } = require('../errors');
+const { isTransportError } = require('../../common/error_sanitize');
 
 function uniqueTxids(txids) {
     const roots = []
@@ -131,13 +133,21 @@ async function requestSmartFee(connector, blocksNumber) {
         id: 1,
     };
 
-    const response = await axios.post(connector.url, data, {
-        auth: {
-            username: connector.rpcUser,
-            password: connector.rpcPassword,
-        },
-        timeout: RPC_TIMEOUT
-    });
+    let response;
+    try {
+        response = await axios.post(connector.url, data, {
+            auth: {
+                username: connector.rpcUser,
+                password: connector.rpcPassword,
+            },
+            timeout: RPC_TIMEOUT
+        });
+    } catch (error) {
+        if (!(error && error.response) && isTransportError(error)) {
+            throw nodeRequestError(error);
+        }
+        throw error;
+    }
 
     return response.data;
 }

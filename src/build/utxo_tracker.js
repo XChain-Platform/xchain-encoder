@@ -64,7 +64,8 @@ function assertWithinUtxoCap(count, cap){
 // sibling also carries the tracker's reorg_count (the counter get_sync_status reports), the
 // first signal of a rewind that re-applies to the SAME height. The committed_hash a page was
 // read at names its chain exactly, so it also catches a same-height swap the counter missed
-// (a reset counter after a restart, or a rollback the counter never recorded). Both are
+// (a reset counter after a restart, or a rollback the counter never recorded). A mempool
+// epoch also refuses pages whose spend filtering came from different mempool commits. All are
 // typeof-guarded, so a page without them still gets the height check. Erring toward a refusal is the direction
 // every other gate on this path takes, and it costs a retry only on an address holding more
 // than one page of UTXOs.
@@ -82,6 +83,10 @@ function snapshotDivergence(first, later){
     if (typeof first.reorg_count === 'number' && typeof later.reorg_count === 'number' &&
         first.reorg_count !== later.reorg_count){
         return 'the tracker recorded a reorg mid-fetch (reorg_count ' + first.reorg_count + ' to ' + later.reorg_count + ')'
+    }
+    if (typeof first.mempool_epoch === 'number' && typeof later.mempool_epoch === 'number' &&
+        first.mempool_epoch !== later.mempool_epoch){
+        return 'the tracker mempool changed mid-fetch (mempool_epoch ' + first.mempool_epoch + ' to ' + later.mempool_epoch + ')'
     }
     // Refuse when the pages were read on different chains at one height (hashes are not echoed: upstream text).
     if (typeof first.committed_hash === 'string' && typeof later.committed_hash === 'string' &&

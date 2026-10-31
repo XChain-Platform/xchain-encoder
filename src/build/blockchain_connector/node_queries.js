@@ -15,33 +15,9 @@
 const axios = require('axios')
 const util = require('node:util');
 const { logger, RPC_TIMEOUT } = require('./constants');
-const { sanitizeRpcError, rpcErrorDetail } = require('./rpc_helpers');
+const { sanitizeRpcError, rpcErrorDetail, nodeRequestError } = require('./rpc_helpers');
 const { chainTierMismatch, chainGenesisMismatch, chainGenesisUnpinned } = require('./chain_identity');
 const { OperationalError } = require('../errors');
-const { isTransportError, safeUpstreamReason } = require('../../common/error_sanitize');
-
-// A failed node query as the error its callers branch on. A node that never
-// answered (a timeout, refused or reset connection: no HTTP response at all) is an
-// outage the caller can retry, so it is the typed NODE_UNREACHABLE operational
-// error, the code estimate_fee already uses, and the API answers -32010 rather
-// than a generic -32603. Its message is forwarded to callers, so the transport reason
-// rides along only when it carries no host, port, URL or credential. A node that
-// did answer keeps its own RPC code and message (a warming node's -28 "Loading
-// block index...") in a plain Error, as before.
-function nodeRequestError(error) {
-    const response = error && error.response;
-    // Read the node's reason before the scrub drops error.response.
-    const detail = rpcErrorDetail(response && response.data);
-    const message = sanitizeRpcError(error);
-    // An HTTP 5xx is also a transport code to axios (ERR_BAD_RESPONSE), but that node answered.
-    if (!response && isTransportError(error)) {
-        logger.warn(`Coin node did not answer: ${message}`);
-        const reason = safeUpstreamReason(message);
-        return new OperationalError('NODE_UNREACHABLE',
-            `Error in network request: coin node did not answer${reason ? ` (${reason})` : ''}; retry once the node is reachable`);
-    }
-    return new Error(`Error in network request: ${message}${detail}`);
-}
 
 function mempoolEntryAbsent(body) {
     const error = body && body.error;
