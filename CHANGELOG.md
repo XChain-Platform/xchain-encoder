@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-01
+
+### Changed
+- Moved the encoder to bitcoinjs-lib 7 and converged its buffer patch on the SDK copy, with the newer Node 22 base image.
+
+### Fixed
+- A coin node timeout now answers NODE_UNREACHABLE, and fee estimation fails fast when the regtest node does not answer.
+- The base fee floor holds under the soft-dust surcharge, and the P2WSH reveal sweeps its surplus when caller outputs clear the floor.
+- Corrected canonical input identity and legacy P2SH fee sizing.
+- Startup is safer: a stale single-instance lock is now broken cleanly, and malformed JSON bodies get clean errors.
+- Transaction building was corrected for script-hash legs, data outputs and input candidate selection.
+- Fee estimation and node RPC helpers fail faster and report clearer errors, and serve readiness is checked more strictly.
+
 ## [0.26.2] - 2026-10-21
 
 ### Changed

@@ -4,8 +4,8 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-1%2C787%2B%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.27.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-2%2C337%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
 </p>
@@ -164,20 +164,20 @@ neither source sets one, so these defaults hold on an unconfigured box:
 |---|---|
 | `npm run api` | Start the JSON-RPC API server |
 | `npm run smoke-test` | Smoke tests (~52 tests, <1s) |
-| `npm run test:unit` | Unit tests (910 tests) |
-| `npm run test:integration` | Integration tests (115 tests) |
+| `npm run test:unit` | Unit tests (1,420 tests) |
+| `npm run test:integration` | Integration tests (96 tests) |
 | `npm run test:boundary` | Boundary condition tests (~101 tests) |
-| `npm run test:security` | Security tests (67 tests) |
+| `npm run test:security` | Security tests (76 tests) |
 | `npm run test:fuzz` | Property-based fuzz tests (6 suites, 6 tests) |
 | `npm run test:chaos` | Chaos engineering tests (65 tests) |
 | `npm run test:e2e` | End-to-end tests (~158 tests) |
-| `npm run test:regression` | Regression tests (307 tests) |
+| `npm run test:regression` | Regression tests (357 tests) |
 | `npm run mutate` | Full mutation testing via StrykerJS |
 | `npm run mutate:quick` | Quick mutation check (XChainEncoder.js only) |
 | `npm run bench` | Performance benchmarks |
 | `npm run bench:full` | Extended benchmarks with JSON output |
 | `npm run bench:soak` | Soak test (sustained load) |
-| `npm test` | Unit tests (hermetic, no external services, 910 tests) |
+| `npm test` | Unit tests (hermetic, no external services, 1,420 tests) |
 | `npm run test:regtest` | Regtest integration tests (requires local bitcoind) |
 
 ## Test Suite
