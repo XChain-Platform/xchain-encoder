@@ -26,6 +26,45 @@ const { classifyRemoteSync } = require('../XChainEncoder/trackerless_profile.js'
 // cached, so an unreachable node would otherwise hold every probe for 30s.
 const NODE_TIER_PROBE_DEADLINE_MS = 3000
 
+// How long one tracker sync-status read serves every probe (about 30 reads a
+// minute at most, far under the tracker's per-IP budget).
+const TRACKER_PROBE_TTL_MS = 2000
+
+// Run the connector's tier check under the deadline and report what it settled.
+async function probeNodeTier(connector) {
+    if (connector && typeof connector.assertNodeTier === 'function') {
+        let timer
+        const deadline = new Promise(resolve => { timer = setTimeout(resolve, NODE_TIER_PROBE_DEADLINE_MS) })
+        // Swallow every outcome: a mismatch is read back from the connector below,
+        // and a late rejection after the deadline must not surface as unhandled.
+        const check = Promise.resolve().then(() => connector.assertNodeTier()).catch(() => {})
+        try {
+            await Promise.race([check, deadline])
+        } finally {
+            clearTimeout(timer)
+        }
+    }
+    const node_tier_mismatch = (connector && connector.nodeTierMismatch) || null
+    const node_tier_checked = Boolean(node_tier_mismatch) || Boolean(connector && connector.nodeTierOk === true)
+    return { node_tier_mismatch, node_tier_checked }
+}
+
+// Map one tracker sync-status answer onto the tracker_* readiness fields. Uses
+// the same profile-aware refusal create_tx applies: the default profile stays
+// fail-open for legacy trackers, while remote requires an attested numeric lag
+// and a positive synced assertion.
+function classifyTracker(encoder, status) {
+    const freshness = classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
+    const refusal = classifyRemoteSync(encoder.trackerProfile, status, encoder.maxUtxoTrackerLagBlocks)
+    return {
+        tracker_reachable: true,
+        tracker_synced: freshness.syncedClaimed && refusal === null,
+        tracker_lag: freshness.lag,
+        tracker_halted: freshness.halted,
+        tracker_mempool_ready: freshness.mempoolReady
+    }
+}
+
 // Serve-readiness probe shared by the JSON-RPC health() method and GET
 // /status, so the two endpoints can never drift apart: probes the
 // UTXO tracker and returns its reachability / sync state. Fields:
@@ -64,57 +103,40 @@ const NODE_TIER_PROBE_DEADLINE_MS = 3000
 //
 // readMaintenanceWindow is passed in by the caller, which binds it when its own
 // module loads, so a test that stubs it around that load still reaches the stub.
-function createServeReadiness({ encoder, readMaintenanceWindow }) {
-// Run the connector's tier check under the deadline and report what it settled.
-async function probeNodeTier() {
-    const connector = encoder.connector
-    if (connector && typeof connector.assertNodeTier === 'function') {
-        let timer
-        const deadline = new Promise(resolve => { timer = setTimeout(resolve, NODE_TIER_PROBE_DEADLINE_MS) })
-        // Swallow every outcome: a mismatch is read back from the connector below,
-        // and a late rejection after the deadline must not surface as unhandled.
-        const check = Promise.resolve().then(() => connector.assertNodeTier()).catch(() => {})
-        try {
-            await Promise.race([check, deadline])
-        } finally {
-            clearTimeout(timer)
-        }
-    }
-    const node_tier_mismatch = (connector && connector.nodeTierMismatch) || null
-    const node_tier_checked = Boolean(node_tier_mismatch) || Boolean(connector && connector.nodeTierOk === true)
-    return { node_tier_mismatch, node_tier_checked }
+//
+// The tracker read is shared across probes: one call serves every probe inside
+// TRACKER_PROBE_TTL_MS, and probes arriving while it is in flight join it. The
+// tracker rate-limits per caller IP and the encoder's readiness polls, docker
+// healthcheck and create_tx reads share that bucket, so an uncached probe per
+// request let probe traffic burn the budget and make a healthy encoder unready.
+// A failure is cached for the same window, so a rate-limited tracker is asked
+// once per window rather than once per probe. `now` is injectable for tests.
+function createServeReadiness({ encoder, readMaintenanceWindow, now = Date.now, trackerTtlMs = TRACKER_PROBE_TTL_MS }) {
+let trackerRead = null // { at, promise }
+function readTrackerStatus() {
+    const t = now()
+    if (trackerRead && t - trackerRead.at >= 0 && t - trackerRead.at < trackerTtlMs) return trackerRead.promise
+    const promise = Promise.resolve()
+        .then(() => encoder.utxoTrackerConnector.getSyncStatus())
+        .then(status => ({ ok: true, status }), error => ({ ok: false, error }))
+    trackerRead = { at: t, promise }
+    return promise
 }
 
 // Probe the tracker and the node tier together and return the readiness fields above.
 async function getServeReadiness() {
     // Start the node-tier check beside the tracker probe, so the probe waits for the slower of the two, not their sum.
-    const nodeTier = probeNodeTier()
+    const nodeTier = probeNodeTier(encoder.connector)
     // Read first and independently of the tracker probe: the window is what
     // explains a tracker that is deliberately down, so it must survive the
     // catch below rather than depend on the probe it annotates.
     const maintenance = await readMaintenanceWindow()
-    let tracker_reachable = false
-    let tracker_synced = false
-    let tracker_lag = null
-    let tracker_halted = false
-    let tracker_mempool_ready = false
-    try {
-        const status = await encoder.utxoTrackerConnector.getSyncStatus()
-        tracker_reachable = true
-        // Use the same profile-aware refusal create_tx applies. The default
-        // profile remains fail-open for legacy trackers, while remote requires
-        // an attested numeric lag and positive synced assertion.
-        const freshness = classifyTrackerFreshness(status, encoder.maxUtxoTrackerLagBlocks)
-        const refusal = classifyRemoteSync(encoder.trackerProfile, status, encoder.maxUtxoTrackerLagBlocks)
-        tracker_halted = freshness.halted
-        tracker_mempool_ready = freshness.mempoolReady
-        tracker_synced = freshness.syncedClaimed && refusal === null
-        tracker_lag = freshness.lag
-    } catch (_err) {
-        // tracker unreachable; fields stay at defaults
-    }
+    let tracker = { tracker_reachable: false, tracker_synced: false, tracker_lag: null, tracker_halted: false, tracker_mempool_ready: false }
+    const read = await readTrackerStatus()
+    // An unreachable tracker leaves the fields at their defaults.
+    if (read.ok) tracker = classifyTracker(encoder, read.status)
     const { node_tier_mismatch, node_tier_checked } = await nodeTier
-    return { tracker_reachable, tracker_synced, tracker_lag, tracker_halted, tracker_mempool_ready, node_tier_mismatch, node_tier_checked, maintenance }
+    return { ...tracker, node_tier_mismatch, node_tier_checked, maintenance }
 }
 
 return getServeReadiness
