@@ -1,7 +1,7 @@
 'use strict'
 
 const assert = require('assert')
-const { createServeReadiness } = require('../../../../src/api/serve_readiness')
+const { createServeReadiness, TRACKER_PROBE_TTL_MS } = require('../../../../src/api/serve_readiness')
 
 function build(getSyncStatus) {
   let clock = 1000
@@ -11,7 +11,7 @@ function build(getSyncStatus) {
     connector: { nodeTierOk: true, assertNodeTier: async () => {} },
     utxoTrackerConnector: { getSyncStatus }
   }
-  const probe = createServeReadiness({ encoder, readMaintenanceWindow: async () => null, now: () => clock })
+  const probe = createServeReadiness({ encoder, readMaintenanceWindow: async () => null, now: () => clock, trackerTtlMs: TRACKER_PROBE_TTL_MS })
   return { probe, advance: ms => { clock += ms } }
 }
 

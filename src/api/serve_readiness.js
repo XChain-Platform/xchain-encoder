@@ -21,6 +21,7 @@
 
 const { classifyTrackerFreshness } = require('../XChainEncoder/request_resolution.js')
 const { classifyRemoteSync } = require('../XChainEncoder/trackerless_profile.js')
+const config = require('../common/config.js')
 
 // Cap the tier check well under NODE_RPC_TIMEOUT: a failed chain read is not
 // cached, so an unreachable node would otherwise hold every probe for 30s.
@@ -29,6 +30,15 @@ const NODE_TIER_PROBE_DEADLINE_MS = 3000
 // How long one tracker sync-status read serves every probe (about 30 reads a
 // minute at most, far under the tracker's per-IP budget).
 const TRACKER_PROBE_TTL_MS = 2000
+
+// The unit suites share one module-level probe and swap the tracker stub between
+// calls, so their mocha setup sets ENCODER_TRACKER_PROBE_TTL_MS to 0 and every
+// probe reads the tracker.
+function trackerProbeTtlMs() {
+    const raw = config.ENCODER_TRACKER_PROBE_TTL_MS
+    const ms = raw === undefined || raw === '' ? NaN : Number(raw)
+    return Number.isFinite(ms) && ms >= 0 ? ms : TRACKER_PROBE_TTL_MS
+}
 
 // Run the connector's tier check under the deadline and report what it settled.
 async function probeNodeTier(connector) {
@@ -111,7 +121,7 @@ function classifyTracker(encoder, status) {
 // request let probe traffic burn the budget and make a healthy encoder unready.
 // A failure is cached for the same window, so a rate-limited tracker is asked
 // once per window rather than once per probe. `now` is injectable for tests.
-function createServeReadiness({ encoder, readMaintenanceWindow, now = Date.now, trackerTtlMs = TRACKER_PROBE_TTL_MS }) {
+function createServeReadiness({ encoder, readMaintenanceWindow, now = Date.now, trackerTtlMs = trackerProbeTtlMs() }) {
 let trackerRead = null // { at, promise }
 function readTrackerStatus() {
     const t = now()
@@ -142,4 +152,4 @@ async function getServeReadiness() {
 return getServeReadiness
 }
 
-module.exports = { createServeReadiness }
+module.exports = { createServeReadiness, TRACKER_PROBE_TTL_MS }
