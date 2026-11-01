@@ -1,7 +1,7 @@
 'use strict'
 
 const assert = require('assert')
-const { createServeReadiness } = require('../../../src/api/serve_readiness')
+const { createServeReadiness } = require('../../../../src/api/serve_readiness')
 
 function build(getSyncStatus) {
   let clock = 1000
