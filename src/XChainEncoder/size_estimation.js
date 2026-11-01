@@ -107,7 +107,8 @@ module.exports = {
         if (!Array.isArray(outs) || !outs[outputIndex]){
             throw new Error(`no output at index ${outputIndex} to raise`)
         }
-        const raised = outs[outputIndex].value + delta
+        const current = outs[outputIndex].value
+        const raised = typeof current === 'bigint' ? current + BigInt(delta) : current + delta
         outs[outputIndex].value = raised
         // Verify bitcoinjs serializes the raised value (see the note above)
         if (psbt.txOutputs[outputIndex].value !== raised){
@@ -142,9 +143,9 @@ module.exports = {
     // that spends all of them, so the funding side can top the first leg up to
     // what the reveal will actually need. Both phases MUST
     // price the reveal with this function: the reveal path's generic
-    // TxSizeEstimator.estimateInputSize() models a P2SH input as 2-of-3
-    // multisig (289 bytes flat) and disagrees with the funding side's
-    // redeem-aware estimate, and that drift is exactly what would leave the
+    // TxSizeEstimator.estimateInputSize() models standard P2SH multisig signing,
+    // while this reveal uses one signature, a pubkey and arbitrary redeem data.
+    // The formats have different byte costs, and that drift would leave the
     // funded change headroom a few satoshis short of emittable. The per-input
     // +8 is the same DER-signature-length-jitter margin estimateSpendingP2shTx
     // carries.

@@ -68,7 +68,7 @@ describe('REG-01: Core Encoding Types', function () {
         null, null, null, true, 0.00001
       )
 
-      const opReturnOutput = result.psbt.txOutputs.find(o => o.value === 0)
+      const opReturnOutput = result.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.ok(opReturnOutput, 'should have an OP_RETURN output')
       assert.strictEqual(opReturnOutput.script[0], bitcoin.opcodes.OP_RETURN)
     })
@@ -141,7 +141,7 @@ describe('REG-01: Core Encoding Types', function () {
       )
 
       const p2shOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
@@ -168,13 +168,13 @@ describe('REG-01: Core Encoding Types', function () {
       )
 
       const p2shOutputs = result.psbt.txOutputs.filter(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_HASH160
       })
 
       for (const o of p2shOutputs) {
-        assert.ok(o.value >= encoder.dustAmount,
+        assert.ok(Number(o.value) >= encoder.dustAmount,
           `P2SH output ${o.value} should be >= dust ${encoder.dustAmount}`)
       }
     })
@@ -226,7 +226,7 @@ describe('REG-01: Core Encoding Types', function () {
       )
 
       const p2wshOutput = result.psbt.txOutputs.find(o => {
-        if (o.value <= 0) return false
+        if (Number(o.value) <= 0) return false
         const d = bitcoin.script.decompile(o.script)
         return d && d[0] === bitcoin.opcodes.OP_0 &&
                Buffer.isBuffer(d[1]) && d[1].length === 32
@@ -270,7 +270,7 @@ describe('REG-01: Core Encoding Types', function () {
 
       // The data output is an authored output: it sits at the relay floor (outputFloor,
       // the 0.01 DOGE soft-dust limit on Dogecoin), not at the pinned hard-dust fee floor.
-      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.outputFloor)
+      const msOutput = result.psbt.txOutputs.find(o => Number(o.value) === encoder.outputFloor)
       assert.ok(msOutput, 'should have a multisig output at the output floor')
 
       const d = bitcoin.script.decompile(msOutput.script)
@@ -296,7 +296,7 @@ describe('REG-01: Core Encoding Types', function () {
         null, null, COMPRESSED_PUBKEY, true, 0.00001
       )
 
-      const msOutput = result.psbt.txOutputs.find(o => o.value === encoder.outputFloor)
+      const msOutput = result.psbt.txOutputs.find(o => Number(o.value) === encoder.outputFloor)
       const d = bitcoin.script.decompile(msOutput.script)
       assert.strictEqual(d[3].toString('hex'), COMPRESSED_PUBKEY)
     })

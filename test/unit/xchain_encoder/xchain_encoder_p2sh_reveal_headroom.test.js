@@ -145,10 +145,10 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     const funding = await buildFunding(encoder, DOGE, 'P2SH', VENUE_RATE_KB, payloadLen)
     const legs = legOutputs(funding)
     assert.strictEqual(legs.length, 1, 'single chunk expected for this payload')
-    const legTotal = legs.reduce((s, o) => s + o.value, 0)
+    const legTotal = legs.reduce((s, o) => s + Number(o.value), 0)
 
     const reveal = await buildReveal(encoder, DOGE, 'P2SH', VENUE_RATE_KB, payloadLen, funding)
-    const totalOut = reveal.outs.reduce((s, o) => s + o.value, 0)
+    const totalOut = reveal.outs.reduce((s, o) => s + Number(o.value), 0)
     const revealFeePaid = legTotal - totalOut
 
     // The reveal's whole-tx fee at the caller rate, as both phases price it
@@ -173,7 +173,7 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     const funding = await buildFunding(encoder, DOGE, 'P2SH', VENUE_RATE_KB, 120)
     const reveal = await buildReveal(encoder, DOGE, 'P2SH', VENUE_RATE_KB, 120, funding)
 
-    const totalOut = reveal.outs.reduce((s, o) => s + o.value, 0)
+    const totalOut = reveal.outs.reduce((s, o) => s + Number(o.value), 0)
     // This is EXACTLY the SDK guard's FULL_BURN_FEE condition
     // (reconcileEncoded: totalIn > 0 && totalOut === 0). It must not hold.
     assert.ok(totalOut > 0, 'reveal burns every satoshi to miners (FULL_BURN_FEE would refuse to sign)')
@@ -198,10 +198,10 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     const legs = legOutputs(funding)
     assert.strictEqual(legs.length, 1)
     assert.strictEqual(encoder.outputFloor, DOGE_SOFT_DUST)
-    assert.strictEqual(legs[0].value, 2 * DOGE_SOFT_DUST)
+    assert.strictEqual(Number(legs[0].value), 2 * DOGE_SOFT_DUST)
 
     const reveal = await buildReveal(encoder, DOGE, 'P2SH', 101000, 120, funding)
-    const totalOut = reveal.outs.reduce((s, o) => s + o.value, 0)
+    const totalOut = reveal.outs.reduce((s, o) => s + Number(o.value), 0)
     assert.strictEqual(totalOut, 2 * DOGE_SOFT_DUST - DOGE_DUST, 'one hard dust stays as the reveal fee; the rest sweeps back')
   })
 
@@ -209,7 +209,7 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     const encoder = makeEncoder(DOGE)
     const legAt = async (rateKb, payloadLen) => {
       const funding = await buildFunding(encoder, DOGE, 'P2SH', rateKb, payloadLen)
-      return legOutputs(funding).reduce((s, o) => s + o.value, 0)
+      return legOutputs(funding).reduce((s, o) => s + Number(o.value), 0)
     }
     // Probe above the output floor: at the venue rate a 120-byte chunk prices
     // under the 0.01 DOGE soft-dust floor and the leg is floor-bound, so the
@@ -236,7 +236,7 @@ describe('XChainEncoder P2SH reveal headroom', () => {
     const reveal = await buildReveal(encoder, DOGE, 'P2SH', VENUE_RATE_KB, 120, legacy)
     // Pre-fix shape: the OP_RETURN marker is the ONLY output, value zero.
     assert.strictEqual(reveal.outs.length, 1)
-    assert.strictEqual(reveal.outs[0].value, 0)
+    assert.strictEqual(Number(reveal.outs[0].value), 0)
     assert.ok(reveal.outs[0].script.toString('hex').startsWith('6a'))
   })
 })

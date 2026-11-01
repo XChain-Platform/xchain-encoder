@@ -24,13 +24,22 @@ const { MAGIC_WORD, SATOSHI_UNIT, Encoding } = require('../constants.js')
 const { asSatValue } = require('../script_amount_helpers.js')
 const { assertRevealFundingTxMatches } = require('../request_resolution.js')
 const { feeForVsize } = require('../fee_policy.js')
-const { ParamRangeError } = require('../../build/errors')
+const { ParamRangeError, ParamTypeError } = require('../../build/errors')
+
+// Decode the reveal's funding transaction; well-formed hex that does not decode is the caller's fault, as in broadcast_tx.
+function parseFundingTx(p2shHex){
+    try {
+        return bitcoin.Transaction.fromHex(p2shHex)
+    } catch {
+        throw new ParamTypeError('p2shHex is not a parseable transaction')
+    }
+}
 
 // A P2SH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2shChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
     if (p2shHex && !p2shTx){
-        p2shTx = bitcoin.Transaction.fromHex(p2shHex)
+        p2shTx = parseFundingTx(p2shHex)
         txidFirstInput = p2shTx.getId()
         assertRevealFundingTxMatches(p2shHash, txidFirstInput)
     }
@@ -219,7 +228,7 @@ function assertLegFundsScript(p2shTx, vout, encoding, script){
 function* emitP2wshChunk(build, nextDataBuffer){
     let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
     if (p2shHex && !p2shTx){
-        p2shTx = bitcoin.Transaction.fromHex(p2shHex)
+        p2shTx = parseFundingTx(p2shHex)
         txidFirstInput = p2shTx.getId()
         assertRevealFundingTxMatches(p2shHash, txidFirstInput)
     }
@@ -292,7 +301,8 @@ function fundP2wshLeg(build, nextDataBuffer){
     // that is resolved only on the reveal, so price it at the largest standard
     // output here rather than resolve the caller now. A reveal over the floor has
     // no pad and keeps the plain floored estimate.
-    const padOutputBytes = revealNeedsFloorPad.call(this, preparedData)
+    const needsPad = revealNeedsFloorPad.call(this, preparedData, build.customOutputs)
+    const padOutputBytes = needsPad
         ? TxSizeEstimator.estimateOutputSizeForAddress(change || null, this.network)
         : 0
     let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer, padOutputBytes)
@@ -302,7 +312,7 @@ function fundP2wshLeg(build, nextDataBuffer){
         spendingP2wshEstimatedFee = finalDust
     }
 
-    spendingP2wshEstimatedFee = fundRevealFloorPad.call(this, preparedData, spendingP2wshEstimatedFee)
+    spendingP2wshEstimatedFee = fundRevealFloorPad.call(this, needsPad, spendingP2wshEstimatedFee)
 
     // Over-fund the first funding output by the reveal-side
     // customOutputs total, plus the miner fee for the bytes
@@ -335,7 +345,7 @@ function fundP2wshLeg(build, nextDataBuffer){
     Object.assign(build, { revealCustomOutputsValue, revealCustomOutputsFee, outputSatoshis, estimatedTxSize })
 }
 
-function fundRevealFloorPad(preparedData, spendingP2wshEstimatedFee){
+function fundRevealFloorPad(needsPad, spendingP2wshEstimatedFee){
     // Chains such as Litecoin reject a reveal tx whose
     // stripped (non-witness) serialization is below their
     // relay floor (minStandardTxNonWitnessSize). A reveal
@@ -347,7 +357,7 @@ function fundRevealFloorPad(preparedData, spendingP2wshEstimatedFee){
     // and addRevealSizeFloorPadding below), so fund that
     // output's value here (one dust); otherwise the reveal
     // has no satoshis left to create it after the fee floor.
-    if (revealNeedsFloorPad.call(this, preparedData)){
+    if (needsPad){
         // Fund the reveal's stripped-size floor-padding output with
         // this.dustAmount, the SAME constant the reveal side spends
         // (see addRevealSizeFloorPadding below). Using finalDust here
@@ -359,10 +369,20 @@ function fundRevealFloorPad(preparedData, spendingP2wshEstimatedFee){
 }
 
 // Whether the P2WSH reveal's stripped size (10 header + 41 per chunk input + ~20
-// marker output) lands under the chain's relay floor, so the reveal adds a pad output.
-function revealNeedsFloorPad(preparedData){
+// marker output + the caller's own reveal outputs) lands under the chain's relay
+// floor, so the reveal adds a pad output. Both phases ask this one question: the
+// commit funds the pad only when it says so, and the reveal sweeps its surplus
+// only when it does not. The reveal emits the pad from its real stripped size, and
+// a caller output already lifts it over the floor, so leaving those outputs out
+// here funded a pad the reveal never emitted and never swept, burning it as fee.
+function revealNeedsFloorPad(preparedData, customOutputs){
     const strippedFloor = this.network.minStandardTxNonWitnessSize
-    const predictedRevealStripped = 30 + (41 * preparedData["dataBufferArray"].length)
+    let predictedRevealStripped = 30 + (41 * preparedData["dataBufferArray"].length)
+    if (Array.isArray(customOutputs)){
+        for (const output of customOutputs){
+            predictedRevealStripped = predictedRevealStripped + TxSizeEstimator.estimateOutputSizeForAddress(output.address, this.network)
+        }
+    }
     return !!(strippedFloor && predictedRevealStripped < strippedFloor)
 }
 

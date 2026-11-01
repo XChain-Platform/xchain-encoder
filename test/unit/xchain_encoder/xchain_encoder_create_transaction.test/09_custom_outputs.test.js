@@ -36,7 +36,7 @@ describe('XChainEncoder.createTransaction()', () => {
       // Should have: OP_RETURN (0 value) + 2 custom + 1 change = 4 outputs
       const outputs = result.psbt.txOutputs
       const customValues = outputs.filter(o =>
-        o.value === 500000 || o.value === 300000
+        Number(o.value) === 500000 || Number(o.value) === 300000
       )
       assert.strictEqual(customValues.length, 2)
     })

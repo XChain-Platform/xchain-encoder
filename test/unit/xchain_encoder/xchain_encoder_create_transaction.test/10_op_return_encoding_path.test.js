@@ -42,7 +42,7 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, true, 0.00001
       )
 
-      const opReturnOutput = result.psbt.txOutputs.find(o => o.value === 0)
+      const opReturnOutput = result.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.ok(opReturnOutput, 'should have an OP_RETURN output with value 0')
     })
 
@@ -56,7 +56,7 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, null, true, 0.00001
       )
 
-      const opReturnOutput = result.psbt.txOutputs.find(o => o.value === 0)
+      const opReturnOutput = result.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.strictEqual(opReturnOutput.script[0], bitcoin.opcodes.OP_RETURN)
     })
   })

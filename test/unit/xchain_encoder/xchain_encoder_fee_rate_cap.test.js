@@ -74,7 +74,7 @@ function makeEncoder (maxFeeRateKb = null, maxFeeRateMultiplier = undefined) {
 
 // inputs − all outputs = the fee actually embedded in the PSBT
 function paidFee (result) {
-  const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
+  const outputs = result.psbt.txOutputs.reduce((sum, o) => sum + Number(o.value), 0)
   return INPUT_VALUE - outputs
 }
 

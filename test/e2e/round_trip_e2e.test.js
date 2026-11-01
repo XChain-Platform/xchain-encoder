@@ -58,7 +58,7 @@ describe('E2E-9: Round-Trip Verification', () => {
       assert.strictEqual(result.encoding, 'OP_RETURN')
 
       // Step 1: Extract OP_RETURN output
-      const opReturnOutput = result.psbt.txOutputs.find(o => o.value === 0)
+      const opReturnOutput = result.psbt.txOutputs.find(o => Number(o.value) === 0)
       const scriptDecompiled = bitcoin.script.decompile(opReturnOutput.script)
       const obfuscatedData = scriptDecompiled[1]
 

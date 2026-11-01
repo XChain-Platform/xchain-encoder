@@ -175,7 +175,7 @@ describe('REG-02: Obfuscation Round-Trip', function () {
         tx1Id, tx1Hex, null, true, 0.00001
       )
 
-      const markerOutput = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const markerOutput = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       const decompiled = bitcoin.script.decompile(markerOutput.script)
       const decrypted = deobfuscate(decompiled[1], tx1Id)
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2sh')
@@ -202,7 +202,7 @@ describe('REG-02: Obfuscation Round-Trip', function () {
         tx1Id, tx1Hex, null, true, 0.00001
       )
 
-      const markerOutput = tx2.psbt.txOutputs.find(o => o.value === 0)
+      const markerOutput = tx2.psbt.txOutputs.find(o => Number(o.value) === 0)
       const decompiled = bitcoin.script.decompile(markerOutput.script)
       const decrypted = deobfuscate(decompiled[1], tx1Id)
       assert.strictEqual(decrypted.toString('utf8'), 'XCHNp2wsh')

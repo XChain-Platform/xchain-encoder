@@ -70,7 +70,7 @@ describe('uppercase-hex txid / obfuscation-key binding @regression', function ()
     )
 
     assert.strictEqual(ins0Txid(result), TXID_A)
-    const opReturn = result.psbt.txOutputs.find(o => o.value === 0)
+    const opReturn = result.psbt.txOutputs.find(o => Number(o.value) === 0)
     const obf = bitcoin.script.decompile(opReturn.script)[1]
     assert.strictEqual(deobfuscate(obf, ins0Txid(result)).subarray(0, 4).toString('utf8'), MAGIC,
       'the action must decode with ins[0].txid, which is the key the decoder uses')

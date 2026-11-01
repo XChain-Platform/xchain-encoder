@@ -37,17 +37,18 @@ const CHAINS = [
 ]
 const MS_DATA = 'A'.repeat(59)
 
-// A bare 1-of-3 multisig output is far larger than a P2PKH, so its relay dust
-// floor is the node's size formula (output_bytes + 148) * the coin's dust relay
-// rate (DUST_RELAY_TX_FEE / 1000: 3 on Bitcoin, 30 on Litecoin), not the chain's
-// flat P2PKH dustThreshold. The encoder takes the MAX of the two. On Bitcoin
-// (786 > 546) and Litecoin (7860 > 5460) the size formula wins; on Dogecoin the
-// chain threshold wins. Looking the multisig output up by
+// A bare 1-of-3 multisig output's relay dust floor follows each node's own rule:
+// Bitcoin and Litecoin price (output_bytes + 148) at DUST_RELAY_TX_FEE / 1000 (3 and
+// 30 per byte, giving 786 and 7860), while Dogecoin compares against its flat 100000
+// hard limit. The encoder takes the MAX of that and its authored-output floor, which
+// on Dogecoin is the 0.01 DOGE soft limit. Looking the multisig output up by
 // `value === encoder.dustAmount` silently fails to match under that max(), so
 // such a lookup asserts nothing.
 const DUST_RELAY_PER_BYTE = { 'bitcoin-regtest': 3, 'litecoin-regtest': 30 }
+const FLAT_RELAY_DUST = { 'dogecoin-regtest': 100000 }
 function bareMultisigDust (scriptLength, networkName = 'bitcoin-regtest') {
-  return Math.ceil((8 + 1 + scriptLength + 148) * (DUST_RELAY_PER_BYTE[networkName] || 3))
+  if (FLAT_RELAY_DUST[networkName]) return FLAT_RELAY_DUST[networkName]
+  return Math.ceil((8 + 1 + scriptLength + 148) * DUST_RELAY_PER_BYTE[networkName])
 }
 
 async function buildMultisign (networkName) {
@@ -129,8 +130,9 @@ describe('Category F: Multi-Chain Network Configs', () => {
         const { encoder, output } = await buildMultisign(chain.name)
         const relayFloor = bareMultisigDust(output.script.length, chain.name)
         assert.strictEqual(encoder.dustAmount, chain.dustThreshold)
-        assert.strictEqual(output.value, Math.max(chain.dustThreshold, relayFloor),
-          `${chain.name} MULTISIGN output should sit at max(dustThreshold, bare-multisig relay floor)`)
+        assert.ok(encoder.outputFloor >= chain.dustThreshold)
+        assert.strictEqual(output.value, Math.max(encoder.outputFloor, relayFloor),
+          `${chain.name} MULTISIGN output should sit at max(outputFloor, bare-multisig relay floor)`)
         assert.ok(output.value >= relayFloor,
           `${chain.name} MULTISIGN output must not be relay dust`)
       }

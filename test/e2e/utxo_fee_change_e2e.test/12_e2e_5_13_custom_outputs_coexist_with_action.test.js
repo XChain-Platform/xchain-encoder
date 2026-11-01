@@ -63,8 +63,8 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         null, null, null, true, 0.00001
       )
 
-      const changeNone = resultNone.psbt.txOutputs.reduce((m, o) => o.value > m ? o.value : m, 0)
-      const changeCustom = resultCustom.psbt.txOutputs.reduce((m, o) => o.value > m ? o.value : m, 0)
+      const changeNone = resultNone.psbt.txOutputs.reduce((m, o) => Number(o.value) > m ? Number(o.value) : m, 0)
+      const changeCustom = resultCustom.psbt.txOutputs.reduce((m, o) => Number(o.value) > m ? Number(o.value) : m, 0)
       assert.strictEqual(changeNone - changeCustom, 500000)
     })
   })

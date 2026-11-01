@@ -45,7 +45,7 @@ describe('XChainEncoder.createTransaction()', () => {
 
       // Change = input - fee (no other outputs besides OP_RETURN which is 0)
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      assert.strictEqual(changeOutput.value, 100000000 - customFee)
+      assert.strictEqual(Number(changeOutput.value), 100000000 - customFee)
     })
 
     it('throws RangeError when the custom fee exceeds 100x the fair-fee estimate (burn backstop)', async () => {
@@ -83,7 +83,7 @@ describe('XChainEncoder.createTransaction()', () => {
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
+      const impliedFee = 100000000 - Number(changeOutput.value)
       assert.ok(impliedFee >= encoder.dustAmount,
         `fee ${impliedFee} should be >= dustAmount ${encoder.dustAmount}`)
     })

@@ -39,7 +39,7 @@ describe('XChainEncoder.createTransaction()', () => {
         true, 0.00001, customDust
       )
 
-      const msOutput = result.psbt.txOutputs.find(o => o.value === customDust)
+      const msOutput = result.psbt.txOutputs.find(o => Number(o.value) === customDust)
       assert.ok(msOutput, 'MULTISIGN output should use custom dust value of 9000')
     })
   })
@@ -64,12 +64,12 @@ describe('XChainEncoder.createTransaction()', () => {
         true, 0.00001, customDust
       )
 
-      assert.ok(!result.psbt.txOutputs.find(o => o.value === customDust), 'no output at the sub-floor value')
+      assert.ok(!result.psbt.txOutputs.find(o => Number(o.value) === customDust), 'no output at the sub-floor value')
       // The data output sits at the larger of the output floor and the bare-multisig
       // relay floor, which on Litecoin is 7860 (262 bytes at 30 per byte).
       const msOutputs = result.psbt.txOutputs.filter(o => o.script[o.script.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG)
       assert.ok(msOutputs.length > 0, 'a multisig data output')
-      for (const o of msOutputs) assert.strictEqual(o.value, Math.max(encoder.outputFloor, 7860), 'the data output sits at the floor')
+      for (const o of msOutputs) assert.strictEqual(Number(o.value), Math.max(encoder.outputFloor, 7860), 'the data output sits at the floor')
     })
 
     it('does NOT override the fee floor (fee floor uses this.dustAmount)', async () => {
@@ -86,7 +86,7 @@ describe('XChainEncoder.createTransaction()', () => {
       )
 
       const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
+      const impliedFee = 100000000 - Number(changeOutput.value)
       assert.ok(impliedFee >= encoder.dustAmount,
         `fee ${impliedFee} should be >= network dustAmount ${encoder.dustAmount}`)
     })

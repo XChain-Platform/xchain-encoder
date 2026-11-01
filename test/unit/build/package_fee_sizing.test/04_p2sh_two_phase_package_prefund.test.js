@@ -83,7 +83,7 @@ async function buildReveal (encoder, fundingTx) {
 
 const legTotal = (tx) => tx.outs
   .filter(o => o.script.toString('hex').startsWith('a914'))
-  .reduce((s, o) => s + o.value, 0)
+  .reduce((s, o) => s + Number(o.value), 0)
 
 
 describe('P2SH two-phase package prefund @regression @tier1', () => {
@@ -100,7 +100,7 @@ describe('P2SH two-phase package prefund @regression @tier1', () => {
     const commitSize = funding.virtualSize()
     // What the commit ACTUALLY pays: a sub-floor change would have folded into
     // the fee and quietly lifted it back over target.
-    const commitFee = funding.ins.length * FUNDING_INPUT - funding.outs.reduce((s, o) => s + o.value, 0)
+    const commitFee = funding.ins.length * FUNDING_INPUT - funding.outs.reduce((s, o) => s + Number(o.value), 0)
     assert.ok(commitFee / commitSize < TARGET_PER_BYTE,
       `this probe is only meaningful while the commit is under target (${commitFee / commitSize})`)
 
@@ -112,8 +112,8 @@ describe('P2SH two-phase package prefund @regression @tier1', () => {
     const unpackaged = await buildReveal(makeEncoder(), funding)
 
     const legs = legTotal(funding)
-    const packagedFee = legs - packaged.outs.reduce((s, o) => s + o.value, 0)
-    const unpackagedFee = legs - unpackaged.outs.reduce((s, o) => s + o.value, 0)
+    const packagedFee = legs - packaged.outs.reduce((s, o) => s + Number(o.value), 0)
+    const unpackagedFee = legs - unpackaged.outs.reduce((s, o) => s + Number(o.value), 0)
     assert.ok(packagedFee > unpackagedFee,
       `the reveal must keep the package money (${packagedFee} vs ${unpackagedFee})`)
 
@@ -125,7 +125,7 @@ describe('P2SH two-phase package prefund @regression @tier1', () => {
       `commit+reveal package pays ${packageRate} koinu/byte, under the ${TARGET_PER_BYTE} target`)
 
     // And it is still not a full burn: the SDK refuses to sign an outputless reveal.
-    const swept = packaged.outs.reduce((s, o) => s + o.value, 0)
+    const swept = packaged.outs.reduce((s, o) => s + Number(o.value), 0)
     assert.ok(swept > 0, 'the reveal must still leave the caller an output')
   })
 
@@ -151,4 +151,3 @@ describe('P2SH two-phase package prefund @regression @tier1', () => {
   })
 
 })
-

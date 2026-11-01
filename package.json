@@ -1,7 +1,7 @@
 {
   "name": "xchain-encoder",
   "description": "xchain-encoder encodes XChain Platform ACTION commands into blockchain transactions.",
-  "version": "0.26.2",
+  "version": "0.27.0",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -9,10 +9,9 @@
   },
   "dependencies": {
     "axios": "^1.20.0",
-    "bip174": "2.1.1",
     "bip32": "4.0.0",
     "bip39": "^3.1.0",
-    "bitcoinjs-lib": "6.1.7",
+    "bitcoinjs-lib": "7.0.4",
     "bs58check": "^3.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -21,7 +20,9 @@
     "express-json-rpc-router": "^1.4.0",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
-    "tiny-secp256k1": "2.2.4"
+    "tiny-secp256k1": "2.2.4",
+    "uint8array-tools": "^0.0.10",
+    "valibot": "^1.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",
@@ -36,8 +37,10 @@
   "scripts": {
     "api": "node ./src/api.js",
     "lint": "eslint .",
+    "pretest": "node --check test/unit/pretest_offline.test.js",
+    "verify:clean-install": "node ./test/helpers/clean_install.js",
     "smoke-test": "npx mocha --timeout 10000 'test/smoke/**/*.test.js'",
-    "test": "npx mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --recursive --exit",
+    "test": "mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --recursive --exit",
     "test:regtest": "mocha --timeout 0 --require ./test/prepare_regtest.test.js",
     "coverage": "c8 --all --reporter=text --reporter=html --include 'src/**/*.js' mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --exit",
     "coverage:check": "c8 --all --check-coverage --lines 95.1 --statements 95.1 --branches 87.1 --functions 94.1 --reporter=text-summary --include 'src/**/*.js' mocha --timeout 10000 --require ./test/setup/index.js 'test/unit/**/*.test.js' --exit",

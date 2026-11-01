@@ -111,7 +111,7 @@ describe('XChainEncoder.createTransaction() - maxFeeRateKb cap', () => {
 
     // The fee must be capped; without cap this would consume most of the 1 BTC input
     const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-    const impliedFee = 100000000 - changeOutput.value
+    const impliedFee = 100000000 - Number(changeOutput.value)
     // maxFeeRateKb=1 sat/kB → maxFeePerBytes = 1/1000/100000000 BTC/byte
     // That's tiny (0.00000000001 BTC/byte); floor kicks in at dustAmount
     assert.ok(impliedFee < 100000000 * 0.01,

@@ -164,7 +164,7 @@ describe('REG-05: Multi-Chain Network Configs', function () {
         null, null, null, true, null
       )
 
-      const totalOutput = result.psbt.txOutputs.reduce((s, o) => s + o.value, 0)
+      const totalOutput = result.psbt.txOutputs.reduce((s, o) => s + Number(o.value), 0)
       const impliedFee = 100000000 - totalOutput
       assert.ok(impliedFee >= 5460,
         `Litecoin fee ${impliedFee} should be >= 5460`)
@@ -194,13 +194,13 @@ describe('REG-05: Multi-Chain Network Configs', function () {
         assert.strictEqual(result.encoding, 'P2SH')
 
         const p2shOutputs = result.psbt.txOutputs.filter(o => {
-          if (o.value <= 0) return false
+          if (Number(o.value) <= 0) return false
           const d = bitcoin.script.decompile(o.script)
           return d && d[0] === bitcoin.opcodes.OP_HASH160
         })
 
         for (const o of p2shOutputs) {
-          assert.ok(o.value >= expectedDust,
+          assert.ok(Number(o.value) >= expectedDust,
             `${network} P2SH output ${o.value} should be >= ${expectedDust}`)
         }
       })
@@ -232,14 +232,14 @@ describe('REG-05: Multi-Chain Network Configs', function () {
         // BTC; see XChainEncoder bareMultisigDust). Assert each data output
         // clears the chain dust floor, mirroring the P2SH sibling above.
         const msOutputs = result.psbt.txOutputs.filter(o => {
-          if (o.value <= 0) return false
+          if (Number(o.value) <= 0) return false
           const d = bitcoin.script.decompile(o.script)
           return d && d[d.length - 1] === bitcoin.opcodes.OP_CHECKMULTISIG
         })
         assert.ok(msOutputs.length >= 1,
           `${network} should have at least one MULTISIGN data output`)
         for (const o of msOutputs) {
-          assert.ok(o.value >= expectedDust,
+          assert.ok(Number(o.value) >= expectedDust,
             `${network} MULTISIGN output ${o.value} should be >= ${expectedDust}`)
         }
       })

@@ -127,7 +127,7 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
     assert.strictEqual(Number(result.revealPsbt.txOutputs[0].value), encoder.dustAmount,
       'the reveal still leaves exactly one dust output back to the caller')
     const commitTx = unsignedTx(result.psbt)
-    assert.strictEqual(commitTx.outs[result.envelope.commitVout].value, result.envelope.commitValue,
+    assert.strictEqual(Number(commitTx.outs[result.envelope.commitVout].value), result.envelope.commitValue,
       'the commit output on the wire carries the raised value')
   })
 
@@ -222,10 +222,10 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
     const encoder = envelopeEncoder({ size: 500000, fees: 0 })
     const result = await buildEnvelope(encoder, { commitFee: UNDER_TARGET_COMMIT_FEE, inputValue: 53000, confirmations: 0 })
     const commitTx = unsignedTx(result.psbt)
-    const outputs = commitTx.outs.reduce((s, o) => s + o.value, 0)
+    const outputs = commitTx.outs.reduce((s, o) => s + Number(o.value), 0)
     assert.ok(outputs + UNDER_TARGET_COMMIT_FEE <= 53000,
       `commit pays out ${outputs} + ${UNDER_TARGET_COMMIT_FEE} fee against a ${53000} input`)
-    assert.strictEqual(result.envelope.commitValue, commitTx.outs[result.envelope.commitVout].value)
+    assert.strictEqual(result.envelope.commitValue, Number(commitTx.outs[result.envelope.commitVout].value))
   })
 
 })

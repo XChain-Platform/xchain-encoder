@@ -47,7 +47,7 @@ describe('XChainEncoder.createTransaction()', () => {
       // tx2 should have at least 1 input (the P2SH spend)
       assert.ok(tx2Result.psbt.data.inputs.length >= 1)
       // tx2 should have an OP_RETURN marker output
-      const opReturnOutput = tx2Result.psbt.txOutputs.find(o => o.value === 0)
+      const opReturnOutput = tx2Result.psbt.txOutputs.find(o => Number(o.value) === 0)
       assert.ok(opReturnOutput, 'tx2 should have OP_RETURN marker')
     })
   })

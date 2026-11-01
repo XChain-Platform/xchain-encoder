@@ -79,6 +79,9 @@ return {
                 out[tier] = Math.max(perVbyte, ...Object.values(out));
             }
         } catch (err) {
+            // A typed node failure (the node did not answer) keeps its stable
+            // -32010 code, so a caller can tell "retry later" from an internal fault.
+            if (err && err.operational === true) throw toRpcError(err)
             logger.error(util.format('Fee estimation error:', err))
             const e = new Error('Fee estimation failed')
             e.code = -32603

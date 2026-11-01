@@ -46,7 +46,7 @@ function deobfuscate (data, txid) {
  */
 function extractOpReturnPayload (psbtResult, txid) {
   const outputs = psbtResult.psbt.txOutputs
-  const opReturnOutputs = outputs.filter(o => o.value === 0)
+  const opReturnOutputs = outputs.filter(o => Number(o.value) === 0)
 
   const chunks = []
   for (const output of opReturnOutputs) {
@@ -81,7 +81,7 @@ function extractOpReturnPayload (psbtResult, txid) {
  */
 function extractMultisignPayload (psbtResult, txid, dustAmount) {
   const outputs = psbtResult.psbt.txOutputs
-  const msOutputs = outputs.filter(o => o.value === dustAmount)
+  const msOutputs = outputs.filter(o => Number(o.value) === dustAmount)
 
   const chunks = []
   for (const output of msOutputs) {

@@ -53,8 +53,8 @@ describe('E2E-5: UTXO, Fee, and Change Integration', () => {
         null, null, null, true, null
       )
 
-      const changeOutput = result.psbt.txOutputs.find(o => o.value > 0)
-      const impliedFee = 100000000 - changeOutput.value
+      const changeOutput = result.psbt.txOutputs.find(o => Number(o.value) > 0)
+      const impliedFee = 100000000 - Number(changeOutput.value)
       assert.ok(impliedFee >= encoder.dustAmount,
         `fee ${impliedFee} should be >= dustAmount ${encoder.dustAmount}`)
     })

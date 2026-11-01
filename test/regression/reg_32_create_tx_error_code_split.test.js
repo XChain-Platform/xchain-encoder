@@ -83,6 +83,20 @@ describe('REG-32: create_tx answers a server fault with -32603 or a tracker erro
     assert.strictEqual(caught.code, -32010)
     assert.strictEqual(caught.data.reason, 'UTXO_TRACKER_ERROR')
   })
+
+  it('answers UTXO_SET_TOO_LARGE with the cap for a tracker cap refusal', async () => {
+    const caught = await rejectionOf('create_tx', (encoder) => {
+      encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
+        throw Object.assign(new Error('Address holds more than 10000 UTXOs'), {
+          code: 'UTXO_SET_TOO_LARGE',
+          utxoCap: 10000
+        })
+      }
+    }, sendParams())
+    assert.strictEqual(caught.code, -32010)
+    assert.strictEqual(caught.data.reason, 'UTXO_SET_TOO_LARGE')
+    assert.strictEqual(caught.data.limit, 10000)
+  })
 })
 
 describe('REG-32: create_envelope_cancel_tx draws the same line as create_tx', () => {
@@ -190,6 +204,16 @@ describe('REG-32: a caller fault the validator names keeps -32602 and its reason
       const caught = await rejectionOf(method, null, params)
       assert.strictEqual(caught.code, -32602, caught.message)
       assert.ok(reason.test(caught.message), caught.message)
+    })
+  }
+})
+
+describe('REG-32: a reveal funding hex that does not decode is a caller fault', () => {
+  for (const encoding of ['P2SH', 'P2WSH']) {
+    it('create_tx answers -32602 for a ' + encoding + ' p2shHex that is hex but not a transaction', async () => {
+      const caught = await rejectionOf('create_tx', null, sendParams({ encoding, p2shHash: 'a'.repeat(64), p2shHex: 'deadbeef' }))
+      assert.strictEqual(caught.code, -32602, caught.message)
+      assert.strictEqual(caught.message, 'p2shHex is not a parseable transaction')
     })
   }
 })

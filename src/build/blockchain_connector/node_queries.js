@@ -15,7 +15,7 @@
 const axios = require('axios')
 const util = require('node:util');
 const { logger, RPC_TIMEOUT } = require('./constants');
-const { sanitizeRpcError, rpcErrorDetail } = require('./rpc_helpers');
+const { sanitizeRpcError, rpcErrorDetail, nodeRequestError } = require('./rpc_helpers');
 const { chainTierMismatch, chainGenesisMismatch, chainGenesisUnpinned } = require('./chain_identity');
 const { OperationalError } = require('../errors');
 
@@ -41,6 +41,8 @@ async function assertNodeGenesis(connector){
         connector.nodeTierMismatch = reason;
         throw new OperationalError('NODE_CHAIN_MISMATCH', 'Coin node is on the wrong chain: ' + reason);
     }
+    // Clear an earlier genesis mismatch only on a confirmed match, so readiness reopens with the money methods.
+    connector.nodeTierMismatch = null;
     connector.nodeGenesisOk = true;
 }
 
@@ -88,8 +90,7 @@ module.exports = {
             if (typeof result === 'string' && /^[0-9a-fA-F]{64}$/.test(result)) return result.toLowerCase();
             throw new Error('Error getting block hash' + rpcErrorDetail(response.data));
         } catch (error) {
-            const detail = rpcErrorDetail(error.response && error.response.data);
-            throw new Error(`Error in network request: ${sanitizeRpcError(error)}${detail}`);
+            throw nodeRequestError(error);
         }
     },
 
@@ -120,8 +121,7 @@ module.exports = {
         } catch (error) {
             // Keep the node's reason: a warming node answers -28 "Loading block
             // index...", which is otherwise flattened to "status code 500".
-            const detail = rpcErrorDetail(error.response && error.response.data);
-            throw new Error(`Error in network request: ${sanitizeRpcError(error)}${detail}`);
+            throw nodeRequestError(error);
         }
     },
 
@@ -162,8 +162,7 @@ module.exports = {
         } catch (error) {
             // Same reason as getNetworkInfo: preserve the node's own RPC code
             // and message rather than the bare HTTP status.
-            const detail = rpcErrorDetail(error.response && error.response.data);
-            throw new Error(`Error in network request: ${sanitizeRpcError(error)}${detail}`);
+            throw nodeRequestError(error);
         }
     },
 

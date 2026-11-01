@@ -35,7 +35,7 @@ function feeOutputs () {
 // Change equals input minus everything else and is by far the largest output.
 function findFundingOutput (psbt) {
   const positive = psbt.txOutputs.filter(o => o.value > 0)
-  positive.sort((a, b) => a.value - b.value)
+  positive.sort((a, b) => Number(a.value) - Number(b.value))
   return positive[0]
 }
 
@@ -57,7 +57,7 @@ describe('XChainEncoder.createTransaction()', () => {
       // marker rides the reveal, not the funding tx). No fee-destination output
       // is emitted here: a standalone output worth exactly FEE_VALUE would mean
       // the fee was put on the wrong tx and later double-paid on the reveal.
-      const emittedFee = result.psbt.txOutputs.find(o => o.value === FEE_VALUE)
+      const emittedFee = result.psbt.txOutputs.find(o => Number(o.value) === FEE_VALUE)
       assert.ok(!emittedFee, 'funding tx must not emit a standalone fee-destination output')
       assert.strictEqual(result.psbt.txOutputs.length, 2,
         'funding tx must be [P2SH funding output, change] only')
@@ -81,7 +81,7 @@ describe('XChainEncoder.createTransaction()', () => {
         bigData, null, 10000, false, null, TEST_ADDRESS,
         null, null, null, true, 0.00001
       )
-      const baseFunding = findFundingOutput(base.psbt).value
+      const baseFunding = Number(findFundingOutput(base.psbt).value)
 
       // Same call but with the fee customOutput: the funding output must grow by
       // FEE_VALUE so the reveal can pay the fee, plus the reveal's own miner
@@ -103,7 +103,7 @@ describe('XChainEncoder.createTransaction()', () => {
         bigData, null, 10000, false, null, TEST_ADDRESS,
         null, null, null, true, 0.00001
       )
-      const feeFunding = findFundingOutput(withFee.psbt).value
+      const feeFunding = Number(findFundingOutput(withFee.psbt).value)
 
       // Same conversion the encoder applies: feePerKb -> internal coin/byte.
       const feePerBytes = 0.00001 / 1000 / 1e8
@@ -142,11 +142,11 @@ describe('XChainEncoder.createTransaction()', () => {
 
       assert.strictEqual(tx2.encoding, 'P2SH')
       // The reveal must carry the fee-destination output (value FEE_VALUE).
-      const feeOut = tx2.psbt.txOutputs.find(o => o.value === FEE_VALUE)
+      const feeOut = tx2.psbt.txOutputs.find(o => Number(o.value) === FEE_VALUE)
       assert.ok(feeOut, 'reveal must emit the fee-destination output')
 
       // And it is not a bare OP_RETURN-only tx (the fee-drop failure mode).
-      const opReturnOnly = tx2.psbt.txOutputs.every(o => o.value === 0)
+      const opReturnOnly = tx2.psbt.txOutputs.every(o => Number(o.value) === 0)
       assert.ok(!opReturnOnly, 'reveal must not be OP_RETURN-only')
 
       // The reveal's input value (the funded P2SH output) must cover the fee

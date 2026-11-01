@@ -45,7 +45,7 @@ describe('XChainEncoder bare-multisig carrier dust per coin relay rate', functio
       const outs = await multisigValues(c)
       for (const o of outs) {
         assert.strictEqual(o.script.length, 105, 'a 1-of-3 compressed-key script')
-        assert.strictEqual(o.value, c.expected)
+        assert.strictEqual(Number(o.value), c.expected)
       }
     })
   }

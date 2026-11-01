@@ -9,28 +9,40 @@ const fs = require('fs');
 const path = require('path');
 const bufferutils = require('../../../src/build/apply_bufferutils_patch.js');
 
-// The two copies share one body and differ only in the licence/doc banner,
-// because each header names the other copy and its own read-side relationship.
-// Split on the banner terminator and compare what follows.
-const BANNER_END = '********************************************************************/';
-function patchBody(file) {
-    const source = fs.readFileSync(file, 'utf8');
-    const end = source.indexOf(BANNER_END);
-    assert.notStrictEqual(end, -1, 'no banner terminator in ' + file);
-    return source.slice(end + BANNER_END.length);
+function findSdkRoot(repoRoot) {
+    let cursor = path.dirname(repoRoot);
+    while (cursor !== path.dirname(cursor)) {
+        const candidate = path.join(cursor, 'xchain-sdk');
+        if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate;
+        cursor = path.dirname(cursor);
+    }
+    return null;
 }
 
-// The SDK moved to bitcoinjs-lib 7 and split its copy into per-major parts
-// (xchain-sdk f378c75c, 7fa52bc8). While the encoder stays on bitcoinjs-lib 6
-// its body is pinned to the last converged SDK body (the SDK copy at f378c75c^);
-// the live twin compare returns with the encoder's own upgrade.
-const LAST_CONVERGED_SDK_BODY_SHA256 = '7937f9503b5fb643b9e4fe295de3f67deb3e654c72e5694035f0cc054c4642d3';
-const ENCODER_BITCOINJS_MAJOR = Number(String(require('../../../package.json').dependencies['bitcoinjs-lib']).replace(/^[^0-9]*/, '').split('.')[0]);
+function patchModuleSources(entry) {
+    const pending = [entry];
+    const sources = new Map();
+    while (pending.length > 0) {
+        const file = pending.pop();
+        if (sources.has(file)) continue;
+        const source = fs.readFileSync(file, 'utf8');
+        sources.set(file, source);
+        for (const match of source.matchAll(/require\('([^']+)'\)/g)) {
+            if (!match[1].startsWith('.')) continue;
+            pending.push(require.resolve(path.resolve(path.dirname(file), match[1])));
+        }
+    }
+    return sources;
+}
 
-function assertPinnedToLastConvergedBody(file) {
-    const digest = require('crypto').createHash('sha256').update(patchBody(file)).digest('hex');
-    assert.strictEqual(digest, LAST_CONVERGED_SDK_BODY_SHA256,
-        'applyBufferutilsPatch.js has drifted from the last SDK body it converged with');
+function installedPackageVersion(name) {
+    let cursor = path.dirname(require.resolve(name));
+    while (cursor !== path.dirname(cursor)) {
+        const manifest = path.join(cursor, 'package.json');
+        if (fs.existsSync(manifest)) return JSON.parse(fs.readFileSync(manifest, 'utf8')).version;
+        cursor = path.dirname(cursor);
+    }
+    throw new Error('could not find installed package manifest for ' + name);
 }
 
 describe('applyBufferutilsPatch', function () {
@@ -133,8 +145,6 @@ describe('applyBufferutilsPatch', function () {
         bufferutils.writeUInt64LE(buf, 9007199254740992n, 0);
         assert.strictEqual(bufferutils.readUInt64LE(buf, 0), 9007199254740992n);
         assert.throws(() => new bufferutils.BufferWriter(Buffer.alloc(8)).writeUInt64(2 ** 53), /value out of range/);
-        const bip174Tools = require('bip174/src/lib/converter/tools');
-        assert.throws(() => bip174Tools.writeUInt64LE(Buffer.alloc(8), 2 ** 53, 0), /value out of range/);
     });
 
     it('refuses a PSBT witnessUtxo Number value past 2^53-1 and serializes its BigInt form', function () {
@@ -199,46 +209,37 @@ describe('applyBufferutilsPatch', function () {
 });
 
 describe('applyBufferutilsPatch', function () {
-
-    // Twin guard. This file is a fork of xchain-sdk/src/utils/apply_bufferutils_patch.js
-    // and has drifted apart three times. Convergence runs SDK-ward, so pin the
-    // bodies byte-identical and let the fork be a deliberate, visible act
-    // rather than a silent one.
     describe('twin guard against the SDK copy', function () {
-        const repoRoot = path.resolve(__dirname, '../../../..');
-        const sdkRoot = path.join(repoRoot, 'xchain-sdk');
+        const repoRoot = path.resolve(__dirname, '../../..');
+        const sdkRoot = findSdkRoot(repoRoot);
         const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
-        // NOT renamed by THIS repo's codemod: this resolves into xchain-sdk,
-        // which owns its own rename independently. A bare-literal rewrite
-        // pass cannot tell this string from a same-repo reference and
-        // over-corrected it once; restored by hand. Repointed here to the
-        // SDK repo's own published new path (src/applyBufferutilsPatch.js
-        // -> src/utils/apply_bufferutils_patch.js) once that repo made its
-        // own move, so this test does not read a sibling change as drift.
-        const twin = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch.js');
 
         it('is byte-identical to the SDK copy below the banner', function () {
-            // Skipped ONLY where the sibling repo is absent entirely (a
-            // standalone encoder checkout); inside the monorepo it must run,
-            // so a missing twin file next to a present xchain-sdk is a failure.
-            if (ENCODER_BITCOINJS_MAJOR < 7) return assertPinnedToLastConvergedBody(mine);
-            if (!fs.existsSync(sdkRoot)) return this.skip();
-            assert.ok(fs.existsSync(twin), 'xchain-sdk is present but its copy of the patch is missing: ' + twin);
-            assert.strictEqual(patchBody(mine), patchBody(twin),
-                'applyBufferutilsPatch.js has drifted from the SDK copy; converge SDK-ward');
+            // A standalone encoder checkout has no sibling to compare. When
+            // the SDK is present, every shared per-major module must exist.
+            if (!sdkRoot) return this.skip();
+            const shared = ['compat.js', 'u64.js', 'v7.js', 'version.js'];
+            for (const name of shared) {
+                const encoderFile = path.join(repoRoot, 'src/build/apply_bufferutils_patch', name);
+                const sdkFile = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch', name);
+                assert.ok(fs.existsSync(sdkFile), 'xchain-sdk is present but its patch module is missing: ' + sdkFile);
+                assert.strictEqual(fs.readFileSync(encoderFile, 'utf8'), fs.readFileSync(sdkFile, 'utf8'),
+                    name + ' has drifted from the SDK copy; converge SDK-ward');
+            }
         });
 
         it('declares every package it deep-requires', function () {
-            // The patch reaches into bip174 internals. An undeclared dependency
-            // resolves today only because bitcoinjs-lib happens to hoist it,
-            // and vanishes on any transitive bump.
             const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
-            const source = fs.readFileSync(mine, 'utf8');
+            const sources = patchModuleSources(mine);
+            assert.ok(sources.has(path.join(repoRoot, 'src/build/apply_bufferutils_patch/v7.js')),
+                'dependency check did not reach the bitcoinjs-lib 7 patch module');
             const required = new Set();
-            for (const m of source.matchAll(/require\('([^']+)'\)/g)) {
-                if (m[1].startsWith('.')) continue;
-                const parts = m[1].split('/');
-                required.add(m[1].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]);
+            for (const source of sources.values()) {
+                for (const match of source.matchAll(/require\('([^']+)'\)/g)) {
+                    if (match[1].startsWith('.')) continue;
+                    const parts = match[1].split('/');
+                    required.add(match[1].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]);
+                }
             }
             for (const name of required) {
                 assert.ok(
@@ -246,6 +247,50 @@ describe('applyBufferutilsPatch', function () {
                     name + ' is required by src/build/apply_bufferutils_patch.js but not declared in package.json dependencies'
                 );
             }
+        });
+
+        it('does not pin bitcoinjs-lib transitive dependencies', function () {
+            const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
+            assert.strictEqual(Object.prototype.hasOwnProperty.call(pkg.dependencies || {}, 'bip174'), false);
+        });
+
+        it('runs against the exact declared bitcoinjs-lib version', function () {
+            const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
+            assert.strictEqual(installedPackageVersion('bitcoinjs-lib'), pkg.dependencies['bitcoinjs-lib']);
+            assert.match(pkg.dependencies['bitcoinjs-lib'], /^7\./);
+        });
+    });
+});
+
+// Allow exactly one SDK-only line: the require of its bitcoinjs-lib 6 fallback part.
+const SDK_ONLY_LINE = "require('./apply_bufferutils_patch/v6')";
+
+function bodyBelowHeader(file) {
+    const source = fs.readFileSync(file, 'utf8');
+    const end = source.indexOf('*/');
+    assert.ok(source.startsWith('/*') && end > 0, 'no leading header comment in ' + file);
+    return source.slice(end + 2);
+}
+
+describe('applyBufferutilsPatch', function () {
+    describe('entry twin guard against the SDK copy', function () {
+        const repoRoot = path.resolve(__dirname, '../../..');
+        const sdkRoot = findSdkRoot(repoRoot);
+
+        it('keeps the entry body below the header identical to the SDK copy apart from its v6 require', function () {
+            if (!sdkRoot) return this.skip();
+            const sdkEntry = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch.js');
+            const sdkBody = bodyBelowHeader(sdkEntry).split('\n').filter((line) => line !== SDK_ONLY_LINE).join('\n');
+            assert.ok(/require\('\.\/apply_bufferutils_patch\/v7'\)/.test(sdkBody), 'SDK entry body lost its v7 require');
+            assert.strictEqual(bodyBelowHeader(path.join(repoRoot, 'src/build/apply_bufferutils_patch.js')), sdkBody,
+                'src/build/apply_bufferutils_patch.js body has drifted from the SDK copy; converge SDK-ward');
+        });
+
+        it('holds the same patch part files as the SDK apart from its v6 fallback', function () {
+            if (!sdkRoot) return this.skip();
+            const parts = (dir) => fs.readdirSync(dir).filter((name) => name.endsWith('.js')).sort();
+            const sdkParts = parts(path.join(sdkRoot, 'src/utils/apply_bufferutils_patch')).filter((name) => name !== 'v6.js');
+            assert.deepStrictEqual(parts(path.join(repoRoot, 'src/build/apply_bufferutils_patch')), sdkParts);
         });
     });
 });

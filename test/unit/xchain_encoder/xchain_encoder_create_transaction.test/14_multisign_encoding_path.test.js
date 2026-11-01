@@ -114,7 +114,7 @@ describe('XChainEncoder.createTransaction()', () => {
         null, null, compressedPubKey, true, 0.00001, 50000
       )
 
-      const outputTotal = result.psbt.txOutputs.reduce((sum, o) => sum + o.value, 0)
+      const outputTotal = result.psbt.txOutputs.reduce((sum, o) => sum + Number(o.value), 0)
       assert.ok(
         outputTotal <= inputValue,
         `total outputs (${outputTotal}) must not exceed total inputs (${inputValue})`

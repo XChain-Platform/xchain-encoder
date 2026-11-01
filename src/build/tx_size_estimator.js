@@ -37,10 +37,41 @@ function compactSizeLen(n) {
     return 9
 }
 
+// Serialized size of a standard legacy P2SH multisig input whose redeem script
+// is available in the PSBT signing metadata.
+function legacyP2shMultisigInputSize(redeemScript) {
+    try {
+        const multisig = bitcoin.payments.p2ms({ output: redeemScript })
+        if (!Number.isInteger(multisig.m) || !Number.isInteger(multisig.n) ||
+            multisig.m < 1 || multisig.m > multisig.n ||
+            !Array.isArray(multisig.pubkeys) || multisig.pubkeys.length !== multisig.n) {
+            return null
+        }
+
+        // Canonical m-of-n scripts use one opcode for m, one for n and one for
+        // CHECKMULTISIG. Each key contributes its own script-push framing, so
+        // compressed and uncompressed keys retain their different byte costs.
+        const redeemScriptLength = 3 + multisig.pubkeys.reduce(
+            (size, pubkey) => size + compiledPushSize(pubkey.length), 0)
+        if (redeemScriptLength !== redeemScript.length) return null
+
+        // scriptSig = OP_0 dummy + m pushed signatures + pushed redeem script.
+        // A signature item can be 73 bytes including its sighash byte, and its
+        // push opcode is a separate serialized byte.
+        const signaturePushSize = compiledPushSize(73)
+        const redeemPushPrefix = compiledPushSize(redeemScriptLength) - redeemScriptLength
+        const scriptSigLength = 1 + (multisig.m * signaturePushSize) +
+            redeemPushPrefix + redeemScriptLength
+        return 40 + compactSizeLen(scriptSigLength) + scriptSigLength
+    } catch (e) {
+        return null
+    }
+}
+
 // Input vSize by scriptPubKey pattern, once the script is in hand: the segwit
 // shapes first (only reachable from a witnessUtxo), then the legacy ones, and
 // the conservative 350 fallback for anything unrecognized.
-function inputSizeForScript(scriptPubKey, isSegwit) {
+function inputSizeForScript(scriptPubKey, isSegwit, redeemScript) {
     // Convert to hex string to detect patterns
     const scriptHex = scriptPubKey.toString('hex')
 
@@ -73,10 +104,15 @@ function inputSizeForScript(scriptPubKey, isSegwit) {
 
     // P2SH (Legacy): a914{20-byte hash}87
     if (scriptHex.startsWith('a914') && scriptHex.endsWith('87')) {
-        // **Conservative Estimate for P2SH:**
-        // Assuming 2-3 Legacy Multisig (The most expensive option, ~289 bytes).
-        // If the input is a nested P2SH-P2WPKH, the transaction will be like segwit
-        // and this path cannot be taken, so if it gets here and it's a P2SH, most probably is it's Legacy.
+        if (Buffer.isBuffer(redeemScript) && scriptPubKey.length === 23 &&
+            bitcoin.crypto.hash160(redeemScript).equals(scriptPubKey.subarray(2, 22))) {
+            const multisigSize = legacyP2shMultisigInputSize(redeemScript)
+            if (multisigSize !== null) return multisigSize
+        }
+        // A P2SH output only commits to the redeem script's hash. Without a
+        // matching, parseable script there is no threshold or key-width data
+        // from which to derive a multisig size. Retain the legacy unknown-P2SH
+        // estimate for inputs that do not carry usable signing metadata.
         return 289
     }
 
@@ -218,7 +254,7 @@ class TxSizeEstimator {
             return 350
         }
 
-        return inputSizeForScript(scriptPubKey, isSegwit)
+        return inputSizeForScript(scriptPubKey, isSegwit, utxo.redeemScript)
     }
 }
 
