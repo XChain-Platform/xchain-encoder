@@ -1,3 +1,1 @@
-{
-  "test/unit/api/health_serve_readiness.test.js": "test/unit/api/serve_readiness.test/health_serve_readiness.test.js"
-}
+{}

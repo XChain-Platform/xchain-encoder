@@ -414,6 +414,24 @@
       "XChainEncoder.createTransaction() payload guards (library boundary) warns a library caller whose data leads with an unknown ACTION name",
       "XChainEncoder.createTransaction() payload guards (library boundary) warns when an unknown ACTION name arrives as a Buffer"
     ],
+    "2087b0a303d4072f": [
+      "BlockchainConnector.getTransactionHex() includes the txid in the \"not found\" error message",
+      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 500 -28 answer",
+      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 500 -8 answer",
+      "BlockchainConnector.getTransactionHex() node RPC error detail still gives the txindex hint for an HTTP 500 -5 answer",
+      "BlockchainConnector.getTransactionHex() requests the verbose form even when a caller passes a second argument",
+      "BlockchainConnector.getTransactionHex() rethrows transport errors directly",
+      "BlockchainConnector.getTransactionHex() returns the hex string on success",
+      "BlockchainConnector.getTransactionHex() sends auth credentials",
+      "BlockchainConnector.getTransactionHex() sends getrawtransaction with correct txid and verbose=true",
+      "BlockchainConnector.getTransactionHex() throws \"not found\" message when error.code is -5",
+      "BlockchainConnector.getTransactionHex() throws generic error when result is missing and error is not -5",
+      "BlockchainConnector.getTransactionHex() unknown txid keeps the code and message of an HTTP 200 error body",
+      "BlockchainConnector.getTransactionHex() unknown txid logs the node reason rather than a bare status code",
+      "BlockchainConnector.getTransactionHex() unknown txid rejects an HTTP 200 -5 answer as an operational PREV_TX_NOT_FOUND error",
+      "BlockchainConnector.getTransactionHex() unknown txid rejects an HTTP 500 -5 answer as an operational PREV_TX_NOT_FOUND error",
+      "BlockchainConnector.getTransactionHex() unknown txid rethrows a bodiless transport failure as the original error object"
+    ],
     "2089fa0000e3be71": [
       "Encoder input validator validateCompressedPubKey null passes; enforces the 02/03 + 64-hex shape",
       "Encoder input validator validateCompressedPubKey refuses a well-shaped key whose x is not on the curve, for both prefixes"
@@ -1330,22 +1348,6 @@
       "XChainEncoder fee-rate cap sign guard keeps the default multiplier for a negative or NaN MAX_FEE_RATE_MULTIPLIER",
       "XChainEncoder fee-rate cap sign guard prices a node-rated build the same under a negative cap as under the defaults",
       "XChainEncoder fee-rate cap sign guard treats a zero or negative MAX_FEE_RATE_KB as no absolute cap"
-    ],
-    "845d953a12be6745": [
-      "BlockchainConnector.getTransactionHex() includes the txid in the \"not found\" error message",
-      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 200 error body",
-      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 500 -28 answer",
-      "BlockchainConnector.getTransactionHex() node RPC error detail keeps the code and message of an HTTP 500 -8 answer",
-      "BlockchainConnector.getTransactionHex() node RPC error detail logs the node reason rather than a bare status code",
-      "BlockchainConnector.getTransactionHex() node RPC error detail rethrows a bodiless transport failure as the original error object",
-      "BlockchainConnector.getTransactionHex() node RPC error detail still gives the txindex hint for an HTTP 500 -5 answer",
-      "BlockchainConnector.getTransactionHex() requests the verbose form even when a caller passes a second argument",
-      "BlockchainConnector.getTransactionHex() rethrows transport errors directly",
-      "BlockchainConnector.getTransactionHex() returns the hex string on success",
-      "BlockchainConnector.getTransactionHex() sends auth credentials",
-      "BlockchainConnector.getTransactionHex() sends getrawtransaction with correct txid and verbose=true",
-      "BlockchainConnector.getTransactionHex() throws \"not found\" message when error.code is -5",
-      "BlockchainConnector.getTransactionHex() throws generic error when result is missing and error is not -5"
     ],
     "847236b040aee4d9": [
       "XChainEncoder fee-rate cap accepts a generous but plausible absolute fee (priority/RBF headroom)",
@@ -2749,7 +2751,7 @@
   "scripts": {
     "test": {
       "fileCount": 178,
-      "titleCount": 1346,
+      "titleCount": 1348,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -2762,7 +2764,6 @@
         "test/unit/api/encoder_stress_sweep.test.js": "fca7e4e868160ec3",
         "test/unit/api/estimate_fee_tier_order.test.js": "b8b55e11e4413729",
         "test/unit/api/get_tx_status.test.js": "87462cdada9ac477",
-        "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/inherited_method_names.test.js": "f7bb31daba1bd6bb",
         "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
@@ -2772,13 +2773,14 @@
         "test/unit/api/node_tier_gate.test.js": "3edfd81d1bf84723",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/api/openrpc_key_exemption.test.js": "b7508c7d593792ce",
+        "test/unit/api/serve_readiness.test/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/status_node_tier.test.js": "969fbf30772e09ce",
         "test/unit/bin_tools/pin_identity.test.js": "ed4f134b2377cc02",
         "test/unit/bin_tools/suite_title_additive.test.js": "2f28bf0d76b56ce6",
         "test/unit/blockchain_connector.test.js": "52961e7b06b0e39f",
         "test/unit/blockchain_connector.test/01_get_network_info.test.js": "e1423a6af229c1b4",
         "test/unit/blockchain_connector.test/02_is_regtest.test.js": "995c5c346314f418",
-        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
+        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "2087b0a303d4072f",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "b906f7728955c7e9",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "e1b10cc67b1fee13",
@@ -3080,7 +3082,7 @@
     },
     "test:unit": {
       "fileCount": 178,
-      "titleCount": 1346,
+      "titleCount": 1348,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3093,7 +3095,6 @@
         "test/unit/api/encoder_stress_sweep.test.js": "fca7e4e868160ec3",
         "test/unit/api/estimate_fee_tier_order.test.js": "b8b55e11e4413729",
         "test/unit/api/get_tx_status.test.js": "87462cdada9ac477",
-        "test/unit/api/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/inherited_method_names.test.js": "f7bb31daba1bd6bb",
         "test/unit/api/json_rpc_real_app.test.js": "7174ac9d6bdce059",
         "test/unit/api/jsonrpc_body_guard.test.js": "58706b2a54fa0008",
@@ -3103,13 +3104,14 @@
         "test/unit/api/node_tier_gate.test.js": "3edfd81d1bf84723",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/api/openrpc_key_exemption.test.js": "b7508c7d593792ce",
+        "test/unit/api/serve_readiness.test/health_serve_readiness.test.js": "99f46ad865902c51",
         "test/unit/api/status_node_tier.test.js": "969fbf30772e09ce",
         "test/unit/bin_tools/pin_identity.test.js": "ed4f134b2377cc02",
         "test/unit/bin_tools/suite_title_additive.test.js": "2f28bf0d76b56ce6",
         "test/unit/blockchain_connector.test.js": "52961e7b06b0e39f",
         "test/unit/blockchain_connector.test/01_get_network_info.test.js": "e1423a6af229c1b4",
         "test/unit/blockchain_connector.test/02_is_regtest.test.js": "995c5c346314f418",
-        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "845d953a12be6745",
+        "test/unit/blockchain_connector.test/03_get_transaction_hex.test.js": "2087b0a303d4072f",
         "test/unit/blockchain_connector.test/04_send_raw_transaction.test.js": "b906f7728955c7e9",
         "test/unit/blockchain_connector.test/05_send_raw_transaction_maxfeerate_retry.test.js": "b70b109181c9f1fc",
         "test/unit/blockchain_connector.test/06_get_fee_per_kilobyte.test.js": "e1b10cc67b1fee13",
