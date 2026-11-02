@@ -22,6 +22,11 @@
 const { classifyTrackerFreshness } = require('../XChainEncoder/request_resolution.js')
 const { classifyRemoteSync } = require('../XChainEncoder/trackerless_profile.js')
 const config = require('../common/config.js')
+const { getLogger } = require('../observability')
+
+// A tracker that stays unreachable fails a fresh read every probe TTL; log the
+// first failure at once and then at most one summary line per interval.
+const TRACKER_FAILURE_LOG_INTERVAL_MS = 60 * 1000
 
 // Cap the tier check well under NODE_RPC_TIMEOUT: a failed chain read is not
 // cached, so an unreachable node would otherwise hold every probe for 30s.
@@ -75,6 +80,46 @@ function classifyTracker(encoder, status) {
     }
 }
 
+// One line naming why a tracker read failed. A 429 says "rate limited" in so
+// many words, since the tracker limiter starving this encoder is the case an
+// operator otherwise cannot attribute from either service's log.
+function describeTrackerFailure(error) {
+    const status = error && error.response && error.response.status
+    const message = String((error && error.message) || error).slice(0, 200)
+    if (status === 429) return `rate limited by the tracker (HTTP 429): ${message}`
+    return status ? `HTTP ${status}: ${message}` : message
+}
+
+// Logger for failed tracker reads: the first failure after a good read logs at
+// once, later failures fold into one count line per interval, and the first good
+// read after a logged failure says how many failed in between. Without it the
+// probe turned the error into tracker_reachable:false and logged nothing.
+function createTrackerFailureLog({ log, now, intervalMs = TRACKER_FAILURE_LOG_INTERVAL_MS }) {
+    let failed = 0 // failed reads since the last line
+    let total = 0 // failed reads since the last good read
+    let lastLogAt = null
+    // A log sink that throws must not turn a readiness answer into a rejection.
+    const emit = (line) => { try { log(line) } catch (_) { /* logging is best effort */ } }
+    return {
+        failure(error) {
+            failed++
+            total++
+            const t = now()
+            if (lastLogAt !== null && t - lastLogAt >= 0 && t - lastLogAt < intervalMs) return
+            const tail = failed > 1 ? ` (${failed} failed reads since the last line)` : ''
+            emit(`Serve readiness: tracker sync status read failed, ${describeTrackerFailure(error)}${tail}`)
+            failed = 0
+            lastLogAt = t
+        },
+        success() {
+            if (total > 0 && lastLogAt !== null) emit(`Serve readiness: tracker sync status read recovered after ${total} failed read${total === 1 ? '' : 's'}`)
+            failed = 0
+            total = 0
+            lastLogAt = null
+        }
+    }
+}
+
 // Serve-readiness probe shared by the JSON-RPC health() method and GET
 // /status, so the two endpoints can never drift apart: probes the
 // UTXO tracker and returns its reachability / sync state. Fields:
@@ -120,15 +165,21 @@ function classifyTracker(encoder, status) {
 // healthcheck and create_tx reads share that bucket, so an uncached probe per
 // request let probe traffic burn the budget and make a healthy encoder unready.
 // A failure is cached for the same window, so a rate-limited tracker is asked
-// once per window rather than once per probe. `now` is injectable for tests.
-function createServeReadiness({ encoder, readMaintenanceWindow, now = Date.now, trackerTtlMs = trackerProbeTtlMs() }) {
+// once per window rather than once per probe. `now` and `log` are injectable
+// for tests; a failed read is logged where it settles, so probes sharing it add
+// no lines of their own.
+function createServeReadiness({ encoder, readMaintenanceWindow, now = Date.now, trackerTtlMs = trackerProbeTtlMs(), log = (line) => getLogger().warn(line) }) {
 let trackerRead = null // { at, promise }
+const failureLog = createTrackerFailureLog({ log, now })
 function readTrackerStatus() {
     const t = now()
     if (trackerRead && t - trackerRead.at >= 0 && t - trackerRead.at < trackerTtlMs) return trackerRead.promise
     const promise = Promise.resolve()
         .then(() => encoder.utxoTrackerConnector.getSyncStatus())
-        .then(status => ({ ok: true, status }), error => ({ ok: false, error }))
+        .then(
+            status => { failureLog.success(); return { ok: true, status } },
+            error => { failureLog.failure(error); return { ok: false, error } }
+        )
     trackerRead = { at: t, promise }
     return promise
 }
