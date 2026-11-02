@@ -6,7 +6,7 @@
 // tracker connector and inject the log sink and clock.
 
 const assert = require('assert')
-const { createServeReadiness } = require('../../../src/api/serve_readiness')
+const { createServeReadiness } = require('../../../../src/api/serve_readiness')
 
 function refusal() {
   const err = new Error('Request failed with status code 429')
