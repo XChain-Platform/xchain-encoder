@@ -352,6 +352,11 @@ app.use(makeRpcBatchGuard(parseInt(config.ENCODER_MAX_RPC_BATCH, 10) || 20))
 // it throws ("req.body is required"). Restore the {} default so unmatched requests
 // that fall through to this root-mounted router get a normal JSON-RPC error
 // response instead of crashing the request.
+// The router's own reply to that {} has no jsonrpc member and is served 200, so a
+// request with no parsed body is refused first as a 400 JSON-RPC Invalid Request.
+app.use((req, res, next) => req.body !== undefined ? next() : res.status(400).json({
+    jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request, Content-Type must be application/json' }
+}))
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 // requestGate.hold: the router's middleware is async and awaits every method it
 // dispatches that carries an id. It starts an id-less batch entry without awaiting
