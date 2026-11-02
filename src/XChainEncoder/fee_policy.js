@@ -105,7 +105,10 @@ function capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb, maxFeeP
     if (capFeePerBytes != null && (backstopFeePerBytes == null || capFeePerBytes <= backstopFeePerBytes)) limit = 'cap'
     else if (backstopFeePerBytes != null) limit = 'backstop'
     const ceiling = limit === 'cap' ? capFeePerBytes : (limit === 'backstop' ? backstopFeePerBytes : null)
-    const clamped = ceiling != null && feePerBytes > ceiling
+    // A relative epsilon, twelve orders above the double's own error, so a rate
+    // typed exactly at the cap (10000 sat/kB) is not read as over it when the
+    // cap's float product lands one ULP low.
+    const clamped = ceiling != null && feePerBytes > ceiling * (1 + 1e-12)
     // capFeePerBytes stays the pure operator cap: refuseExcessiveFee and the
     // package uplift read it and apply the backstop on their own.
     return { anchorFeePerBytes, capFeePerBytes, backstopFeePerBytes, limit, clamped, feePerBytes: clamped ? ceiling : feePerBytes }
