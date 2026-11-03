@@ -25,7 +25,7 @@ const {
   attachPrevTxs,
   makeEncoder,
   getTestAddress
-} = require('../integration/helpers/utxoFactory')
+} = require('../../integration/helpers/utxoFactory')
 
 const DOGE = 'dogecoin-regtest'
 const PAYMENT = 100000

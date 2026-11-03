@@ -8,7 +8,7 @@
 // license (without AGPL source-disclosure terms) is available -
 // contact legal@dankest.llc.
 
-// Shared builders for the prev-out value check suite (input_selection.js
+// Shared builders for the prev-out value check suite (selected_inputs.js
 // assertPrevOutValueMatches). A legacy sighash does not commit to input
 // amounts, so a stated utxos[].value below the real output would sign and pay
 // the gap to miners; these files pin the build's refusal of any disagreement.
