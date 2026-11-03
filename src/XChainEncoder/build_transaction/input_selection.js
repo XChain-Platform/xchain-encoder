@@ -73,8 +73,8 @@ function initSelection(build){
 // The fee selection has to cover: the fee the build will finally charge, which the
 // post-selection floor (floorEstimatedFee) never lets fall under the dust threshold.
 // Stopping at the unfloored fee left a fundable spend one input short.
-function selectionTargetFee(estimatedFee){
-    return Math.max(estimatedFee, this.dustAmount)
+function selectionTargetFee(estimatedFee, softDustSurcharge){
+    return Math.max(estimatedFee, this.dustAmount + (softDustSurcharge || 0))
 }
 
 // Transaction framing an input adds beyond its own estimated size: the segwit marker
@@ -147,7 +147,7 @@ function* selectInputs(build){
         // at sufficiency is exactly the behaviour that made a stuck batch
         // unrescuable through this API. Any surplus goes to change, which
         // the shortfall/change math below already handles.
-        const targetFee = selectionTargetFee.call(this, estimatedFee)
+        const targetFee = selectionTargetFee.call(this, estimatedFee, softDustSurcharge)
         if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(targetFee) && clearsStrippedFloor.call(this, build, inputSatoshis, targetFee)){
             break
         }
@@ -173,8 +173,8 @@ function refuseCappedSelection(build, nextUtxoIndex, inputSatoshis, estimatedFee
 }
 
 function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimatedFee, now){
-    const { utxos, exactInputs, firstReservedOutpoint, outputSatoshis } = build
-    const required = outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee))
+    const { utxos, exactInputs, firstReservedOutpoint, outputSatoshis, softDustSurcharge } = build
+    const required = outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee, softDustSurcharge))
     let available = inputSatoshis
     for (let index = nextUtxoIndex; index < utxos.length; index++){
         const candidate = utxos[index]
@@ -341,7 +341,7 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
 function refuseEmptySelection(build){
     let { selectedInputCount, reservedCandidates, outputSatoshis } = build
     // Report the fee the build would charge, floor included.
-    const estimatedFee = selectionTargetFee.call(this, build.estimatedFee)
+    const estimatedFee = selectionTargetFee.call(this, build.estimatedFee, build.softDustSurcharge)
     // The caller-facing MAX_UTXO_COUNT cap is intentionally NOT
     // applied to the fetched set before selection (a rich address must
     // stay spendable). Bound the SELECTED input count instead: a tx that
