@@ -56,6 +56,13 @@ describe('DOGE selection target covers the dust floor plus surcharge', () => {
     })
   }
 
+  it('stops at an input set that funds the payment and fee exactly', async () => {
+    // 600000 + 600000 covers the 100000 payment plus the 1100000 fee with zero change;
+    // a third input would leave 600000, under the output floor, as extra fee.
+    const { inputs } = await build([600000, 600000, 600000])
+    assert.strictEqual(inputs, 2)
+  })
+
   it('still refuses a true shortfall with a single 1150000 input', async () => {
     await assert.rejects(() => build([1150000]), (err) => {
       assert.ok(/insufficient funds/i.test(`${err.code} ${err.reason} ${err.message}`), String(err.message))

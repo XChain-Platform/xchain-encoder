@@ -147,7 +147,7 @@ function* selectInputs(build){
         // unrescuable through this API. Any surplus goes to change, which
         // the shortfall/change math below already handles.
         const targetFee = selectionTargetFee.call(this, estimatedFee, softDustSurcharge)
-        if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(targetFee)){
+        if (!exactInputs && inputSatoshis >= outputSatoshis + BigInt(targetFee)){
             // The floor check sizes each input's scriptSig from its fields, so attach them first.
             inputQueue.flush()
             if (clearsStrippedFloor.call(this, build, inputSatoshis, targetFee)) break
@@ -185,7 +185,7 @@ function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimat
             continue
         }
         available += BigInt(parseSatoshiAmount(candidate.value, `utxos[${index}].value`, { allowBig: true }))
-        if (available > required) return true
+        if (available >= required) return true
     }
     return false
 }
