@@ -37,6 +37,9 @@ const DEFAULT_MAX_ADDRESS_UTXOS = 10000
 const UTXO_SET_TOO_LARGE = 'UTXO_SET_TOO_LARGE'
 const UTXO_PAGE_LIMIT = 10000
 const MAX_UTXO_PAGES = 1000
+// Page-1 restarts when the snapshot moves mid-fetch: an address at the cap always needs a second page (the tracker
+// sends a cursor on a full 10000-row page). Small, as each restart re-reads every page against the tracker's budget.
+const MAX_SNAPSHOT_RESTARTS = 2
 function maxAddressUtxos(raw){
     raw = Number(raw)
     return Number.isSafeInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_ADDRESS_UTXOS
@@ -67,15 +70,15 @@ function assertWithinUtxoCap(count, cap){
 // (a reset counter after a restart, or a rollback the counter never recorded). A mempool
 // epoch also refuses pages whose spend filtering came from different mempool commits. All are
 // typeof-guarded, so a page without them still gets the height check. Erring toward a refusal is the direction
-// every other gate on this path takes, and it costs a retry only on an address holding more
-// than one page of UTXOs.
+// every other gate on this path takes. The tracker's pager contract is to restart from page 1 when the
+// snapshot moves, so fetchAllUtxoPages does, MAX_SNAPSHOT_RESTARTS times, before it refuses; a halted,
+// unsynced or ahead-of-node tracker refuses at once.
 //
 // Returns a reason string when the pages disagree, null when they are one snapshot.
 function snapshotDivergence(first, later){
     if (!first || !later) return null
-    if (later.halted === true) return 'the tracker halted mid-fetch (' + (safeUpstreamReason(later.halt_reason) || 'unrecoverable reorg') + ')'
-    if (later.synced === false) return 'the tracker stopped reporting synced mid-fetch'
-    if (typeof later.lag === 'number' && later.lag < 0) return 'the tracker went ' + (-later.lag) + ' blocks ahead of the node mid-fetch'
+    const stopped = trackerStoppedServing(later)
+    if (stopped) return stopped
     if (typeof first.tracker_height === 'number' && typeof later.tracker_height === 'number' &&
         first.tracker_height !== later.tracker_height){
         return 'the tracker moved from height ' + first.tracker_height + ' to ' + later.tracker_height + ' mid-fetch'
@@ -89,10 +92,17 @@ function snapshotDivergence(first, later){
         return 'the tracker mempool changed mid-fetch (mempool_epoch ' + first.mempool_epoch + ' to ' + later.mempool_epoch + ')'
     }
     // Refuse when the pages were read on different chains at one height (hashes are not echoed: upstream text).
-    if (typeof first.committed_hash === 'string' && typeof later.committed_hash === 'string' &&
-        first.committed_hash !== later.committed_hash){
+    if (typeof first.committed_hash === 'string' && typeof later.committed_hash === 'string' && first.committed_hash !== later.committed_hash){
         return 'the tracker switched to a different chain tip mid-fetch'
     }
+    return null
+}
+
+// The divergences a restart cannot cure: the tracker has stopped serving a usable view.
+function trackerStoppedServing(later){
+    if (later.halted === true) return 'the tracker halted mid-fetch (' + (safeUpstreamReason(later.halt_reason) || 'unrecoverable reorg') + ')'
+    if (later.synced === false) return 'the tracker stopped reporting synced mid-fetch'
+    if (typeof later.lag === 'number' && later.lag < 0) return 'the tracker went ' + (-later.lag) + ' blocks ahead of the node mid-fetch'
     return null
 }
 
@@ -219,28 +229,27 @@ function readUtxoResult(responseData){
 }
 
 // Throw when a later page's `sync` sibling describes a different chain state
-// from page 1's (see snapshotDivergence).
+// from page 1's (see snapshotDivergence). snapshotMoved marks the ones a restart can cure.
 function assertSameSnapshot(firstPageSync, pageSync, address){
     const divergence = snapshotDivergence(firstPageSync, pageSync)
     if (divergence) {
-        throw new Error(`utxo-tracker chain state changed while paginating utxos for ${address}: ` +
+        const e = new Error(`utxo-tracker chain state changed while paginating utxos for ${address}: ` +
             `${divergence}; refusing to merge pages read at different chain states (retry the request)`)
+        e.snapshotMoved = !trackerStoppedServing(pageSync)
+        throw e
     }
 }
 
 // Validate one page's rows and append them to the running set (plain Error on a
 // bad row, as in readUtxoResult above: a malformed row is the tracker's fault).
 function appendPageUtxos(utxos, allUtxos){
-    // pageOffset is the count before this page so globalIdx
-    // across pages matches what a single-page caller would see.
+    // pageOffset is the count before this page so globalIdx matches what a single-page caller would see.
     const pageOffset = allUtxos.length
     for (let i = 0; i < utxos.length; i++) {
         const u = utxos[i]
         const globalIdx = pageOffset + i
-        if (typeof u !== 'object' || u === null ||
-            typeof u.txid !== 'string' ||
-            typeof u.vout === 'undefined' ||
-            typeof u.value === 'undefined') {
+        if (typeof u !== 'object' || u === null || typeof u.txid !== 'string' ||
+            typeof u.vout === 'undefined' || typeof u.value === 'undefined') {
             throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}`)
         }
         if (!HEX_64_RE.test(u.txid)) {
@@ -252,9 +261,7 @@ function appendPageUtxos(utxos, allUtxos){
         if (u.confirmations == null) {
             u.confirmations = 0
         } else {
-            // Mirror validateUtxoEntry: the encoder's unconfirmed
-            // filter compares `confirmations == 0` loosely, so
-            // coerce and range-check tracker-supplied values too.
+            // Mirror validateUtxoEntry: the unconfirmed filter compares `confirmations == 0` loosely, so coerce and range-check.
             const confirmations = Number(u.confirmations)
             if (!Number.isInteger(confirmations) || confirmations < 0) {
                 throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: confirmations must be a non-negative integer`)
@@ -265,8 +272,7 @@ function appendPageUtxos(utxos, allUtxos){
     }
 }
 
-// A repeated cursor means the tracker is cycling/stalled: abort rather
-// than loop forever accumulating the same pages.
+// A repeated cursor means the tracker is cycling/stalled: abort rather than loop forever accumulating the same pages.
 function assertFreshCursor(nextCursor, seenCursors, address){
     if (seenCursors.has(nextCursor)) {
         throw new Error(`utxo-tracker returned a repeated pagination cursor for ${address}; aborting (stalled or hostile tracker)`)
@@ -281,25 +287,27 @@ function mergeUtxoPage(result, state, address){
     } else {
         assertSameSnapshot(state.firstPageSync, pageSync, address)
     }
-
     assertWithinUtxoCap(state.utxos.length + result.utxos.length, state.cap)
     appendPageUtxos(result.utxos, state.utxos)
-
     if (!result.nextCursor) return false
     assertFreshCursor(result.nextCursor, state.seenCursors, address)
     state.cursor = result.nextCursor
     return true
 }
 
+// Read every page at one snapshot, restarting from page 1 when the snapshot moves mid-fetch.
 async function fetchAllUtxoPages(tracker, address, cap){
-    const state = {
-        cap,
-        cursor: undefined,
-        firstPageSync: null,
-        pageCount: 0,
-        seenCursors: new Set(),
-        utxos: []
+    for (let restarts = 0; ; restarts++) {
+        try {
+            return await fetchUtxoSnapshot(tracker, address, cap)
+        } catch (error) {
+            if (!error.snapshotMoved || restarts >= MAX_SNAPSHOT_RESTARTS) throw error
+        }
     }
+}
+
+async function fetchUtxoSnapshot(tracker, address, cap){
+    const state = { cap, cursor: undefined, firstPageSync: null, pageCount: 0, seenCursors: new Set(), utxos: [] }
     while (++state.pageCount <= MAX_UTXO_PAGES) {
         const pageLimit = Math.min(UTXO_PAGE_LIMIT, cap - state.utxos.length + 1)
         const responseData = await fetchUtxoPage(tracker, address, pageLimit, state.cursor)
