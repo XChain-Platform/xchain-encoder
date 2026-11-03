@@ -188,11 +188,23 @@ describe('Category E: Custom Outputs (COINPAY Integration)', () => {
       assert.ok(!withCustom.psbt.txOutputs.some(o => o.value === CUSTOM_VALUE),
         'the custom output belongs on the reveal, not on the funding tx')
 
-      // The first funding output carries the folded value (plus the reveal's
-      // extra miner fee for the bytes that output adds), so the reveal can pay it.
-      const fundedDelta = withCustom.psbt.txOutputs[0].value - withoutCustom.psbt.txOutputs[0].value
-      assert.ok(fundedDelta >= CUSTOM_VALUE,
-        `first funding output should carry >= ${CUSTOM_VALUE} extra, carried ${fundedDelta}`)
+      // The first funding output carries the folded value on top of a dust-floored
+      // base (plus the reveal's miner fee for the bytes that output adds), so the
+      // reveal can pay it. A lone leg is no longer padded to the output floor
+      // before the fold, a pad the reveal could only leave to the miner, so the
+      // leg is checked against the custom value plus dust, and against the
+      // output floor it must still clear as an output of its own.
+      const firstLeg = BigInt(withCustom.psbt.txOutputs[0].value)
+      const required = BigInt(CUSTOM_VALUE + encoder.dustAmount)
+      assert.ok(firstLeg >= required,
+        `first funding output should carry >= ${required}, carried ${firstLeg}`)
+      assert.ok(firstLeg >= BigInt(encoder.outputFloor),
+        `first funding output ${firstLeg} is under the output floor ${encoder.outputFloor}`)
+      // The no-custom leg holds the output-floor base plus change headroom; stacking
+      // the custom value on top of that base is the pad the reveal burned.
+      const withoutLeg = BigInt(withoutCustom.psbt.txOutputs[0].value)
+      assert.ok(firstLeg < withoutLeg + BigInt(CUSTOM_VALUE),
+        `first funding output ${firstLeg} stacks the custom value on the padded base (${withoutLeg})`)
     })
   })
 })

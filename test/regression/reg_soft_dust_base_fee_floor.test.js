@@ -49,20 +49,20 @@ async function buildFee (networkKey, paymentValue) {
   return { fee: INPUT_VALUE - paid, dust: encoder.dustAmount }
 }
 
-async function buildP2shRevealFee (paymentValue) {
+async function buildP2shRevealFee (paymentValue, payload = P2SH_DATA) {
   const encoder = makeEncoder(DOGE)
   const address = getTestAddress(DOGE)
   const outputs = () => [{ address, value: paymentValue }]
   const funding = await encoder.createTransaction(
     [makeUtxo(DOGE, TXID_A, 0, INPUT_VALUE)], address, outputs(),
-    P2SH_DATA, null, null, false, 'P2SH', address,
+    payload, null, null, false, 'P2SH', address,
     null, null, null, true, 1000
   )
   const fundingTx = bitcoin.Transaction.fromBuffer(
     funding.psbt.data.globalMap.unsignedTx.toBuffer()
   )
   const reveal = await encoder.createTransaction(
-    [], address, outputs(), P2SH_DATA, null, null, false, 'P2SH', address,
+    [], address, outputs(), payload, null, null, false, 'P2SH', address,
     fundingTx.getId(), fundingTx.toHex(), null, true, 1000
   )
   const revealTx = bitcoin.Transaction.fromBuffer(
@@ -76,6 +76,7 @@ async function buildP2shRevealFee (paymentValue) {
     fee: spent - paid,
     outputFloor: encoder.outputFloor,
     revealTx,
+    fundingTx,
     spent
   }
 }
@@ -131,6 +132,23 @@ describe('soft-dust fee parity across one-phase and P2SH reveal builds', () => {
         feesMatch: true,
         sweepReturned: expectedSweep >= reveal.outputFloor
       })
+    })
+  }
+})
+
+describe('single-chunk P2SH reveal with a custom output', () => {
+  // One chunk, so one funding leg: the leg pad must not leave a sub-floor surplus that is burned.
+  const ONE_CHUNK = 'y'.repeat(300)
+  for (const paymentValue of [100000, 999999, 1000000]) {
+    it(`keeps at most the base fee plus surcharge for payment ${paymentValue}`, async () => {
+      const dust = 100000
+      const reveal = await buildP2shRevealFee(paymentValue, ONE_CHUNK)
+      assert.strictEqual(reveal.revealTx.ins.length, 1, 'single leg')
+      const surcharge = paymentValue < SURCHARGE ? SURCHARGE : 0
+      // The base fee is the larger of the rate fee and dust; allow rate-fee room above dust.
+      const maxFee = dust + surcharge + 50000
+      const burned = reveal.fee // swept surplus is an output, so the fee is exactly what the miner keeps
+      assert.ok(burned <= maxFee, `burned ${burned} over ${maxFee} (fee ${reveal.fee})`)
     })
   }
 })

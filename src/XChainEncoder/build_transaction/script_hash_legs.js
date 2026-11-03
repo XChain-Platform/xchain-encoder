@@ -103,8 +103,16 @@ function fundP2shLeg(build, nextDataBuffer){
     let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
     let spendingP2shEstimatedFee = feeForVsize(spendingP2shEstimatedSize, feePerBytes, SATOSHI_UNIT)
 
-    if (spendingP2shEstimatedFee < finalDust){
-        spendingP2shEstimatedFee = finalDust
+    // A lone leg that also carries the reveal's custom outputs only needs to stay a
+    // relayable output: the outputs' own value and fee ride on top of the dust base, so
+    // padding the base to the output floor first would leave a sub-floor surplus that the
+    // reveal can neither return as change nor use, and the miner keeps it. Floor the leg's total at
+    // finalDust instead. Multi-leg reveals keep the per-leg pad, whose surplus clears the change floor.
+    const customsInLoneLeg = (revealCustomOutputsValue > 0n || revealCustomOutputsFee > 0)
+        && build.preparedData["dataBufferArray"].length === 1
+    const legBaseFloor = customsInLoneLeg ? Math.min(this.dustAmount, finalDust) : finalDust
+    if (spendingP2shEstimatedFee < legBaseFloor){
+        spendingP2shEstimatedFee = legBaseFloor
     }
 
     // Over-fund the first funding output by the reveal-side
@@ -115,6 +123,9 @@ function fundP2shLeg(build, nextDataBuffer){
         spendingP2shEstimatedFee = asSatValue(BigInt(spendingP2shEstimatedFee) + revealCustomOutputsValue + BigInt(revealCustomOutputsFee))
         revealCustomOutputsValue = 0n
         revealCustomOutputsFee = 0
+        if (customsInLoneLeg && spendingP2shEstimatedFee < finalDust){
+            spendingP2shEstimatedFee = finalDust
+        }
     }
 
     spendingP2shEstimatedFee = topUpFirstP2shLeg.call(this, build, spendingP2shEstimatedFee)
