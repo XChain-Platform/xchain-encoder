@@ -19,11 +19,10 @@
  *
  ********************************************************************/
 
-const util = require('util')
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
-const { upstreamErrorMessage } = require('../common/error_sanitize')
+const { upstreamErrorMessage, logErrorOnce } = require('../common/error_sanitize')
 const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
@@ -82,7 +81,7 @@ return {
             // A typed node failure (the node did not answer) keeps its stable
             // -32010 code, so a caller can tell "retry later" from an internal fault.
             if (err && err.operational === true) throw toRpcError(err)
-            logger.error(util.format('Fee estimation error:', err))
+            logErrorOnce(logger, 'Fee estimation error:', err)
             const e = new Error('Fee estimation failed')
             e.code = -32603
             throw e
@@ -117,7 +116,7 @@ function toRpcError(err) {
         return e
     }
     // Log anything else and send a generic message, so no host:port, stack or RPC credential leaks
-    logger.error(util.format('Encoder error:', err))
+    logErrorOnce(logger, 'Encoder error:', err)
     const e = new Error('Internal encoder error')
     e.code = -32603
     return e
@@ -263,7 +262,7 @@ return {
             let txid = await encoder.connector.sendRawTransaction(tx_hex)
             return { txid: txid }
         } catch (err) {
-            logger.error(util.format(`Broadcast error for txid ${localTxid}:`, err))
+            logErrorOnce(logger, `Broadcast error for txid ${localTxid}:`, err)
             const e = new Error(upstreamErrorMessage(err, 'Transaction broadcast failed'))
             if (Number.isInteger(err && err.nodeCode)) {
                 e.code = -32010
@@ -284,7 +283,7 @@ function validateLookupTxid(rawParams) { const txid = rawParams && rawParams.txi
     throw Object.assign(new Error('txid must be a 64-hex-character string'), { code: -32602 })
 }
 function lookupFailure(err, name) {
-    logger.error(util.format(`${name} lookup error:`, err)); return Object.assign(new Error(upstreamErrorMessage(err, `${name} lookup failed`)), { code: -32603 })
+    logErrorOnce(logger, `${name} lookup error:`, err); return Object.assign(new Error(upstreamErrorMessage(err, `${name} lookup failed`)), { code: -32603 })
 }
 // Transaction and UTXO lookups; upstream error text is sanitized before it leaves.
 function buildUtxoMethods({ encoder }) {
@@ -319,7 +318,7 @@ return {
             let result = await encoder.utxoTrackerConnector.getUtxosFromAddress(address)
             return result
         } catch (err) {
-            logger.error(util.format('UTXO fetch error:', err))
+            logErrorOnce(logger, 'UTXO fetch error:', err)
             if (err && err.code === 'UTXO_SET_TOO_LARGE') {
                 const tooLarge = new Error(err.message)
                 tooLarge.code = -32010

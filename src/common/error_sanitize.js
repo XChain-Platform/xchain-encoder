@@ -99,4 +99,59 @@ function safeUpstreamReason(value) {
     return printable === '' ? null : printable
 }
 
-module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS }
+// Log-line bounds. A thrown AxiosError carries its config, the ClientRequest
+// with its socket, and the response headers; formatting the whole object wrote
+// about 13 KB per failure, so a burst of rate-limited tracker calls rotated
+// away the container's whole log retention. A log line names the failure and
+// where it was raised, nothing more.
+const MAX_LOG_MESSAGE_CHARS = 300
+const MAX_LOG_FRAMES = 4
+const MAX_LOG_FRAME_CHARS = 160
+const MAX_LOG_LINE_CHARS = 900
+
+// Strip control characters so one record stays one line of printable text.
+function printable(text, max) {
+    return String(text).replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, max)
+}
+
+// The encoder's own frames from a stack; library and runtime frames (axios
+// internals, node: modules) say nothing about which caller hit the failure.
+function appFrames(stack) {
+    if (typeof stack !== 'string') return []
+    return stack.split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('at ') && !line.includes('node_modules') && !line.includes('node:'))
+        .slice(0, MAX_LOG_FRAMES)
+        .map((line) => printable(line, MAX_LOG_FRAME_CHARS))
+}
+
+// One bounded line describing an error for the encoder's own log: its name and
+// code, the HTTP status of an upstream reply, the message, and a few of the
+// encoder's stack frames. Only those fields are read, so no request config,
+// socket or header ever reaches the log whatever the error object carries.
+function describeErrorForLog(err) {
+    if (err === null || typeof err !== 'object') return printable(err, MAX_LOG_MESSAGE_CHARS)
+    const parts = [printable(err.name || 'Error', 60)]
+    if (typeof err.code === 'string' || typeof err.code === 'number') parts.push(`[${printable(err.code, 60)}]`)
+    const status = err.response && err.response.status
+    if (Number.isInteger(status)) parts.push(status === 429 ? 'HTTP 429 (rate limited)' : `HTTP ${status}`)
+    let line = `${parts.join(' ')}: ${printable(err.message || '', MAX_LOG_MESSAGE_CHARS)}`
+    const frames = appFrames(err.stack)
+    if (frames.length > 0) line += ` | ${frames.join(' | ')}`
+    return line.slice(0, MAX_LOG_LINE_CHARS)
+}
+
+// Errors already logged once. A failure rethrown up the stack would otherwise
+// be logged again at every layer that catches it.
+const loggedErrors = new WeakSet()
+
+// Log `prefix` plus the bounded description of err at error level, once per error object.
+function logErrorOnce(logger, prefix, err) {
+    const trackable = err !== null && (typeof err === 'object' || typeof err === 'function')
+    if (trackable && loggedErrors.has(err)) return false
+    if (trackable) loggedErrors.add(err)
+    logger.error(`${prefix} ${describeErrorForLog(err)}`)
+    return true
+}
+
+module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS, describeErrorForLog, logErrorOnce, MAX_LOG_LINE_CHARS }

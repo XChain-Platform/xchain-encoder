@@ -19,9 +19,8 @@
  ********************************************************************/
 
 const axios = require('axios')
-const util = require('node:util');
 const { getLogger } = require('../observability');
-const { safeUpstreamReason } = require('../common/error_sanitize');
+const { safeUpstreamReason, logErrorOnce } = require('../common/error_sanitize');
 const logger = getLogger();
 const { isRemoteProfile, throwIfRefused, trackerUnreachableError, trackerSyncMissingError } = require('../XChainEncoder/trackerless_profile.js')
 
@@ -154,7 +153,7 @@ async function assertTrackerReady(tracker){
             throw new Error('utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to fetch UTXOs')
         }
     } catch (error) {
-        logger.error(util.format('Error checking UTXO tracker sync status:', error));
+        logErrorOnce(logger, 'Error checking UTXO tracker sync status:', error);
         throw error;
     }
 }
@@ -166,13 +165,13 @@ async function assertRemoteTrackerReady(tracker){
     try {
         status = await tracker.getSyncStatus()
     } catch (error) {
-        logger.error(util.format('Error checking UTXO tracker sync status:', error));
+        logErrorOnce(logger, 'Error checking UTXO tracker sync status:', error);
         throw error.syncMissing ? trackerSyncMissingError() : trackerUnreachableError(error)
     }
     try {
         throwIfRefused(tracker.profile, status, tracker.maxLagBlocks)
     } catch (error) {
-        logger.error(util.format('Error checking UTXO tracker sync status:', error));
+        logErrorOnce(logger, 'Error checking UTXO tracker sync status:', error);
         throw error
     }
 }
@@ -390,7 +389,7 @@ class UtxoTracker {
         try {
             return await fetchAllUtxoPages(this, address, this.maxAddressUtxos)
         } catch (error) {
-            logger.error(util.format('Error fetching UTXOs:', error));
+            logErrorOnce(logger, 'Error fetching UTXOs:', error);
             throw error;
         }
     }
