@@ -70,7 +70,8 @@ describe('tracker-funded selection at the input cap', function () {
 
     it('preserves the range error when additional inputs could fund the transaction', async function () {
         await assert.rejects(
-            () => buildFromTracker(dustSet(600, 50), true, 25000),
+            // 500 inputs fund 25000 exactly, so one satoshi more needs a 501st.
+            () => buildFromTracker(dustSet(600, 50), true, 25001),
             (error) => error instanceof RangeError && /selected input count/.test(error.message)
         )
     })
