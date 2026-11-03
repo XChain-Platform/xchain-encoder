@@ -108,6 +108,8 @@ function* selectInputs(build){
     const now = Date.now()
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
+    // One fetch and parse per parent txid for this build; never shared across builds.
+    const prevTxMemo = new Map()
     while (nextUtxoIndex < utxos.length){
         refuseCappedSelection.call(this, build, nextUtxoIndex, inputSatoshis, estimatedFee, selectedInputCount, now)
         let nextUtxo = utxos[nextUtxoIndex]
@@ -123,7 +125,7 @@ function* selectInputs(build){
         nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
 
         const nestedRedeem = nestedP2wpkhRedeem.call(this, build, nextUtxo)
-        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker, nestedRedeem)
+        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker, nestedRedeem, prevTxMemo)
         estimatedTxSize = added.estimatedTxSize
         inputSatoshis = added.inputSatoshis
 
@@ -249,14 +251,9 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
 // Refuses a UTXO whose stated value differs from its output in the fetched previous tx.
 // A legacy sighash does not commit to input amounts, so an understated value would sign
 // and the hidden difference would go to miners, past fee guards that read the same figure.
-function assertPrevOutValueMatches(prevTxHex, utxo, fetchedFromTracker){
+function assertPrevOutValueMatches(prevTx, utxo, fetchedFromTracker){
     const outpoint = `${utxo.txid}:${utxo.vout}`
-    let prevOut = null
-    try {
-        prevOut = bitcoin.Transaction.fromHex(prevTxHex).outs[utxo.vout]
-    } catch (err) {
-        prevOut = null
-    }
+    const prevOut = prevTx ? prevTx.outs[utxo.vout] : null
     let problem = null
     if (!prevOut){
         problem = `previous transaction for utxo ${outpoint} has no output at index ${utxo.vout}`
@@ -270,8 +267,27 @@ function assertPrevOutValueMatches(prevTxHex, utxo, fetchedFromTracker){
     throw new ParamRangeError(problem)
 }
 
+// Fetches a parent transaction once per build and parses it once: inputs sharing a parent
+// (a batch paid out of one transaction) otherwise cost a node round trip and a parse each.
+// A failed fetch is not memoized. The value check still runs per outpoint on the cached parse.
+function* fetchPrevTx(connector, txid, memo){
+    let entry = memo.get(txid)
+    if (!entry){
+        const hex = yield connector.getTransactionHex(txid)
+        let tx = null
+        try {
+            tx = bitcoin.Transaction.fromHex(hex)
+        } catch (err) {
+            tx = null
+        }
+        entry = { hex, tx }
+        memo.set(txid, entry)
+    }
+    return entry
+}
+
 // nestedRedeem is the P2WPKH redeem script of a P2SH-P2WPKH input, signed as segwit.
-function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker, nestedRedeem){
+function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker, nestedRedeem, prevTxMemo = new Map()){
     if (nestedRedeem || this.isSegwitUTXO(nextUtxo)){
         let nextInput = {
             hash: nextUtxo.txid,
@@ -295,23 +311,23 @@ function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimated
         // that gets signed - hydrating it later would break the
         // byte-identity guarantee the confirm surface rests on.
         if (attachPrevTx) {
-            const prevTxHex = yield this.connector.getTransactionHex(nextUtxo.txid)
+            const prev = yield* fetchPrevTx(this.connector, nextUtxo.txid, prevTxMemo)
             // Check the amount too: a hardware signer reads it from these bytes.
-            assertPrevOutValueMatches(prevTxHex, nextUtxo, fetchedFromTracker)
-            nextInput.nonWitnessUtxo = Buffer.from(prevTxHex, 'hex')
+            assertPrevOutValueMatches(prev.tx, nextUtxo, fetchedFromTracker)
+            nextInput.nonWitnessUtxo = Buffer.from(prev.hex, 'hex')
         }
         psbt.addInput(nextInput)
         estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
         inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
     } else {
-        let wholeUtxoHex = yield this.connector.getTransactionHex(nextUtxo.txid)
+        const prev = yield* fetchPrevTx(this.connector, nextUtxo.txid, prevTxMemo)
         // Check the stated amount against the node's copy before it enters the fee math.
-        assertPrevOutValueMatches(wholeUtxoHex, nextUtxo, fetchedFromTracker)
+        assertPrevOutValueMatches(prev.tx, nextUtxo, fetchedFromTracker)
         let nextInput = {
             hash: nextUtxo.txid,
             index: nextUtxo.vout,
             sequence: utxoSequence,
-            nonWitnessUtxo: Buffer.from(wholeUtxoHex, 'hex')
+            nonWitnessUtxo: Buffer.from(prev.hex, 'hex')
         }
         const redeemScript = matchingLegacyRedeemScript(nextUtxo)
         if (redeemScript) nextInput.redeemScript = redeemScript
