@@ -9,7 +9,8 @@
 // contact legal@dankest.llc.
 
 // Cross-repo ACTION-manifest conformance guard, encoder side.
-// The encoder's validateActionName gate (src/common/validator.js) must reject
+// The encoder's validateActionName gate (src/common/validator/action_data_checks.js)
+// uses literals from src/common/validator/constants.js and must reject
 // exactly the leading ACTION tokens the decoder would reject, or it either
 // blocks a name the decoder actually accepts (false-positive reject on a
 // valid caller) or lets a name through that the decoder silently drops. The
@@ -44,7 +45,7 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
             'encoder VALID_ACTION_NAMES drifted from action-manifest.json wireDecoded set (== the decoder\'s own VALID_ACTION_NAMES). ' +
             'MISSING (decoder decodes, encoder gate would wrongly reject): ' + JSON.stringify(missing) +
             '. EXTRA (encoder gate accepts, decoder would drop): ' + JSON.stringify(extra) +
-            '. Edit xchain-documentation/protocol/action-manifest.json + re-vendor, and update src/common/validator.js VALID_ACTION_NAMES to match xchain-decoder\'s.');
+            '. Edit xchain-documentation/protocol/action-manifest.json + re-vendor, and update the src/common/validator/constants.js VALID_ACTION_NAMES literal to match xchain-decoder/src/XChainDecoder/constants.js.');
     });
 
     it('ACTION_ALIASES exactly equals the manifest aliases (and the decoder ACTION_ALIASES)', function () {
@@ -52,7 +53,7 @@ describe('ACTION manifest conformance: encoder validateActionName gate @regressi
         const actual = v.ACTION_ALIASES;
         assert.deepStrictEqual(actual, expected,
             'encoder ACTION_ALIASES drifted from action-manifest.json aliases / xchain-decoder ACTION_ALIASES. ' +
-            'Keep src/common/validator.js ACTION_ALIASES byte-identical to xchain-decoder\'s.');
+            'Keep the src/common/validator/constants.js ACTION_ALIASES literal byte-identical to xchain-decoder/src/protocol/action_aliases.js.');
     });
 
     it('records BET version 4 as user-encodable', function () {

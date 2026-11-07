@@ -22,6 +22,7 @@
 const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
+const { HEX_64_RE } = require('../common/validator/constants')
 const { upstreamErrorMessage, logErrorOnce } = require('../common/error_sanitize')
 const { ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
@@ -279,7 +280,7 @@ return {
 }
 }
 function validateLookupTxid(rawParams) { const txid = rawParams && rawParams.txid
-    if (typeof txid === 'string' && /^[0-9a-fA-F]{64}$/.test(txid)) return txid
+    if (typeof txid === 'string' && HEX_64_RE.test(txid)) return txid
     throw Object.assign(new Error('txid must be a 64-hex-character string'), { code: -32602 })
 }
 function lookupFailure(err, name) {

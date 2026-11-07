@@ -23,6 +23,7 @@ const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
 const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint, assertPubkeyOnCurve, validateEnvelopeCancelParamKeys } = require('../common/validator')
+const { HEX_64_RE, COMPRESSED_PUBKEY_RE } = require('../common/validator/constants')
 const { OperationalError, ParamTypeError, ParamRangeError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
@@ -38,16 +39,16 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     // Accept the 33-byte compressed form (what create_tx took) or the
     // 32-byte x-only form (what the recovery record may hold).
     let internalKeyBuf
-    if (typeof internalPubkey === 'string' && /^(02|03)[0-9a-fA-F]{64}$/.test(internalPubkey)) {
+    if (typeof internalPubkey === 'string' && COMPRESSED_PUBKEY_RE.test(internalPubkey)) {
         internalKeyBuf = Buffer.from(internalPubkey, 'hex').subarray(1)
-    } else if (typeof internalPubkey === 'string' && /^[0-9a-fA-F]{64}$/.test(internalPubkey)) {
+    } else if (typeof internalPubkey === 'string' && HEX_64_RE.test(internalPubkey)) {
         internalKeyBuf = Buffer.from(internalPubkey, 'hex')
     } else {
         throw new ParamTypeError('internalPubkey must be a 66-character compressed or 64-character x-only pubkey hex string')
     }
     // Refuse an off-curve key here as -32602, before any claim or fee RPC.
     assertPubkeyOnCurve(internalKeyBuf, 'internalPubkey')
-    if (typeof tapleafHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(tapleafHash)) {
+    if (typeof tapleafHash !== 'string' || !HEX_64_RE.test(tapleafHash)) {
         throw new ParamTypeError('tapleafHash must be a 64-character hex string')
     }
     // validateAddress, not a local non-empty check: this is the one create

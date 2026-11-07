@@ -99,7 +99,7 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 
 // Canonical ACTION names the decoder accepts (xchain-decoder VALID_ACTION_NAMES,
-// XChainDecoder.js). Vendored here byte-for-byte from
+// src/XChainDecoder/constants.js). Vendored here byte-for-byte from
 // xchain-documentation/protocol/action-manifest.json (wireDecoded slice), the
 // same source xchain-decoder/test/fixtures/action-manifest.json vendors from.
 // The decoder is the arbiter of which leading ACTION token survives
@@ -125,7 +125,7 @@ const VALID_ACTION_NAMES = new Set([
 
 // Short-form ACTION-name aliases, expanded to canonical form before the
 // VALID_ACTION_NAMES gate. Must stay identical to xchain-decoder's
-// ACTION_ALIASES (XChainDecoder.js): the decoder is what actually expands
+// ACTION_ALIASES (src/protocol/action_aliases.js): the decoder is what actually expands
 // these on-chain, so the encoder's pre-check has to agree with it exactly or
 // it will reject an alias the decoder would have accepted, or (worse) accept a
 // typo the decoder does not recognize as an alias.
