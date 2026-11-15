@@ -107,7 +107,7 @@ function toRpcError(err) {
     if (err && err.operational === true) {
         const e = new Error(err.message)
         e.code = -32010
-        e.data = Object.assign({ reason: err.xchainCode }, err.details || {})
+        e.data = Object.assign({}, err.details || {}, { reason: err.xchainCode })
         return e
     }
     // Return a caller-input rejection's own message: fix the params, do not retry
@@ -166,7 +166,8 @@ function buildCancelMethods({ encoder }) {
 return {
     // Key-path cancel of an unrevealed TAPROOT envelope commit: rebuilds the
     // sweep PSBT from the wallet's persisted recovery
-    // record alone. Validation lives in the encoder method (ParamTypeError/
+    // record alone. Params are validated before the node tier gate, then the
+    // encoder method repeats its own direct-entry checks (ParamTypeError/
     // ParamRangeError -> -32602, OperationalError -> -32010).
     async create_envelope_cancel_tx(rawParams) {
         // Array.isArray for the same reason validator.validateAll carries it:
@@ -175,6 +176,11 @@ return {
             const e = new Error('Request params must be an object')
             e.code = -32602
             throw e
+        }
+        try {
+            encoder.validateEnvelopeCancelParams(rawParams)
+        } catch (err) {
+            throw toRpcError(err)
         }
         await assertNodeTierOrRpcError(encoder)
         let result

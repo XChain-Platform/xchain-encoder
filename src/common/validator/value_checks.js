@@ -42,8 +42,9 @@ function toExactInt(raw) {
 
 // Strict optional-boolean validator for policy flags (rbf, unconfirmed).
 // undefined/null pass through as undefined so downstream defaults apply; a
-// provided value must be a real boolean. TypeError so api.js maps it to
-// -32602 invalid-params, like the money/hex validators.
+// provided value must be a real boolean. ParamTypeError is mapped to -32602
+// invalid-params by toRpcError in src/api/json_rpc_methods.js, like the
+// money/hex validators.
 function validateOptionalBoolean(raw, label) {
     if (raw === undefined || raw === null) return undefined
     if (typeof raw !== 'boolean') {

@@ -196,8 +196,8 @@ function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubk
 
     // docs/openrpc.json marks pubkey required:true. A missing pubkey otherwise
     // reaches bitcoin.address.fromBase58Check(null) and leaks a library
-    // "Expected String" as a -32603 internal error. Reject up front (RangeError,
-    // so api.js maps it to -32602 invalid-params), matching the
+    // "Expected String" as a -32603 internal error. Reject up front with a
+    // ParamRangeError, which toRpcError maps to -32602 invalid-params, matching the
     // MULTISIGN/compressedPubKey presence check above.
     if (pubkey == null) {
         throw new ParamRangeError('pubkey is required')

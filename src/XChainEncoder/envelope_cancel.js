@@ -198,6 +198,18 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
 }
 
 module.exports = {
+    // Check-only twin of the build entry validation. The API calls this before
+    // the node tier gate; direct callers remain protected by the checks below.
+    validateEnvelopeCancelParams(params = {}){
+        validateEnvelopeCancelParamKeys(params)
+        const {
+            commitTxid, commitVout, commitValue, internalPubkey, tapleafHash,
+            destination, feePerKb = null, replacebyfee = false
+        } = params
+        readCancelRecord.call(this, commitTxid, commitVout, commitValue, internalPubkey,
+            tapleafHash, destination, feePerKb, replacebyfee)
+    },
+
     // Key-path cancel of an UNREVEALED envelope commit:
     // sweeps the commit output back to the caller before any reveal exists. By
     // contract this must be buildable from the wallet's PERSISTED RECOVERY

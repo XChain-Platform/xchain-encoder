@@ -34,6 +34,8 @@ class OperationalError extends Error {
     // `code` is a stable, machine-readable string (e.g. 'INSUFFICIENT_FUNDS')
     // callers can branch on; `details` is an optional plain-object payload
     // (e.g. { required, available }) surfaced in the JSON-RPC error `data`.
+    // `reason` is reserved for the stable code, so a details key with that name
+    // is ignored when the JSON-RPC payload is assembled.
     constructor(code, message, details) {
         super(message)
         this.name = 'OperationalError'
