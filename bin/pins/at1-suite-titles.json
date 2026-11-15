@@ -681,14 +681,6 @@
     "3d0c3f469f5a49b0": [
       "E2E-5: UTXO, Fee, and Change Integration E2E-5.4: Unconfirmed UTXOs excluded filters mempool UTXOs when unconfirmed=false"
     ],
-    "3edfd81d1bf84723": [
-      "JSON-RPC node tier gate broadcast_tx refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
-      "JSON-RPC node tier gate create_envelope_cancel_tx refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
-      "JSON-RPC node tier gate create_tx refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
-      "JSON-RPC node tier gate create_tx with a caller-supplied feePerKb still builds on a matching testnet node",
-      "JSON-RPC node tier gate estimate_fee refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
-      "JSON-RPC node tier gate the mainnet prelaunch refusal fires before the node tier check"
-    ],
     "3f015c065bb424cc": [
       "CryptoNetworks .getBitcoinJsNetwork() Bitcoin networks returns bitcoin mainnet config with dustThreshold for \"bitcoin-mainnet\"",
       "CryptoNetworks .getBitcoinJsNetwork() Bitcoin networks returns regtest config with dustThreshold for \"bitcoin-regtest\"",
@@ -1786,6 +1778,15 @@
       "estimate_fee with a warm non-regtest connector and the coin node down types an estimatesmartfee ECONNRESET failure on main",
       "estimate_fee with a warm non-regtest connector and the coin node down types an estimatesmartfee ECONNRESET failure on test"
     ],
+    "9c17ba99020cba7c": [
+      "JSON-RPC node tier gate broadcast_tx refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
+      "JSON-RPC node tier gate create_envelope_cancel_tx refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
+      "JSON-RPC node tier gate create_envelope_cancel_tx rejects invalid params before querying the node tier",
+      "JSON-RPC node tier gate create_tx refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
+      "JSON-RPC node tier gate create_tx with a caller-supplied feePerKb still builds on a matching testnet node",
+      "JSON-RPC node tier gate estimate_fee refuses a mainnet node under a testnet encoder as -32010 NODE_CHAIN_MISMATCH",
+      "JSON-RPC node tier gate the mainnet prelaunch refusal fires before the node tier check"
+    ],
     "9c56433ba319a289": [
       "XChainEncoder fee rounding accepts a caller feePerKb exactly equal to the node relayfee",
       "XChainEncoder fee rounding keeps a fractional rate within one unit above the exact fee, and zero at zero",
@@ -2320,34 +2321,6 @@
       "get_tx_block tracker proxy results returns a tracker hit and sends the exact lookup request",
       "get_tx_block tracker proxy transport errors maps an unhealthy tracker transport failure to the existing internal error type"
     ],
-    "c769479e48bdc605": [
-      "REG-32: a caller fault the validator names keeps -32602 and its reason broadcast_tx answers -32602 for hex that does not decode as a transaction",
-      "REG-32: a caller fault the validator names keeps -32602 and its reason broadcast_tx answers -32602 for odd-length tx_hex",
-      "REG-32: a caller fault the validator names keeps -32602 and its reason create_tx answers -32602 for a negative fee",
-      "REG-32: a caller fault the validator names keeps -32602 and its reason get_utxos answers -32602 for an over-length address",
-      "REG-32: a caller fault the validator names keeps -32602 and its reason release_inputs answers -32602 for a malformed reservationId",
-      "REG-32: a reveal funding hex that does not decode is a caller fault create_tx answers -32602 for a P2SH p2shHex that is hex but not a transaction",
-      "REG-32: a reveal funding hex that does not decode is a caller fault create_tx answers -32602 for a P2WSH p2shHex that is hex but not a transaction",
-      "REG-32: a validator throw that is not a caller fault is an internal error broadcast_tx answers -32603, generic, when validateRawTxHex throws a native TypeError",
-      "REG-32: a validator throw that is not a caller fault is an internal error create_tx answers -32603, generic, when validateAll throws a native TypeError",
-      "REG-32: a validator throw that is not a caller fault is an internal error get_utxos answers -32603, generic, when validateAddress throws a native TypeError",
-      "REG-32: a validator throw that is not a caller fault is an internal error release_inputs answers -32603, generic, when validateReservationId throws a native TypeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native RangeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native TypeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native RangeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native TypeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native RangeError",
-      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native TypeError",
-      "REG-32: create_envelope_cancel_tx draws the same line as create_tx answers -32602 with the reason for a feePerKb below the relay minimum",
-      "REG-32: create_tx answers a caller fault with -32602 keeps the message of a TypeError the build raises",
-      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for a fee below the node relay minimum",
-      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for an explicit compress request on a non-FILE action",
-      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers -32603, generic, when the node reports no relayfee",
-      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_SET_TOO_LARGE with the cap for a tracker cap refusal",
-      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_TRACKER_ERROR, never -32602, for a malformed tracker row",
-      "REG-32: the other build paths keep node faults off -32602 answers -32603 from create_envelope_cancel_tx when the node reports no relayfee",
-      "REG-32: the other build paths keep node faults off -32602 raises a plain Error, not a RangeError, from the output-uplift invariant"
-    ],
     "c77bdfff70e2f687": [
       "XChainEncoder.createTransaction() P2SH native-fee customOutputs phase 1 (funding) does NOT emit the fee-destination output",
       "XChainEncoder.createTransaction() P2SH native-fee customOutputs phase 1 (funding) over-funds the P2SH output by the fee value plus its byte cost",
@@ -2765,6 +2738,35 @@
       "Category F: Multi-Chain Network Configs litecoin-regtest: basic PSBT construction creates valid P2SH transaction",
       "Category F: Multi-Chain Network Configs litecoin-regtest: basic PSBT construction uses correct dustThreshold of 5460"
     ],
+    "e5bc2191ff8d2b4b": [
+      "REG-32: a caller fault the validator names keeps -32602 and its reason broadcast_tx answers -32602 for hex that does not decode as a transaction",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason broadcast_tx answers -32602 for odd-length tx_hex",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason create_tx answers -32602 for a negative fee",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason get_utxos answers -32602 for an over-length address",
+      "REG-32: a caller fault the validator names keeps -32602 and its reason release_inputs answers -32602 for a malformed reservationId",
+      "REG-32: a reveal funding hex that does not decode is a caller fault create_tx answers -32602 for a P2SH p2shHex that is hex but not a transaction",
+      "REG-32: a reveal funding hex that does not decode is a caller fault create_tx answers -32602 for a P2WSH p2shHex that is hex but not a transaction",
+      "REG-32: a validator throw that is not a caller fault is an internal error broadcast_tx answers -32603, generic, when validateRawTxHex throws a native TypeError",
+      "REG-32: a validator throw that is not a caller fault is an internal error create_tx answers -32603, generic, when validateAll throws a native TypeError",
+      "REG-32: a validator throw that is not a caller fault is an internal error get_utxos answers -32603, generic, when validateAddress throws a native TypeError",
+      "REG-32: a validator throw that is not a caller fault is an internal error release_inputs answers -32603, generic, when validateReservationId throws a native TypeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native RangeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_envelope_cancel_tx answers -32603, generic, for a native TypeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native RangeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error create_tx answers -32603, generic, for a native TypeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native RangeError",
+      "REG-32: an unmarked TypeError or RangeError from the build is an internal error release_inputs answers -32603, generic, for a native TypeError",
+      "REG-32: create_envelope_cancel_tx draws the same line as create_tx answers -32602 with the reason for a feePerKb below the relay minimum",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the message of a TypeError the build raises",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for a fee below the node relay minimum",
+      "REG-32: create_tx answers a caller fault with -32602 keeps the reason for an explicit compress request on a non-FILE action",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers -32603, generic, when the node reports no relayfee",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_SET_TOO_LARGE with the cap for a tracker cap refusal",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error answers UTXO_TRACKER_ERROR, never -32602, for a malformed tracker row",
+      "REG-32: create_tx answers a server fault with -32603 or a tracker error keeps the stable operational reason when details also contain reason",
+      "REG-32: the other build paths keep node faults off -32602 answers -32603 from create_envelope_cancel_tx when the node reports no relayfee",
+      "REG-32: the other build paths keep node faults off -32602 raises a plain Error, not a RangeError, from the output-uplift invariant"
+    ],
     "e855d976bf5194b0": [
       "Data/Payload Boundaries UTF-8 multi-byte at byte boundary 75-byte UTF-8 string (37 two-byte chars + 1 ASCII) \u2192 OP_RETURN",
       "Data/Payload Boundaries UTF-8 multi-byte at byte boundary 76-byte UTF-8 string (38 two-byte chars) \u2192 P2SH",
@@ -2976,7 +2978,7 @@
   "scripts": {
     "test": {
       "fileCount": 201,
-      "titleCount": 1480,
+      "titleCount": 1481,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3001,7 +3003,7 @@
         "test/unit/api/mainnet_prelaunch_refusal.test.js": "714506268452508a",
         "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/no_bare_param_errors.test.js": "c902501b3d758dbd",
-        "test/unit/api/node_tier_gate.test.js": "3edfd81d1bf84723",
+        "test/unit/api/node_tier_gate.test.js": "9c17ba99020cba7c",
         "test/unit/api/non_json_content_type.test.js": "6f52641b0158c98a",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/api/openrpc_key_exemption.test.js": "b7508c7d593792ce",
@@ -3277,7 +3279,7 @@
     },
     "test:regression": {
       "fileCount": 34,
-      "titleCount": 380,
+      "titleCount": 381,
       "files": {
         "test/regression/reg_01_encoding_types.test.js": "c438a1275387f62b",
         "test/regression/reg_02_obfuscation.test.js": "6c8feaefe1116923",
@@ -3302,7 +3304,7 @@
         "test/regression/reg_15_uppercase_txid_key_binding.test.js": "926d15e7ddd15fee",
         "test/regression/reg_16_rawdata_only_warning.test.js": "145ea55c07323321",
         "test/regression/reg_17_utxo_pagination_snapshot.test.js": "12669e1f85d97a8a",
-        "test/regression/reg_32_create_tx_error_code_split.test.js": "c769479e48bdc605",
+        "test/regression/reg_32_create_tx_error_code_split.test.js": "e5bc2191ff8d2b4b",
         "test/regression/reg_33_network_invalid_address.test.js": "f557fd05ee550b78",
         "test/regression/reg_34_unknown_prev_txid_error_code.test.js": "3ccf5ae3e1e4fba0",
         "test/regression/reg_soft_dust_base_fee_floor.test.js": "909e8b2ca5e1e57b",
@@ -3335,7 +3337,7 @@
     },
     "test:unit": {
       "fileCount": 201,
-      "titleCount": 1480,
+      "titleCount": 1481,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3360,7 +3362,7 @@
         "test/unit/api/mainnet_prelaunch_refusal.test.js": "714506268452508a",
         "test/unit/api/middleware_order.test.js": "cc7754caab01c0b9",
         "test/unit/api/no_bare_param_errors.test.js": "c902501b3d758dbd",
-        "test/unit/api/node_tier_gate.test.js": "3edfd81d1bf84723",
+        "test/unit/api/node_tier_gate.test.js": "9c17ba99020cba7c",
         "test/unit/api/non_json_content_type.test.js": "6f52641b0158c98a",
         "test/unit/api/openrpc_coverage.test.js": "995c9801f2581aab",
         "test/unit/api/openrpc_key_exemption.test.js": "b7508c7d593792ce",
