@@ -19,10 +19,17 @@
  ********************************************************************/
 
 const { Encoding } = require('../constants.js')
+const { finishTwoStepCommit, finishTwoStepReveal } = require('./envelope_two_step.js')
 
 // The duplicate-build gate, then the response object and its additive fields.
 function finishBuild(build){
     let { callReservations, psbt, preparedData } = build
+    if (build.twoStepSignedCommit){
+        const result = finishTwoStepReveal.call(this, build)
+        attachAdvisories(build, result)
+        attachCompression(build, result)
+        return result
+    }
     // Carrier scripts for the chunk lanes, so a client can VERIFY the
     // commit outputs it is about to sign instead of trusting them.
     //
@@ -60,6 +67,10 @@ function finishBuild(build){
 
     attachAdvisories(build, result)
     attachCompression(build, result)
+    if (build.options && build.options.twoStepEnvelope){
+        finishTwoStepCommit.call(this, build, result)
+        return result
+    }
     attachCarriers(build, result)
     return result
 }
