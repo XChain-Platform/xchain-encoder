@@ -181,16 +181,17 @@ function registerCompressionRefusalCase () {
 }
 
 function registerTaprootSizeCase () {
-  it('builds a 389,920-byte part as a TAPROOT pair from only its exact P2WPKH output', async function () {
+  it('builds a 389,920-byte part as a TAPROOT pair from every exact P2WPKH output', async function () {
     const { encoder, previousTransactions } = makeEncoder()
     const { p2wpkh } = payments(encoder.network)
     const chosen = fundedUtxo(previousTransactions, p2wpkh)
+    const extra = fundedUtxo(previousTransactions, p2wpkh, 10000)
     const rawData = Buffer.alloc(389920, 0x7a)
     const compiled = bitcoin.script.compile([Buffer.from(PART_ACTION), rawData])
     assert.strictEqual(compiled.length, ENVELOPE_MAX_PAYLOAD - 1)
 
     const result = await build(encoder, {
-      utxos: [chosen],
+      utxos: [chosen, extra],
       source: p2wpkh.address,
       action: PART_ACTION,
       rawData,
@@ -204,7 +205,10 @@ function registerTaprootSizeCase () {
     assert.ok(result.psbt)
     assert.ok(result.revealPsbt)
     assert.ok(result.envelope)
-    assert.deepStrictEqual(outpointsOf(result.psbt), [`${chosen.txid}:0`])
+    assert.deepStrictEqual(outpointsOf(result.psbt), [
+      `${chosen.txid}:0`,
+      `${extra.txid}:0`
+    ])
   })
 }
 
