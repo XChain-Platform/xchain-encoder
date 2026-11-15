@@ -79,6 +79,7 @@ function makeRpcBatchGuard(maxBatch){
 const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./server/single_instance_guard')
 const { parseCorsOrigin } = require('./server/cors_origin')
 const { jsonErrorHandler } = require('./server/json_error_handler')
+const { installGateMetrics } = require('./server/gate_metrics')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
 
@@ -95,7 +96,7 @@ const ENCODER_API_PORT = config.ENCODER_API_PORT
 const _maxFeeRateKb = parseInt(config.MAX_FEE_RATE_KB, 10)
 const MAX_FEE_RATE_KB = (Number.isFinite(_maxFeeRateKb) && _maxFeeRateKb > 0) ? _maxFeeRateKb : null
 // Relative fee-rate ceiling as a multiple of the node's estimatesmartfee(1)
-// estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder.js).
+// estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder/constants.js).
 // Caps caller-supplied fee/feePerKb so a hostile request cannot drain inputs
 // into miner fee. Set to 0 to disable (not recommended).
 // An unset, unparseable or negative value keeps the encoder default (fail-safe).
@@ -277,11 +278,12 @@ app.use(requestGate)
 // as every other route. The request-timing middleware hoists itself to the front
 // of the stack so it still measures the routes registered above.
 // See src/observability/README.md.
-installObservability(app, {
+const observability = installObservability(app, {
     service: 'xchain-encoder',
     version: ENCODER_VERSION,
     network: NETWORK || ''
 });
+installGateMetrics(observability, { request: requestGate, probe: probeGate });
 
 // The readiness probe and every JSON-RPC method live beside this file; they
 // close over the encoder instance and network built above, so the part hands

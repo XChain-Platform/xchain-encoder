@@ -24,6 +24,7 @@ const { safeUpstreamReason } = require('../common/error_sanitize');
 const { validateAddress, assertPubkeyOnCurve } = require('../common/validator');
 const { ensureEccLib } = require('./script_amount_helpers.js');
 const { ParamTypeError } = require('../build/errors');
+const coins = require('../coins');
 
 // THE tracker-freshness classifier. Pure: it reads a `sync` object and a lag
 // ceiling and returns a verdict; it never throws, logs, or touches a connector.
@@ -124,7 +125,9 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
 // (OP_DUP OP_HASH160 <hash160> OP_EQUALVERIFY OP_CHECKSIG) with the SOURCE key,
 // so the returned hash MUST equal HASH160(that pubkey). It is the same 20 bytes
 // whichever identity form the caller sends:
-//   - base58 P2PKH/P2SH address -> fromBase58Check().hash (legacy, unchanged)
+//   - base58 P2PKH address -> fromBase58Check().hash (legacy, unchanged). A base58
+//     script-hash address is refused: its hash is HASH160(redeemScript), which no
+//     key satisfies as a P2PKH gate, so every chunk output would be stranded
 //   - raw compressed/uncompressed pubkey hex -> crypto.hash160(pubkey)
 //   - v0 bech32 P2WPKH address -> the witness program IS HASH160(pubkey)
 // The decoder reads ONLY the leading data chunk (redeemScript[0]) and never this
@@ -133,6 +136,19 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
 // pubkey and bech32 sources threw "Non-base58 character" here. That prevented
 // large FILE, contract DEPLOY, validator UNSTAKE/claim, and cross-chain SWAP
 // broadcasts from bech32-only venues.
+// Every script-hash version byte any supported coin and network uses. These
+// never collide with a pubKeyHash byte, so a match identifies a P2SH address
+// whichever network it was minted for.
+let scriptHashVersionSet = null
+function scriptHashVersions() {
+    if (scriptHashVersionSet) return scriptHashVersionSet
+    scriptHashVersionSet = new Set()
+    for (const tick of Object.values(coins.FULL_NAME_TO_TICK)) {
+        for (const net of coins.NETWORKS) scriptHashVersionSet.add(coins.getCoinConfig(tick, net).net.scriptHash)
+    }
+    return scriptHashVersionSet
+}
+
 function resolveCallerHash160(pubKey) {
     // Raw compressed (02/03 + 64 hex) or uncompressed (04 + 128 hex) pubkey first:
     // a base58 address can never match this shape (base58 excludes 0/O/I/l and
@@ -144,8 +160,15 @@ function resolveCallerHash160(pubKey) {
         assertPubkeyOnCurve(pubkeyBuf, 'pubkey')
         return bitcoin.crypto.hash160(pubkeyBuf)
     }
-    // Base58 P2PKH/P2SH address: byte-identical to the original behavior.
-    try { return bitcoin.address.fromBase58Check(pubKey).hash } catch (_) { /* not base58 */ }
+    // Base58 P2PKH address: byte-identical to the original behavior.
+    let base58 = null
+    try { base58 = bitcoin.address.fromBase58Check(pubKey) } catch (_) { /* not base58 */ }
+    if (base58) {
+        if (scriptHashVersions().has(base58.version)) {
+            throw new ParamTypeError(`caller "${pubKey}" is a script-hash (P2SH) address; the chunk-lane gate needs HASH160 of a public key, so send the pubkey hex, a P2PKH address or a v0 bech32 P2WPKH address`)
+        }
+        return base58.hash
+    }
     // v0 bech32 P2WPKH: the 20-byte witness program already equals HASH160(pubkey).
     try {
         const dec = bitcoin.address.fromBech32(pubKey)
@@ -155,7 +178,7 @@ function resolveCallerHash160(pubKey) {
         if (e && typeof e.message === 'string' && e.message.indexOf('witness program') !== -1) throw e
     }
     // A caller-input refusal, so it is typed to map to -32602 rather than an internal error.
-    throw new ParamTypeError(`prepareData: cannot resolve a 20-byte caller HASH160 from identity "${pubKey}" (expected a base58 P2PKH/P2SH address, a compressed/uncompressed pubkey hex, or a v0 bech32 P2WPKH address)`)
+    throw new ParamTypeError(`prepareData: cannot resolve a 20-byte caller HASH160 from identity "${pubKey}" (expected a base58 P2PKH address, a compressed/uncompressed pubkey hex, or a v0 bech32 P2WPKH address)`)
 }
 
 // Sibling of resolveCallerHash160, same "any identity in" contract, but for

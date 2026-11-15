@@ -38,6 +38,7 @@ const fs = require('fs')
 const compression = require('../../../../src/build/compression')
 const validator = require('../../../../src/common/validator')
 const { PUBLIC_FILE, compressibleBytes } = require('./helpers/fixtures')
+const { siblingCheckout, skipOrFail } = require('../../../helpers/sibling_checkout.js')
 
 describe('encoder FILE payload compression (spec Part B)', function () {
     describe('constants conformance', function () {
@@ -56,11 +57,8 @@ describe('encoder FILE payload compression (spec Part B)', function () {
         const DOCS_CONSTANTS = path.join(DOCS, 'protocol', 'constants.js')
 
         it('they equal the canonical declaration (skips without the docs sibling)', function () {
-            if (!fs.existsSync(DOCS_CONSTANTS)) {
-                if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1')
-                    throw new Error('xchain-documentation sibling not found but XCHAIN_REQUIRE_SIBLINGS=1')
-                this.skip()
-            }
+            if (!skipOrFail(this, siblingCheckout(__dirname, DOCS_CONSTANTS),
+                'the compression constants parity guard against xchain-documentation')) return
             const docs = require(DOCS_CONSTANTS)
             assert.strictEqual(docs.COMPRESSION_CODE_DEFLATE_RAW, validator.COMPRESSION_CODE_DEFLATE_RAW)
             assert.strictEqual(docs.COMPRESSION_MAX_RATIO, validator.COMPRESSION_MAX_RATIO)
@@ -75,11 +73,8 @@ describe('encoder FILE payload compression (spec Part B)', function () {
             const SDK = process.env.XCHAIN_SDK_DIR ||
                 path.join(__dirname, '../../../../../xchain-sdk')
             const SDK_COMPRESSION = path.join(SDK, 'src', 'protocol', 'compression.js')
-            if (!fs.existsSync(SDK_COMPRESSION)) {
-                if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1')
-                    throw new Error('xchain-sdk sibling not found but XCHAIN_REQUIRE_SIBLINGS=1')
-                this.skip()
-            }
+            if (!skipOrFail(this, siblingCheckout(__dirname, SDK_COMPRESSION),
+                'the compressIfSmaller decision parity guard against xchain-sdk')) return
             const SdkCompression = require(SDK_COMPRESSION)
             const sdk = new SdkCompression()
 

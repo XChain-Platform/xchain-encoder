@@ -88,7 +88,7 @@ function throwIfRefused(profile, sync, maxLagBlocks){
 }
 
 module.exports = {
-    PROFILE_DEFAULT, PROFILE_REMOTE, resolveTrackerProfile, isRemoteProfile,
+    resolveTrackerProfile, isRemoteProfile,
     assertRemoteTrackerConfigured, trackerUnreachableError, trackerSyncMissingError,
     classifyRemoteSync, throwIfRefused
 }

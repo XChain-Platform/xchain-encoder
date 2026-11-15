@@ -28,7 +28,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin today on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee**: optional RBF signaling via sequence number
 - **Custom outputs**: arbitrary address/value outputs (e.g., COINPay native coin payments)
-- **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
+- **Token-gated content support**: encodes gated FILE actions (format 0) with optional `GATE_TICKER`, `ENCRYPTION_METHOD`, `KEY_HASH`, and `GATE_MIN_AMOUNT` fields, plus `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard, the recent-build duplicate refusal, the envelope-cancel owner set, the `release_inputs` reservation tickets, the rate limiter and the concurrency-gate counters are in-process only until a shared store exists
 - **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke

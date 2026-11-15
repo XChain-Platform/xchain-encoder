@@ -154,4 +154,4 @@ function logErrorOnce(logger, prefix, err) {
     return true
 }
 
-module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS, describeErrorForLog, logErrorOnce, MAX_LOG_LINE_CHARS }
+module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS, logErrorOnce }

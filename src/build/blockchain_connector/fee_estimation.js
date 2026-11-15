@@ -112,13 +112,20 @@ function sumPackageEntries(packageEntries) {
 // node that does not answer at all is a failure: inventing a rate for it would
 // let a fee quote report success off a dead node, and a caller looping over
 // tiers would wait one full RPC timeout per tier before seeing that success.
+// A node that answered with an RPC error body (a warming node, a refused
+// credential) is not unreachable: that error keeps its detail as a plain Error
+// instead of being reported as an outage.
 async function regtestFee(connector) {
     let info;
     try {
         info = await connector.getNetworkInfo();
     } catch (err) {
         logger.error(util.format('Regtest fee query failed:', err && err.message));
-        throw new OperationalError('NODE_UNREACHABLE', 'Coin node did not answer the fee query; retry once the node is reachable');
+        if (err && err.operational === true) throw err;
+        if (!(err && err.response) && isTransportError(err)) {
+            throw new OperationalError('NODE_UNREACHABLE', 'Coin node did not answer the fee query; retry once the node is reachable');
+        }
+        throw err instanceof Error ? err : new Error('Regtest fee query failed');
     }
     const relayfee = Number(info && info.relayfee);
     if (relayfee > 0) return relayfee;
@@ -256,8 +263,17 @@ module.exports = {
     },
 
     async getFeePerKilobyte(blocksNumber) {
+        let regtest
         try {
-            if (await this.isRegtest()) return await regtestFee(this)
+            regtest = await this.isRegtest()
+        } catch (error) {
+            if (error && error.operational === true) throw error
+            return await recoverFeeEstimate(this, error)
+        }
+        // regtestFee classifies its own failures; routing one through the
+        // recovery path would ask the same node again for the same answer.
+        if (regtest) return await regtestFee(this)
+        try {
             const responseData = await requestSmartFee(this, blocksNumber)
             const feerate = await usableSmartFee(this, responseData)
             if (feerate !== null) return feerate

@@ -1,4 +1,16 @@
 /*********************************************************************
+ *
+ * Copyright © 2025–2026 Dankest, LLC
+ * Based on XChain Platform by Dankest, LLC – https://dankest.llc
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This file is part of XChain Platform. Licensed under the GNU Affero
+ * General Public License v3.0 or later; see LICENSE.md. A commercial
+ * license (without AGPL source-disclosure terms) is available -
+ * contact legal@dankest.llc.
+ *
+ **********************************************************************
  * Unit: Taproot envelope recognition gate
  *
  * Segwit support alone was the whole TAPROOT gate, and it is not enough.
@@ -20,11 +32,11 @@
 'use strict';
 
 const assert = require('assert');
-const fs     = require('fs');
 const path   = require('path');
 
 const XChainEncoder  = require('../../../src/XChainEncoder');
 const CryptoNetworks = require('../../../src/build/crypto_networks');
+const { siblingCheckout, skipOrFail } = require('../../helpers/sibling_checkout.js');
 
 // The gate reads only the resolved recognition height and connector.getBlockCount,
 // so a network KEY plus a stub connector is the whole surface; building a real
@@ -121,13 +133,8 @@ describe('encoder activation heights are byte-equal to the decoder consensus cop
     const DECODER_CONSTANTS = path.join(DECODER, 'src', 'protocol', 'constants.js');
 
     before(function () {
-        if (!fs.existsSync(DECODER_CONSTANTS)) {
-            if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1') {
-                throw new Error('xchain-decoder sibling not found at ' + DECODER_CONSTANTS +
-                                ' but XCHAIN_REQUIRE_SIBLINGS=1');
-            }
-            this.skip();
-        }
+        skipOrFail(this, siblingCheckout(__dirname, DECODER_CONSTANTS),
+            'the envelope-recognition activation parity guard against xchain-decoder');
     });
 
     it('the whole table is deep-equal to the decoder consensus copy', function () {

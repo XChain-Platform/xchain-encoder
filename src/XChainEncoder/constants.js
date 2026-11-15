@@ -104,9 +104,21 @@ const SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER = 10
 // MAX_CPFP_UPLIFT_SAT overrides it; 0 turns package sizing off.
 const DEFAULT_MAX_CPFP_UPLIFT_SAT = 10000000
 
+// Default ceiling on any caller-supplied fee, expressed as a multiple of the
+// node's own estimatesmartfee(1) estimate. Without a cap, a malicious or buggy
+// caller can set fee/feePerKb so high that every selected input is drained
+// into miner fee (the user signs the PSBT none the wiser). Relative to the
+// node estimate rather than absolute, so it tracks fee-market swings and works
+// across chains with very different fee scales (BTC/LTC/DOGE). 100× passes any
+// plausible priority/RBF fee (and fixed regtest test fees over quiet-chain
+// estimates) while still rejecting drain-grade fees, which sit thousands of
+// multiples above the market rate.
+const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
+
 // Fixed burn backstop: no caller fee or rate may exceed this multiple of the
-// node-anchored fair rate, whatever MAX_FEE_RATE_MULTIPLIER says. Matches that
-// setting's default, so default deployments never reach it.
+// node-anchored fair rate, whatever MAX_FEE_RATE_MULTIPLIER says. It is a
+// separate literal from the default above on purpose (the backstop stays fixed
+// when the default is retuned), and a unit test fails if the two diverge.
 const BURN_BACKSTOP_MULTIPLIER = 100
 
 // How long a selected outpoint stays reserved against concurrent selection.
@@ -130,4 +142,4 @@ const Encoding = {
     AUTO: "AUTO"
 }
 
-module.exports = { logger, OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_LEAF_VERSION, TAPROOT_ENVELOPE_FORMAT_V0, SATOSHI_UNIT, MAX_SAFE_SATOSHI_BIG, SOFT_DUST_FLOOR_BY_COIN, DUST_RELAY_FEE_PER_BYTE_BY_COIN, FLAT_RELAY_DUST_COINS, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, TEST_NETWORK_SUFFIXES, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, BURN_BACKSTOP_MULTIPLIER, RESERVATION_TTL_MS, Encoding }
+module.exports = { logger, OP_RETURN_SIZE, P2SH_SIZE, PW2SH_SIZE, MULTISIGN_SIZE, MAGIC_WORD, TAPROOT_ENVELOPE_CHUNK_SIZE, TAPROOT_LEAF_VERSION, TAPROOT_ENVELOPE_FORMAT_V0, SATOSHI_UNIT, MAX_SAFE_SATOSHI_BIG, SOFT_DUST_FLOOR_BY_COIN, DUST_RELAY_FEE_PER_BYTE_BY_COIN, FLAT_RELAY_DUST_COINS, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, TEST_NETWORK_SUFFIXES, SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER, DEFAULT_MAX_CPFP_UPLIFT_SAT, DEFAULT_MAX_FEE_RATE_MULTIPLIER, BURN_BACKSTOP_MULTIPLIER, RESERVATION_TTL_MS, Encoding }

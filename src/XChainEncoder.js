@@ -37,7 +37,7 @@ const { upstreamErrorMessage } = require('./common/error_sanitize')
 const util = require('node:util');
 const config = require('./common/config');
 
-const { logger, MAGIC_WORD, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, DEFAULT_MAX_CPFP_UPLIFT_SAT, RESERVATION_TTL_MS, Encoding } = require('./XChainEncoder/constants.js')
+const { logger, MAGIC_WORD, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, DEFAULT_MAX_CPFP_UPLIFT_SAT, DEFAULT_MAX_FEE_RATE_MULTIPLIER, RESERVATION_TTL_MS, Encoding } = require('./XChainEncoder/constants.js')
 const { softDustFloorFor, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSafeSat } = require('./XChainEncoder/script_amount_helpers.js')
 const { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis } = require('./XChainEncoder/fee_policy.js')
 const { classifyTrackerFreshness, resolveCallerAddress, defaultCompressionEnabled, assertRevealFundingTxMatches } = require('./XChainEncoder/request_resolution.js')
@@ -52,17 +52,6 @@ const { emitChangeAndPad, sweepP2shReveal, buildEnvelopeReveal } = require('./XC
 const { refuseUnderStrippedFloor } = require('./XChainEncoder/build_transaction/stripped_floor.js')
 const { finishBuild } = require('./XChainEncoder/build_transaction/build_result.js')
 
-
-// Default ceiling on any caller-supplied fee, expressed as a multiple of the
-// node's own estimatesmartfee(1) estimate. Without a cap, a malicious or buggy
-// caller can set fee/feePerKb so high that every selected input is drained
-// into miner fee (the user signs the PSBT none the wiser). Relative to the
-// node estimate rather than absolute, so it tracks fee-market swings and works
-// across chains with very different fee scales (BTC/LTC/DOGE). 100× passes any
-// plausible priority/RBF fee (and fixed regtest test fees over quiet-chain
-// estimates) while still rejecting drain-grade fees, which sit thousands of
-// multiples above the market rate.
-const DEFAULT_MAX_FEE_RATE_MULTIPLIER = 100
 
 
 

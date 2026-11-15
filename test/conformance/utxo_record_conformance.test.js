@@ -37,6 +37,7 @@ const path = require('path')
 const axios = require('axios')
 const UtxoTracker = require('../../src/build/utxo_tracker')
 const validator = require('../../src/common/validator')
+const { siblingCheckout, skipOrFail } = require('../helpers/sibling_checkout.js')
 
 const VENDORED = path.join(__dirname, '..', 'fixtures', 'utxo-record-conformance.json')
 const fixture = JSON.parse(fs.readFileSync(VENDORED, 'utf8'))
@@ -227,13 +228,8 @@ describe('utxo-record conformance fixture: the tracker record passes both inboun
 
 describe('utxo-record conformance fixture: byte-identity to the tracker original', function () {
   before(function () {
-    if (!fs.existsSync(TRACKER_FIXTURE)) {
-      if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1') {
-        throw new Error('xchain-utxo-tracker sibling fixture not found at ' + TRACKER_FIXTURE +
-          ' but XCHAIN_REQUIRE_SIBLINGS=1')
-      }
-      this.skip()
-    }
+    skipOrFail(this, siblingCheckout(__dirname, TRACKER_FIXTURE),
+      'the utxo-record fixture byte-identity guard against xchain-utxo-tracker')
   })
 
   it('vendored test/fixtures/utxo-record-conformance.json is byte-identical to the tracker original', function () {
