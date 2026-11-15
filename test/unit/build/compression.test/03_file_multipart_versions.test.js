@@ -131,9 +131,7 @@ async function buildP2shPair (encoder, request) {
   return { funding, reveal }
 }
 
-describe('encoder FILE multipart versions', function () {
-  this.timeout(10000)
-
+function registerRawDefaultCase () {
   it('keeps a version 2 part raw by default and carries no COMPRESSION field', async function () {
     const { encoder, previousTransactions } = makeEncoder()
     const { p2wpkh } = payments(encoder.network)
@@ -159,7 +157,9 @@ describe('encoder FILE multipart versions', function () {
       reason: 'not-a-file-action'
     })
   })
+}
 
+function registerCompressionRefusalCase () {
   it('refuses explicit compression of a version 2 part at guard 1', async function () {
     const { encoder, previousTransactions } = makeEncoder()
     const { p2wpkh } = payments(encoder.network)
@@ -178,7 +178,9 @@ describe('encoder FILE multipart versions', function () {
       /COMPRESSION is a FILE v0 field/
     )
   })
+}
 
+function registerTaprootSizeCase () {
   it('builds a 389,920-byte part as a TAPROOT pair from only its exact P2WPKH output', async function () {
     const { encoder, previousTransactions } = makeEncoder()
     const { p2wpkh } = payments(encoder.network)
@@ -204,7 +206,9 @@ describe('encoder FILE multipart versions', function () {
     assert.ok(result.envelope)
     assert.deepStrictEqual(outpointsOf(result.psbt), [`${chosen.txid}:0`])
   })
+}
 
+function registerManifestCase () {
   it('builds a version 1 manifest without rawData', async function () {
     const { encoder, previousTransactions } = makeEncoder()
     const { p2wpkh } = payments(encoder.network)
@@ -225,7 +229,9 @@ describe('encoder FILE multipart versions', function () {
     assert.strictEqual(payload.length, 1)
     assert.strictEqual(payload[0].toString('utf8'), MANIFEST_ACTION)
   })
+}
 
+function registerTaprootSourceRefusalCases () {
   for (const sourceType of ['P2PKH', 'P2SH-P2WPKH']) {
     it(`refuses a ${sourceType} source for a TAPROOT pair`, async function () {
       const { encoder, previousTransactions } = makeEncoder()
@@ -246,7 +252,9 @@ describe('encoder FILE multipart versions', function () {
       )
     })
   }
+}
 
+function registerP2shSizeCase () {
   it('builds an 8,114-byte part as a P2SH pair from a P2PKH source', async function () {
     const { encoder, previousTransactions } = makeEncoder()
     const { p2pkh } = payments(encoder.network)
@@ -267,4 +275,15 @@ describe('encoder FILE multipart versions', function () {
     assert.ok(pair.funding.psbt.data.inputs[0].nonWitnessUtxo)
     assert.strictEqual(pair.reveal.psbt.txInputs.length, pair.funding.carrierScripts.length)
   })
+}
+
+describe('encoder FILE multipart versions', function () {
+  this.timeout(10000)
+
+  registerRawDefaultCase()
+  registerCompressionRefusalCase()
+  registerTaprootSizeCase()
+  registerManifestCase()
+  registerTaprootSourceRefusalCases()
+  registerP2shSizeCase()
 })
