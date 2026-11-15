@@ -103,6 +103,8 @@ async function routeEachPublicHandler () {
     calls.fees.push(target)
     return target / 100000
   }
+  // The backend is stubbed, so its param validation is too.
+  api.encoder.validateEnvelopeCancelParams = () => {}
   api.encoder.createEnvelopeCancelTransaction = async params => {
     calls.cancel.push(params)
     return { psbt: { toHex: () => 'cancel-psbt' }, encoding: 'TAPROOT', cancel: true }
