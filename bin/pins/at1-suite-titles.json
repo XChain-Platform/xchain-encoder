@@ -846,6 +846,12 @@
       "reservation release on throw @regression a successful build keeps its reservations for the TTL",
       "reservation release on throw @regression an outpoint re-reserved by another call after ours lapsed is left alone"
     ],
+    "502d8747d991217e": [
+      "XChainEncoder TAPROOT two-step envelope for non-native-segwit commits accepts the two-step option keys while still refusing unknown option keys",
+      "XChainEncoder TAPROOT two-step envelope for non-native-segwit commits builds and finalizes a P2PKH-funded commit and reveal with source attribution at input 0",
+      "XChainEncoder TAPROOT two-step envelope for non-native-segwit commits builds and finalizes a P2SH-P2WPKH-funded commit and reveal with source attribution at input 0",
+      "XChainEncoder TAPROOT two-step envelope for non-native-segwit commits refuses an unsigned envelopeCommitHex"
+    ],
     "5086151532f51b80": [
       "XChainEncoder TAPROOT envelope TxSizeEstimator envelope sizing estimateEnvelopeRevealTx covers and does not wildly over-fund a real reveal",
       "XChainEncoder TAPROOT envelope TxSizeEstimator envelope sizing estimateTaprootOutput matches the serialized P2TR output size",
@@ -2977,8 +2983,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 201,
-      "titleCount": 1481,
+      "fileCount": 202,
+      "titleCount": 1485,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3180,6 +3186,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/published_vectors.test.js": "331f46bf5c424942",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/two_step_non_segwit_commit.test.js": "502d8747d991217e",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "630d2a99378edc33"
       }
     },
@@ -3336,8 +3343,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 201,
-      "titleCount": 1481,
+      "fileCount": 202,
+      "titleCount": 1485,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3539,6 +3546,7 @@
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/05_key_path_cancel_suspension_count.test.js": "16b6105b0a4d877e",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/native_fee_on_commit.test.js": "cc54aa46235cfca0",
         "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/published_vectors.test.js": "331f46bf5c424942",
+        "test/unit/xchain_encoder/xchain_encoder_taproot_envelope.test/two_step_non_segwit_commit.test.js": "502d8747d991217e",
         "test/unit/xchain_encoder/xchain_encoder_utxo_dedup.test.js": "630d2a99378edc33"
       }
     }

@@ -34,7 +34,6 @@ const {
     validateEncoding
 } = require('./action_data_checks')
 const {
-    validateCreateTxOptions,
     validateFee,
     validateFeePerKb,
     validateDust,
@@ -43,6 +42,40 @@ const {
     validateFeeQuote
 } = require('./fee_and_utxo_checks')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
+
+const VALID_CREATE_TX_OPTIONS = new Set([
+    'signerSupportsTapscript',
+    'exactInputs',
+    'twoStepEnvelope',
+    'envelopeCommitHex'
+])
+
+function validateCreateTxOptions(options) {
+    if (options == null) return null
+    if (typeof options !== 'object' || Array.isArray(options)) {
+        throw new ParamTypeError('options must be an object')
+    }
+    for (const key of Object.keys(options)) {
+        if (!VALID_CREATE_TX_OPTIONS.has(key)) {
+            throw new ParamTypeError(`Unknown options key: "${truncateForMessage(key)}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
+        }
+    }
+    for (const key of ['signerSupportsTapscript', 'exactInputs', 'twoStepEnvelope']) {
+        if (options[key] !== undefined) validateOptionalBoolean(options[key], `options.${key}`)
+    }
+    if (options.envelopeCommitHex !== undefined) {
+        if (typeof options.envelopeCommitHex !== 'string' || options.envelopeCommitHex.length === 0) {
+            throw new ParamTypeError('options.envelopeCommitHex must be a non-empty signed transaction hex string')
+        }
+        if (options.envelopeCommitHex.length > MAX_RAW_TX_HEX_LENGTH) {
+            throw new ParamTypeError('options.envelopeCommitHex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
+        }
+        if (!RAW_TX_HEX_RE.test(options.envelopeCommitHex)) {
+            throw new ParamTypeError('options.envelopeCommitHex must be an even-length hex string')
+        }
+    }
+    return options
+}
 
 function validateP2shParams(p2shHash, p2shHex) {
     const hasHash = (p2shHash != null && p2shHash !== false)
@@ -171,7 +204,7 @@ function validatePaymentFields(params, context) {
     }
 }
 
-function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey) {
+function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey, options) {
     // MULTISIGN packs the caller's real pubkey as the 3rd fake-multisig pubkey, so it is
     // required. Without it the encoder reaches `Buffer.from(compressedPubKey, 'hex')` with
     // null and throws an opaque deep error; reject up front with a precise reason instead.
@@ -192,6 +225,10 @@ function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubk
     // chunked reveal concept and must not engage here.
     if (encoding === 'TAPROOT' && p2shHash != null) {
         throw new ParamTypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
+    }
+
+    if (options && (options.twoStepEnvelope !== undefined || options.envelopeCommitHex !== undefined) && encoding !== 'TAPROOT') {
+        throw new ParamTypeError('options.twoStepEnvelope and options.envelopeCommitHex are only valid with TAPROOT encoding')
     }
 
     // docs/openrpc.json marks pubkey required:true. A missing pubkey otherwise
@@ -273,10 +310,10 @@ function validateAll(params, context) {
         pubkey, fee, feePerKb, dust, utxos, customOutputs, feeQuote,
         p2shHash, p2shHex, compressedPubKey, change
     } = validatePaymentFields(params, context)
-    validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey)
     const {
         rbf, unconfirmed, attachPrevTx, compress, options
     } = validatePolicyFields(params)
+    validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey, options)
 
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,
