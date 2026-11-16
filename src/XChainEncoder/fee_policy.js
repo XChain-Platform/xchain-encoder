@@ -83,13 +83,17 @@ function packageFeeUpliftSatoshis({ currentFee, txSize, ancestorSize, ancestorFe
     return (uplift > 0) ? uplift : 0
 }
 
+function backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb }){
+    if (nodeFeePerBytes != null) return nodeFeePerBytes
+    return relayFeePerKb > 0 ? relayFeePerKb / 1000 : null
+}
+
 // Bound a fee rate (coin per byte) by the tighter of the operator cap and the
 // fixed burn backstop, both anchored on the node rate or relayfee.
 // Synchronous on purpose: the envelope cancel's suspension count is pinned.
 function capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb, maxFeePerBytes, maxFeeRateMultiplier }){
     // Anchor on the relay floor when the node has no estimate, so no cap goes missing.
-    const anchorFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes
-        : (relayFeePerKb > 0 ? relayFeePerKb / 1000 : null)
+    const anchorFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
     // The operator cap: the tighter of MAX_FEE_RATE_KB and the relative multiplier.
     let capFeePerBytes = maxFeePerBytes
     if (maxFeeRateMultiplier && anchorFeePerBytes != null){
@@ -152,4 +156,4 @@ function softDustSurchargeFor(outputValues, softDustFloor){
     return surcharge
 }
 
-module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, capCallerFeeRate, clampLimitLabel, feeForVsize, softDustSurchargeFor }
+module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, backstopReferenceFeePerBytes, capCallerFeeRate, clampLimitLabel, feeForVsize, softDustSurchargeFor }

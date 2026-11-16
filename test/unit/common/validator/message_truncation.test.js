@@ -20,7 +20,8 @@
 
 const assert = require('assert');
 const v = require('../../../../src/common/validator.js');
-const { validateCreateTxOptions, validateFee } = require('../../../../src/common/validator/fee_and_utxo_checks.js');
+const { validateFee } = require('../../../../src/common/validator/fee_and_utxo_checks.js');
+const { validateCreateTxOptions } = require('../../../../src/common/validator/transaction_checks.js');
 const { validateOptionalBoolean, parseSatoshiAmount, truncateForMessage } = require('../../../../src/common/validator/value_checks.js');
 const { ParamTypeError, ParamRangeError } = require('../../../../src/build/errors');
 

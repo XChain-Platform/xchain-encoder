@@ -18,6 +18,7 @@ const {
     HEX_64_RE,
     MAX_BROADCAST_TX_HEX_LENGTH,
     COMPRESSED_PUBKEY_RE,
+    VALID_CREATE_TX_OPTIONS,
     VALID_CREATE_TX_PARAMS,
     VALID_CREATE_ENVELOPE_CANCEL_PARAMS
 } = require('./constants')
@@ -43,13 +44,6 @@ const {
 } = require('./fee_and_utxo_checks')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
-const VALID_CREATE_TX_OPTIONS = new Set([
-    'signerSupportsTapscript',
-    'exactInputs',
-    'twoStepEnvelope',
-    'envelopeCommitHex'
-])
-
 function validateCreateTxOptions(options) {
     if (options == null) return null
     if (typeof options !== 'object' || Array.isArray(options)) {
@@ -60,6 +54,8 @@ function validateCreateTxOptions(options) {
             throw new ParamTypeError(`Unknown options key: "${truncateForMessage(key)}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
         }
     }
+    // Strict booleans matter for exactInputs in particular: the string "false"
+    // is truthy and a loose check would spend every outpoint in the caller's set.
     for (const key of ['signerSupportsTapscript', 'exactInputs', 'twoStepEnvelope']) {
         if (options[key] !== undefined) validateOptionalBoolean(options[key], `options.${key}`)
     }
@@ -292,8 +288,8 @@ function validateAll(params, context) {
     // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
     // params cleared this gate and died 50 lines later on 'pubkey is required',
     // reporting a missing field for what is a shape error. Same guard the
-    // object-shaped validators in fee_and_utxo_checks.js carry (validateCreateTxOptions,
-    // validateUtxoOutpoint, validateCustomOutput, validateFeeQuote).
+    // object-shaped validators carry (validateCreateTxOptions here; validateUtxoEntry,
+    // validateCustomOutput and validateFeeQuote in fee_and_utxo_checks.js).
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {
         throw new ParamTypeError('Request params must be an object')
     }
@@ -351,6 +347,7 @@ module.exports = {
     validateAddress,
     validateReservationId,
     validateChange,
+    validateCreateTxOptions,
     validateEnvelopeCancelParamKeys,
     validateAll
 }

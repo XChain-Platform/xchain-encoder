@@ -22,11 +22,11 @@ const util = require('node:util');
 const { OperationalError, ParamRangeError } = require('../../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, BURN_BACKSTOP_MULTIPLIER } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
-const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, feeForVsize } = require('../fee_policy.js')
+const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 
 // The caller-fee ceilings: the rate cap, then the absolute burn backstop.
 function refuseExcessiveFee(build){
-    let { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, feePerBytes } = build
+    let { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb } = build
     // The rate ceilings judge the caller's own fee; the soft-dust surcharge is policy.
     const estimatedFee = build.estimatedFee - (build.softDustSurcharge || 0)
     // Reject a caller-supplied absolute fee whose effective rate exceeds the
@@ -50,21 +50,18 @@ function refuseExcessiveFee(build){
     // the default MAX_FEE_RATE_MULTIPLIER, so default deployments are unaffected.
     // A caller feePerKb gets the same ceiling as a clamp, in capCallerFeeRate.
     //
-    // The fair-fee reference is the NODE's rate (nodeFeePerBytes), never the
-    // caller-supplied feePerKb: deriving the ceiling from feePerBytes let a
-    // caller inflate feePerKb to lift the ceiling with it, bypassing the
-    // backstop entirely whenever the rate cap was disabled. feePerBytes is
-    // used only as a last resort when the node can produce neither an
-    // estimate nor a relayfee (same graceful degradation as the relative
-    // cap, and the caller cannot cause that condition).
+    // The fair-fee reference is the node estimate, or the node relayfee when no
+    // estimate exists, never the caller's rate. If neither exists, an explicit-fee
+    // build is refused and an ancestor uplift is skipped.
     if (fee != null && fee !== false){
-        const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
-        if (referenceFeePerBytes != null){
-            const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
-            const hardCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
-            if (estimatedFee > hardCeiling){
-                throw new ParamRangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
-            }
+        const referenceFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+        if (referenceFeePerBytes == null){
+            throw new Error('Node reported neither a fee estimate nor a positive relayfee; the fee burn backstop cannot be anchored')
+        }
+        const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
+        const hardCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
+        if (estimatedFee > hardCeiling){
+            throw new ParamRangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
         }
     }
 }
@@ -161,7 +158,7 @@ function* upliftForAncestors(build){
 
 // The ancestor uplift actually applied, bounded by every ceiling and by the inputs.
 function upliftAncestorFee(build, ancestorPackage, wanted, cpfpUpliftBound){
-    let { capFeePerBytes, estimatedTxSize, estimatedFee, nodeFeePerBytes, feePerBytes, p2shHash, inputSatoshis,
+    let { capFeePerBytes, estimatedTxSize, estimatedFee, nodeFeePerBytes, relayFeePerKb, feePerBytes, p2shHash, inputSatoshis,
         outputSatoshis, unconfirmedInputTxids } = build
 // Its own absolute bound first: the uplift buys ancestor bytes, and
 // the rate caps below only ever measure a fee against THIS
@@ -173,8 +170,10 @@ if (capFeePerBytes != null){
     allowed = Math.min(allowed, maxFeeSatoshis - estimatedFee)
 }
 
-const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
-if (referenceFeePerBytes != null){
+const referenceFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+if (referenceFeePerBytes == null){
+    allowed = 0
+} else {
     const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
     allowed = Math.min(allowed, Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER) - estimatedFee)
 }

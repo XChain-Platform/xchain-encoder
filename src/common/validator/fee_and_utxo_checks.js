@@ -13,7 +13,6 @@
  **********************************************************************/
 
 const {
-    VALID_CREATE_TX_OPTIONS,
     MAX_FEE_SATOSHIS,
     RAW_TX_HEX_RE,
     MAX_SCRIPTPUBKEY_HEX_LENGTH,
@@ -22,35 +21,12 @@ const {
     MAX_CUSTOM_OUTPUTS
 } = require('./constants')
 const {
-    validateOptionalBoolean,
     toExactInt,
     parseSatoshiAmount,
     truncateForMessage
 } = require('./value_checks')
 const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
-
-function validateCreateTxOptions(options) {
-    if (options == null) return null
-    if (typeof options !== 'object' || Array.isArray(options)) {
-        throw new ParamTypeError('options must be an object')
-    }
-    for (const key of Object.keys(options)) {
-        if (!VALID_CREATE_TX_OPTIONS.has(key)) {
-            throw new ParamTypeError(`Unknown options key: "${truncateForMessage(key)}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
-        }
-    }
-    if (options.signerSupportsTapscript !== undefined) {
-        validateOptionalBoolean(options.signerSupportsTapscript, 'options.signerSupportsTapscript')
-    }
-    // Strict boolean for the same reason rbf is: exactInputs turns UTXO selection
-    // off, and the string "false" is truthy, so a loose check would spend every
-    // outpoint in the caller's set when they asked for the opposite.
-    if (options.exactInputs !== undefined) {
-        validateOptionalBoolean(options.exactInputs, 'options.exactInputs')
-    }
-    return options
-}
 
 function validateFee(fee) {
     if (fee == null || fee === false) return null
@@ -270,8 +246,8 @@ function validateFeeQuote(feeQuote) {
     // Array.isArray, because typeof [] is 'object': a JSON array cleared this gate
     // and died one line later on validateAddress(undefined), reporting an address
     // error for what is a shape error. Same guard the other object-shaped
-    // validators carry (validateCreateTxOptions, validateUtxoOutpoint,
-    // validateCustomOutput, and validateAll in transaction_checks.js). No === null
+    // validators carry (validateUtxoEntry and validateCustomOutput here;
+    // validateCreateTxOptions and validateAll in transaction_checks.js). No === null
     // clause: the line above already returns for a null/absent quote, which is legal.
     if (typeof feeQuote !== 'object' || Array.isArray(feeQuote)) {
         throw new ParamTypeError('feeQuote must be an object with address and amount')
@@ -289,7 +265,6 @@ function validateFeeQuote(feeQuote) {
 }
 
 module.exports = {
-    validateCreateTxOptions,
     validateFee,
     validateFeePerKb,
     validateDust,

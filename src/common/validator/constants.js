@@ -145,8 +145,14 @@ const MAX_SATOSHI_U64 = 0xffffffffffffffffn
 // The create_tx options bag. Unknown keys are refused rather than ignored: a
 // misspelled capability that silently means "no" would send an envelope-capable
 // signer down the P2WSH path at 2x the cost with no signal, and a misspelled one
-// that silently meant "yes" would be worse.
-const VALID_CREATE_TX_OPTIONS = new Set(['signerSupportsTapscript', 'exactInputs'])
+// that silently meant "yes" would be worse. Must match the options keys described
+// for create_tx in docs/openrpc.build.js.
+const VALID_CREATE_TX_OPTIONS = new Set([
+    'signerSupportsTapscript',
+    'exactInputs',
+    'twoStepEnvelope',
+    'envelopeCommitHex'
+])
 // The create_tx top-level params, refused when unknown for the options-bag reason
 // above: a misspelled unconfirmed, feePerKb or rbf would silently build under the
 // default policy. Must equal the create_tx params in docs/openrpc.build.js.
