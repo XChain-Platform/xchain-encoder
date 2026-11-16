@@ -27,6 +27,7 @@ const { isUnconfirmedUtxo, outpointKey } = require('./input_candidates.js')
 const { nestedP2wpkhRedeem } = require('./nested_segwit.js')
 const { clearsStrippedFloor } = require('./stripped_floor.js')
 const { createInputQueue, addSelectedInput } = require('./selected_inputs.js')
+const { prepareTwoStepReveal } = require('./envelope_two_step.js')
 
 function initSelection(build){
     let { estimatedTxSize, fee, psbt, softDustSurcharge } = build
@@ -90,6 +91,10 @@ function framingBytesForInput(build, utxo, selectedInputCount, nested){
 
 function* selectFundingInputs(build){
     let { p2shHash } = build
+    if (build.options && build.options.envelopeCommitHex){
+        prepareTwoStepReveal.call(this, build)
+        return
+    }
     if (!p2shHash){//The p2sh input is already created before
         yield* selectInputs.call(this, build)
         refuseEmptySelection.call(this, build)
@@ -113,7 +118,7 @@ function* selectInputs(build){
         refuseCappedSelection.call(this, build, nextUtxoIndex, inputSatoshis, estimatedFee, selectedInputCount, now)
         let nextUtxo = utxos[nextUtxoIndex]
 
-        refuseUnsignableInput.call(this, preparedData, nextUtxo)
+        refuseUnsignableInput.call(this, preparedData, nextUtxo, build.options)
 
         if (skipReservedInput.call(this, callReservations, nextUtxo, exactInputs, firstReservedOutpoint, now)){
             reservedCandidates = reservedCandidates + 1
@@ -190,18 +195,19 @@ function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimat
     return false
 }
 
-function refuseUnsignableInput(preparedData, nextUtxo){
-    // Envelope commit inputs MUST be segwit. The
-    // reveal is pre-built against the UNSIGNED commit's txid, which
-    // is only stable when no selected input's signature lands in
-    // the txid-covered serialization. Enforced as native-segwit
+function refuseUnsignableInput(preparedData, nextUtxo, options){
+    // One-call envelope commit inputs MUST be segwit. That path's reveal is
+    // pre-built against the UNSIGNED commit's txid, which is only stable when
+    // no selected input's signature lands in the txid-covered serialization.
+    // The explicit two-step path waits for the signed commit instead. Enforced as native-segwit
     // (witness-program scriptPubKey): a P2SH-wrapped segwit UTXO is
     // indistinguishable from plain P2SH here and its scriptSig
     // (redeem-script push) shifts the txid, so it is refused too --
     // stricter than the spec's floor, never looser. Fail closed
     // rather than skip: silently dropping a caller's coin-control
     // input would change what they spend.
-    if (preparedData["encoding"] === Encoding.TAPROOT && !this.isSegwitUTXO(nextUtxo)){
+    if (preparedData["encoding"] === Encoding.TAPROOT && !this.isSegwitUTXO(nextUtxo) &&
+        !(options && options.twoStepEnvelope)){
         throw new ParamTypeError(
             `TAPROOT commit inputs must be native-segwit UTXOs (witness-program scriptPubKey); ` +
             `utxo ${nextUtxo.txid}:${nextUtxo.vout} is not. A non-segwit input would shift the ` +
