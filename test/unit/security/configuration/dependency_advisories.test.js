@@ -94,10 +94,9 @@ const axios = require('axios');
         { name: 'fast-uri', minSafe: [3, 1, 5], majorSeries: 3 },
         { name: 'brace-expansion', minSafe: [5, 0, 9], majorSeries: 5 },
         // Coupled to the entry above: brace-expansion 5.x dropped its CommonJS
-        // default export, so only minimatch >=10 (named `import { expand }`)
-        // can consume it. Pinning minimatch here keeps the pair from drifting
-        // apart into a tree that installs but throws on first glob match.
-        { name: 'minimatch', minSafe: [10, 2, 5], majorSeries: 10 },
+        // default export, so minimatch must use the named expand import. The
+        // 11.0.9 floor also closes the globparts amplification advisory.
+        { name: 'minimatch', minSafe: [11, 0, 9], majorSeries: 11 },
         { name: 'axios', minSafe: [1, 18, 0], majorSeries: 1 },
         { name: 'js-yaml', minSafe: [4, 3, 1], majorSeries: 4 },
         { name: 'serialize-javascript', minSafe: [7, 0, 5], majorSeries: 7 },
