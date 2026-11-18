@@ -30,9 +30,7 @@ function stubStatusAndPage (status, page) {
   }
 }
 
-describe('UtxoTracker.getUtxosFromAddress() freshness gate', () => {
-  installAxiosHooks()
-
+function defineLagAndHaltRefusals () {
   it('refuses a page above the encoder lag ceiling even when synced is true', async () => {
     const stale = { tracker_height: 97, node_height: 100, lag: 3, synced: true, mempool_ready: true }
     stubStatusAndPage(stale, { utxos: [makeUtxo()], sync: stale })
@@ -80,7 +78,9 @@ describe('UtxoTracker.getUtxosFromAddress() freshness gate', () => {
       err => err.operational === true && err.xchainCode === 'UTXO_TRACKER_HALTED'
     )
   })
+}
 
+function defineSyncProfileCases () {
   it('keeps the default profile fail-open behavior for a page without sync', async () => {
     stubStatusAndPage(HEALTHY, { utxos: [makeUtxo()] })
 
@@ -106,4 +106,11 @@ describe('UtxoTracker.getUtxosFromAddress() freshness gate', () => {
     assert.strictEqual(result.utxos.length, 1)
     assert.deepStrictEqual(result.sync, page.sync)
   })
+}
+
+describe('UtxoTracker.getUtxosFromAddress() freshness gate', () => {
+  installAxiosHooks()
+
+  defineLagAndHaltRefusals()
+  defineSyncProfileCases()
 })

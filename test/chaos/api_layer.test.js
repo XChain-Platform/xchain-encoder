@@ -40,77 +40,86 @@ function paramsController () {
   })
 }
 
-describe('Chaos Category F: API Layer Failures', () => {
+function defineShapeRejections () {
+  it('null params → TypeError', () => {
+    assert.throws(
+      () => validator.validateAll(null),
+      { name: 'TypeError' }
+    )
+  })
 
-  describe('F-1: Validator with malformed params', () => {
-    it('null params → TypeError', () => {
-      assert.throws(
-        () => validator.validateAll(null),
-        { name: 'TypeError' }
-      )
-    })
+  it('string params → TypeError', () => {
+    assert.throws(
+      () => validator.validateAll('not-an-object'),
+      { name: 'TypeError' }
+    )
+  })
 
-    it('string params → TypeError', () => {
-      assert.throws(
-        () => validator.validateAll('not-an-object'),
-        { name: 'TypeError' }
-      )
-    })
+  it('positional array params → TypeError naming the SHAPE, not a missing field', () => {
+    // typeof [] is 'object', so before the Array.isArray clause this reached
+    // 'pubkey is required' 50 lines later and blamed the wrong thing.
+    assert.throws(
+      () => validator.validateAll([]),
+      { name: 'TypeError', message: 'Request params must be an object' }
+    )
+  })
+}
 
-    it('positional array params → TypeError naming the SHAPE, not a missing field', () => {
-      // typeof [] is 'object', so before the Array.isArray clause this reached
-      // 'pubkey is required' 50 lines later and blamed the wrong thing.
+function defineParamsGuardCases () {
+  it('shared params guard accepts objects and rejects non-object shapes', () => {
+    assert.strictEqual(validator.assertParamsObject({}).constructor, Object)
+    for (const bad of [[], null, 'str', 7]) {
       assert.throws(
-        () => validator.validateAll([]),
+        () => validator.assertParamsObject(bad),
         { name: 'TypeError', message: 'Request params must be an object' }
       )
-    })
+    }
+  })
 
-    it('shared params guard accepts objects and rejects non-object shapes', () => {
-      assert.strictEqual(validator.assertParamsObject({}).constructor, Object)
-      for (const bad of [[], null, 'str', 7]) {
-        assert.throws(
-          () => validator.assertParamsObject(bad),
-          { name: 'TypeError', message: 'Request params must be an object' }
+  it('all parameter-taking RPC methods reject positional or primitive params uniformly', async () => {
+    const jsonRpcController = paramsController()
+    const methods = ['broadcast_tx', 'get_tx_status', 'get_tx_block', 'get_utxos', 'release_inputs']
+    for (const method of methods) {
+      for (const bad of [[], null, 'str']) {
+        await assert.rejects(
+          () => jsonRpcController[method](bad),
+          err => err.code === -32602 && err.message === 'Request params must be an object'
         )
       }
-    })
+    }
+  })
+}
 
-    it('all parameter-taking RPC methods reject positional or primitive params uniformly', async () => {
-      const jsonRpcController = paramsController()
-      const methods = ['broadcast_tx', 'get_tx_status', 'get_tx_block', 'get_utxos', 'release_inputs']
-      for (const method of methods) {
-        for (const bad of [[], null, 'str']) {
-          await assert.rejects(
-            () => jsonRpcController[method](bad),
-            err => err.code === -32602 && err.message === 'Request params must be an object'
-          )
-        }
-      }
-    })
+function defineRpcParamsCases () {
+  it('keeps field-specific validation for object params', async () => {
+    const jsonRpcController = paramsController()
+    await assert.rejects(
+      () => jsonRpcController.broadcast_tx({}),
+      err => err.code === -32602 && err.message === 'Missing required parameter: tx_hex'
+    )
+    await assert.rejects(
+      () => jsonRpcController.get_tx_status({ txid: 'zz' }),
+      err => err.code === -32602 && /64-hex-character/.test(err.message)
+    )
+  })
 
-    it('keeps field-specific validation for object params', async () => {
-      const jsonRpcController = paramsController()
-      await assert.rejects(
-        () => jsonRpcController.broadcast_tx({}),
-        err => err.code === -32602 && err.message === 'Missing required parameter: tx_hex'
-      )
-      await assert.rejects(
-        () => jsonRpcController.get_tx_status({ txid: 'zz' }),
-        err => err.code === -32602 && /64-hex-character/.test(err.message)
-      )
-    })
+  it('create_envelope_cancel_tx rejects positional array params at the gate', async () => {
+    const jsonRpcController = paramsController()
+    let err = null
+    try { await jsonRpcController.create_envelope_cancel_tx([]) } catch (e) { err = e }
+    assert.ok(err, 'expected the array to be refused')
+    assert.strictEqual(err.code, -32602)
+    // Pre-fix this destructured to undefined and surfaced
+    // 'commitTxid must be a 64-character hex string'.
+    assert.strictEqual(err.message, 'Request params must be an object')
+  })
+}
 
-    it('create_envelope_cancel_tx rejects positional array params at the gate', async () => {
-      const jsonRpcController = paramsController()
-      let err = null
-      try { await jsonRpcController.create_envelope_cancel_tx([]) } catch (e) { err = e }
-      assert.ok(err, 'expected the array to be refused')
-      assert.strictEqual(err.code, -32602)
-      // Pre-fix this destructured to undefined and surfaced
-      // 'commitTxid must be a 64-character hex string'.
-      assert.strictEqual(err.message, 'Request params must be an object')
-    })
+describe('Chaos Category F: API Layer Failures', () => {
+  describe('F-1: Validator with malformed params', () => {
+    defineShapeRejections()
+    defineParamsGuardCases()
+    defineRpcParamsCases()
   })
 })
 
