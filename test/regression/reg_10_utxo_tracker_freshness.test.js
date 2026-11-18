@@ -318,6 +318,8 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
   })
 })
 
+// Check that a typed freshness refusal from the connector reaches the caller unchanged,
+// so the RPC layer can still map its xchainCode and lag details without a live tracker.
 describe('M-11 (encoder half): typed tracker refusal', () => {
   it('preserves a freshness code raised by the connector on the default profile', async () => {
     const { OperationalError } = require('../../src/build/errors')
@@ -348,6 +350,8 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
           'utxo-tracker view is stale (lag 10 blocks, exceeds 2-block threshold); refusing to select utxos from it',
           { lag: 10, tracker_height: 90, node_height: 100 })
       }
+      // Build the controller from a local encoder rather than src/api.js, which constructs
+      // one from env at load time; this keeps the test free of process-wide env setup.
       const jsonRpcController = createJsonRpcController({ NETWORK: 'bitcoin-regtest', encoder, configuration: {} })
 
       let caught
