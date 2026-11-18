@@ -261,11 +261,25 @@ function prefundRevealPackage(build){
 // Moves the bounded prefund into the commit output that carries the reveal's fee.
 function applyRevealPrefund(build, wanted){
     let { cpfpUpliftBound, inputSatoshis, outputSatoshis, estimatedFee, commitAncestorSize, estimatedTxSize,
-        revealPrefund, commitAncestorFeeSat, feePerBytes, psbt, envelopeContext } = build
+        revealPrefund, commitAncestorFeeSat, feePerBytes, psbt, envelopeContext, nodeFeePerBytes, relayFeePerKb } = build
 // The same absolute bound the single-tx uplift answers to: this
 // buys someone else's bytes, so no rate cap measured against one
 // transaction's size can bound it.
 let allowed = Math.min(wanted, cpfpUpliftBound)
+
+// Bound the pair's total fee by the same node-anchored burn backstop as a
+// single transaction. Ancestor bytes can justify a package uplift, but cannot
+// raise the amount this commit and reveal are allowed to burn on their own.
+const referenceFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+let backstopRoom = 0
+if (referenceFeePerBytes != null){
+    const pairSize = estimatedTxSize + revealPrefund.revealSize
+    const fairFee = Math.ceil(pairSize * referenceFeePerBytes * SATOSHI_UNIT)
+    const ceiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
+    backstopRoom = ceiling - (estimatedFee - (build.softDustSurcharge || 0)) - revealPrefund.revealFee
+}
+const clampedByBackstop = backstopRoom < allowed
+allowed = Math.min(allowed, backstopRoom)
 
 // Never spend an input that is not there. The prefund is paid out
 // of change, so it is bounded by what change actually holds;
@@ -279,11 +293,15 @@ if (allowed < 0) allowed = 0
 if (allowed < wanted){
     const packageSize = commitAncestorSize + estimatedTxSize + revealPrefund.revealSize
     const packageFee = commitAncestorFeeSat + estimatedFee + revealPrefund.revealFee + allowed
+    const advice = clampedByBackstop
+        ? `The ${BURN_BACKSTOP_MULTIPLIER}x burn backstop over the commit and reveal bytes limited the prefund; ` +
+            `wait for the unconfirmed ancestors to confirm or fund the build from confirmed inputs.`
+        : `Raise MAX_CPFP_UPLIFT_SAT, the commit's fee, or the input balance.`
     logger.warn(`Reveal package prefund clamped to ${allowed} of ${wanted} base units: this commit ` +
         `pays ${estimatedFee} base units over ~${estimatedTxSize} bytes, so the commit/reveal package ` +
         `will pay ${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
         `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}. The reveal cannot raise its own fee later, ` +
-        `so the pair may stay unmined. Raise MAX_CPFP_UPLIFT_SAT, the commit's fee, or the input balance.`)
+        `so the pair may stay unmined. ${advice}`)
 }
 
 if (allowed > 0){

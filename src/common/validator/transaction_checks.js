@@ -44,6 +44,13 @@ const {
 } = require('./fee_and_utxo_checks')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
+function assertParamsObject(params) {
+    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+        throw new ParamTypeError('Request params must be an object')
+    }
+    return params
+}
+
 function validateCreateTxOptions(options) {
     if (options == null) return null
     if (typeof options !== 'object' || Array.isArray(options)) {
@@ -290,9 +297,7 @@ function validateAll(params, context) {
     // reporting a missing field for what is a shape error. Same guard the
     // object-shaped validators carry (validateCreateTxOptions here; validateUtxoEntry,
     // validateCustomOutput and validateFeeQuote in fee_and_utxo_checks.js).
-    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        throw new ParamTypeError('Request params must be an object')
-    }
+    assertParamsObject(params)
     // Refuse an unknown top-level param before any field check, so a misspelled
     // money-path setting is named instead of silently falling back to its default.
     for (const key of Object.keys(params)) {
@@ -327,10 +332,7 @@ function validateAll(params, context) {
  * @throws {ParamTypeError} params is not an object, or names an unknown key.
  */
 function validateEnvelopeCancelParamKeys(params) {
-    // Array.isArray, because typeof [] is 'object' (same shape guard as validateAll)
-    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        throw new ParamTypeError('Request params must be an object')
-    }
+    assertParamsObject(params)
     // Refuse an unknown key, so a misspelled money-path setting is named instead of silently defaulting
     for (const key of Object.keys(params)) {
         if (!VALID_CREATE_ENVELOPE_CANCEL_PARAMS.has(key)) {
@@ -340,6 +342,7 @@ function validateEnvelopeCancelParamKeys(params) {
 }
 
 module.exports = {
+    assertParamsObject,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,

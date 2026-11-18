@@ -98,10 +98,10 @@ const SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER = 10
 // rate caps bound a fee against THIS transaction's size; a package uplift is
 // paid for someone else's bytes, so a mempool ancestor chain that is large,
 // cheap, or misreported could otherwise buy an arbitrarily large fee with the
-// caller's coin. 10,000,000 base units is 0.1 DOGE (ten times the block-
-// inclusion floor for a 10 kB package, so it clears any realistic real chain)
-// and stays well inside the rate caps on BTC/LTC, where they bind first anyway.
-// MAX_CPFP_UPLIFT_SAT overrides it; 0 turns package sizing off.
+// caller's coin. 10,000,000 base units is 0.1 coin on DOGE, BTC and LTC, so it
+// is an absolute ceiling rather than a coin-specific policy. The node-anchored
+// burn backstop also limits ancestor uplift and reveal prefunding.
+// MAX_CPFP_UPLIFT_SAT overrides the absolute ceiling; 0 turns package sizing off.
 const DEFAULT_MAX_CPFP_UPLIFT_SAT = 10000000
 
 // Default ceiling on any caller-supplied fee, expressed as a multiple of the

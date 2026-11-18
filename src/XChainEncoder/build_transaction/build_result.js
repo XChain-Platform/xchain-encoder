@@ -76,7 +76,7 @@ function finishBuild(build){
 }
 
 function attachAdvisories(build, result){
-    let { rawDataOnlyPayload, unknownAction } = build
+    let { rawDataOnlyPayload, unknownAction, revealLegUndersizedMessage } = build
     // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive
     // result field, the same shape `compression` already established, so a caller
     // that does not read it is unaffected.
@@ -101,6 +101,14 @@ function attachAdvisories(build, result){
                 'will confirm and the fee will be paid, but every decoder drops the payload ' +
                 'instead of indexing it as an ACTION. The JSON-RPC create_tx surface refuses ' +
                 'this payload outright'
+        })
+    }
+
+    if (revealLegUndersizedMessage){
+        if (!result.warnings) result.warnings = []
+        result.warnings.push({
+            code: 'REVEAL_LEG_UNDERSIZED',
+            message: revealLegUndersizedMessage
         })
     }
 }

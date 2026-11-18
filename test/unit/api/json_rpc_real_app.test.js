@@ -103,6 +103,7 @@ async function routeEachPublicHandler () {
     calls.fees.push(target)
     return target / 100000
   }
+  api.encoder.connector.getNetworkInfo = async () => ({ relayfee: 0.00001 })
   // The backend is stubbed, so its param validation is too.
   api.encoder.validateEnvelopeCancelParams = () => {}
   api.encoder.createEnvelopeCancelTransaction = async params => {

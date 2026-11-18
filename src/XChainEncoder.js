@@ -37,9 +37,9 @@ const { upstreamErrorMessage } = require('./common/error_sanitize')
 const util = require('node:util');
 const config = require('./common/config');
 
-const { logger, MAGIC_WORD, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, DEFAULT_MAX_CPFP_UPLIFT_SAT, DEFAULT_MAX_FEE_RATE_MULTIPLIER, RESERVATION_TTL_MS, Encoding } = require('./XChainEncoder/constants.js')
+const { MAGIC_WORD, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, DEFAULT_SUGGESTED_FEE_MAX_PER_VBYTE, DEFAULT_MAX_CPFP_UPLIFT_SAT, DEFAULT_MAX_FEE_RATE_MULTIPLIER, RESERVATION_TTL_MS, Encoding } = require('./XChainEncoder/constants.js')
 const { softDustFloorFor, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSafeSat } = require('./XChainEncoder/script_amount_helpers.js')
-const { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis } = require('./XChainEncoder/fee_policy.js')
+const { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, resolveSuggestedFeePerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis } = require('./XChainEncoder/fee_policy.js')
 const { classifyTrackerFreshness, resolveCallerAddress, defaultCompressionEnabled, assertRevealFundingTxMatches } = require('./XChainEncoder/request_resolution.js')
 const { checkPayloadInput, compressPayload, compilePayload, classifyPayload, chooseEncoding, checkEnvelopeEncoding } = require('./XChainEncoder/build_transaction/payload_checks.js')
 const { resolveFeeRates } = require('./XChainEncoder/build_transaction/fee_rates.js')
@@ -209,22 +209,6 @@ class XChainEncoder {
 
 }
 
-// A P2SH reveal that emits no value output spends every leg satoshi as fee, and
-// the signer then refuses it as a full burn. That is a leg funded without
-// reveal headroom (a commit from an encoder that predates the headroom top-up).
-// The outputless reveal stays byte-identical so the stranded commit can still be
-// recovered by a caller that supplies its own outputs; the log names the leg.
-function noteUndersizedRevealLeg(build, outputsBeforeSweep){
-    const { p2shHash, preparedData, phaseLegInputSatoshis, outputSatoshis, customOutputs, psbt } = build
-    if (!p2shHash || preparedData["encoding"] !== Encoding.P2SH || !(phaseLegInputSatoshis > 0n)) return
-    if (Array.isArray(customOutputs) && customOutputs.length > 0) return
-    if (psbt.txOutputs.length > outputsBeforeSweep) return
-    const legSatoshis = phaseLegInputSatoshis - outputSatoshis
-    logger.warn(`P2SH_LEG_UNDERSIZED: the phase-1 leg holds ${legSatoshis} base units after the data outputs, too little to pay the reveal fee ` +
-        `and leave a change output of at least ${this.outputFloor}. The commit was funded without reveal headroom (an encoder that ` +
-        `predates the leg-headroom fix), so this reveal has no value output and the signer will refuse it as a full burn.`)
-}
-
 // The build's steps in the order the checks and emissions depend on. A step
 // that reads the node, the tracker or a payload promise is a generator
 // delegated to with yield*, which adds no suspension of its own; every other
@@ -258,9 +242,7 @@ function* buildSteps(build){
     computeChange.call(this, build)
     emitChangeAndPad.call(this, build)
     refuseUnderStrippedFloor.call(this, build)
-    const outputsBeforeSweep = build.psbt.txOutputs.length
     yield* sweepP2shReveal.call(this, build)
-    noteUndersizedRevealLeg.call(this, build, outputsBeforeSweep)
     buildEnvelopeReveal.call(this, build)
     return finishBuild.call(this, build)
 }
@@ -275,6 +257,7 @@ Object.assign(XChainEncoder.prototype, require('./XChainEncoder/outpoint_reserva
 // headroom; a venue-health check treats its absence as a stale encoder.
 XChainEncoder.P2SH_LEG_HEADROOM = true
 XChainEncoder.suggestedFeeCeilingPerByte = suggestedFeeCeilingPerByte
+XChainEncoder.resolveSuggestedFeePerByte = resolveSuggestedFeePerByte
 // Exported so api.js's readiness probe classifies a tracker with the exact same
 // rules create_tx refuses one with; see classifyTrackerFreshness.
 XChainEncoder.classifyTrackerFreshness = classifyTrackerFreshness

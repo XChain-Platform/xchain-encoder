@@ -124,7 +124,25 @@ function* sweepP2shReveal(build){
                 value: asSatValue(revealSurplus)
             })
         }
+        if (revealSurplus < BigInt(this.outputFloor)){
+            noteUndersizedRevealLeg.call(this, build, revealFeeKept)
+        }
     }
+}
+
+function noteUndersizedRevealLeg(build, revealFeeKept){
+    const { preparedData, phaseLegInputSatoshis, outputSatoshis, psbt } = build
+    if (psbt.txOutputs.some(output => BigInt(output.value) > 0n)) return
+    const legSatoshis = phaseLegInputSatoshis - outputSatoshis
+    const shortfall = BigInt(revealFeeKept) + BigInt(this.outputFloor) - legSatoshis
+    const encoding = preparedData["encoding"]
+    const message = `${encoding} reveal legs hold ${legSatoshis} base units after data outputs, ` +
+        `but this reveal keeps ${revealFeeKept} as fee and needs an output floor of ${this.outputFloor}, ` +
+        `a shortfall of ${shortfall}. The reveal has no value output, so every leg unit goes to fee and ` +
+        `a signer that refuses full burns will refuse it. The commit may lack reveal headroom, or this ` +
+        `reveal may be priced above the rate used to fund the commit.`
+    logger.warn(`REVEAL_LEG_UNDERSIZED: ${message}`)
+    build.revealLegUndersizedMessage = message
 }
 
 // Which chunk reveals end with a surplus sweep back to the caller: those whose first

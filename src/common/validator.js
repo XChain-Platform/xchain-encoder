@@ -64,6 +64,7 @@ const {
     assertPaymentOverDust
 } = require('./validator/fee_and_utxo_checks')
 const {
+    assertParamsObject,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,
@@ -147,6 +148,7 @@ module.exports = {
     validateUtxoEntry,
     validateCustomOutputs,
     assertPaymentOverDust,
+    assertParamsObject,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,

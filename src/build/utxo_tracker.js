@@ -279,13 +279,14 @@ function assertFreshCursor(nextCursor, seenCursors, address){
     seenCursors.add(nextCursor)
 }
 
-function mergeUtxoPage(result, state, address){
+function mergeUtxoPage(result, state, address, tracker){
     const pageSync = (result.sync && typeof result.sync === 'object') ? result.sync : null
     if (state.pageCount === 1) {
         state.firstPageSync = pageSync
     } else {
         assertSameSnapshot(state.firstPageSync, pageSync, address)
     }
+    throwIfRefused(tracker.profile, result.sync, tracker.maxLagBlocks)
     assertWithinUtxoCap(state.utxos.length + result.utxos.length, state.cap)
     appendPageUtxos(result.utxos, state.utxos)
     if (!result.nextCursor) return false
@@ -311,7 +312,7 @@ async function fetchUtxoSnapshot(tracker, address, cap){
         const pageLimit = Math.min(UTXO_PAGE_LIMIT, cap - state.utxos.length + 1)
         const responseData = await fetchUtxoPage(tracker, address, pageLimit, state.cursor)
         const result = readUtxoResult(responseData)
-        if (!mergeUtxoPage(result, state, address)) {
+        if (!mergeUtxoPage(result, state, address, tracker)) {
             return { ...result, utxos: state.utxos }
         }
     }

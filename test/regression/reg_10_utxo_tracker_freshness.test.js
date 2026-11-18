@@ -14,16 +14,6 @@
 // added to the tracker in ce16bdd) and refuses to select from a stale view
 // instead of risking an already-spent or missing UTXO.
 
-// L-2-style test below requires src/api.js, which constructs an encoder from
-// env at load time; set the minimum viable env BEFORE the require so
-// construction succeeds without a live node. dotenv does not override
-// already-set vars.
-process.env.NETWORK = process.env.NETWORK || 'bitcoin-regtest'
-process.env.NODE_URL = process.env.NODE_URL || '127.0.0.1'
-process.env.NODE_PORT = process.env.NODE_PORT || '8332'
-process.env.NODE_USER = process.env.NODE_USER || 'test'
-process.env.NODE_PASSWORD = process.env.NODE_PASSWORD || 'test'
-
 const assert = require('assert')
 const {
   TXID_A,
@@ -328,19 +318,37 @@ describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
   })
 })
 
+describe('M-11 (encoder half): typed tracker refusal', () => {
+  it('preserves a freshness code raised by the connector on the default profile', async () => {
+    const { OperationalError } = require('../../src/build/errors')
+    const encoder = makeEncoder('bitcoin-regtest')
+    const address = getTestAddress('bitcoin-regtest')
+    encoder.utxoTrackerConnector.getUtxosFromAddress = async () => {
+      throw new OperationalError('UTXO_TRACKER_STALE', 'tracker view is stale', { lag: 3 })
+    }
+
+    await assert.rejects(
+      () => build(encoder, address),
+      err => err.operational === true && err.xchainCode === 'UTXO_TRACKER_STALE' && err.details.lag === 3
+    )
+  })
+})
+
 describe('M-11 (encoder half): utxo-tracker freshness gate', () => {
 
   describe('api.js maps UTXO_TRACKER_STALE to -32010', () => {
     const { OperationalError } = require('../../src/build/errors')
-    const { jsonRpcController, encoder } = require('../../src/api')
+    const { createJsonRpcController } = require('../../src/api/json_rpc_methods')
     const address = getTestAddress('bitcoin-regtest')
 
     it('forwards the stale-tracker error with a machine-readable reason and lag details', async () => {
+      const encoder = makeEncoder('bitcoin-regtest')
       encoder.createTransaction = async () => {
         throw new OperationalError('UTXO_TRACKER_STALE',
           'utxo-tracker view is stale (lag 10 blocks, exceeds 2-block threshold); refusing to select utxos from it',
           { lag: 10, tracker_height: 90, node_height: 100 })
       }
+      const jsonRpcController = createJsonRpcController({ NETWORK: 'bitcoin-regtest', encoder, configuration: {} })
 
       let caught
       try {

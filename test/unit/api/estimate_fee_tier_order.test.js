@@ -12,6 +12,7 @@ function controllerFor (rates, calls = []) {
   const encoder = {
     connector: {
       assertNodeTier: async () => {},
+      getNetworkInfo: async () => ({ relayfee: 0.00001 }),
       getFeePerKilobyte: async target => {
         calls.push(target)
         return rates[target]

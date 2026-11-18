@@ -23,8 +23,8 @@ const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
 const { HEX_64_RE } = require('../common/validator/constants')
-const { upstreamErrorMessage, logErrorOnce } = require('../common/error_sanitize')
-const { ParamTypeError, isInvalidParams } = require('../build/errors')
+const { upstreamErrorMessage, logErrorOnce, isTransportError } = require('../common/error_sanitize')
+const { OperationalError, ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
@@ -66,16 +66,33 @@ return {
     async estimate_fee() {
         const targets = { low: 6, medium: 3, high: 1 };
         const out = {};
-        // Same test-chain ceiling createTx applies to a caller who supplies no
-        // rate, so the quote matches what the build would actually charge.
-        const capPerByte = XChainEncoder.suggestedFeeCeilingPerByte(NETWORK, 100000000);
-        const capPerVbyte = capPerByte == null ? null : Math.max(1, Math.round(capPerByte * 100000000));
         await assertNodeTierOrRpcError(encoder);
         try {
-            for (const tier of Object.keys(targets)) {
-                const feerate = await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
-                let perVbyte = Math.max(1, Math.round(Number(feerate) * 100000));         // -> base-unit/byte
-                if (capPerVbyte != null && perVbyte > capPerVbyte) perVbyte = capPerVbyte;
+            const tierNames = Object.keys(targets)
+            const firstTier = tierNames[0]
+            const firstFeerate = await encoder.connector.getFeePerKilobyte(targets[firstTier])
+            let info
+            try {
+                info = await encoder.connector.getNetworkInfo()
+            } catch (err) {
+                if (err && err.operational === true) throw err
+                if (isTransportError(err)) {
+                    throw new OperationalError('NODE_UNREACHABLE',
+                        'Coin node did not answer the fee quote; retry once the node is reachable')
+                }
+                throw err
+            }
+            const relayFeePerKb = Number(info && info.relayfee)
+            if (!Number.isFinite(relayFeePerKb) || relayFeePerKb <= 0) {
+                throw new Error('Node did not report a positive relayfee; fee quote safety cannot be verified')
+            }
+            const relayFloor = Math.ceil(Math.round(relayFeePerKb * 100000000) / 1000)
+            for (const tier of tierNames) {
+                const feerate = tier === firstTier ? firstFeerate
+                    : await encoder.connector.getFeePerKilobyte(targets[tier]); // coin/kB
+                const resolved = XChainEncoder.resolveSuggestedFeePerByte({ networkKey: NETWORK,
+                    satoshiUnit: 100000000, nodeFeePerBytes: Number(feerate) / 1000, relayFeePerKb })
+                const perVbyte = Math.max(1, relayFloor, Math.round(resolved.feePerBytes * 100000000))
                 out[tier] = Math.max(perVbyte, ...Object.values(out));
             }
         } catch (err) {
@@ -121,6 +138,10 @@ function toRpcError(err) {
     const e = new Error('Internal encoder error')
     e.code = -32603
     return e
+}
+
+function assertRpcParamsObject(rawParams) {
+    try { validator.assertParamsObject(rawParams) } catch (err) { throw toRpcError(err) }
 }
 
 // The build itself; every error class it can raise maps to one JSON-RPC code.
@@ -170,13 +191,7 @@ return {
     // encoder method repeats its own direct-entry checks (ParamTypeError/
     // ParamRangeError -> -32602, OperationalError -> -32010).
     async create_envelope_cancel_tx(rawParams) {
-        // Array.isArray for the same reason validator.validateAll carries it:
-        // positional params otherwise clear the gate and destructure to undefined.
-        if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
-            const e = new Error('Request params must be an object')
-            e.code = -32602
-            throw e
-        }
+        assertRpcParamsObject(rawParams)
         try {
             encoder.validateEnvelopeCancelParams(rawParams)
         } catch (err) {
@@ -211,11 +226,9 @@ return {
     // would push clients to retry a call that has nothing left to do. found
     // tells them which it was.
     async release_inputs(rawParams) {
+        assertRpcParamsObject(rawParams)
         let reservationId
         try {
-            if (typeof rawParams !== 'object' || rawParams === null || Array.isArray(rawParams)) {
-                throw new ParamTypeError('Request params must be an object')
-            }
             reservationId = validator.validateReservationId(rawParams.reservationId)
         } catch (err) {
             throw toRpcError(err)
@@ -241,7 +254,8 @@ function isAlreadyKnown(err) {
 function buildBroadcastMethods({ encoder }) {
 return {
     async broadcast_tx(rawParams) {
-        let tx_hex = rawParams && rawParams.tx_hex
+        assertRpcParamsObject(rawParams)
+        let tx_hex = rawParams.tx_hex
         if (!tx_hex) {
             const e = new Error('Missing required parameter: tx_hex')
             e.code = -32602
@@ -285,7 +299,9 @@ return {
     },
 }
 }
-function validateLookupTxid(rawParams) { const txid = rawParams && rawParams.txid
+function validateLookupTxid(rawParams) {
+    assertRpcParamsObject(rawParams)
+    const txid = rawParams.txid
     if (typeof txid === 'string' && HEX_64_RE.test(txid)) return txid
     throw Object.assign(new Error('txid must be a 64-hex-character string'), { code: -32602 })
 }
@@ -307,7 +323,8 @@ return {
         try { return await encoder.utxoTrackerConnector.getTxBlock(txid) } catch (err) { throw lookupFailure(err, 'Transaction block') }
     },
     async get_utxos(rawParams) {
-        let address = rawParams && rawParams.address
+        assertRpcParamsObject(rawParams)
+        let address = rawParams.address
         if (!address) {
             const e = new Error('Missing required parameter: address')
             e.code = -32602
@@ -332,6 +349,7 @@ return {
                 tooLarge.data = { reason: 'UTXO_SET_TOO_LARGE', limit: err.utxoCap }
                 throw tooLarge
             }
+            if (err && err.operational === true) throw toRpcError(err)
             const e = new Error(upstreamErrorMessage(err, 'UTXO fetch failed'))
             e.code = -32603
             throw e

@@ -127,6 +127,7 @@ function* fetchTrackerUtxos(build){
         if (err && err.code === 'UTXO_SET_TOO_LARGE'){
             throw new OperationalError('UTXO_SET_TOO_LARGE', err.message, { limit: err.utxoCap })
         }
+        if (err && err.operational === true) throw err
         if (isRemoteProfile(this.trackerProfile)){
             throw err.operational ? err : trackerUnreachableError(err)
         }

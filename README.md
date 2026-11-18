@@ -42,6 +42,13 @@ Full encoder documentation is available in the [xchain-documentation](https://gi
 | [README](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/README.md) | Overview, encoding process, format details, API, testing, configuration |
 | [Format Selection](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/format-selection.md) | Decision guide for encoding formats with size limits and trade-offs |
 
+### Dependency pins
+
+The encoder and SDK intentionally use bitcoinjs-lib 7.0.4, with the encoder's
+compatibility patch in `src/build/apply_bufferutils_patch/`. The decoder and
+UTXO tracker remain together on 6.1.8 for their BigInt-safe Dogecoin output
+reader. See the decoder README for the migration constraint and revisit rules.
+
 ## Quick Start
 
 ```bash
@@ -83,7 +90,7 @@ npm run api
 | `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it. `GET /status` publishes the effective value as `tracker_max_lag_blocks`, so a status board can rank lag against the other unready causes without mirroring a constant it cannot see (the tracker's own `SYNCED_THRESHOLD` is looser and is not this gate) |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables this cap). Whatever this and `MAX_FEE_RATE_KB` are set to, a fixed 100x burn backstop still clamps feePerKb and refuses an explicit fee, so a value above `100` loosens nothing past 100x |
-| `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing) |
+| `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing). The fixed 100x burn backstop still applies, so raising this value does not lift that limit |
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
 | `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors (funding legs, data outputs, change). Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
 | `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |

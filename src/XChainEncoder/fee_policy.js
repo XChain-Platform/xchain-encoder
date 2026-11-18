@@ -43,6 +43,23 @@ function suggestedFeeCeilingFloorPerByte(relayfeePerKb){
     return (relayfee / 1000) * SUGGESTED_FEE_CEILING_RELAY_MULTIPLIER
 }
 
+// Resolve the node-selected rate through the same test-chain ceiling and relay
+// floor used by transaction builds. The raw node rate remains with the caller
+// so fee-drain limits can still anchor to what the node actually reported.
+function resolveSuggestedFeePerByte({ networkKey, satoshiUnit, nodeFeePerBytes, relayFeePerKb }){
+    let feePerBytes = nodeFeePerBytes
+    let cap = suggestedFeeCeilingPerByte(networkKey, satoshiUnit)
+    if (cap != null && feePerBytes > cap){
+        const floor = suggestedFeeCeilingFloorPerByte(relayFeePerKb)
+        if (floor != null && floor > cap) cap = floor
+    }
+    const clamped = cap != null && feePerBytes > cap * (1 + 1e-12)
+    if (clamped) feePerBytes = cap
+    const relayFeePerBytes = relayFeePerKb / 1000
+    if (feePerBytes < relayFeePerBytes) feePerBytes = relayFeePerBytes
+    return { feePerBytes, cap, clamped }
+}
+
 function maxCpfpUpliftSat(){
     const raw = parseFloat(config.MAX_CPFP_UPLIFT_SAT)
     const bound = Number.isFinite(raw) ? raw : DEFAULT_MAX_CPFP_UPLIFT_SAT
@@ -156,4 +173,4 @@ function softDustSurchargeFor(outputValues, softDustFloor){
     return surcharge
 }
 
-module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, backstopReferenceFeePerBytes, capCallerFeeRate, clampLimitLabel, feeForVsize, softDustSurchargeFor }
+module.exports = { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, resolveSuggestedFeePerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis, backstopReferenceFeePerBytes, capCallerFeeRate, clampLimitLabel, feeForVsize, softDustSurchargeFor }

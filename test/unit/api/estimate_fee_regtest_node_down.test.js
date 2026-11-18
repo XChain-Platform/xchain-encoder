@@ -65,7 +65,7 @@ describe('estimate_fee on regtest with the coin node down', function () {
     const controller = controllerOver(connector)
 
     assert.deepStrictEqual(await controller.estimate_fee(), { low: 2, medium: 2, high: 2 })
-    assert.strictEqual(calls.length, 3)
+    assert.strictEqual(calls.length, 4)
   })
 })
 
