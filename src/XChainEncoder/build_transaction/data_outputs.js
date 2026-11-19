@@ -225,6 +225,19 @@ function* emitMultisignChunk(build, nextDataBuffer){
     Object.assign(build, { obfuscatedData, outputSatoshis, estimatedTxSize })
 }
 
+// Refuse a reveal fee above the burn backstop over the fair fee at the reference rate.
+function assertRevealFeeSafe(build, revealVsize, revealFee, dustAmount){
+    const referenceFeePerBytes = backstopReferenceFeePerBytes(build)
+    if (referenceFeePerBytes == null){
+        throw new Error('Reveal fee safety cannot be verified without a node or relay fee reference')
+    }
+    const fairFee = feeForVsize(revealVsize, referenceFeePerBytes, SATOSHI_UNIT)
+    const burnCeiling = Math.max(dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
+    if (revealFee > burnCeiling){
+        throw new ParamRangeError(`reveal fee ${revealFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${revealVsize}-byte transaction`)
+    }
+}
+
 function emitEnvelopeCommit(build, nextDataBuffer){
     let { preparedData, change, pubkey, feePerBytes, finalDust, psbt, outputSatoshis, estimatedTxSize,
         revealPrefund, envelopeContext } = build
@@ -257,15 +270,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
     if (revealFee < this.dustAmount){
         revealFee = this.dustAmount
     }
-    const referenceFeePerBytes = backstopReferenceFeePerBytes(build)
-    if (referenceFeePerBytes == null){
-        throw new Error('Reveal fee safety cannot be verified without a node or relay fee reference')
-    }
-    const fairFee = feeForVsize(revealVsize, referenceFeePerBytes, SATOSHI_UNIT)
-    const burnCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
-    if (revealFee > burnCeiling){
-        throw new ParamRangeError(`reveal fee ${revealFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${revealVsize}-byte transaction`)
-    }
+    assertRevealFeeSafe(build, revealVsize, revealFee, this.dustAmount)
     const commitValue = revealFee + finalDust + (revealPadNeeded ? this.outputFloor : 0)
 
     revealPrefund = {
