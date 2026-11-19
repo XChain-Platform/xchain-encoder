@@ -142,6 +142,11 @@ describe('XChainEncoder TAPROOT envelope', function () {
       assert.ok(Number(cancel.psbt.txOutputs[0].value) >= litecoinEncoder.outputFloor)
       assert.strictEqual(Number(cancel.psbt.txOutputs[1].value), litecoinEncoder.outputFloor)
     })
+  })
+})
+
+describe('XChainEncoder TAPROOT envelope', function () {
+  describe('key-path cancel from the persisted recovery record (§3.5/§3.7)', function () {
 
     it('validates the recovery-record fields', async function () {
       const encoder = makeEncoder()

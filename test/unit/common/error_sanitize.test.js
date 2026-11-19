@@ -81,6 +81,10 @@ describe('errorSanitize.upstreamErrorMessage', () => {
             assert.strictEqual(upstreamErrorMessage(new Error(message), FALLBACK), FALLBACK, message)
         }
     })
+})
+
+describe('errorSanitize.upstreamErrorMessage', () => {
+    const FALLBACK = 'Transaction broadcast failed'
 
     it('collapses DNS failures and IPv6 endpoints after transport metadata is lost', () => {
         for (const message of [

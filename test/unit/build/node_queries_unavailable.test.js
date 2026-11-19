@@ -118,6 +118,12 @@ describe('node queries with the coin node unreachable', function () {
       }
     }
   })
+})
+
+describe('node queries with the coin node unreachable', function () {
+  let originalPost
+  beforeEach(function () { originalPost = axios.post })
+  afterEach(function () { axios.post = originalPost })
 
   it('keeps the node RPC detail when the node answers with an error body', async function () {
     axios.post = async () => { throw warmingError() }
