@@ -92,7 +92,7 @@ npm run api
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables this cap). Whatever this and `MAX_FEE_RATE_KB` are set to, a fixed 100x burn backstop still clamps feePerKb and refuses an explicit fee, so a value above `100` loosens nothing past 100x |
 | `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing). The fixed 100x burn backstop still applies, so raising this value does not lift that limit |
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
-| `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors (funding legs, data outputs, change). Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
+| `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors, including funding legs, data outputs, change, envelope reveal change and padding, P2WSH reveal padding, and envelope cancel sweeps and padding. Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
 | `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |
 | `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until the in-process reservation, recent-build, envelope-cancel owner, reservation-ticket, rate-limit and concurrency-gate state is shared |
 | `ENCODER_INSTANCE_LOCK_FILE` | No | `<os tmpdir>/xchain-encoder-<ENCODER_API_PORT>.lock` (`default` in place of the port when `ENCODER_API_PORT` is unset) | Same-host PID lockfile taken exclusively at boot, so a second encoder process started on one host fails fast instead of racing UTXO selections. Point intentionally separate deployments (different coins or networks) on one host at different files. It cannot see replicas on other hosts or containers; `ENCODER_REPLICAS` is that declaration |
@@ -105,6 +105,10 @@ npm run api
 | `ENCODER_MAINNET_PRELAUNCH_OVERRIDE` | No | Unset | On a mainnet encoder, `create_tx` refuses every action outside the consensus validator set before unix time `1798761600` with `-32010` and `data.reason` `MAINNET_PRELAUNCH` (`data.opens_at` carries the time). The set is read by name and format, exactly as the indexer's launch gate reads it: `ANCHOR` formats 0 to 3, `PRICE` format 0, `NODEPROOF` format 0, `ROLLCALL` formats 0 and 1, and the quorum `ATTEST` formats 1, 3, 4, 5 and 6. `PRICE` format 1, `ATTEST` formats 0 and 2, `STAKE`, `UNSTAKE`, `DELEGATE`, `SLASH` and every other action are refused. Set `1`, `true`, `yes` or `on` to lift the refusal for every action; read live on every call, any other value leaves it in force. Set it only on the foundation's own bootstrap encoder that builds the seed sources' pre-launch actions (the encoder cannot see the pinned seed sources), never on a public encoder. Testnet and regtest are never refused |
 | `ENCODER_MAINTENANCE_FILE` | No | `/tmp/xchain-encoder-maintenance.json` | Where the encoder looks for an operator-declared scheduled-maintenance window. `health` and `GET /status` report it as `maintenance` beside the readiness fields, so a status board can tell a planned outage from a fault; it never changes a readiness field or the 503. See [Scheduled maintenance](#scheduled-maintenance) |
 | `CORS_ORIGIN` | No | Disabled | Allowed CORS origin(s): `*` for any, one origin, or a comma-separated allowlist matched per-origin (browser wallet shells each send a different origin). A stray `*` inside a list is not a wildcard, so the grant fails closed |
+
+Build every phase of a two-step envelope or P2WSH reveal with the same
+`DUST_AMOUNT`. Changing it between funding and reveal can make the reconstructed
+commit value differ or shift value between the reveal fee and its outputs.
 
 ## Scheduled maintenance
 
@@ -127,14 +131,15 @@ readiness fields. What it does **not** do is as important: the readiness
 booleans and the 503 are unchanged, so every load balancer and uptime monitor
 keyed on them keeps seeing exactly what it saw before.
 
-`until` is required, and a window longer than 24 hours, already expired,
+`since` and `until` are required, and a window whose declared span is longer than 24 hours, already expired,
 malformed, or oversized is ignored: a publish that dies without cleaning up
 stops excusing the outage at its own declared end time rather than hiding it
 indefinitely. A `since` in the future holds the window closed until it opens.
 `reason` is optional, bounded, and stripped to printable ASCII.
 
 `xchain-node` writes and removes this file automatically around a bootstrap
-publish (`src/server/maintenance_window.js`).
+publish (`xchain-node/src/services/encoder_maintenance_window.js`); this service
+reads it in `src/server/maintenance_window.js`.
 
 ## Metrics and log shipping (optional, off by default)
 

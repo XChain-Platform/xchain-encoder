@@ -53,6 +53,25 @@ describe('P2WSH reveal funding prices the stripped-size pad output', () => {
     const worst = encoder.estimateSpendingP2wshTx(Buffer.alloc(40))
     assert.strictEqual(worst - bare, 43 - 34)
   })
+
+  it('funds and emits the pad at a raised operator output floor', async () => {
+    const encoder = F.makeEncoder('ltc')
+    encoder.outputFloor = encoder.dustAmount * 4
+    const common = {
+      pubkey: F.p2pkhAddr('ltc'), data: 'BROADCAST|0|0|' + 'w'.repeat(16),
+      encoding: 'P2WSH', change: F.p2pkhAddr('ltc'), feePerKb: 10000
+    }
+    const funding = await F.create(encoder, {
+      ...common, utxos: [F.makeUtxo('ltc', 'p2wpkh', 5000000)]
+    })
+    const fundingTx = F.account(funding.psbt).tx
+    const reveal = await F.create(encoder, {
+      ...common, p2shHash: fundingTx.getId(), p2shHex: fundingTx.toHex()
+    })
+    const valueOutputs = reveal.psbt.txOutputs.filter((o) => Number(o.value) > 0)
+    assert.strictEqual(valueOutputs.length, 1, 'single floor-padding output')
+    assert.strictEqual(Number(valueOutputs[0].value), encoder.outputFloor)
+  })
 })
 
 // A caller output on the reveal already lifts a single-chunk reveal over the stripped

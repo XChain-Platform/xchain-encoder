@@ -39,6 +39,20 @@ function refusedError () {
   return err
 }
 
+function dnsError () {
+  const err = new Error('getaddrinfo ENOTFOUND bitcoind')
+  err.code = 'ENOTFOUND'
+  err.isAxiosError = true
+  return err
+}
+
+function ipv6Error () {
+  const err = new Error('connect ECONNREFUSED ::1:8332')
+  err.code = 'ECONNREFUSED'
+  err.isAxiosError = true
+  return err
+}
+
 function warmingError () {
   const err = new Error('Request failed with status code 500')
   err.code = 'ERR_BAD_RESPONSE'
@@ -88,6 +102,23 @@ describe('node queries with the coin node unreachable', function () {
     })
   }
 
+  it('keeps DNS hostnames and IPv6 endpoints out of NODE_UNREACHABLE messages', async function () {
+    for (const [makeError, leaked] of [[dnsError, ['bitcoind']], [ipv6Error, ['::1', '8332']]]) {
+      axios.post = async () => { throw makeError() }
+      for (const call of [
+        () => makeConnector().getNetworkInfo(),
+        () => makeConnector().chainName(),
+        () => makeConnector().getBlockHash(0)
+      ]) {
+        await assert.rejects(call(), (err) => {
+          assertNodeUnreachable(err)
+          for (const token of leaked) assert.ok(!err.message.includes(token), 'no ' + token + ' in ' + err.message)
+          return true
+        })
+      }
+    }
+  })
+
   it('keeps the node RPC detail when the node answers with an error body', async function () {
     axios.post = async () => { throw warmingError() }
     await assert.rejects(makeConnector().getNetworkInfo(), (err) => {
@@ -120,7 +151,7 @@ describe('create_tx with the coin node unreachable', function () {
     const nodeCalls = []
     axios.post = async (url, data) => {
       nodeCalls.push(data && data.method)
-      throw timeoutError()
+      throw dnsError()
     }
     const encoder = new XChainEncoder('bitcoin-regtest', NODE_HOST, String(NODE_PORT), 'rpcuser', RPC_PASSWORD, '', '')
     const controller = createJsonRpcController({ encoder, NETWORK: 'bitcoin-regtest' })
@@ -150,6 +181,7 @@ describe('create_tx with the coin node unreachable', function () {
     assert.strictEqual(failure.code, -32010, `expected -32010, got ${failure.code} ${failure.message}`)
     assert.strictEqual(failure.data && failure.data.reason, 'NODE_UNREACHABLE')
     assertNoTopology(failure.message)
+    assert.ok(!failure.message.includes('bitcoind'), failure.message)
     assert.ok(nodeCalls.length > 0, 'the build reached the stubbed node')
   })
 })

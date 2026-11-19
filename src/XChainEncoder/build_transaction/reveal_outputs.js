@@ -67,7 +67,7 @@ function emitChangeAndPad(build){
         if (padAddress){
             psbt.addOutput({
                 address: padAddress,
-                value: this.dustAmount
+                value: this.outputFloor
             })
         }
     }
@@ -300,12 +300,12 @@ function buildRevealPsbt(build){
         }]
     })
     // Change back to the caller: the commit value minus the reveal's
-    // prefunded fee (and minus the floor pad's dust when present) is
-    // exactly the dust floor by construction; it exists because the
+    // prefunded fee (and minus the floor pad when present) is exactly
+    // the output floor by construction; it exists because the
     // reveal must carry an output and it doubles as the CPFP handle.
     const revealChangeValue = envelopeContext.commitValue
         - envelopeContext.revealFee
-        - (envelopeContext.revealPadNeeded ? this.dustAmount : 0)
+        - (envelopeContext.revealPadNeeded ? this.outputFloor : 0)
     revealPsbt.addOutput({
         address: envelopeContext.revealChangeAddress,
         value: revealChangeValue
@@ -313,7 +313,7 @@ function buildRevealPsbt(build){
     if (envelopeContext.revealPadNeeded){
         revealPsbt.addOutput({
             address: envelopeContext.revealChangeAddress,
-            value: this.dustAmount
+            value: this.outputFloor
         })
     }
 

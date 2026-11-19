@@ -23,7 +23,7 @@ const { RESERVATION_TTL_MS } = require('../constants.js')
 const { outpointKey } = require('./input_candidates.js')
 
 function bindObfuscationKey(build){
-    let { utxos, exactInputs, callReservations } = build
+    let { utxos, exactInputs, skipsInputSelection, callReservations } = build
     //On the reveal path utxos is empty; txidFirstInput is (re)assigned from
     //p2shHex inside the data loop below before it is ever read.
     //
@@ -62,7 +62,11 @@ function bindObfuscationKey(build){
     let firstReservedOutpoint = null
     let txidFirstInput = null
     if (utxos.length){
-        if (exactInputs){
+        // Reveal inputs come from their commit transaction, so a candidate is
+        // useful only as a deterministic fallback key and must not be claimed.
+        if (skipsInputSelection){
+            txidFirstInput = utxos[0]["txid"]
+        } else if (exactInputs){
             txidFirstInput = claimExactInputs.call(this, callReservations, utxos, txidFirstInput)
         } else {
             ({ firstReservedOutpoint, txidFirstInput } = claimFirstFreeInput.call(this, callReservations, utxos, firstReservedOutpoint, txidFirstInput))

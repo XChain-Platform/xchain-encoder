@@ -65,7 +65,13 @@ const INTERNAL_DETAIL_PATTERNS = [
     /\b\d{1,3}(?:\.\d{1,3}){3}\b/,
     // host:port, where the host has at least one letter so a bare clock or
     // ratio ("12:30", "0 < 110") is not mistaken for an endpoint.
-    /[a-z0-9_-]*[a-z][a-z0-9_.-]*:\d{2,5}\b/i
+    /[a-z0-9_-]*[a-z][a-z0-9_.-]*:\d{2,5}\b/i,
+    // Node's DNS errors always append the host after this operation name.
+    /\bgetaddrinfo\b/i,
+    // Bracketed or bare IPv6, optionally followed by a port. At least two
+    // colons keeps ordinary prose, ratios and clock times out of this gate.
+    /\[[0-9a-f:.]*:[0-9a-f:.]*\](?::\d{1,5})?/i,
+    /(?:^|[\s(])(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]*(?=$|[\s),;])/i
 ]
 
 // True when the message carries encoder-internal topology or credentials.

@@ -123,10 +123,10 @@ function finishTwoStepReveal(build){
     })
     const revealChangeValue = envelopeContext.commitValue
         - envelopeContext.revealFee
-        - (envelopeContext.revealPadNeeded ? this.dustAmount : 0)
+        - (envelopeContext.revealPadNeeded ? this.outputFloor : 0)
     psbt.addOutput({ address: envelopeContext.revealChangeAddress, value: revealChangeValue })
     if (envelopeContext.revealPadNeeded){
-        psbt.addOutput({ address: envelopeContext.revealChangeAddress, value: this.dustAmount })
+        psbt.addOutput({ address: envelopeContext.revealChangeAddress, value: this.outputFloor })
     }
     build.callReservations.buildTxid = this.refuseDuplicateBuild(psbt, Date.now())
     return {

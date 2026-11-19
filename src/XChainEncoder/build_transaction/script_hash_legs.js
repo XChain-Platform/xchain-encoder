@@ -156,7 +156,7 @@ function topUpFirstP2shLeg(build, spendingP2shEstimatedFee){
     // the customOutputs fold above) so the legs total covers
     // the whole reveal's fee AS THE REVEAL ITSELF WILL PRICE
     // IT (estimateP2shRevealTx, shared by both phases), plus
-    // one dust (this.dustAmount, the same constant the
+    // one output floor (this.outputFloor, the same constant the
     // reveal-side sweep compares against) for the change
     // output the reveal returns to the caller. The 43 is the
     // same worst-case change-output size constant the
@@ -370,11 +370,11 @@ function fundRevealFloorPad(needsPad, spendingP2wshEstimatedFee){
     // has no satoshis left to create it after the fee floor.
     if (needsPad){
         // Fund the reveal's stripped-size floor-padding output with
-        // this.dustAmount, the SAME constant the reveal side spends
+        // this.outputFloor, the SAME process-wide value the reveal side spends
         // (see addRevealSizeFloorPadding below). Using finalDust here
         // could over/under-fund the pad when a caller passes a custom
         // dust, leaving the two halves of the flow inconsistent.
-        spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + this.dustAmount
+        spendingP2wshEstimatedFee = spendingP2wshEstimatedFee + this.outputFloor
     }
     return spendingP2wshEstimatedFee
 }

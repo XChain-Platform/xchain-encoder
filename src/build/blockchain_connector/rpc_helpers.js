@@ -13,9 +13,21 @@
  ********************************************************************/
 
 const config = require('../../common/config');
-const { isTransportError, safeUpstreamReason } = require('../../common/error_sanitize');
+const { isTransportError } = require('../../common/error_sanitize');
 const { OperationalError } = require('../errors');
 const { DEFAULT_FEE_ESTIMATE_SANITY_CEILING, logger } = require('./constants');
+
+const TRANSPORT_LABELS = new Map([
+    ['ECONNREFUSED', 'connection refused'],
+    ['ETIMEDOUT', 'timed out'],
+    ['ECONNABORTED', 'timed out'],
+    ['ENOTFOUND', 'node address did not resolve'],
+    ['EAI_AGAIN', 'node address did not resolve'],
+    ['ECONNRESET', 'connection reset'],
+    ['EPIPE', 'connection reset'],
+    ['EHOSTUNREACH', 'node host unreachable'],
+    ['ENETUNREACH', 'node host unreachable']
+])
 
 // Fee-rate multiple of the node's relay floor used on non-mainnet chains when
 // estimatesmartfee has no data. Rationale at getFeePerKilobyte.
@@ -88,7 +100,7 @@ function nodeRequestError(error) {
     const message = sanitizeRpcError(error);
     if (!response && isTransportError(error)) {
         logger.warn(`Coin node did not answer: ${message}`);
-        const reason = safeUpstreamReason(message);
+        const reason = TRANSPORT_LABELS.get(error && error.code);
         return new OperationalError('NODE_UNREACHABLE',
             `Error in network request: coin node did not answer${reason ? ` (${reason})` : ''}; retry once the node is reachable`);
     }

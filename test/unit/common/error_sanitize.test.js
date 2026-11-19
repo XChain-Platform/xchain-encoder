@@ -82,6 +82,20 @@ describe('errorSanitize.upstreamErrorMessage', () => {
         }
     })
 
+    it('collapses DNS failures and IPv6 endpoints after transport metadata is lost', () => {
+        for (const message of [
+            'getaddrinfo ENOTFOUND bitcoind',
+            'getaddrinfo EAI_AGAIN litecoind',
+            'connect ECONNREFUSED ::1:8332',
+            'connect ECONNREFUSED [::1]:8332',
+            'connect EHOSTUNREACH fe80::1:8332'
+        ]) {
+            assert.strictEqual(leaksInternalDetail(message), true, message)
+            assert.strictEqual(safeUpstreamReason(message), null, message)
+            assert.strictEqual(upstreamErrorMessage(new Error(message), FALLBACK), FALLBACK, message)
+        }
+    })
+
     // The wallet's broadcast-permanence classifier substring-matches these exact
     // reasons (xchain-wallet/packages/core/src/flows/broadcastPermanence.js), so
     // collapsing them would silently turn a permanent failure into a retry loop.

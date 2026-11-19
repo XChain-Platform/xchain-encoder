@@ -42,8 +42,9 @@ function fundingTransaction (script, value) {
   return tx
 }
 
-function fixture (kind) {
+function fixture (kind, floorMultiplier) {
   const encoder = new XChainEncoder('bitcoin-regtest', '127.0.0.1', '8333', 'rpc', 'rpc', '', '')
+  if (floorMultiplier) encoder.outputFloor = encoder.dustAmount * floorMultiplier
   const network = encoder.network
   const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: PUBKEY, network })
   const payment = kind === 'p2pkh'
@@ -71,8 +72,8 @@ function fixture (kind) {
   return { encoder, utxo, source: payment.address }
 }
 
-async function buildPair (kind) {
-  const { encoder, utxo, source } = fixture(kind)
+async function buildPair (kind, floorMultiplier) {
+  const { encoder, utxo, source } = fixture(kind, floorMultiplier)
   const args = [
     [utxo], source, null, `FILE|0|two-step-${kind}`, 'payload',
     null, false, 'TAPROOT', source, null, null, PUBKEY_HEX
@@ -107,7 +108,7 @@ async function buildPair (kind) {
   assert.strictEqual(Buffer.from(revealTx.ins[0].hash).reverse().toString('hex'), commitTx.getId())
   assert.strictEqual(revealTx.ins[0].index, 0)
 
-  return { encoder, args, unsignedHex }
+  return { encoder, args, unsignedHex, commit, reveal, revealTx }
 }
 
 describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits', function () {
@@ -117,6 +118,14 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
 
   it('builds and finalizes a P2SH-P2WPKH-funded commit and reveal with source attribution at input 0', async function () {
     await buildPair('p2sh-p2wpkh')
+  })
+
+  it('prefunds and emits the two-step reveal change at a raised operator output floor', async function () {
+    const { encoder, reveal, revealTx } = await buildPair('p2pkh', 4)
+    assert.ok(encoder.outputFloor > encoder.dustAmount)
+    assert.strictEqual(reveal.envelope.commitValue, reveal.envelope.revealFee + encoder.outputFloor)
+    assert.strictEqual(revealTx.outs.length, 1)
+    assert.strictEqual(Number(revealTx.outs[0].value), encoder.outputFloor)
   })
 
   it('refuses an unsigned envelopeCommitHex', async function () {

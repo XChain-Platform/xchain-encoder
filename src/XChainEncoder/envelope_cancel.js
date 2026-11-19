@@ -186,11 +186,11 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
         cancelFee = this.dustAmount
     }
 
-    const sweepValue = value - cancelFee - (padNeeded ? this.dustAmount : 0)
-    if (sweepValue < this.dustAmount){
+    const sweepValue = value - cancelFee - (padNeeded ? this.outputFloor : 0)
+    if (sweepValue < this.outputFloor){
         throw new OperationalError(
             'ENVELOPE_CANCEL_BELOW_DUST',
-            `cancel would sweep ${sweepValue} satoshis (commit value ${value} minus fee ${cancelFee}${padNeeded ? ' minus floor pad' : ''}), below the dust floor (${this.dustAmount}); spend it via the reveal or CPFP instead`,
+            `cancel would sweep ${sweepValue} satoshis (commit value ${value} minus fee ${cancelFee}${padNeeded ? ' minus floor pad' : ''}), below the output floor (${this.outputFloor}); spend it via the reveal or CPFP instead`,
             { commitValue: value, fee: cancelFee, sweepValue }
         )
     }
@@ -291,7 +291,7 @@ module.exports = {
         })
         psbt.addOutput({ address: destination, value: sweepValue })
         if (padNeeded){
-            psbt.addOutput({ address: destination, value: this.dustAmount })
+            psbt.addOutput({ address: destination, value: this.outputFloor })
         }
 
         return { psbt, encoding: Encoding.TAPROOT, cancel: true, fee: cancelFee }

@@ -240,7 +240,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
 
     // The reveal's only funding is the commit output, so its
     // value must prefund the reveal's miner fee plus a change
-    // output at the dust floor (the reveal must carry at least
+    // output at the process-wide output floor (the reveal must carry at least
     // one output; change doubles as the CPFP handle), plus
     // the stripped-size floor pad where the chain demands one
     // (LTC: a reveal whose only output is small sits under
@@ -257,7 +257,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
     if (revealFee < finalDust){
         revealFee = finalDust
     }
-    const commitValue = revealFee + this.dustAmount + (revealPadNeeded ? this.dustAmount : 0)
+    const commitValue = revealFee + this.outputFloor + (revealPadNeeded ? this.outputFloor : 0)
 
     revealPrefund = {
         outputIndex: psbt.txOutputs.length,

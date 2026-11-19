@@ -31,7 +31,7 @@
  *
  * The sentinel is deliberately fail-safe in the honest direction. Every
  * way it can be wrong - missing, unreadable, oversized, unparseable, no
- * expiry, expired, a timestamp no Date can represent, or claiming a window
+ * start or expiry, expired, a timestamp no Date can represent, or claiming a window
  * longer than MAX_WINDOW_MS either in time remaining or in declared span -
  * resolves to "no maintenance", which puts the row back on Degraded. A
  * publish that crashes without cleaning up therefore stops excusing the
@@ -105,34 +105,30 @@ function parseMaintenanceWindow(text, now = Date.now()) {
     try { doc = JSON.parse(text) } catch { return null }
     if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return null
 
-    // An expiry is REQUIRED. Without one a publish that dies mid-run leaves the
+    // A start and expiry are REQUIRED. Without them a publish that dies mid-run leaves the
     // board excusing a genuine outage with no end date, which is worse than the
     // Degraded label this exists to replace.
     const until = toEpochMs(doc.until)
     if (until === null || until <= now) return null
     if (until - now > MAX_WINDOW_MS) return null
 
-    // `since` is optional, but a SUPPLIED one that does not read as a timestamp
-    // is a wrong sentinel, not an absent start: silently demoting it to null
-    // would let a typo buy the unbounded-span treatment below.
-    const sinceSupplied = doc.since !== undefined && doc.since !== null
     const since = toEpochMs(doc.since)
-    if (sinceSupplied && since === null) return null
+    if (since === null) return null
 
     // A window may be declared ahead of time; it is not active until it opens.
-    if (since !== null && since > now) return null
+    if (since > now) return null
 
     // The ceiling above bounds only the time REMAINING, which a stale overlong
     // declaration grows into: a 30-day window is refused for 29 days and then
     // starts excusing a genuine outage through its final 24 hours. When the
-    // operator declared a start, the declared span is bounded too, so the same
-    // sentinel can never go from refused to active as its expiry nears.
-    if (since !== null && until - since > MAX_WINDOW_MS) return null
+    // required start always bounds the declared span, so the same sentinel can
+    // never go from refused to active as its expiry nears.
+    if (until - since > MAX_WINDOW_MS) return null
 
     return {
         active: true,
         reason: cleanReason(doc.reason),
-        since: since === null ? null : new Date(since).toISOString(),
+        since: new Date(since).toISOString(),
         until: new Date(until).toISOString()
     }
 }

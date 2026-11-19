@@ -39,7 +39,7 @@ function outpointKey(utxo){
 }
 
 function initInputState(build){
-    let { replacebyfee, p2shHash } = build
+    let { replacebyfee, p2shHash, options } = build
     let psbt = null
 
     // 0xfffffffd, not 1. Any value below 0xfffffffe signals RBF (BIP125), but
@@ -64,8 +64,11 @@ function initInputState(build){
     // and skip the tracker entirely; fall back to it only if the phase-1 hex
     // is somehow missing (an invalid reveal call).
     const isReveal = !!p2shHash
+    const isTwoStepReveal = !!(options && options.envelopeCommitHex)
+    const skipsInputSelection = isReveal || isTwoStepReveal
     let fetchedFromTracker = false
-    Object.assign(build, { psbt, utxoSequence, inputSatoshis, isReveal, fetchedFromTracker })
+    Object.assign(build, { psbt, utxoSequence, inputSatoshis, isReveal, isTwoStepReveal,
+        skipsInputSelection, fetchedFromTracker })
 }
 
 function checkExactInputs(build){
@@ -103,13 +106,13 @@ function checkExactInputs(build){
 // The candidate set: the caller's utxos, an empty set on a reveal, or the
 // tracker's view of the caller's address.
 function* gatherUtxos(build){
-    let { utxos, isReveal, p2shHex } = build
+    let { utxos, isReveal, isTwoStepReveal, p2shHex } = build
     if ((utxos == null) || (utxos.length == 0)){
-        if (isReveal && p2shHex){
+        if ((isReveal && p2shHex) || isTwoStepReveal){
             utxos = []
-        Object.assign(build, { utxos })
+            Object.assign(build, { utxos })
         } else {
-        yield* fetchTrackerUtxos.call(this, build)
+            yield* fetchTrackerUtxos.call(this, build)
         }
     }
 }
@@ -233,7 +236,7 @@ function refuseShrunkExactInputs(build){
 
 // Dedup, mempool filter and value-descending order, all in place on `utxos`.
 function filterAndOrderUtxos(build){
-    let { utxos, unconfirmed, isReveal, exactInputs } = build
+    let { utxos, unconfirmed, isReveal, skipsInputSelection, exactInputs } = build
     // Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes)
     // and, when unconfirmed is false, every mempool entry along with them.
     //
@@ -272,7 +275,7 @@ function filterAndOrderUtxos(build){
     //address rather than crashing on utxos[0] below. The reveal path
     //legitimately has an empty utxos array here (its inputs come from
     //p2shHex), so only the funding/single-tx path treats empty as fatal.
-    if (utxos.length == 0 && !isReveal){
+    if (utxos.length == 0 && !isReveal && !skipsInputSelection){
         throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
     }
 

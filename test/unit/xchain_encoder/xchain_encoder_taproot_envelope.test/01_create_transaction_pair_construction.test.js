@@ -103,10 +103,10 @@ describe('XChainEncoder TAPROOT envelope', function () {
         assert.strictEqual(input.sighashType, bitcoin.Transaction.SIGHASH_ALL)
       }
 
-      // Prefund arithmetic: commit value = reveal fee + dust change (no LTC pad on BTC).
-      assert.strictEqual(result.envelope.commitValue, result.envelope.revealFee + encoder.dustAmount)
+      // Prefund arithmetic: commit value = reveal fee + output-floor change (no LTC pad on BTC).
+      assert.strictEqual(result.envelope.commitValue, result.envelope.revealFee + encoder.outputFloor)
       const revealOut = result.revealPsbt.txOutputs[0]
-      assert.strictEqual(Number(revealOut.value), encoder.dustAmount, 'reveal change lands exactly at dust')
+      assert.strictEqual(Number(revealOut.value), encoder.outputFloor, 'reveal change lands exactly at the output floor')
     })
   })
 })
@@ -266,6 +266,7 @@ describe('XChainEncoder TAPROOT envelope', function () {
 
     it('pads the reveal over the LTC stripped-size floor and prefunds the pad (§3.5)', async function () {
       const encoder = makeEncoder('litecoin-regtest')
+      encoder.outputFloor = encoder.dustAmount * 3
       const network = encoder.network
       const result = await encoder.createTransaction(
         [makeSegwitUtxo(network, TXID_A, 0, 100000000)], callerAddress(network), null,
@@ -273,9 +274,10 @@ describe('XChainEncoder TAPROOT envelope', function () {
       // p2wpkh change output (31 B) leaves the stripped reveal at 82 B, under
       // LTC's 85-byte floor: expect change + one dust pad output.
       assert.strictEqual(result.revealPsbt.txOutputs.length, 2, 'change + floor pad')
-      assert.strictEqual(Number(result.revealPsbt.txOutputs[1].value), encoder.dustAmount)
+      assert.strictEqual(Number(result.revealPsbt.txOutputs[0].value), encoder.outputFloor)
+      assert.strictEqual(Number(result.revealPsbt.txOutputs[1].value), encoder.outputFloor)
       assert.strictEqual(result.envelope.commitValue,
-        result.envelope.revealFee + 2 * encoder.dustAmount, 'pad dust prefunded on the commit')
+        result.envelope.revealFee + 2 * encoder.outputFloor, 'output-floor change and pad prefunded on the commit')
       // The padded reveal now clears the floor.
       const stripped = 10 + 41 * result.revealPsbt.txInputs.length +
         result.revealPsbt.txOutputs.reduce((a, o) => a + 8 + 1 + o.script.length, 0)
