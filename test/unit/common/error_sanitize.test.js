@@ -13,7 +13,11 @@
  *********************************************************************/
 
 const assert = require('assert')
-const { upstreamErrorMessage, isTransportError, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS } = require('../../../src/common/error_sanitize')
+const {
+    upstreamErrorMessage, nodeReasonCode, isTransportError, leaksInternalDetail,
+    safeUpstreamReason, knownTrackerReason, trackerErrorMessage,
+    NODE_REASON_RULES, MAX_UPSTREAM_REASON_CHARS
+} = require('../../../src/common/error_sanitize')
 
 // Guards the encoder's outbound error sanitization: useful upstream RPC reasons
 // pass through, transport-level failures (which leak the internal node host:port)
@@ -146,6 +150,73 @@ describe('errorSanitize.safeUpstreamReason', () => {
     it('returns null for an oversized, empty, blank or non-string reason', () => {
         for (const value of ['a'.repeat(5000), '', '   ', '\n\t', undefined, null, 42, {}]) {
             assert.strictEqual(safeUpstreamReason(value), null, JSON.stringify(value))
+        }
+    })
+})
+
+describe('errorSanitize fail-closed upstream classification', () => {
+    const FALLBACK = 'Transaction broadcast failed'
+
+    it('collapses arbitrary credential text and unrecognized prose', () => {
+        for (const message of [
+            'authentication failed: rpcpassword=example-secret',
+            'the upstream refused this for an undocumented reason',
+            '{"message":"secret material"}'
+        ]) {
+            assert.strictEqual(upstreamErrorMessage(new Error(message), FALLBACK), FALLBACK)
+        }
+    })
+
+    it('renders a recognized reason without adjacent upstream text', () => {
+        assert.strictEqual(upstreamErrorMessage(new Error('dust rpcpassword=hunter2'), FALLBACK), 'dust')
+        assert.strictEqual(upstreamErrorMessage(new Error('min relay fee not met, 0 < 110 token=secret'), FALLBACK),
+            'min relay fee not met, 0 < 110')
+    })
+
+    it('assigns every recognized node reason a fixed code and renderer', () => {
+        for (const rule of NODE_REASON_RULES) {
+            assert.match(rule.code, /^[A-Z][A-Z0-9_]+$/)
+            assert.strictEqual(typeof rule.render(''), 'string')
+        }
+        assert.strictEqual(nodeReasonCode(new Error('dust private text')), 'DUST')
+        assert.strictEqual(nodeReasonCode(new Error('unknown private text')), null)
+    })
+
+    it('keeps only known tracker reasons and fixed tracker error text', () => {
+        assert.strictEqual(knownTrackerReason('rolled back past the recovery window'), 'rolled back past the recovery window')
+        assert.strictEqual(knownTrackerReason('operator token=secret'), null)
+        assert.strictEqual(trackerErrorMessage('ADDRESS_TOO_LARGE'),
+            'Error getting utxos: [ADDRESS_TOO_LARGE] address has too many utxos')
+        assert.strictEqual(trackerErrorMessage('BAD CODE'), 'Error getting utxos: utxo-tracker refused the request')
+    })
+})
+
+describe('errorSanitize echoed upstream fragments', () => {
+    const FALLBACK = 'Transaction broadcast failed'
+
+    it('echoes relay-fee amounts only as short digit runs', () => {
+        assert.strictEqual(upstreamErrorMessage(new Error('min relay fee not met, 0 < 110'), FALLBACK), 'min relay fee not met, 0 < 110')
+        assert.strictEqual(upstreamErrorMessage(new Error('min relay fee not met, 999999999999 < 1'), FALLBACK),
+            'min relay fee not met, 999999999999 < 1')
+        for (const message of ['min relay fee not met, 1234567890123 < 110', 'min relay fee not met, 0 < 98765432109876']) {
+            assert.strictEqual(upstreamErrorMessage(new Error(message), FALLBACK), 'min relay fee not met')
+        }
+    })
+
+    it('never echoes a syntactically valid tracker code outside the fixed table', () => {
+        const GENERIC = 'Error getting utxos: utxo-tracker refused the request'
+        assert.strictEqual(trackerErrorMessage('RPCPASSWORD_SECRET'), GENERIC)
+        assert.strictEqual(trackerErrorMessage('toString'), GENERIC)
+        assert.strictEqual(trackerErrorMessage(1234567890123), GENERIC)
+        assert.strictEqual(trackerErrorMessage(-32602), 'Error getting utxos: [-32602] utxo-tracker refused the request')
+        for (const message of [
+            'Error getting utxos: [RPCPASSWORD_SECRET] utxo-tracker refused the request',
+            'Error getting utxos: [HUNTER2_IS_THE_PASSWORD] address has too many utxos',
+            'Error getting utxos: [1234567890123] utxo-tracker refused the request'
+        ]) {
+            const forwarded = upstreamErrorMessage(new Error(message), FALLBACK)
+            assert.strictEqual(forwarded, GENERIC)
+            assert.ok(!/SECRET|HUNTER2|1234567890123/.test(forwarded))
         }
     })
 })

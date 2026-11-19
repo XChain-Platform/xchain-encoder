@@ -16,26 +16,22 @@
  *
  * The encoder proxies the coin node and the UTXO tracker. Their RPC
  * *rejections* (e.g. "min relay fee not met", "bad-txns-inputs-
- * missingorspent", "dust") are safe and useful to echo to the caller:
- * BlockchainConnector/UtxoTracker convert those into a plain Error whose
- * message is the node's own reason. A *transport* failure is different -
+ * missingorspent", "dust") are useful to classify, but their text remains
+ * upstream-authored. The encoder returns fixed messages for recognized
+ * reasons and collapses everything else. A *transport* failure is different -
  * the raw axios error is rethrown and its message embeds the internal
  * host:port behind the encoder (e.g. "connect ECONNREFUSED 10.0.0.5:8332").
  * On an open-by-default service that is topology recon, so transport errors
- * are replaced with a generic fallback while genuine upstream reasons pass
- * through.
+ * are replaced with a generic fallback.
  *
  * Transport CLASSIFICATION alone is not proof a message is safe. Every
  * re-wrap between the socket and here (BlockchainConnector, UtxoTracker,
  * XChainEncoder) builds a plain Error and drops err.code, so a connect
  * failure carrying an RPC URL with embedded credentials arrives looking
- * exactly like an application rejection. So the caller-safe message is
- * gated twice: not a classified transport error, AND carrying none of the
- * shapes that can only be the encoder's own topology or credentials.
- * A message that trips the second gate is collapsed WHOLE rather than
- * scrubbed: redacting the part we recognized still ships everything else
- * the upstream chose to say, which is the same enumerate-the-bad mistake
- * as classifying by errno.
+ * exactly like an application rejection. Caller-safe text is therefore
+ * selected from encoder-owned messages only: a fixed rendering of a
+ * recognized reason, or an error the encoder built with callerSafeError.
+ * The topology check runs first on both.
  *
  ********************************************************************/
 
@@ -80,14 +76,106 @@ function leaksInternalDetail(message) {
     return INTERNAL_DETAIL_PATTERNS.some((pattern) => pattern.test(message))
 }
 
-// Return a caller-safe message: the upstream reason for application-level
-// rejections, the generic fallback for a transport-level failure or for any
-// message carrying internal topology or credentials.
+const NODE_REASON_RULES = [
+    { code: 'INPUTS_MISSING_OR_SPENT', test: /missing\s*or\s*spent|missingorspent|bad-txns-inputs-spent|missing\s+inputs|already\s+spent/i,
+        render: () => 'bad-txns-inputs-missingorspent' },
+    { code: 'SPEND_CONFLICT', test: /bad-txns-spends-conflicting-tx|txn-mempool-conflict|rejecting\s+replacement/i,
+        render: () => 'txn-mempool-conflict' },
+    { code: 'REPLACEMENT_FEE', test: /insufficient fee[^\r\n]{0,80}replacement|replacement-adds-unconfirmed|too\s+many\s+potential\s+replacements/i,
+        render: () => 'insufficient fee for replacement' },
+    { code: 'TX_ALREADY_IN_CHAIN', test: /txn-already-known|txn-already-in-mempool|already\s+in\s+(?:the\s+)?block\s*chain/i,
+        render: () => 'txn-already-known' },
+    { code: 'DUST', test: /\bdust\b/i, render: () => 'dust' },
+    { code: 'SCRIPT_VERIFY_FAILED', test: /script-verify-flag/i, render: () => 'script-verify-flag-failed' },
+    { code: 'MEMPOOL_CHAIN_TOO_LONG', test: /too-long-mempool-chain/i, render: () => 'too-long-mempool-chain' },
+    { code: 'MEMPOOL_FULL', test: /mempool[^\r\n]{0,40}full/i, render: () => 'mempool full' },
+    { code: 'MEMPOOL_MIN_FEE', test: /mempool min fee/i, render: () => 'mempool min fee not met' },
+    { code: 'MIN_RELAY_FEE', test: /min relay fee/i, render: renderRelayFeeReason },
+    { code: 'INSUFFICIENT_PRIORITY', test: /insufficient priority/i, render: () => 'insufficient priority' },
+    { code: 'RATE_LIMITED', test: /rate.?limit/i, render: () => 'rate limit exceeded' },
+    { code: 'MAX_FEE_RATE', test: /maxfeerate|fee exceeds maximum/i, render: () => 'fee exceeds maximum configured by maxfeerate' },
+    { code: 'NODE_WARMING_UP', test: /RPC error -28|loading block index/i, render: () => 'node is warming up (RPC error -28)' }
+]
+
+// Fee amounts are short; a longer digit run is upstream-chosen data and is not echoed.
+function renderRelayFeeReason(message) {
+    const amounts = String(message).match(/(?<!\d)(\d{1,12})\s*<\s*(\d{1,12})(?!\d)/)
+    return amounts ? `min relay fee not met, ${amounts[1]} < ${amounts[2]}` : 'min relay fee not met'
+}
+
+function canonicalNodeReason(message) {
+    if (typeof message !== 'string' || leaksInternalDetail(message)) return null
+    const rule = NODE_REASON_RULES.find(candidate => candidate.test.test(message))
+    return rule ? { code: rule.code, message: rule.render(message) } : null
+}
+
+const TRACKER_ERROR_MESSAGES = Object.freeze({
+    ADDRESS_TOO_LARGE: 'address has too many utxos',
+    INVALID_CURSOR: 'invalid pagination cursor',
+    BAD_REQUEST: 'request rejected'
+})
+
+// Only a code the encoder already knows is echoed: a symbolic one from the fixed
+// table, or a JSON-RPC-sized integer. Any other code is upstream-chosen text, so
+// it is dropped and the message names no code at all.
+const MAX_ECHOED_NUMERIC_CODE = 32768
+
+function trackerErrorMessage(rawCode) {
+    const numeric = Number.isSafeInteger(rawCode) && Math.abs(rawCode) <= MAX_ECHOED_NUMERIC_CODE ? String(rawCode) : null
+    const symbolic = typeof rawCode === 'string' && Object.hasOwn(TRACKER_ERROR_MESSAGES, rawCode) ? rawCode : null
+    const code = numeric || symbolic
+    if (!code) return 'Error getting utxos: utxo-tracker refused the request'
+    const reason = symbolic ? TRACKER_ERROR_MESSAGES[symbolic] : 'utxo-tracker refused the request'
+    return `Error getting utxos: [${code}] ${reason}`
+}
+
+function canonicalTrackerError(message) {
+    if (typeof message !== 'string') return null
+    const match = message.match(/^Error getting utxos: \[(-?\d+|[A-Z][A-Z0-9_]{1,63})\](?:\s|$)/)
+    return match ? trackerErrorMessage(/^-?\d+$/.test(match[1]) ? Number(match[1]) : match[1]) : null
+}
+
+// Errors the encoder wrote itself, tracked by object identity: upstream data can
+// shape a message but cannot produce one of these objects, and a re-wrap drops it.
+const callerSafeErrors = new WeakSet()
+
+// An Error whose message is encoder-written and safe to show a caller, so the
+// sanitizer passes it through once the endpoint check has also cleared it.
+function callerSafeError(message) {
+    const err = new Error(message)
+    Error.captureStackTrace(err, callerSafeError)
+    callerSafeErrors.add(err)
+    return err
+}
+
+// A tracker-reported number for a caller-safe message. Like the relay-fee
+// amounts above, only a short integer is echoed; anything else is upstream-chosen data.
+const MAX_ECHOED_TRACKER_NUMBER = 999999999999
+
+function trackerNumber(value, unknown = 'an unrecognized value') {
+    return Number.isSafeInteger(value) && Math.abs(value) <= MAX_ECHOED_TRACKER_NUMBER ? String(value) : unknown
+}
+
+function trackerBlockCount(value) {
+    return trackerNumber(value, 'an unknown number of')
+}
+
+// Return encoder-authored text for a recognized upstream rejection, or the
+// generic fallback for transports, unknown text and internal detail.
 function upstreamErrorMessage(err, fallback) {
     if (isTransportError(err)) return fallback
     const message = (err && err.message) || ''
     if (message === '' || leaksInternalDetail(message)) return fallback
-    return message
+    if (callerSafeErrors.has(err)) return message
+    const trackerMessage = canonicalTrackerError(message)
+    if (trackerMessage) return trackerMessage
+    const nodeReason = canonicalNodeReason(message)
+    return nodeReason ? nodeReason.message : fallback
+}
+
+function nodeReasonCode(err) {
+    const reason = canonicalNodeReason((err && err.message) || '')
+    return reason ? reason.code : null
 }
 
 // Longest upstream reason forwarded, and the longest one worth leak-checking at all.
@@ -103,6 +191,16 @@ function safeUpstreamReason(value) {
     if (leaksInternalDetail(value)) return null
     const printable = value.replace(/[^\x20-\x7e]/g, ' ').trim().slice(0, MAX_UPSTREAM_REASON_CHARS).trim()
     return printable === '' ? null : printable
+}
+
+function knownTrackerReason(value) {
+    const reason = safeUpstreamReason(value)
+    if (!reason) return null
+    if (/rolled back past (?:the )?(?:recovery|tracked|undo) window/i.test(reason)) {
+        return 'rolled back past the recovery window'
+    }
+    if (/^unrecoverable reorg$/i.test(reason)) return 'unrecoverable reorg'
+    return null
 }
 
 // Log-line bounds. A thrown AxiosError carries its config, the ClientRequest
@@ -160,4 +258,8 @@ function logErrorOnce(logger, prefix, err) {
     return true
 }
 
-module.exports = { isTransportError, upstreamErrorMessage, leaksInternalDetail, safeUpstreamReason, MAX_UPSTREAM_REASON_CHARS, logErrorOnce }
+module.exports = {
+    isTransportError, upstreamErrorMessage, nodeReasonCode, leaksInternalDetail,
+    safeUpstreamReason, knownTrackerReason, trackerErrorMessage, callerSafeError, trackerNumber, trackerBlockCount,
+    NODE_REASON_RULES, MAX_UPSTREAM_REASON_CHARS, logErrorOnce
+}

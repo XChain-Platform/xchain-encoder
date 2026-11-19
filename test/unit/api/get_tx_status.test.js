@@ -72,7 +72,7 @@ describe('get_tx_status transaction location', function () {
     try {
       await assert.rejects(
         () => controller.get_tx_status({ txid: TXID }),
-        (err) => err.code === -32603 && /node warming up/.test(err.message)
+        (err) => err.code === -32603 && err.message === 'Transaction status lookup failed'
       )
       assert.deepStrictEqual(calls, [['mempool', TXID]])
     } finally {
@@ -88,7 +88,7 @@ describe('get_tx_status transaction location', function () {
     try {
       await assert.rejects(
         () => controller.get_tx_status({ txid: TXID }),
-        (err) => err.code === -32603 && /tracker unavailable/.test(err.message)
+        (err) => err.code === -32603 && err.message === 'Transaction status lookup failed'
       )
     } finally {
       console.error = originalError

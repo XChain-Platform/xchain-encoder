@@ -20,7 +20,7 @@
 
 const axios = require('axios')
 const { getLogger } = require('../observability');
-const { safeUpstreamReason, logErrorOnce } = require('../common/error_sanitize');
+const { knownTrackerReason, trackerErrorMessage, callerSafeError, trackerNumber, trackerBlockCount, logErrorOnce } = require('../common/error_sanitize');
 const logger = getLogger();
 const { isRemoteProfile, throwIfRefused, trackerUnreachableError, trackerSyncMissingError } = require('../XChainEncoder/trackerless_profile.js')
 
@@ -45,7 +45,7 @@ function maxAddressUtxos(raw){
 }
 function assertWithinUtxoCap(count, cap){
     if (count > cap) {
-        const e = new Error(`Address holds more than ${cap} UTXOs; refusing to return a partial set (${UTXO_SET_TOO_LARGE}). Consolidate the address or build with a caller-supplied utxos set`)
+        const e = callerSafeError(`Address holds more than ${cap} UTXOs; refusing to return a partial set (${UTXO_SET_TOO_LARGE}). Consolidate the address or build with a caller-supplied utxos set`)
         e.code = UTXO_SET_TOO_LARGE
         e.utxoCap = cap
         throw e
@@ -80,15 +80,15 @@ function snapshotDivergence(first, later){
     if (stopped) return stopped
     if (typeof first.tracker_height === 'number' && typeof later.tracker_height === 'number' &&
         first.tracker_height !== later.tracker_height){
-        return 'the tracker moved from height ' + first.tracker_height + ' to ' + later.tracker_height + ' mid-fetch'
+        return 'the tracker moved from height ' + trackerNumber(first.tracker_height) + ' to ' + trackerNumber(later.tracker_height) + ' mid-fetch'
     }
     if (typeof first.reorg_count === 'number' && typeof later.reorg_count === 'number' &&
         first.reorg_count !== later.reorg_count){
-        return 'the tracker recorded a reorg mid-fetch (reorg_count ' + first.reorg_count + ' to ' + later.reorg_count + ')'
+        return 'the tracker recorded a reorg mid-fetch (reorg_count ' + trackerNumber(first.reorg_count) + ' to ' + trackerNumber(later.reorg_count) + ')'
     }
     if (typeof first.mempool_epoch === 'number' && typeof later.mempool_epoch === 'number' &&
         first.mempool_epoch !== later.mempool_epoch){
-        return 'the tracker mempool changed mid-fetch (mempool_epoch ' + first.mempool_epoch + ' to ' + later.mempool_epoch + ')'
+        return 'the tracker mempool changed mid-fetch (mempool_epoch ' + trackerNumber(first.mempool_epoch) + ' to ' + trackerNumber(later.mempool_epoch) + ')'
     }
     // Refuse when the pages were read on different chains at one height (hashes are not echoed: upstream text).
     if (typeof first.committed_hash === 'string' && typeof later.committed_hash === 'string' && first.committed_hash !== later.committed_hash){
@@ -99,9 +99,9 @@ function snapshotDivergence(first, later){
 
 // The divergences a restart cannot cure: the tracker has stopped serving a usable view.
 function trackerStoppedServing(later){
-    if (later.halted === true) return 'the tracker halted mid-fetch (' + (safeUpstreamReason(later.halt_reason) || 'unrecoverable reorg') + ')'
+    if (later.halted === true) return 'the tracker halted mid-fetch (' + (knownTrackerReason(later.halt_reason) || 'unrecoverable reorg') + ')'
     if (later.synced === false) return 'the tracker stopped reporting synced mid-fetch'
-    if (typeof later.lag === 'number' && later.lag < 0) return 'the tracker went ' + (-later.lag) + ' blocks ahead of the node mid-fetch'
+    if (typeof later.lag === 'number' && later.lag < 0) return 'the tracker went ' + trackerBlockCount(-later.lag) + ' blocks ahead of the node mid-fetch'
     return null
 }
 
@@ -116,14 +116,14 @@ async function assertTrackerReady(tracker){
         const syncStatus = await tracker.getSyncStatus()
         const lag = syncStatus.lag
         if (lag === null || typeof lag === 'undefined') {
-            throw new Error('utxo-tracker has not indexed any blocks yet; refusing to fetch UTXOs')
+            throw callerSafeError('utxo-tracker has not indexed any blocks yet; refusing to fetch UTXOs')
         }
         // Halt is a verdict the tracker publishes independently of `synced`: it
         // has stopped polling on an unrecoverable reorg and its store is frozen,
         // possibly mid-rollback. A frozen height whose lag still looked acceptable
         // sailed past both checks below, so gate on it first.
         if (syncStatus.halted === true) {
-            throw new Error(`utxo-tracker is halted (${safeUpstreamReason(syncStatus.halt_reason) || 'unrecoverable reorg'}); refusing to fetch UTXOs`)
+            throw callerSafeError(`utxo-tracker is halted (${knownTrackerReason(syncStatus.halt_reason) || 'unrecoverable reorg'}); refusing to fetch UTXOs`)
         }
         // A negative lag means our committed tip is ABOVE the node's, i.e. the node
         // reset or reindexed below us and those outputs sit in blocks it no longer
@@ -131,13 +131,13 @@ async function assertTrackerReady(tracker){
         // tracker still reporting synced:true cannot authorize selection over
         // orphaned UTXOs (the fail-open boundary's own guard).
         if (lag < 0) {
-            throw new Error(`utxo-tracker is ${-lag} blocks ahead of the node (node reset or reorged below its tip); refusing to fetch UTXOs`)
+            throw callerSafeError(`utxo-tracker is ${trackerBlockCount(-lag)} blocks ahead of the node (node reset or reorged below its tip); refusing to fetch UTXOs`)
         }
         // Delegate the sync verdict to the tracker, which computes `synced`
         // against its own authoritative threshold. Avoids drift from keeping
         // a local copy of the threshold here.
         if (!syncStatus.synced) {
-            throw new Error(`utxo-tracker is lagging by ${lag} blocks; refusing to fetch UTXOs`)
+            throw callerSafeError(`utxo-tracker is lagging by ${trackerBlockCount(lag)} blocks; refusing to fetch UTXOs`)
         }
         // Block sync flips true before the first mempool rebuild finishes, and until
         // it does the empty mempool index cannot filter a confirmed output already
@@ -150,7 +150,7 @@ async function assertTrackerReady(tracker){
         // lagging tracker de-asserts it too, and checking it first blamed
         // mempool reconvergence for a fault that is really block lag.
         if (syncStatus.mempool_ready === false) {
-            throw new Error('utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to fetch UTXOs')
+            throw callerSafeError('utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to fetch UTXOs')
         }
     } catch (error) {
         logErrorOnce(logger, 'Error checking UTXO tracker sync status:', error);
@@ -206,7 +206,7 @@ function readUtxoResult(responseData){
     if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
         const result = responseData.result
         if (!Array.isArray(result.utxos)) {
-            throw new Error('UTXO tracker result missing utxos array')
+            throw callerSafeError('UTXO tracker result missing utxos array')
         }
         return result
     }
@@ -217,14 +217,10 @@ function readUtxoResult(responseData){
     // Prefer err.data.code (string code forwarded by the tracker) over err.code.
     const rpcError = responseData.error
     if (rpcError && (rpcError.message || rpcError.code || rpcError.data?.code)) {
-        // The tracker's text is untrusted and reaches public errors, so it gets the halt_reason sanitizer
-        // (leak-checked, printable ASCII, capped); an integer JSON-RPC code is safe as it stands.
         const rawCode = rpcError.data?.code || rpcError.code
-        const code = Number.isSafeInteger(rawCode) ? String(rawCode) : safeUpstreamReason(rawCode)
-        const message = safeUpstreamReason(rpcError.message) || 'unknown error'
-        throw new Error(`Error getting utxos: ${code ? `[${code}] ` : ''}${message}`)
+        throw callerSafeError(trackerErrorMessage(rawCode))
     }
-    throw new Error('Error getting utxos: empty result')
+    throw callerSafeError('Error getting utxos: empty result')
 }
 
 // Throw when a later page's `sync` sibling describes a different chain state
@@ -232,7 +228,7 @@ function readUtxoResult(responseData){
 function assertSameSnapshot(firstPageSync, pageSync, address){
     const divergence = snapshotDivergence(firstPageSync, pageSync)
     if (divergence) {
-        const e = new Error(`utxo-tracker chain state changed while paginating utxos for ${address}: ` +
+        const e = callerSafeError(`utxo-tracker chain state changed while paginating utxos for ${address}: ` +
             `${divergence}; refusing to merge pages read at different chain states (retry the request)`)
         e.snapshotMoved = !trackerStoppedServing(pageSync)
         throw e
@@ -249,13 +245,13 @@ function appendPageUtxos(utxos, allUtxos){
         const globalIdx = pageOffset + i
         if (typeof u !== 'object' || u === null || typeof u.txid !== 'string' ||
             typeof u.vout === 'undefined' || typeof u.value === 'undefined') {
-            throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}`)
+            throw callerSafeError(`UTXO tracker returned malformed utxo at index ${globalIdx}`)
         }
         if (!HEX_64_RE.test(u.txid)) {
-            throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: txid must be a 64-character hex string`)
+            throw callerSafeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: txid must be a 64-character hex string`)
         }
         if (typeof u.scriptPubKey !== 'string' || u.scriptPubKey.length === 0) {
-            throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: scriptPubKey must be a non-empty string`)
+            throw callerSafeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: scriptPubKey must be a non-empty string`)
         }
         if (u.confirmations == null) {
             u.confirmations = 0
@@ -263,7 +259,7 @@ function appendPageUtxos(utxos, allUtxos){
             // Mirror validateUtxoEntry: the unconfirmed filter compares `confirmations == 0` loosely, so coerce and range-check.
             const confirmations = Number(u.confirmations)
             if (!Number.isInteger(confirmations) || confirmations < 0) {
-                throw new Error(`UTXO tracker returned malformed utxo at index ${globalIdx}: confirmations must be a non-negative integer`)
+                throw callerSafeError(`UTXO tracker returned malformed utxo at index ${globalIdx}: confirmations must be a non-negative integer`)
             }
             u.confirmations = confirmations
         }
@@ -274,7 +270,7 @@ function appendPageUtxos(utxos, allUtxos){
 // A repeated cursor means the tracker is cycling/stalled: abort rather than loop forever accumulating the same pages.
 function assertFreshCursor(nextCursor, seenCursors, address){
     if (seenCursors.has(nextCursor)) {
-        throw new Error(`utxo-tracker returned a repeated pagination cursor for ${address}; aborting (stalled or hostile tracker)`)
+        throw callerSafeError(`utxo-tracker returned a repeated pagination cursor for ${address}; aborting (stalled or hostile tracker)`)
     }
     seenCursors.add(nextCursor)
 }
@@ -316,7 +312,7 @@ async function fetchUtxoSnapshot(tracker, address, cap){
             return { ...result, utxos: state.utxos }
         }
     }
-    throw new Error(`utxo-tracker returned more than ${MAX_UTXO_PAGES} pages for ${address}; aborting (buggy or hostile tracker)`)
+    throw callerSafeError(`utxo-tracker returned more than ${MAX_UTXO_PAGES} pages for ${address}; aborting (buggy or hostile tracker)`)
 }
 
 class UtxoTracker {
@@ -355,7 +351,7 @@ class UtxoTracker {
         if (responseData.result && typeof responseData.result === 'object' && responseData.result !== null) {
             return responseData.result
         } else {
-            const empty = new Error('Error getting sync status: empty result')
+            const empty = callerSafeError('Error getting sync status: empty result')
             empty.syncMissing = true
             throw empty
         }
@@ -382,7 +378,7 @@ class UtxoTracker {
                 return result
             }
         }
-        throw new Error('Error getting transaction block: empty result')
+        throw callerSafeError('Error getting transaction block: empty result')
     }
 
     async getUtxosFromAddress(address) {

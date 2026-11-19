@@ -316,16 +316,14 @@ function emitCustomOutputs(build){
             // dust, so the caller signs an unbroadcastable PSBT. Reject it at
             // the effector too (not just the validator boundary), matching the
             // native-fee output which is always positive (guarded at injection
-            // above), so this never rejects a legitimate sub-dust FEE_DESTINATION
-            // value.
+            // above).
             if (outputValue <= 0) {
                 throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
             }
-            // A caller payment also has to reach the coin's relay dust threshold
-            // (checkPaymentDust refused it already; this holds the effector to the
-            // same rule). The feeQuote protocol-fee output keeps only the positive
-            // rule above: its amount is priced by the hub, not chosen by the caller.
-            if (output !== feeQuoteOutput) assertPaymentOverDust(outputValue, i, this.paymentOutputFloor)
+            // Every payment has to reach the coin's relay dust threshold, including
+            // the protocol-fee output. This holds the effector to the boundary rule.
+            const field = output === feeQuoteOutput ? 'feeQuote.amount' : undefined
+            assertPaymentOverDust(outputValue, i, this.paymentOutputFloor, field)
             psbt.addOutput({
                 address: output.address,
                 value:   outputValue

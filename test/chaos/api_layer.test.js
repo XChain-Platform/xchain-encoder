@@ -149,7 +149,7 @@ describe('Chaos Category F: get_utxos error mapping', () => {
     const controller = controllerFor(async () => { throw new Error('tracker detail') })
     await assert.rejects(
       () => controller.get_utxos({ address: BTC_ADDR }),
-      err => err.code === -32603 && err.message === 'tracker detail'
+      err => err.code === -32603 && err.message === 'UTXO fetch failed'
     )
   })
 })

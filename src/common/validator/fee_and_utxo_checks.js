@@ -197,9 +197,10 @@ function validateUtxoArray(utxos) {
 // relay it, so the caller would sign a transaction that never reaches a miner. `floor`
 // is the encoder's paymentOutputFloor; a falsy floor (a network-agnostic caller) leaves
 // only the positive-amount rule.
-function assertPaymentOverDust(value, index, floor) {
+function assertPaymentOverDust(value, index, floor, field) {
     if (floor && value < floor) {
-        throw new ParamRangeError(`customOutputs[${index}].value ${value} is below the ${floor} base-unit relay dust threshold for this coin`)
+        const name = field || `customOutputs[${index}].value`
+        throw new ParamRangeError(`${name} ${value} is below the ${floor} base-unit relay dust threshold for this coin`)
     }
 }
 
@@ -215,11 +216,8 @@ function validateCustomOutput(output, index, paymentOutputFloor) {
     // as an unspendable/dust output, so the caller signs a PSBT that can never
     // broadcast. Reject it at the trust boundary, matching validateFeeQuote's
     // positive-amount contract. The per-coin dust floor below applies when the
-    // caller passes one (create_tx passes the encoder's). A feeQuote output is
-    // injected into customOutputs AFTER validateCustomOutputs runs (see
-    // checkPayloadInput), so it keeps only its own positive-amount rule; a native-fee
-    // output a client appends to customOutputs itself (the SDK does) is a caller
-    // output here and is held to the floor like any payment.
+    // caller passes one (create_tx passes the encoder's). A native-fee output a
+    // client appends to customOutputs itself is held to the floor like any payment.
     if (output.value <= 0) {
         throw new ParamRangeError(`customOutputs[${index}].value must be a positive integer (satoshis)`)
     }
@@ -241,7 +239,7 @@ function validateCustomOutputs(customOutputs, paymentOutputFloor) {
     return customOutputs
 }
 
-function validateFeeQuote(feeQuote) {
+function validateFeeQuote(feeQuote, paymentOutputFloor) {
     if (feeQuote == null) return null
     // Array.isArray, because typeof [] is 'object': a JSON array cleared this gate
     // and died one line later on validateAddress(undefined), reporting an address
@@ -260,6 +258,7 @@ function validateFeeQuote(feeQuote) {
     if (amount > MAX_FEE_SATOSHIS) {
         throw new ParamRangeError('feeQuote.amount exceeds maximum (' + MAX_FEE_SATOSHIS + ')')
     }
+    assertPaymentOverDust(amount, null, paymentOutputFloor, 'feeQuote.amount')
     feeQuote.amount = amount
     return feeQuote
 }

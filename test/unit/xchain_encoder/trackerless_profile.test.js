@@ -217,7 +217,8 @@ describe('classifyTrackerFreshness(): the halt reason is tracker-authored', func
 
   it('bounds a long halt reason and keeps an absent one null', function () {
     const v = halted('r'.repeat(1000))
-    assert.ok(v.details.halt_reason.length <= 120)
+    assert.strictEqual(v.details.halt_reason, null)
+    assert.ok(v.message.includes('(unrecoverable reorg)'), v.message)
     assert.ok(v.message.length < 200, v.message)
     assert.strictEqual(halted(undefined).details.halt_reason, null)
   })

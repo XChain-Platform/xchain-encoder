@@ -23,7 +23,7 @@ const bitcoin = require('bitcoinjs-lib')
 const XChainEncoder  = require('../XChainEncoder');
 const validator = require('../common/validator')
 const { HEX_64_RE } = require('../common/validator/constants')
-const { upstreamErrorMessage, logErrorOnce, isTransportError } = require('../common/error_sanitize')
+const { upstreamErrorMessage, nodeReasonCode, logErrorOnce, isTransportError } = require('../common/error_sanitize')
 const { OperationalError, ParamTypeError, isInvalidParams } = require('../build/errors')
 const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
@@ -287,9 +287,11 @@ return {
             const e = new Error(upstreamErrorMessage(err, 'Transaction broadcast failed'))
             if (Number.isInteger(err && err.nodeCode)) {
                 e.code = -32010
+                const nodeReason = nodeReasonCode(err)
                 e.data = {
                     reason: isAlreadyKnown(err) ? 'TX_ALREADY_IN_CHAIN' : 'NODE_REJECTED',
                     node_code: err.nodeCode,
+                    ...(nodeReason ? { node_reason: nodeReason } : {})
                 }
             } else {
                 e.code = -32603

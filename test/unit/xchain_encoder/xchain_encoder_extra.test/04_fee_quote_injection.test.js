@@ -89,7 +89,7 @@ describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
   it('adds feeQuote as an extra output when address and amount > 0', async () => {
     const encoder = makeEncoder()
     const utxo = makeP2pkhUtxo(TXID_A, 0, 100000000)
-    const feeQuote = { address: TEST_ADDRESS, amount: 99000 }
+    const feeQuote = { address: TEST_ADDRESS, amount: 100000 }
 
     const result = await encoder.createTransaction(
       [utxo], TEST_ADDRESS, null,
@@ -99,8 +99,8 @@ describe('XChainEncoder.createTransaction() - feeQuote injection', () => {
       feeQuote
     )
 
-    // Should have OP_RETURN (0) + feeQuote (99000) + change
-    const feeQuoteOutput = result.psbt.txOutputs.find(o => Number(o.value) === 99000)
+    // Should have OP_RETURN (0) + feeQuote (100000) + change
+    const feeQuoteOutput = result.psbt.txOutputs.find(o => Number(o.value) === 100000)
     assert.ok(feeQuoteOutput, 'should have a feeQuote output with the correct value')
   })
 

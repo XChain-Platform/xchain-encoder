@@ -20,12 +20,12 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const util = require('node:util');
-const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, Encoding } = require('../constants.js')
 const { envelopeTapLeafHash, asSatValue } = require('../script_amount_helpers.js')
 const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { revealNeedsFloorPad } = require('./script_hash_legs.js')
+const { estimateRevealSizes, wantedRevealFee, judgeRevealFee, judgePaddedRevealFee } = require('./reveal_fee_checks.js')
 
 // The change output, then the P2WSH reveal's stripped-size floor pad.
 function emitChangeAndPad(build){
@@ -69,6 +69,7 @@ function emitChangeAndPad(build){
                 address: padAddress,
                 value: this.outputFloor
             })
+            build.revealPadOutputIndex = psbt.txOutputs.length - 1
         }
     }
 }
@@ -93,15 +94,8 @@ function* sweepP2shReveal(build){
     // headroom, and so is a single-chunk one whose caller outputs clear the stripped
     // floor. A single-chunk one under the floor was funded a floor pad instead and is not swept.
     if (p2shHash && sweepsRevealSurplus.call(this, build) && phaseLegInputSatoshis > 0n){
-        let revealEmittedOutputBytes = 43 // change output (worst case), matching the reserve above
-        if (customOutputs && Array.isArray(customOutputs)){
-            for (let i = 0; i < customOutputs.length; i++){
-                revealEmittedOutputBytes = revealEmittedOutputBytes + TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
-            }
-        }
-        const revealSizeForFee = preparedData["encoding"] === Encoding.P2SH
-            ? this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
-            : this.estimateP2wshRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
+        const revealSizes = estimateRevealSizes.call(this, preparedData, customOutputs)
+        const revealSizeForFee = revealSizes.withSweep
         // estimatedFee already carries the soft-dust surcharge. Compare the two base
         // fees, then put that surcharge back exactly once after the larger base wins.
         const surcharge = softDustSurcharge || 0
@@ -112,6 +106,7 @@ function* sweepP2shReveal(build){
         }
         revealFeeKept = revealFeeKept + surcharge
 
+        const feeBeforeUplift = revealFeeKept
         revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
         let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
@@ -124,25 +119,14 @@ function* sweepP2shReveal(build){
                 value: asSatValue(revealSurplus)
             })
         }
-        if (revealSurplus < BigInt(this.outputFloor)){
-            noteUndersizedRevealLeg.call(this, build, revealFeeKept)
-        }
+        // Unswept, the reveal emits no sweep slot, so it is judged on the fee its real
+        // outputs ask for plus any package uplift it kept.
+        const wantedFee = sweepAddress ? revealFeeKept
+            : wantedRevealFee.call(this, build, revealSizes.withoutSweep) + (revealFeeKept - feeBeforeUplift)
+        judgeRevealFee.call(this, build, wantedFee, sweepAddress ? revealSizes.withSweep : revealSizes.withoutSweep, revealFeeKept)
+    } else if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && phaseLegInputSatoshis > 0n){
+        judgePaddedRevealFee.call(this, build)
     }
-}
-
-function noteUndersizedRevealLeg(build, revealFeeKept){
-    const { preparedData, phaseLegInputSatoshis, outputSatoshis, psbt } = build
-    if (psbt.txOutputs.some(output => BigInt(output.value) > 0n)) return
-    const legSatoshis = phaseLegInputSatoshis - outputSatoshis
-    const shortfall = BigInt(revealFeeKept) + BigInt(this.outputFloor) - legSatoshis
-    const encoding = preparedData["encoding"]
-    const message = `${encoding} reveal legs hold ${legSatoshis} base units after data outputs, ` +
-        `but this reveal keeps ${revealFeeKept} as fee and needs an output floor of ${this.outputFloor}, ` +
-        `a shortfall of ${shortfall}. The reveal has no value output, so every leg unit goes to fee and ` +
-        `a signer that refuses full burns will refuse it. The commit may lack reveal headroom, or this ` +
-        `reveal may be priced above the rate used to fund the commit.`
-    logger.warn(`REVEAL_LEG_UNDERSIZED: ${message}`)
-    build.revealLegUndersizedMessage = message
 }
 
 // Which chunk reveals end with a surplus sweep back to the caller: those whose first

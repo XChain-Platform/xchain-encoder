@@ -100,13 +100,17 @@ function injectFeeQuoteOutput(build){
 // and emitted on the reveal, so a check at emission alone would let the commit confirm
 // with a reveal that can never relay. Runs before the feeQuote output is injected.
 function checkPaymentDust(build){
-    const { customOutputs } = build
-    if (!Array.isArray(customOutputs)) return
-    customOutputs.forEach((output, i) => {
-        const value = parseSatoshiAmount(output && output.value, `customOutputs[${i}].value`, { allowBig: true })
-        if (value <= 0) throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
-        assertPaymentOverDust(value, i, this.paymentOutputFloor)
-    })
+    const { customOutputs, feeQuote } = build
+    if (Array.isArray(customOutputs)) {
+        customOutputs.forEach((output, i) => {
+            const value = parseSatoshiAmount(output && output.value, `customOutputs[${i}].value`, { allowBig: true })
+            if (value <= 0) throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
+            assertPaymentOverDust(value, i, this.paymentOutputFloor)
+        })
+    }
+    if (feeQuote && feeQuote.address && feeQuote.amount > 0) {
+        assertPaymentOverDust(feeQuote.amount, null, this.paymentOutputFloor, 'feeQuote.amount')
+    }
 }
 
 // Verify every caller output address decodes on this network, inside the first

@@ -197,7 +197,7 @@ function validatePaymentFields(params, context) {
     const dust = validateDust(params.dust)
     const utxos = validateUtxoArray(params.utxos)
     const customOutputs = validateCustomOutputs(params.customOutputs, context && context.paymentOutputFloor)
-    const feeQuote = validateFeeQuote(params.feeQuote)
+    const feeQuote = validateFeeQuote(params.feeQuote, context && context.paymentOutputFloor)
     const { p2shHash, p2shHex } = validateP2shParams(params.p2shHash, params.p2shHex)
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
     const change = validateChange(params.change)

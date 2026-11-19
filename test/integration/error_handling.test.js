@@ -123,13 +123,14 @@ describe('Category H: Error Handling at Integration Boundaries', () => {
         throw new Error('ECONNREFUSED')
       }
 
+      // The upstream text is not echoed; the stable code carries the failure.
       await assert.rejects(
         () => encoder.createTransaction(
           null, address, null,
           action.data, null, 10000, false, null, address,
           null, null, null, true, 0.00001
         ),
-        /ECONNREFUSED/
+        (err) => err.xchainCode === 'UTXO_TRACKER_ERROR' && err.message === 'UTXO tracker unavailable'
       )
     })
   })

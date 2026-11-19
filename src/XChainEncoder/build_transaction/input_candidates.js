@@ -135,10 +135,11 @@ function* fetchTrackerUtxos(build){
             throw err.operational ? err : trackerUnreachableError(err)
         }
         // Surface a typed, credential-free operational error. A
-        // transport failure embeds the tracker's internal host:port,
-        // so upstreamErrorMessage collapses it to the generic
-        // fallback; the tracker's other application messages pass through,
-        // already sanitized and capped by readUtxoResult.
+        // transport failure embeds the tracker's internal host:port and
+        // tracker-authored text is untrusted, so upstreamErrorMessage
+        // collapses both to the generic fallback. The refusals UtxoTracker
+        // writes itself (lag, halt, malformed reply, pagination aborts) are
+        // marked caller-safe and pass through with their text intact.
         throw new OperationalError('UTXO_TRACKER_ERROR', upstreamErrorMessage(err, 'UTXO tracker unavailable'))
     }
 

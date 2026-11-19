@@ -20,7 +20,7 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const config = require('../common/config');
-const { safeUpstreamReason } = require('../common/error_sanitize');
+const { knownTrackerReason } = require('../common/error_sanitize');
 const { validateAddress, assertPubkeyOnCurve } = require('../common/validator');
 const { ensureEccLib } = require('./script_amount_helpers.js');
 const { ParamTypeError } = require('../build/errors');
@@ -93,7 +93,7 @@ function classifyTrackerFreshness(sync, maxLagBlocks){
     if (halted){
         // The reason is tracker-authored, so it is gated before it reaches the
         // forwarded message (src/build/errors.js forwards upstream text only once sanitized).
-        const haltReason = safeUpstreamReason(sync.halt_reason)
+        const haltReason = knownTrackerReason(sync.halt_reason)
         verdict.code = 'UTXO_TRACKER_HALTED'
         verdict.message = `utxo-tracker is halted (${haltReason || 'unrecoverable reorg'}); ` +
             'refusing to select utxos from it'
