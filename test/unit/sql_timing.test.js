@@ -21,7 +21,7 @@ function timingEnv(overrides = {}) {
     SQL_TIMING_ENABLED: '1',
     SQL_TIMING_URL: 'https://timing.invalid/api/v1/sql-timing',
     SQL_TIMING_KEY: 'test-key',
-    SQL_TIMING_PROJECT: 'xchain-platform',
+    SQL_TIMING_PROJECT: 'sample-project',
     SQL_TIMING_INTERVAL_MS: '999999',
     SQL_TIMING_STATEMENT_RATE: '1',
     ...overrides
@@ -53,7 +53,7 @@ function registerContractLineTest() {
     const lines = [];
     const timing = createSqlTiming({
       env: timingEnv(),
-      routePrefix: '/xchain-hub',
+      routePrefix: '/xchain-encoder',
       random: () => 0,
       onLine: line => lines.push(line),
       transport: () => Promise.resolve({ status: 200 })
@@ -72,8 +72,8 @@ function registerContractLineTest() {
       expect(lines[0]).to.include.keys(
         'timestamp', 'project', 'route', 'query_count', 'total_query_ms', 'request_ms'
       );
-      expect(lines[0].project).to.equal('xchain-platform');
-      expect(lines[0].route).to.equal('GET /xchain-hub/health');
+      expect(lines[0].project).to.equal('sample-project');
+      expect(lines[0].route).to.equal('GET /xchain-encoder/health');
       expect(lines[0].query_count).to.equal(1);
       expect(lines[0].statements[0].sql).to.equal('SELECT ?');
     } finally {
@@ -88,7 +88,7 @@ function registerRpcBatchTest() {
     const lines = [];
     const timing = createSqlTiming({
       env: timingEnv({ SQL_TIMING_STATEMENT_RATE: '0' }),
-      routePrefix: '/xchain-hub',
+      routePrefix: '/xchain-encoder',
       random: () => 0,
       onLine: line => lines.push(line),
       transport: () => Promise.resolve({ status: 200 })
@@ -113,8 +113,8 @@ function registerRpcBatchTest() {
     try {
       expect((await fetch(server.url('/rpc'), { method: 'POST' })).status).to.equal(200);
       expect(lines.map(line => line.route).sort()).to.deep.equal([
-        'POST /xchain-hub/rpc/alpha',
-        'POST /xchain-hub/rpc/beta'
+        'POST /xchain-encoder/rpc/alpha',
+        'POST /xchain-encoder/rpc/beta'
       ]);
       expect(lines.map(line => line.query_count)).to.deep.equal([1, 1]);
     } finally {
@@ -129,7 +129,7 @@ function registerUnmatchedPathTest() {
     const lines = [];
     const timing = createSqlTiming({
       env: timingEnv(),
-      routePrefix: '/xchain-hub',
+      routePrefix: '/xchain-encoder',
       onLine: line => lines.push(line),
       transport: () => Promise.resolve({ status: 200 })
     });
@@ -165,7 +165,7 @@ function registerDisabledBehaviorTest() {
 function registerDirectCredentialsTest() {
   it('accepts credentials as direct create options while the flag remains env-gated', async function () {
     const timing = createSqlTiming({
-      project: 'xchain-platform',
+      project: 'sample-project',
       url: 'https://timing.invalid/api/v1/sql-timing',
       apiKey: 'test-key',
       env: {
@@ -183,7 +183,7 @@ function registerPromiseIdentityTest() {
   it('keeps the original database promise while accounting asynchronously', async function () {
     const timing = createSqlTiming({
       env: timingEnv(),
-      routePrefix: '/xchain-hub',
+      routePrefix: '/xchain-encoder',
       transport: () => Promise.resolve({ status: 200 })
     });
     const original = Promise.resolve('result');
@@ -200,7 +200,7 @@ function registerConnectionAcquisitionTest() {
     const acquisition = Promise.resolve(connection);
     const timing = createSqlTiming({
       env: timingEnv({ SQL_TIMING_STATEMENT_RATE: '0' }),
-      routePrefix: '/xchain-hub',
+      routePrefix: '/xchain-encoder',
       random: () => 0,
       onLine: line => lines.push(line),
       transport: () => Promise.resolve({ status: 200 })
@@ -232,7 +232,7 @@ function registerMountedRouterTest() {
     const lines = [];
     const timing = createSqlTiming({
       env: timingEnv(),
-      routePrefix: '/xchain-hub',
+      routePrefix: '/xchain-encoder',
       onLine: line => lines.push(line),
       transport: () => Promise.resolve({ status: 200 })
     });
@@ -244,7 +244,7 @@ function registerMountedRouterTest() {
     const server = await listen(app);
     try {
       expect((await fetch(server.url('/api/item/123'))).status).to.equal(200);
-      expect(lines[0].route).to.equal('GET /xchain-hub/api/item/:id');
+      expect(lines[0].route).to.equal('GET /xchain-encoder/api/item/:id');
     } finally {
       await timing.stop();
       await server.close();
