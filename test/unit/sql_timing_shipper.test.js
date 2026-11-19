@@ -22,7 +22,7 @@ function timingEnv(overrides = {}) {
     SQL_TIMING_ENABLED: '1',
     SQL_TIMING_URL: 'https://timing.invalid/api/v1/sql-timing',
     SQL_TIMING_KEY: 'test-secret-key',
-    SQL_TIMING_PROJECT: 'sample-project',
+    SQL_TIMING_PROJECT: 'xchain-platform',
     SQL_TIMING_INTERVAL_MS: '999999',
     ...overrides
   };
@@ -50,13 +50,13 @@ function registerSuccessfulDeliveryTest() {
       console: sink(),
       transport: request => { requests.push(request); return Promise.resolve({ status: 200 }); }
     });
-    shipper.enqueue({ route: 'GET /xchain-encoder/health' });
+    shipper.enqueue({ route: 'GET /xchain-hub/health' });
     await shipper.flush();
     expect(shipper.buffer).to.deep.equal([]);
     expect(shipper.stats.shipped).to.equal(1);
     expect(requests[0].headers['Content-Type']).to.equal('application/x-ndjson');
     expect(requests[0].headers.Authorization).to.equal('Bearer test-secret-key');
-    expect(requests[0].body).to.equal('{"route":"GET /xchain-encoder/health"}\n');
+    expect(requests[0].body).to.equal('{"route":"GET /xchain-hub/health"}\n');
     await shipper.stop();
   });
 }
