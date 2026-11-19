@@ -22,6 +22,17 @@
       "XChainEncoder.createTransaction() unconfirmed filtering excludes mempool UTXOs when unconfirmed=false",
       "XChainEncoder.createTransaction() unconfirmed filtering keeps mempool UTXOs when unconfirmed=true"
     ],
+    "03698bbbfa4549c0": [
+      "observability/sql_timing accepts credentials as direct create options while the flag remains env-gated",
+      "observability/sql_timing emits a contract line with all six required fields",
+      "observability/sql_timing emits nothing for an unmatched path",
+      "observability/sql_timing emits one child line per method in an RPC batch",
+      "observability/sql_timing keeps the original database promise while accounting asynchronously",
+      "observability/sql_timing matches every normalization vector and keeps normalized SQL fixed",
+      "observability/sql_timing returns pools, methods, promises and middleware behavior unchanged when disabled",
+      "observability/sql_timing uses the service prefix with a mounted router route",
+      "observability/sql_timing wraps acquired connections without replacing the acquisition promise"
+    ],
     "03e0966ef3abab8e": [
       "NODE_RPC_TIMEOUT parsing RPC_TIMEOUT defaults to 30000 when NODE_RPC_TIMEOUT is unset",
       "NODE_RPC_TIMEOUT parsing RPC_TIMEOUT honours a valid NODE_RPC_TIMEOUT",
@@ -2568,6 +2579,18 @@
       "Chaos Category A: Network & Dependency Failures A-7: Slow RPC responses 150ms delay on getFeePerKilobyte still completes",
       "Chaos Category A: Network & Dependency Failures A-7: Slow RPC responses 150ms delay on getTransactionHex (legacy UTXO) still completes"
     ],
+    "d44021e6cd25dcab": [
+      "observability/sql_timing_shipper drops and counts a 400 batch",
+      "observability/sql_timing_shipper drops and counts a 413 batch",
+      "observability/sql_timing_shipper drops the oldest line when the queue reaches its cap",
+      "observability/sql_timing_shipper limits one request to 2000 contract lines",
+      "observability/sql_timing_shipper never writes the API key into a stderr note",
+      "observability/sql_timing_shipper posts NDJSON with the timing key header and clears a 200 batch",
+      "observability/sql_timing_shipper publishes shipped, dropped and failure counters when given a registry",
+      "observability/sql_timing_shipper re-queues a 429 batch within the buffer cap",
+      "observability/sql_timing_shipper re-queues a 503 batch within the buffer cap",
+      "observability/sql_timing_shipper stays disabled unless the complete HTTPS configuration is present"
+    ],
     "d487932ac997cf1e": [
       "prev-out value check: legacy exact amounts builds on a matching value, and the fee math uses that exact amount",
       "prev-out value check: legacy exact amounts compares above 2^53-1 exactly: a match builds, off by one is refused",
@@ -2983,8 +3006,8 @@
   },
   "scripts": {
     "test": {
-      "fileCount": 202,
-      "titleCount": 1485,
+      "fileCount": 204,
+      "titleCount": 1504,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3110,6 +3133,8 @@
         "test/unit/server/single_instance_guard.test/03_release_lock_on_signals.test.js": "6248ca3f37b35faa",
         "test/unit/server/single_instance_guard.test/04_stale_break_race.test.js": "20baad174b688d9f",
         "test/unit/server/single_instance_guard.test/05_orphan_break_mutex.test.js": "b50f3d72c01832b2",
+        "test/unit/sql_timing.test.js": "03698bbbfa4549c0",
+        "test/unit/sql_timing_shipper.test.js": "d44021e6cd25dcab",
         "test/unit/xchain_encoder/build_correctness.test/01_relay_floor_size_estimate.test.js": "61d96b51460a6591",
         "test/unit/xchain_encoder/build_correctness.test/02_fee_floor_selection.test.js": "4498c030666a1756",
         "test/unit/xchain_encoder/build_correctness.test/03_deterministic_order.test.js": "09319c2cb6e64dd7",
@@ -3343,8 +3368,8 @@
       }
     },
     "test:unit": {
-      "fileCount": 202,
-      "titleCount": 1485,
+      "fileCount": 204,
+      "titleCount": 1504,
       "files": {
         "test/unit/XChainEncoder/build_transaction/first_input_key.test.js": "04aeb439e25ca4ed",
         "test/unit/XChainEncoder/caller_pubkey_resolution.test.js": "be87ec7e82b5c79d",
@@ -3470,6 +3495,8 @@
         "test/unit/server/single_instance_guard.test/03_release_lock_on_signals.test.js": "6248ca3f37b35faa",
         "test/unit/server/single_instance_guard.test/04_stale_break_race.test.js": "20baad174b688d9f",
         "test/unit/server/single_instance_guard.test/05_orphan_break_mutex.test.js": "b50f3d72c01832b2",
+        "test/unit/sql_timing.test.js": "03698bbbfa4549c0",
+        "test/unit/sql_timing_shipper.test.js": "d44021e6cd25dcab",
         "test/unit/xchain_encoder/build_correctness.test/01_relay_floor_size_estimate.test.js": "61d96b51460a6591",
         "test/unit/xchain_encoder/build_correctness.test/02_fee_floor_selection.test.js": "4498c030666a1756",
         "test/unit/xchain_encoder/build_correctness.test/03_deterministic_order.test.js": "09319c2cb6e64dd7",
