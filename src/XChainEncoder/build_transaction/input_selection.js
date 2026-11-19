@@ -18,7 +18,7 @@
  *
  ********************************************************************/
 
-const { MAX_UTXO_COUNT, parseSatoshiAmount } = require('../../common/validator')
+const { MAX_UTXO_COUNT, MAX_STANDARD_TX_WEIGHT, parseSatoshiAmount } = require('../../common/validator')
 const { OperationalError, ParamTypeError, ParamRangeError } = require('../../build/errors')
 const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
@@ -89,6 +89,15 @@ function framingBytesForInput(build, utxo, selectedInputCount, nested){
     return bytes
 }
 
+function refuseOverweightSelection(estimatedTxSize, selectedInputCount){
+    const estimatedWeight = estimatedTxSize * 4
+    if (estimatedWeight <= MAX_STANDARD_TX_WEIGHT) return
+    throw new ParamRangeError(
+        `estimated transaction weight ${estimatedWeight} WU with ${selectedInputCount} input(s) exceeds ` +
+        `the standard limit (${MAX_STANDARD_TX_WEIGHT} WU); split the spend into smaller transactions`
+    )
+}
+
 function* selectFundingInputs(build){
     let { p2shHash } = build
     if (build.options && build.options.envelopeCommitHex){
@@ -135,6 +144,7 @@ function* selectInputs(build){
 
         selectedInputCount = selectedInputCount + 1
         estimatedTxSize = estimatedTxSize + framingBytesForInput.call(this, build, nextUtxo, selectedInputCount, !!nestedRedeem)
+        refuseOverweightSelection(estimatedTxSize, selectedInputCount)
 
         if (isUnconfirmedUtxo(nextUtxo)){
             unconfirmedInputTxids.push(nextUtxo.txid)
@@ -257,17 +267,17 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
 }
 
 function refuseEmptySelection(build){
-    let { selectedInputCount, reservedCandidates, outputSatoshis } = build
+    let { selectedInputCount, reservedCandidates, outputSatoshis, estimatedTxSize } = build
     // Report the fee the build would charge, floor included.
     const estimatedFee = selectionTargetFee.call(this, build.estimatedFee, build.softDustSurcharge)
     // The caller-facing MAX_UTXO_COUNT cap is intentionally NOT
     // applied to the fetched set before selection (a rich address must
-    // stay spendable). Bound the SELECTED input count instead: a tx that
-    // genuinely needs more inputs than this is over standardness size and
-    // would be rejected at broadcast, so fail here with a precise reason.
+    // stay spendable). Bound the SELECTED input count as a work and PSBT-size
+    // limit; the estimated-weight check above is the standard relay-size guard.
     if (selectedInputCount > MAX_UTXO_COUNT){
         throw new ParamRangeError(`selected input count (${selectedInputCount}) exceeds the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`)
     }
+    refuseOverweightSelection(estimatedTxSize, selectedInputCount)
 
     // No spendable input was selected on the funding/single-tx path: the
     // set was empty of usable outputs or every candidate is reserved by a

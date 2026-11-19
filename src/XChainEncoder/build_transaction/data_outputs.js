@@ -21,10 +21,10 @@
 const bitcoin = require('bitcoinjs-lib');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { parseSatoshiAmount, assertPaymentOverDust } = require('../../common/validator')
-const { SATOSHI_UNIT, Encoding } = require('../constants.js')
+const { SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, Encoding } = require('../constants.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { emitP2shChunk, emitP2wshChunk } = require('./script_hash_legs.js')
-const { feeForVsize, softDustSurchargeFor } = require('../fee_policy.js')
+const { backstopReferenceFeePerBytes, feeForVsize, softDustSurchargeFor } = require('../fee_policy.js')
 const { softDustFloorFor, bareMultisigRelayDustFor } = require('../script_amount_helpers.js')
 const { ParamRangeError } = require('../../build/errors')
 
@@ -254,10 +254,19 @@ function emitEnvelopeCommit(build, nextDataBuffer){
     const revealOutputsBytes = revealChangeOutBytes + (revealPadNeeded ? revealChangeOutBytes : 0)
     const revealVsize = TxSizeEstimator.estimateEnvelopeRevealTx(nextDataBuffer.length, revealOutputsBytes, envStrippedFloor)
     let revealFee = feeForVsize(revealVsize, feePerBytes, SATOSHI_UNIT)
-    if (revealFee < finalDust){
-        revealFee = finalDust
+    if (revealFee < this.dustAmount){
+        revealFee = this.dustAmount
     }
-    const commitValue = revealFee + this.outputFloor + (revealPadNeeded ? this.outputFloor : 0)
+    const referenceFeePerBytes = backstopReferenceFeePerBytes(build)
+    if (referenceFeePerBytes == null){
+        throw new Error('Reveal fee safety cannot be verified without a node or relay fee reference')
+    }
+    const fairFee = feeForVsize(revealVsize, referenceFeePerBytes, SATOSHI_UNIT)
+    const burnCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
+    if (revealFee > burnCeiling){
+        throw new ParamRangeError(`reveal fee ${revealFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${revealVsize}-byte transaction`)
+    }
+    const commitValue = revealFee + finalDust + (revealPadNeeded ? this.outputFloor : 0)
 
     revealPrefund = {
         outputIndex: psbt.txOutputs.length,

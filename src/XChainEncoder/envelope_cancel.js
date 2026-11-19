@@ -148,8 +148,8 @@ function* cancelFeeRate(feeRatePerKb){
             logger.warn(util.format('Envelope-cancel fee cap anchored on relayfee: node fee estimate unavailable:', err.message))
         }
     } else {
-        feePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
-        nodeFeePerBytes = feePerBytes
+        nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
+        feePerBytes = Math.max(nodeFeePerBytes, relayFeePerKb / 1000)
     }
     const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
         maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
@@ -175,15 +175,18 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
     }
     const cancelVsize = strippedBytes + Math.ceil((2 + 1 + 1 + 65) / 4) + 2
     let cancelFee = feeForVsize(cancelVsize, feePerBytes, SATOSHI_UNIT)
+    const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
+    const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
     if (callerFeePerKb != null){
-        const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
-        const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
         if (cancelFee < minimumRelayFee){
             throw new ParamRangeError(`feePerKb ${callerFeePerKb} base units/kB produces fee ${cancelFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
         }
     }
     if (cancelFee < this.dustAmount){
         cancelFee = this.dustAmount
+    }
+    if (callerFeePerKb == null && cancelFee < minimumRelayFee){
+        throw new Error(`fee ${cancelFee} from the node fee estimate (after the fee-rate cap) is below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
     }
 
     const sweepValue = value - cancelFee - (padNeeded ? this.outputFloor : 0)

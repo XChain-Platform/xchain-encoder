@@ -21,9 +21,9 @@
 const bitcoin = require('bitcoinjs-lib');
 const util = require('node:util');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
-const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, Encoding } = require('../constants.js')
+const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, Encoding } = require('../constants.js')
 const { envelopeTapLeafHash, asSatValue } = require('../script_amount_helpers.js')
-const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, feeForVsize } = require('../fee_policy.js')
+const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { revealNeedsFloorPad } = require('./script_hash_legs.js')
 
@@ -198,7 +198,30 @@ function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
     return revealFeeKept
 }
 
-// The reveal-side uplift actually kept as fee, bounded by the legs' spendable surplus.
+function clampRevealFeeCeilings(build, allowed, revealSizeForFee, revealFeeKept){
+    const { capFeePerBytes, nodeFeePerBytes, relayFeePerKb } = build
+    let limitingCeiling = null
+    if (capFeePerBytes != null){
+        const maxFee = Math.max(this.dustAmount,
+            feeForVsize(revealSizeForFee, capFeePerBytes, SATOSHI_UNIT))
+        const room = maxFee - revealFeeKept
+        if (room < allowed) limitingCeiling = 'fee-rate cap'
+        allowed = Math.min(allowed, room)
+    }
+    const reference = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+    if (reference == null){
+        if (allowed > 0) limitingCeiling = 'fixed burn backstop'
+        allowed = 0
+    } else {
+        const fairFee = feeForVsize(revealSizeForFee, reference, SATOSHI_UNIT)
+        const room = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER) - revealFeeKept
+        if (room < allowed) limitingCeiling = 'fixed burn backstop'
+        allowed = Math.min(allowed, room)
+    }
+    return { allowed: Math.max(0, allowed), limitingCeiling }
+}
+
+// The reveal-side uplift actually kept as fee, bounded by every ceiling and by the legs.
 function clampRevealUplift(build, commitPackage, wanted, revealUpliftBound, revealSizeForFee, revealFeeKept){
     let { customOutputs, phaseLegInputSatoshis, outputSatoshis, feePerBytes } = build
 // The legs are the only money this transaction has, and every
@@ -214,16 +237,20 @@ const emitsValueOutput = !!(customOutputs && Array.isArray(customOutputs) && cus
 const sweepReserve = emitsValueOutput ? 0n : BigInt(this.outputFloor)
 const spendable = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept) - sweepReserve
 let allowed = Math.min(wanted, revealUpliftBound)
+const ceilingClamp = clampRevealFeeCeilings.call(this, build, allowed, revealSizeForFee, revealFeeKept)
+allowed = ceilingClamp.allowed
 if (spendable <= 0n) allowed = 0
 else if (spendable < BigInt(allowed)) allowed = Number(spendable)
 if (allowed < wanted){
     const packageSize = commitPackage.size + revealSizeForFee
     const packageFee = Math.round(commitPackage.fees * SATOSHI_UNIT) + revealFeeKept + allowed
+    const advice = ceilingClamp.limitingCeiling
+        ? ` The ${ceilingClamp.limitingCeiling} limited the uplift; the remaining leg surplus is swept back to the caller.`
+        : ` The reveal has no other input to raise, so rebuild the commit with a package-aware fee.`
     logger.warn(`Reveal package fee uplift clamped to ${allowed} of ${wanted} base units: the commit ` +
         `package totals ${commitPackage.size} bytes, so the commit/reveal package will pay ` +
         `${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
-        `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)} and may stay unmined. The reveal has no ` +
-        `other input to raise, so rebuild the commit with a package-aware fee.`)
+        `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)} and may stay unmined.${advice}`)
 }
 if (allowed > 0){
     revealFeeKept = revealFeeKept + allowed
@@ -300,8 +327,8 @@ function buildRevealPsbt(build){
         }]
     })
     // Change back to the caller: the commit value minus the reveal's
-    // prefunded fee (and minus the floor pad when present) is exactly
-    // the output floor by construction; it exists because the
+    // prefunded fee (and minus the floor pad when present) is the caller's
+    // requested dust floor by construction; it exists because the
     // reveal must carry an output and it doubles as the CPFP handle.
     const revealChangeValue = envelopeContext.commitValue
         - envelopeContext.revealFee
