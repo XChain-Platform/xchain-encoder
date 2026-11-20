@@ -29,7 +29,7 @@ const { isRemoteProfile, throwIfRefused, trackerUnreachableError } = require('..
 // caller skips that validator, and its UTXO objects are read here, never rewritten.
 // Loose == 0 keeps the validator's coercion ('0' and 0 alike).
 function isUnconfirmedUtxo(utxo){
-    return utxo.confirmations == null || utxo.confirmations == 0
+    return utxo.confirmations == null || Number(utxo.confirmations) === 0
 }
 
 // Transaction ids are byte strings whose hex spelling is case-insensitive. Keep
@@ -39,8 +39,8 @@ function outpointKey(utxo){
 }
 
 function initInputState(build){
-    let { replacebyfee, p2shHash, options } = build
-    let psbt = null
+    const { replacebyfee, p2shHash, options } = build
+    const psbt = null
 
     // 0xfffffffd, not 1. Any value below 0xfffffffe signals RBF (BIP125), but
     // bit 31 (0x80000000) is what DISABLES BIP68 relative locktime. nSequence=1
@@ -50,10 +50,10 @@ function initInputState(build){
     // `non-BIP68-final`. That made RBF and chained sends mutually exclusive:
     // measured 2026-08-27 driving three chained MINTs. 0xfffffffd
     // signals RBF and keeps BIP68 off, which is what Bitcoin Core itself uses.
-    let utxoSequence = (replacebyfee? 0xfffffffd: 0xffffffff)
+    const utxoSequence = (replacebyfee? 0xfffffffd: 0xffffffff)
     // BigInt: a DOGE UTXO set can total past 2^53-1 sats, where Number
     // arithmetic silently rounds the fee/change math.
-    let inputSatoshis = 0n
+    const inputSatoshis = 0n
 
     // The P2SH/P2WSH reveal (phase 2) spends phase-1's OWN funding outputs,
     // reconstructed from p2shHex further below; it never selects spendable
@@ -66,13 +66,13 @@ function initInputState(build){
     const isReveal = !!p2shHash
     const isTwoStepReveal = !!(options && options.envelopeCommitHex)
     const skipsInputSelection = isReveal || isTwoStepReveal
-    let fetchedFromTracker = false
+    const fetchedFromTracker = false
     Object.assign(build, { psbt, utxoSequence, inputSatoshis, isReveal, isTwoStepReveal,
         skipsInputSelection, fetchedFromTracker })
 }
 
 function checkExactInputs(build){
-    let { options, isReveal, utxos } = build
+    const { options, isReveal, utxos } = build
     // Exact-input mode. Normal selection sorts the candidate set
     // value-descending and stops the moment the running total covers outputs
     // plus fee, so a caller who names N outpoints usually gets one input. That
@@ -94,7 +94,7 @@ function checkExactInputs(build){
                 'options.exactInputs cannot be combined with p2shHash: the reveal spends the ' +
                 'funding transaction\'s own outputs, which are derived from p2shHex, not selected')
         }
-        if ((utxos == null) || (utxos.length == 0)){
+        if ((utxos == null) || (utxos.length === 0)){
             throw new ParamTypeError(
                 'options.exactInputs requires a non-empty utxos array: it names the exact input ' +
                 'set to spend, so there is nothing to be exact about when the set is fetched')
@@ -106,8 +106,9 @@ function checkExactInputs(build){
 // The candidate set: the caller's utxos, an empty set on a reveal, or the
 // tracker's view of the caller's address.
 function* gatherUtxos(build){
-    let { utxos, isReveal, isTwoStepReveal, p2shHex } = build
-    if ((utxos == null) || (utxos.length == 0)){
+    const { isReveal, isTwoStepReveal, p2shHex } = build
+    let { utxos } = build
+    if ((utxos == null) || (utxos.length === 0)){
         if ((isReveal && p2shHex) || isTwoStepReveal){
             utxos = []
             Object.assign(build, { utxos })
@@ -118,7 +119,7 @@ function* gatherUtxos(build){
 }
 
 function* fetchTrackerUtxos(build){
-    let { pubkey } = build
+    const { pubkey } = build
     // Resolved outside the try so an unresolvable caller identity stays a -32602, not a tracker fault.
     const callerAddress = resolveCallerAddress(pubkey, this.network)
     let fetched
@@ -171,14 +172,14 @@ function acceptTrackerUtxos(build, fetched){
     // indexed element by element, so a malformed tracker response surfaced
     // as "utxos[0] must be an object" and pointed the operator at a UTXO
     // that does not exist instead of at the response shape.
-    if ((utxos != null) && !Array.isArray(utxos)){
+    if (utxos !== null && utxos !== undefined && !Array.isArray(utxos)){
         throw new OperationalError(
             'UTXO_TRACKER_ERROR',
             `utxo-tracker returned a utxos field that is not an array (got ${typeof utxos})`
         )
     }
 
-    if ((utxos == null) || (utxos.length == 0)){
+    if (utxos == null || utxos.length === 0){
         throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
     }
     fetchedFromTracker = true
@@ -208,7 +209,7 @@ function acceptTrackerUtxos(build, fetched){
 }
 
 function refuseShrunkExactInputs(build){
-    let { exactInputs, unconfirmed, utxos } = build
+    const { exactInputs, unconfirmed, utxos } = build
     // Exact-input mode promises the caller's list is the input set, so the two
     // filters below (which silently SHRINK that list) have to be errors instead.
     // Dropping a named mempool outpoint is the CPFP-fatal one: the whole point of
@@ -237,7 +238,7 @@ function refuseShrunkExactInputs(build){
 
 // Dedup, mempool filter and value-descending order, all in place on `utxos`.
 function filterAndOrderUtxos(build){
-    let { utxos, unconfirmed, isReveal, skipsInputSelection, exactInputs } = build
+    const { utxos, unconfirmed, isReveal, skipsInputSelection, exactInputs } = build
     // Remove duplicated utxos (the utxo tracker returns duplicated utxos sometimes)
     // and, when unconfirmed is false, every mempool entry along with them.
     //
@@ -276,7 +277,7 @@ function filterAndOrderUtxos(build){
     //address rather than crashing on utxos[0] below. The reveal path
     //legitimately has an empty utxos array here (its inputs come from
     //p2shHex), so only the funding/single-tx path treats empty as fatal.
-    if (utxos.length == 0 && !isReveal && !skipsInputSelection){
+    if (utxos.length === 0 && !isReveal && !skipsInputSelection){
         throw new OperationalError('NO_UTXOS', "no utxos were provided and no utxos found on the blockchain")
     }
 

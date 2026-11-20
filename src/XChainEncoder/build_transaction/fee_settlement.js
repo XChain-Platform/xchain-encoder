@@ -26,7 +26,7 @@ const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, backstopReferenceFeePerBytes
 
 // The caller-fee ceilings: the rate cap, then the absolute burn backstop.
 function refuseExcessiveFee(build){
-    let { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb } = build
+    const { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb } = build
     // The rate ceilings judge the caller's own fee; the soft-dust surcharge is policy.
     const estimatedFee = build.estimatedFee - (build.softDustSurcharge || 0)
     // Reject a caller-supplied absolute fee whose effective rate exceeds the
@@ -100,7 +100,8 @@ function refuseInsufficientRelayFee(build){
 }
 
 function* upliftForAncestors(build){
-    let { unconfirmedInputTxids, feePerBytes, estimatedFee, estimatedTxSize } = build
+    const { unconfirmedInputTxids, feePerBytes, estimatedTxSize } = build
+    let { estimatedFee } = build
     // CPFP-aware package sizing.
     //
     // A miner fills a block by ANCESTOR fee rate, so a transaction spending
@@ -158,8 +159,9 @@ function* upliftForAncestors(build){
 
 // The ancestor uplift actually applied, bounded by every ceiling and by the inputs.
 function upliftAncestorFee(build, ancestorPackage, wanted, cpfpUpliftBound){
-    let { capFeePerBytes, estimatedTxSize, estimatedFee, nodeFeePerBytes, relayFeePerKb, feePerBytes, p2shHash, inputSatoshis,
+    const { capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb, feePerBytes, p2shHash, inputSatoshis,
         outputSatoshis, unconfirmedInputTxids } = build
+    let { estimatedFee } = build
 // Its own absolute bound first: the uplift buys ancestor bytes, and
 // the rate caps below only ever measure a fee against THIS
 // transaction's size.
@@ -217,7 +219,7 @@ function floorEstimatedFee(build){
 }
 
 function prefundRevealPackage(build){
-    let { revealPrefund, p2shHash, feePerBytes, cpfpUpliftBound, estimatedTxSize, commitAncestorSize, estimatedFee,
+    const { revealPrefund, p2shHash, feePerBytes, cpfpUpliftBound, estimatedTxSize, commitAncestorSize, estimatedFee,
         commitAncestorFeeSat } = build
     // Two-phase package prefund.
     //
@@ -260,8 +262,9 @@ function prefundRevealPackage(build){
 
 // Moves the bounded prefund into the commit output that carries the reveal's fee.
 function applyRevealPrefund(build, wanted){
-    let { cpfpUpliftBound, inputSatoshis, outputSatoshis, estimatedFee, commitAncestorSize, estimatedTxSize,
-        revealPrefund, commitAncestorFeeSat, feePerBytes, psbt, envelopeContext, nodeFeePerBytes, relayFeePerKb } = build
+    const { cpfpUpliftBound, inputSatoshis, estimatedFee, commitAncestorSize, estimatedTxSize,
+        commitAncestorFeeSat, feePerBytes, psbt, envelopeContext, nodeFeePerBytes, relayFeePerKb } = build
+    const { revealPrefund } = build; let { outputSatoshis } = build
 // The same absolute bound the single-tx uplift answers to: this
 // buys someone else's bytes, so no rate cap measured against one
 // transaction's size can bound it.
@@ -320,7 +323,7 @@ if (allowed > 0){
 }
 
 function computeChange(build){
-    let { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change, requestedFee } = build
+    const { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change, requestedFee } = build
     // Validate the fee BEFORE the BigInt conversion below: BigInt(estimatedFee)
     // throws an opaque error on a NaN/Infinity fee, where this check names the cause.
     // A plain Error (API -32603): the validator already bounds every caller fee
@@ -332,7 +335,7 @@ function computeChange(build){
     // Exact change math in BigInt: with a >2^53-1-sat input, Number
     // subtraction would round the change (and the caller would sign a
     // PSBT whose change is off by up to ~2 sats per 2^53).
-    let changeSatoshis = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
+    const changeSatoshis = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
 
     // Reject a genuinely under-funded selection instead of returning an
     // unbroadcastable PSBT whose outputs exceed its inputs (the caller would

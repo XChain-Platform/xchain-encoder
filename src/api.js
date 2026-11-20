@@ -19,7 +19,7 @@
  ********************************************************************/
 
 const dotenv = require('dotenv')
-dotenv.config()
+dotenv.config({ quiet: true })
 const config = require('./common/config')
 
 // Before anything else logs. The API_KEY notice and env-validation lines
@@ -45,6 +45,7 @@ const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
 const crypto = require('crypto');
+const fs = require('fs'); const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { limitedHandler } = require('./server/rate_limit_log.js')
 const XChainEncoder  = require('./XChainEncoder');
@@ -335,7 +336,7 @@ app.get('/status', probeGate.hold(async (req, res) => {
 let openrpcSpec = null
 app.get('/openrpc.json', (req, res) => {
     if (!openrpcSpec)
-        openrpcSpec = require('fs').readFileSync(require('path').join(__dirname, '../docs/openrpc.json'))
+        openrpcSpec = fs.readFileSync(path.join(__dirname, '../docs/openrpc.json'))
     res.set('Cache-Control', 'public, max-age=3600')
     res.type('application/json').send(openrpcSpec)
 })

@@ -29,7 +29,8 @@ const { softDustFloorFor, bareMultisigRelayDustFor } = require('../script_amount
 const { ParamRangeError } = require('../../build/errors')
 
 function prepareDataChunks(build){
-    let { p2shHash, psbt, hasActionPayload, finalDataBuffer, encoding, pubkey, compressedPubKey } = build
+    const { p2shHash, hasActionPayload, finalDataBuffer, encoding, pubkey, compressedPubKey } = build
+    let { psbt } = build
     if (!p2shHash){//We need to prepare the data to know which inputs the p2sh will have
         psbt = new bitcoin.Psbt({ network: this.network })
     }
@@ -42,14 +43,14 @@ function prepareDataChunks(build){
     // P2SH/P2WSH two-phase paths must not engage for a payment), and a caller
     // that explicitly asked for a chunked encoding while supplying no payload
     // has nothing to chunk regardless.
-    let preparedData = hasActionPayload
+    const preparedData = hasActionPayload
         ? this.prepareData(finalDataBuffer, encoding, pubkey, compressedPubKey)
         : { encoding: Encoding.OP_RETURN, dataBufferArray: [] }
     Object.assign(build, { psbt, preparedData })
 }
 
 function priceRevealCustomOutputs(build){
-    let { preparedData, p2shHash, customOutputs, feePerBytes } = build
+    const { preparedData, p2shHash, customOutputs, feePerBytes } = build
     // P2SH/P2WSH is a two-tx flow: this funding tx (p2shHash null) creates the
     // P2SH/P2WSH outputs, and a later reveal tx (p2shHash set) spends them and
     // is the tx the indexer treats as the action. customOutputs (e.g. the
@@ -95,8 +96,8 @@ function priceRevealCustomOutputs(build){
 }
 
 function initEmissionState(build){
-    let outputSatoshis = 0n
-    let voutPsbtIndex = 0
+    const outputSatoshis = 0n
+    const voutPsbtIndex = 0
     let obfuscatedData
 
     // Reveal-headroom state for the P2SH two-phase flow.
@@ -105,20 +106,20 @@ function initEmissionState(build){
     // the reveal must leave); phaseLegInputSatoshis accumulates the funding
     // leg values the REVEAL spends, so the surplus sweep after the emission
     // loop can price the change output it returns to the caller.
-    let p2shRevealHeadroomFunded = false
-    let phaseLegInputSatoshis = 0n
+    const p2shRevealHeadroomFunded = false
+    const phaseLegInputSatoshis = 0n
 
     // Reconstructed phase-1 funding tx on the reveal path, shared by the P2SH
     // and P2WSH branches below (both spend its outputs by index). Hoisted to the
     // loop's enclosing scope so the input-index bounds guard can reuse it, and
     // parsed once (memoized via `!p2shTx`) rather than re-decoded per data chunk;
     // the parse is loop-invariant (p2shHex and txidFirstInput never change here).
-    let p2shTx = null
+    const p2shTx = null
 
     // Envelope (TAPROOT) build context, populated by the emission loop and
     // consumed after input selection to construct the reveal PSBT against
     // the unsigned commit's txid (stable: commit inputs are segwit-only).
-    let envelopeContext = null
+    const envelopeContext = null
 
     // Two-phase reveal prefund bookkeeping, set by whichever commit branch
     // sized a whole-reveal fee into a commit output (P2SH first leg, TAPROOT
@@ -127,23 +128,23 @@ function initEmissionState(build){
     //   outputIndex - the commit output carrying the reveal's fee money
     //   revealSize  - whole-reveal size estimate, the package's child bytes
     //   revealFee   - the fee that output currently prefunds
-    let revealPrefund = null
+    const revealPrefund = null
 
     // The transaction header: 4 version + 1 input-count varint + 1 output-count
     // varint + 4 locktime. Every output and input below adds only its own bytes, so
     // starting at 0 left each single-transaction fee 10 vB short, enough to put a
     // many-input build at the relay rate under 1 sat/vB. The segwit marker and flag,
     // and wider count varints, are added by input selection.
-    let estimatedTxSize = 10
+    const estimatedTxSize = 10
     Object.assign(build, { outputSatoshis, voutPsbtIndex, obfuscatedData, p2shRevealHeadroomFunded, phaseLegInputSatoshis,
         p2shTx, envelopeContext, revealPrefund, estimatedTxSize })
 }
 
 // One carrier output (or reveal input) per prepared chunk, by encoding.
 function* emitDataOutputs(build){
-    let { preparedData } = build
-    for (let nextDataBufferIndex in preparedData["dataBufferArray"]){
-        let nextDataBuffer = preparedData["dataBufferArray"][nextDataBufferIndex]
+    const { preparedData } = build
+    for (const nextDataBufferIndex in preparedData["dataBufferArray"]){
+        const nextDataBuffer = preparedData["dataBufferArray"][nextDataBufferIndex]
 
         switch (preparedData["encoding"]){
             case Encoding.OP_RETURN:
@@ -167,9 +168,10 @@ function* emitDataOutputs(build){
 }
 
 function* emitOpReturnChunk(build, nextDataBuffer){
-    let { obfuscatedData, txidFirstInput, psbt, estimatedTxSize } = build
+    const { txidFirstInput, psbt } = build
+    let { obfuscatedData, estimatedTxSize } = build
     obfuscatedData = (yield this.obfuscate(nextDataBuffer, txidFirstInput))
-    let opReturnScript = bitcoin.payments.embed({ data: [obfuscatedData] })
+    const opReturnScript = bitcoin.payments.embed({ data: [obfuscatedData] })
 
     psbt.addOutput({
         script: opReturnScript.output,
@@ -186,19 +188,20 @@ function* emitOpReturnChunk(build, nextDataBuffer){
 }
 
 function* emitMultisignChunk(build, nextDataBuffer){
-    let { obfuscatedData, txidFirstInput, compressedPubKey, finalDust, psbt, outputSatoshis, estimatedTxSize } = build
+    const { txidFirstInput, compressedPubKey, finalDust, psbt } = build
+    let { obfuscatedData, outputSatoshis, estimatedTxSize } = build
     obfuscatedData = (yield this.obfuscate(nextDataBuffer, txidFirstInput))
-    let pubkey1 = yield this.dataToPubkey(obfuscatedData.slice(0, 32))
-    let pubkey2 = yield this.dataToPubkey(obfuscatedData.slice(32, obfuscatedData.length))
-    let pubkey3 = Buffer.from(compressedPubKey,"hex")
+    const pubkey1 = yield this.dataToPubkey(obfuscatedData.slice(0, 32))
+    const pubkey2 = yield this.dataToPubkey(obfuscatedData.slice(32, obfuscatedData.length))
+    const pubkey3 = Buffer.from(compressedPubKey,"hex")
 
-    let pubkeys = [
+    const pubkeys = [
         pubkey1,
         pubkey2,
         pubkey3
     ]
 
-    let multisignScript = bitcoin.payments.p2ms(
+    const multisignScript = bitcoin.payments.p2ms(
         {
             m:1, //We only need one signature
             pubkeys: pubkeys,
@@ -208,8 +211,8 @@ function* emitMultisignChunk(build, nextDataBuffer){
 
     // A bare multisig output outgrows the P2PKH dust floor, so size it by the coin's own
     // relay dust rule (a 1-of-3 is 786 sat on BTC, 7860 on LTC, DOGE's 100000 hard limit).
-    let bareMultisigDust = bareMultisigRelayDustFor(this.networkKey, multisignScript.output.length, this.dustAmount)
-    let multisigOutputValue = Math.max(finalDust, bareMultisigDust)
+    const bareMultisigDust = bareMultisigRelayDustFor(this.networkKey, multisignScript.output.length, this.dustAmount)
+    const multisigOutputValue = Math.max(finalDust, bareMultisigDust)
 
     psbt.addOutput({
         script: multisignScript.output,
@@ -239,8 +242,8 @@ function assertRevealFeeSafe(build, revealVsize, revealFee, dustAmount){
 }
 
 function emitEnvelopeCommit(build, nextDataBuffer){
-    let { preparedData, change, pubkey, feePerBytes, finalDust, psbt, outputSatoshis, estimatedTxSize,
-        revealPrefund, envelopeContext } = build
+    const { preparedData, change, pubkey, feePerBytes, finalDust, psbt } = build
+    let { outputSatoshis, estimatedTxSize, revealPrefund, envelopeContext } = build
     // nextDataBuffer IS the whole envelope tapscript (single
     // element). One commit output carries it; the reveal is
     // built after input selection, once the commit txid exists.
@@ -300,7 +303,8 @@ function emitEnvelopeCommit(build, nextDataBuffer){
 }
 
 function emitCustomOutputs(build){
-    let { p2shHash, isP2shFamily, customOutputs, feeQuoteOutput, psbt, outputSatoshis, estimatedTxSize } = build
+    const { p2shHash, isP2shFamily, customOutputs, feeQuoteOutput, psbt } = build
+    let { outputSatoshis, estimatedTxSize } = build
     // Process custom outputs (e.g., COINPay native coin payment outputs, or
     // the native-fee protocol-fee output). On a P2SH/P2WSH FUNDING tx
     // (p2shHash null) these are NOT emitted here: their value was folded into

@@ -37,8 +37,8 @@
 // caller's default (fail-safe: a typo must not silently remove the cap), and
 // anything <= 0 disables the gate outright as the operator escape hatch.
 function resolveLimit(rawValue, defaultLimit){
-    let parsed = parseInt(rawValue, 10);
-    let limit  = Number.isFinite(parsed) ? parsed : defaultLimit;
+    const parsed = parseInt(rawValue, 10);
+    const limit  = Number.isFinite(parsed) ? parsed : defaultLimit;
     return limit > 0 ? limit : 0;
 }
 

@@ -8,6 +8,7 @@
     "src/build/crypto_networks.js"
   ],
   "testRunner": "mocha",
+  "plugins": ["./test/mutation/mocha12_runner_compat.mjs"],
   "mochaOptions": {
     "require": ["./test/setup/index.js"],
     "spec": [

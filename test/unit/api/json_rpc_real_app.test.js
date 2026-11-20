@@ -62,7 +62,11 @@ async function loadRealApp () {
   const originalReadMaintenanceWindow = maintenance.readMaintenanceWindow
   const priorNetwork = process.env.NETWORK
   const priorApiKey = process.env[API_KEY_ENV]
-  dotenv.config = () => ({ parsed: {} })
+  let dotenvOptions
+  dotenv.config = options => {
+    dotenvOptions = options
+    return { parsed: {} }
+  }
   maintenance.readMaintenanceWindow = async () => null
   process.env.NETWORK = 'bitcoin-regtest'
   delete process.env[API_KEY_ENV]
@@ -70,6 +74,7 @@ async function loadRealApp () {
   delete require.cache[JSON_RPC_METHODS_PATH]
   try {
     api = require(API_PATH)
+    assert.deepStrictEqual(dotenvOptions, { quiet: true })
   } finally {
     dotenv.config = originalDotenvConfig
     maintenance.readMaintenanceWindow = originalReadMaintenanceWindow

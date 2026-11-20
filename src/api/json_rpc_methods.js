@@ -256,8 +256,8 @@ function buildBroadcastMethods({ encoder }) {
 return {
     async broadcast_tx(rawParams) {
         assertRpcParamsObject(rawParams)
-        let tx_hex = rawParams.tx_hex
-        if (!tx_hex) {
+        const txHex = rawParams.tx_hex
+        if (!txHex) {
             const e = new Error('Missing required parameter: tx_hex')
             e.code = -32602
             throw e
@@ -267,21 +267,21 @@ return {
         // invalid-params reason instead of a node-side parse error.
         let localTxid
         try {
-            validator.validateRawTxHex(tx_hex)
+            validator.validateRawTxHex(txHex)
         } catch (err) {
             throw toRpcError(err)
         }
         // A well-formed hex string that does not decode is still the caller's fault: the
         // library's native RangeError is renamed so toRpcError keeps it at -32602
         try {
-            localTxid = bitcoin.Transaction.fromHex(tx_hex).getId()
+            localTxid = bitcoin.Transaction.fromHex(txHex).getId()
         } catch {
             throw toRpcError(new ParamTypeError('tx_hex is not a parseable transaction'))
         }
 
         await assertNodeTierOrRpcError(encoder)
         try {
-            let txid = await encoder.connector.sendRawTransaction(tx_hex)
+            const txid = await encoder.connector.sendRawTransaction(txHex)
             return { txid: txid }
         } catch (err) {
             logErrorOnce(logger, `Broadcast error for txid ${localTxid}:`, err)
@@ -324,7 +324,7 @@ return {
     },
     async get_utxos(rawParams) {
         assertRpcParamsObject(rawParams)
-        let address = rawParams.address
+        const address = rawParams.address
         if (!address) {
             const e = new Error('Missing required parameter: address')
             e.code = -32602
@@ -339,7 +339,7 @@ return {
         }
 
         try {
-            let result = await encoder.utxoTrackerConnector.getUtxosFromAddress(address)
+            const result = await encoder.utxoTrackerConnector.getUtxosFromAddress(address)
             return result
         } catch (err) {
             logErrorOnce(logger, 'UTXO fetch error:', err)

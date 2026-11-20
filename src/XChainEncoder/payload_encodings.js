@@ -29,7 +29,7 @@ const { validateCompressedPubKey } = require('../common/validator')
 
 function opReturnPayload(data, encoding, magicWordBuffer){
     let chunksSize = 0
-    let dataBufferArray = []
+    const dataBufferArray = []
     chunksSize = OP_RETURN_SIZE - magicWordBuffer.length //Single OP_RETURN output: 80-byte limit minus 4-byte magic word = 76 bytes of payload
 
     // All supported chains (BTC, LTC, DOGE) inherit Bitcoin Core's
@@ -64,7 +64,7 @@ function opReturnPayload(data, encoding, magicWordBuffer){
 
 function scriptHashPayload(data, encoding, pubKey){
     let chunksSize = 0
-    let dataBufferArray = []
+    const dataBufferArray = []
     /* REDEEM SCRIPT (exactly as compiled below)
     <data_chunk>       // the on-wire data push (max chunksSize bytes)
     +
@@ -89,14 +89,14 @@ function scriptHashPayload(data, encoding, pubKey){
     // never matched the compiled script).
     */
 
-    chunksSize = (encoding == Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
+    chunksSize = (encoding === Encoding.P2SH?P2SH_SIZE:PW2SH_SIZE) - 44 // 44 is a conservative per-chunk overhead reservation that leaves headroom under the 520-byte consensus MAX_SCRIPT_ELEMENT_SIZE (P2SH_SIZE/PW2SH_SIZE) for the OP_DROP/OP_DUP/OP_HASH160/<hash160>/OP_EQUALVERIFY/OP_CHECKSIG trailer plus the leading data-push prefix. Each chunk becomes one P2SH/P2WSH output; the input spending it carries the data inside its redeem/witness script.
 
-    let pubkeyFromBase58 = resolveCallerHash160(pubKey)
+    const pubkeyFromBase58 = resolveCallerHash160(pubKey)
 
-    let p2shChunks = sliceScriptHashChunks(data, chunksSize)
+    const p2shChunks = sliceScriptHashChunks(data, chunksSize)
 
     for (const chunk of p2shChunks){
-        let nextDataBuffer = bitcoin.script.compile([
+        const nextDataBuffer = bitcoin.script.compile([
             chunk,
             bitcoin.opcodes.OP_DROP,
             bitcoin.opcodes.OP_DUP,
@@ -125,7 +125,7 @@ function sliceScriptHashChunks(data, chunksSize){
     // penultimate chunk keeps every chunk >= 2 bytes; the decoder
     // reassembles by concatenation so moving a byte across the
     // boundary is transparent end-to-end.
-    let p2shChunks = []
+    const p2shChunks = []
     i = 0
     while (i < data.length){
         nextDataChunk = data.subarray(i,i+chunksSize)
@@ -133,12 +133,12 @@ function sliceScriptHashChunks(data, chunksSize){
         i = i + nextDataChunk.length
     }
     if (p2shChunks.length >= 2){
-        let last = p2shChunks[p2shChunks.length - 1]
+        const last = p2shChunks[p2shChunks.length - 1]
         if (last.length === 1 && ((last[0] >= 0x01 && last[0] <= 0x10) || last[0] === 0x81)){
             // Repartition the final two chunks: penultimate drops its
             // last byte, final grows to 2 bytes. Both are re-sliced
             // from `data` so the concatenation is byte-identical.
-            let prevStart = data.length - 1 - p2shChunks[p2shChunks.length - 2].length
+            const prevStart = data.length - 1 - p2shChunks[p2shChunks.length - 2].length
             p2shChunks[p2shChunks.length - 2] = data.subarray(prevStart, data.length - 2)
             p2shChunks[p2shChunks.length - 1] = data.subarray(data.length - 2)
         }
@@ -148,7 +148,7 @@ function sliceScriptHashChunks(data, chunksSize){
 
 function multisignPayload(data, encoding, magicWordBuffer){
     let chunksSize = 0
-    let dataBufferArray = []
+    const dataBufferArray = []
     let i = 0
     let nextDataChunk = null
     chunksSize = MULTISIGN_SIZE
@@ -170,7 +170,7 @@ function multisignPayload(data, encoding, magicWordBuffer){
     // valid point. The reader strips this trailing pad using the
     // payload's own self-describing compiled-script length, so the
     // padding is invisible end-to-end.
-    let multisignSlotSize = 64
+    const multisignSlotSize = 64
 
     i = 0
     while (i < data.length){
@@ -211,7 +211,7 @@ function envelopePayload(data, encoding, compressedPubKey, magicWordBuffer){
     // Shape and curve check, so a library caller that skips validateAll still gets -32602.
     validateCompressedPubKey(compressedPubKey)
     const internalPubkey = Buffer.from(compressedPubKey, 'hex').subarray(1)
-    let envelopeChunks = sliceEnvelopeChunks(data)
+    const envelopeChunks = sliceEnvelopeChunks(data)
 
     const envelopeScript = bitcoin.script.compile([
         bitcoin.opcodes.OP_0, // OP_FALSE
@@ -235,7 +235,7 @@ function sliceEnvelopeChunks(data){
     let i = 0
     let nextDataChunk = null
     chunksSize = TAPROOT_ENVELOPE_CHUNK_SIZE
-    let envelopeChunks = []
+    const envelopeChunks = []
     i = 0
     while (i < data.length){
         nextDataChunk = data.subarray(i, i + chunksSize)
@@ -250,9 +250,9 @@ function sliceEnvelopeChunks(data){
     // TOTAL payload cannot occur: the compiled stream always leads
     // with a push opcode, so any non-empty payload is >= 2 bytes.)
     if (envelopeChunks.length >= 2){
-        let last = envelopeChunks[envelopeChunks.length - 1]
+        const last = envelopeChunks[envelopeChunks.length - 1]
         if (last.length === 1 && ((last[0] >= 0x01 && last[0] <= 0x10) || last[0] === 0x81)){
-            let prevStart = data.length - 1 - envelopeChunks[envelopeChunks.length - 2].length
+            const prevStart = data.length - 1 - envelopeChunks[envelopeChunks.length - 2].length
             envelopeChunks[envelopeChunks.length - 2] = data.subarray(prevStart, data.length - 2)
             envelopeChunks[envelopeChunks.length - 1] = data.subarray(data.length - 2)
         }

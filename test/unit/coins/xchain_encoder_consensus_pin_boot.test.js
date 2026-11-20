@@ -32,7 +32,7 @@ describe('XChainEncoder consensus-pin boot guard', function(){
     }
 
     it('verifies the vendored bundle at construction, with the net portion of the network key', function(){
-        let seen = [];
+        const seen = [];
         coins.verifyConsensusPin = function(net){ seen.push(net); return { ok: true, skipped: false }; };
         build();
         assert.deepStrictEqual(seen, ['regtest']);

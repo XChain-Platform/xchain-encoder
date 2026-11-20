@@ -37,7 +37,7 @@ function parseFundingTx(p2shHex){
 
 // A P2SH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2shChunk(build, nextDataBuffer){
-    let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
+    const { p2shHex, p2shHash } = build; let { p2shTx, txidFirstInput } = build
     if (p2shHex && !p2shTx){
         p2shTx = parseFundingTx(p2shHex)
         txidFirstInput = p2shTx.getId()
@@ -53,9 +53,9 @@ function* emitP2shChunk(build, nextDataBuffer){
 }
 
 function* spendP2shLeg(build, nextDataBuffer){
-    let { psbt, txidFirstInput, estimatedTxSize, p2shTx, voutPsbtIndex, utxoSequence, p2shHash, p2shHex, phaseLegInputSatoshis } = build
+    const { txidFirstInput, p2shTx, utxoSequence, p2shHash, p2shHex } = build; let { psbt, estimatedTxSize, voutPsbtIndex, phaseLegInputSatoshis } = build
     if (!psbt){
-        let opReturnData = yield this.obfuscate(
+        const opReturnData = yield this.obfuscate(
             Buffer.concat([
                 Buffer.from(MAGIC_WORD,'utf8'),
                 Buffer.from("p2sh",'utf8')
@@ -79,7 +79,7 @@ function* spendP2shLeg(build, nextDataBuffer){
         throw new ParamRangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
     assertLegFundsScript.call(this, p2shTx, voutPsbtIndex, Encoding.P2SH, nextDataBuffer)
-    let nextInput = {
+    const nextInput = {
         sequence: utxoSequence,
         hash:p2shHash,
         redeemScript:nextDataBuffer,
@@ -99,8 +99,8 @@ function* spendP2shLeg(build, nextDataBuffer){
 }
 
 function fundP2shLeg(build, nextDataBuffer){
-    let { feePerBytes, finalDust, revealCustomOutputsValue, revealCustomOutputsFee, psbt, outputSatoshis, estimatedTxSize } = build
-    let spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
+    const { feePerBytes, finalDust, psbt } = build; let { revealCustomOutputsValue, revealCustomOutputsFee, outputSatoshis, estimatedTxSize } = build
+    const spendingP2shEstimatedSize = this.estimateSpendingP2shTx(nextDataBuffer)
     let spendingP2shEstimatedFee = feeForVsize(spendingP2shEstimatedSize, feePerBytes, SATOSHI_UNIT)
 
     // A lone leg that also carries the reveal's custom outputs only needs to stay a
@@ -180,14 +180,14 @@ function topUpFirstP2shLeg(build, spendingP2shEstimatedFee){
 
 // The one-time first-leg top-up both chunk carriers share; the rationale is above.
 function topUpFirstLeg(build, spendingEstimatedFee, encoding){
-    let { p2shRevealHeadroomFunded, revealCustomOutputsBytes, preparedData, feePerBytes, finalDust, psbt, revealPrefund } = build
+    const { revealCustomOutputsBytes, preparedData, feePerBytes, finalDust, psbt } = build; let { p2shRevealHeadroomFunded, revealPrefund } = build
     if (!p2shRevealHeadroomFunded){
         p2shRevealHeadroomFunded = true
-        let needsChangeOutput = (revealCustomOutputsBytes === 0)
-        let { baseLegsTotal, revealFeeNeeded, revealSize } = sumRevealLegs.call(this, preparedData, feePerBytes, finalDust, encoding)
-        let revealShortfall = Math.max(0, revealFeeNeeded - baseLegsTotal)
+        const needsChangeOutput = (revealCustomOutputsBytes === 0)
+        const { baseLegsTotal, revealFeeNeeded, revealSize } = sumRevealLegs.call(this, preparedData, feePerBytes, finalDust, encoding)
+        const revealShortfall = Math.max(0, revealFeeNeeded - baseLegsTotal)
         // The reveal's change is an authored output, so its headroom is the relay floor.
-        let changeHeadroom = needsChangeOutput ? BigInt(this.outputFloor) : 0n
+        const changeHeadroom = needsChangeOutput ? BigInt(this.outputFloor) : 0n
         spendingEstimatedFee = asSatValue(BigInt(spendingEstimatedFee) + BigInt(revealShortfall) + changeHeadroom)
         // This leg is where the reveal's fee money lives, so it is
         // the one the package-prefund pass tops up.
@@ -208,7 +208,7 @@ function sumRevealLegs(preparedData, feePerBytes, finalDust, encoding){
     let baseLegsTotal = 0
     for (const chunkBuffer of preparedData["dataBufferArray"]){
         const chunkSize = isP2sh ? this.estimateSpendingP2shTx(chunkBuffer) : this.estimateSpendingP2wshTx(chunkBuffer, 0)
-        let chunkLegFee = feeForVsize(chunkSize, feePerBytes, SATOSHI_UNIT)
+        const chunkLegFee = feeForVsize(chunkSize, feePerBytes, SATOSHI_UNIT)
         baseLegsTotal = baseLegsTotal + Math.max(chunkLegFee, finalDust)
     }
     const revealSize = isP2sh
@@ -237,7 +237,7 @@ function assertLegFundsScript(p2shTx, vout, encoding, script){
 
 // A P2WSH chunk: a funding output on the commit, or an input spending it on the reveal.
 function* emitP2wshChunk(build, nextDataBuffer){
-    let { p2shHex, p2shTx, txidFirstInput, p2shHash } = build
+    const { p2shHex, p2shHash } = build; let { p2shTx, txidFirstInput } = build
     if (p2shHex && !p2shTx){
         p2shTx = parseFundingTx(p2shHex)
         txidFirstInput = p2shTx.getId()
@@ -253,7 +253,7 @@ function* emitP2wshChunk(build, nextDataBuffer){
 }
 
 function* spendP2wshLeg(build, nextDataBuffer){
-    let { psbt, txidFirstInput, p2shTx, voutPsbtIndex, utxoSequence, p2shHash, estimatedTxSize, phaseLegInputSatoshis } = build
+    const { txidFirstInput, p2shTx, utxoSequence, p2shHash } = build; let { psbt, voutPsbtIndex, estimatedTxSize, phaseLegInputSatoshis } = build
     if (!psbt){
         psbt = new bitcoin.Psbt({ network: this.network })
         psbt.addOutput({
@@ -276,7 +276,7 @@ function* spendP2wshLeg(build, nextDataBuffer){
         throw new ParamRangeError(`p2shHex transaction does not have output at index ${voutPsbtIndex}`)
     }
     assertLegFundsScript.call(this, p2shTx, voutPsbtIndex, Encoding.P2WSH, nextDataBuffer)
-    let nextInput = {
+    const nextInput = {
         sequence: utxoSequence,
         hash:p2shHash,
         witnessScript:nextDataBuffer,
@@ -296,7 +296,7 @@ function* spendP2wshLeg(build, nextDataBuffer){
 }
 
 function fundP2wshLeg(build, nextDataBuffer){
-    let { feePerBytes, finalDust, preparedData, revealCustomOutputsValue, revealCustomOutputsFee, psbt, outputSatoshis, estimatedTxSize, change } = build
+    const { feePerBytes, finalDust, preparedData, psbt, change } = build; let { revealCustomOutputsValue, revealCustomOutputsFee, outputSatoshis, estimatedTxSize } = build
     // Size this P2WSH data output to fund its share of the
     // reveal (spending) transaction's fee, mirroring the
     // P2SH branch above. A flat per-output dust value leaves
@@ -316,7 +316,7 @@ function fundP2wshLeg(build, nextDataBuffer){
     const padOutputBytes = needsPad
         ? TxSizeEstimator.estimateOutputSizeForAddress(change || null, this.network)
         : 0
-    let spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer, padOutputBytes)
+    const spendingP2wshEstimatedSize = this.estimateSpendingP2wshTx(nextDataBuffer, padOutputBytes)
     let spendingP2wshEstimatedFee = feeForVsize(spendingP2wshEstimatedSize, feePerBytes, SATOSHI_UNIT)
 
     if (spendingP2wshEstimatedFee < finalDust){

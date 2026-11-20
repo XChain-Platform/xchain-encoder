@@ -215,11 +215,11 @@ class TxSizeEstimator {
         //   - redeem script push: 1 byte for <76, 2 bytes (OP_PUSHDATA1) for 76..255,
         //                         3 bytes (OP_PUSHDATA2) for 256..65535
         //   - redeem script bytes
-        let sigPush      = 1 + 72                                   // 73
-        let pubkeyPush   = 1 + 33                                   // 34
-        let redeemPush   = compiledPushSize(redeemData.length) - redeemData.length
-        let scriptSig    = sigPush + pubkeyPush + redeemPush + redeemData.length
-        let scriptVarint = scriptSig < 253 ? 1 : 3
+        const sigPush      = 1 + 72                                   // 73
+        const pubkeyPush   = 1 + 33                                   // 34
+        const redeemPush   = compiledPushSize(redeemData.length) - redeemData.length
+        const scriptSig    = sigPush + pubkeyPush + redeemPush + redeemData.length
+        const scriptVarint = scriptSig < 253 ? 1 : 3
         return 40 + scriptVarint + scriptSig
     }
     

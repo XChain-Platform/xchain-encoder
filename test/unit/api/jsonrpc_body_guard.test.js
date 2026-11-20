@@ -46,7 +46,7 @@ function buildApp(withGuard) {
     app.use(jsonRouter({ methods: METHODS }));
     // Silence Express's default error-handler stack dump so the control case
     // (unguarded -> 500) doesn't spew to stderr; the 500 status is what we assert.
-    app.use((err, req, res, next) => { res.status(500).json({ error: 'internal' }); }); // eslint-disable-line no-unused-vars
+    app.use((err, req, res, next) => { res.status(500).json({ error: 'internal' }); });
     return app;
 }
 

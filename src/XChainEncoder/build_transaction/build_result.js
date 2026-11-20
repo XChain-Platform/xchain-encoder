@@ -23,7 +23,7 @@ const { finishTwoStepCommit, finishTwoStepReveal } = require('./envelope_two_ste
 
 // The duplicate-build gate, then the response object and its additive fields.
 function finishBuild(build){
-    let { callReservations, psbt, preparedData } = build
+    const { callReservations, psbt, preparedData } = build
     if (build.twoStepSignedCommit){
         const result = finishTwoStepReveal.call(this, build)
         attachAdvisories(build, result)
@@ -63,7 +63,7 @@ function finishBuild(build){
     // minted for this build can retire this record too (see releaseReservation).
     callReservations.buildTxid = this.refuseDuplicateBuild(psbt, Date.now())
 
-    let result = {"psbt":psbt,"encoding":preparedData["encoding"]}
+    const result = {"psbt":psbt,"encoding":preparedData["encoding"]}
 
     attachAdvisories(build, result)
     attachCompression(build, result)
@@ -76,7 +76,7 @@ function finishBuild(build){
 }
 
 function attachAdvisories(build, result){
-    let { rawDataOnlyPayload, unknownAction, revealLegUndersizedMessage } = build
+    const { rawDataOnlyPayload, unknownAction, revealLegUndersizedMessage } = build
     // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive
     // result field, the same shape `compression` already established, so a caller
     // that does not read it is unaffected.
@@ -114,7 +114,7 @@ function attachAdvisories(build, result){
 }
 
 function attachCompression(build, result){
-    let { compressionResult } = build
+    const { compressionResult } = build
     // What compression actually did, reported rather than inferred. The
     // wallet has to show the REAL on-chain size, and with the
     // default ON a caller can no longer assume from its own request whether
@@ -151,7 +151,7 @@ function attachCompression(build, result){
 }
 
 function attachCarriers(build, result){
-    let { preparedData, revealPsbt, envelopeResult } = build
+    const { preparedData, revealPsbt, envelopeResult } = build
     if (preparedData["encoding"] === Encoding.P2SH || preparedData["encoding"] === Encoding.P2WSH){
         result.carrierScripts = (preparedData["dataBufferArray"] || []).map(b => b.toString('hex'))
     }

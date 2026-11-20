@@ -19,6 +19,7 @@
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
+const secp = require('tiny-secp256k1')
 const coins = require('../coins')
 const { SOFT_DUST_FLOOR_BY_COIN, DUST_RELAY_FEE_PER_BYTE_BY_COIN, FLAT_RELAY_DUST_COINS, TAPROOT_LEAF_VERSION, MAX_SAFE_SATOSHI_BIG } = require('./constants.js')
 
@@ -84,7 +85,7 @@ function envelopeTapLeafHash(script) {
 let eccLibReady = false
 function ensureEccLib() {
     if (eccLibReady) return
-    bitcoin.initEccLib(require('tiny-secp256k1'))
+    bitcoin.initEccLib(secp)
     eccLibReady = true
 }
 

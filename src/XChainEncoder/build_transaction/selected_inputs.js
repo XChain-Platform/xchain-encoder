@@ -86,7 +86,7 @@ function* fetchPrevTx(connector, txid, memo){
 // nestedRedeem is the P2WPKH redeem script of a P2SH-P2WPKH input, signed as segwit.
 function* addSelectedInput(inputQueue, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker, nestedRedeem, prevTxMemo = new Map()){
     if (nestedRedeem || this.isSegwitUTXO(nextUtxo)){
-        let nextInput = {
+        const nextInput = {
             hash: nextUtxo.txid,
             index: nextUtxo.vout,
             sequence: utxoSequence,
@@ -120,7 +120,7 @@ function* addSelectedInput(inputQueue, nextUtxo, utxoSequence, attachPrevTx, est
         const prev = yield* fetchPrevTx(this.connector, nextUtxo.txid, prevTxMemo)
         // Check the stated amount against the node's copy before it enters the fee math.
         assertPrevOutValueMatches(prev.tx, nextUtxo, fetchedFromTracker)
-        let nextInput = {
+        const nextInput = {
             hash: nextUtxo.txid,
             index: nextUtxo.vout,
             sequence: utxoSequence,

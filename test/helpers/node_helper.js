@@ -50,8 +50,8 @@ class BitcoinRpcClient {
 
 module.exports = {
 	async getWalletConnection(walletName) {
-		let params = { username: rpcUser, password: rpcPassword, port: rpcPort };
-		let connection = new BitcoinRpcClient(params);
+		const params = { username: rpcUser, password: rpcPassword, port: rpcPort };
+		const connection = new BitcoinRpcClient(params);
 
 		const walletList = await connection.listWallets();
 
@@ -88,10 +88,10 @@ module.exports = {
 	},
 
 	async removeObfuscation(data, txid) {
-		var cipherKey = txid.substr(0, 16);
-		var iv = txid.substr(16, 16);
-		var decipher = crypto.createDecipheriv('aes-128-cbc', cipherKey, iv);
-		var decryptedData = decipher.update(data);
+		const cipherKey = txid.substr(0, 16);
+		const iv = txid.substr(16, 16);
+		const decipher = crypto.createDecipheriv('aes-128-cbc', cipherKey, iv);
+		let decryptedData = decipher.update(data);
 		decryptedData = Buffer.concat([decryptedData, decipher.final()]);
 		return decryptedData;
 	}

@@ -23,7 +23,7 @@ const { RESERVATION_TTL_MS } = require('../constants.js')
 const { outpointKey } = require('./input_candidates.js')
 
 function bindObfuscationKey(build){
-    let { utxos, exactInputs, skipsInputSelection, callReservations } = build
+    const { utxos, exactInputs, skipsInputSelection, callReservations } = build
     //On the reveal path utxos is empty; txidFirstInput is (re)assigned from
     //p2shHex inside the data loop below before it is ever read.
     //

@@ -51,25 +51,25 @@ async function sendToApi(method, params){
 describe('api', () => {
 	describe('#create_tx', () => {	
 		it('should create a simple tx from api', async () => {
-			var network = bitcoin.networks.regtest
-			var mnemonic = bip39.generateMnemonic()
+			const network = bitcoin.networks.regtest
+			const mnemonic = bip39.generateMnemonic()
 			console.log("The seed for the api test is: " + mnemonic)
 
-			var seed = bip39.mnemonicToSeedSync(mnemonic)
-			var root = bip32.fromSeed(seed, network)
-			var account = root.derivePath("m/44'/0'/0'/0")
-			var address = account.derive(0).derive(0)
-			var testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
+			const seed = bip39.mnemonicToSeedSync(mnemonic)
+			const root = bip32.fromSeed(seed, network)
+			const account = root.derivePath("m/44'/0'/0'/0")
+			const address = account.derive(0).derive(0)
+			const testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
 			console.log("address for api test: "+testAddress)
 
-			let txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
-			let rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
+			const txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
+			const rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
 			await nodeClientTest.generateToAddress(1, mainTestAddress)
 			
-			let utxos = []
+			const utxos = []
 			let utxo1 = null
-			for (let nextVoutIndex in rawTx1["vout"]){
-				let nextVout = rawTx1["vout"][nextVoutIndex]
+			for (const nextVoutIndex in rawTx1["vout"]){
+				const nextVout = rawTx1["vout"][nextVoutIndex]
 				
 				if (("scriptPubKey" in nextVout) && ("address" in nextVout["scriptPubKey"]) && (nextVout["scriptPubKey"]["address"] == testAddress)){
 					utxo1 = {
@@ -83,7 +83,7 @@ describe('api', () => {
 				}
 			}
 			
-			let response = await sendToApi("create_tx",
+			const response = await sendToApi("create_tx",
 				{
 					"utxosList":utxos,
 					"pubkey":testAddress,

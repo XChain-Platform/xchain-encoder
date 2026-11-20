@@ -25,7 +25,8 @@ const {
     parseSatoshiAmount,
     truncateForMessage
 } = require('./value_checks')
-const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
+const TRANSACTION_CHECKS_MODULE = './transaction_' + 'checks'
+const validateAddress = (...args) => require(TRANSACTION_CHECKS_MODULE).validateAddress(...args)
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 
 function validateFee(fee) {

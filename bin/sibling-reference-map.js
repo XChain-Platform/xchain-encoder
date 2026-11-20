@@ -88,6 +88,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const REPO_NAME = 'xchain-encoder';
@@ -1148,7 +1149,7 @@ function parseArgs(argv) {
 function srcInventoryAt(sha) {
     if (!sha) return null;
     try {
-        const out = require('child_process').execFileSync(
+        const out = childProcess.execFileSync(
             'git', ['ls-tree', '-r', '--name-only', sha, 'src'],
             { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
         );

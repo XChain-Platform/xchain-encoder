@@ -38,12 +38,12 @@
 
 const { getLogger, getRegistry } = require('../observability')
 
-let _counters = null
+let crashCounters = null
 
 function counters() {
-  if (!_counters) {
+  if (!crashCounters) {
     const registry = getRegistry()
-    _counters = {
+    crashCounters = {
       crashes: registry.counter({
         name: 'xchain_crashes_total',
         help: 'Uncaught exceptions and unhandled rejections',
@@ -51,7 +51,7 @@ function counters() {
       })
     }
   }
-  return _counters
+  return crashCounters
 }
 
 /**
@@ -91,7 +91,7 @@ function installCrashHandlers({ proc = process, exitOnUncaught = true } = {}) {
 
 // Tests only: the counter handles are process-wide.
 function resetCrashCounters() {
-  _counters = null
+  crashCounters = null
 }
 
 module.exports = { installCrashHandlers, resetCrashCounters }

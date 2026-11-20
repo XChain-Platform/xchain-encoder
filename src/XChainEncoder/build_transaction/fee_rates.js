@@ -25,10 +25,10 @@ const { resolveSuggestedFeePerByte, capCallerFeeRate, clampLimitLabel } = requir
 // The relay floor, per-byte rate this build charges, node rate the drain caps
 // anchor to, effective cap, and dust floor, settled in that order.
 function* resolveFeeRates(build){
-    let { feePerKb } = build
-    let feePerBytes = null
-    let nodeFeePerBytes = null
-    let relayFeePerKb = null
+    const { feePerKb } = build
+    const feePerBytes = null
+    const nodeFeePerBytes = null
+    const relayFeePerKb = null
     Object.assign(build, { feePerBytes, nodeFeePerBytes, relayFeePerKb })
     yield* resolveRelayFeeRate.call(this, build)
     if (feePerKb){
@@ -52,7 +52,8 @@ function* resolveRelayFeeRate(build){
 }
 
 function* useCallerFeeRate(build){
-    let { feePerKb, feePerBytes, nodeFeePerBytes } = build
+    const { feePerKb } = build
+    let { feePerBytes, nodeFeePerBytes } = build
     // feePerKb is the caller's rate in BASE UNITS (sat/litoshi/koinu)
     // per kB: docs/openrpc.json documents it as "base units per kB" and
     // the SDK's getFeeTiers() guidance is base-unit/vByte x 1000, the
@@ -84,7 +85,8 @@ function* useCallerFeeRate(build){
 }
 
 function* useNodeFeeRate(build){
-    let { feePerBytes, nodeFeePerBytes, relayFeePerKb } = build
+    const { relayFeePerKb } = build
+    let { feePerBytes, nodeFeePerBytes } = build
     feePerBytes = (yield this.connector.getFeePerKilobyte(1))/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
     nodeFeePerBytes = feePerBytes
     // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
@@ -115,7 +117,8 @@ function* useNodeFeeRate(build){
 }
 
 function* anchorRelayFeeRate(build){
-    let { nodeFeePerBytes, relayFeePerKb } = build
+    const { relayFeePerKb } = build
+    let { nodeFeePerBytes } = build
     // Relative-cap anchor fallback. getFeePerKilobyte THROWS on mainnet when
     // estimatesmartfee has no data (fresh node, warming mempool, low
     // activity) or errors, and on any chain when the connector's relayfee
@@ -137,7 +140,8 @@ function* anchorRelayFeeRate(build){
 }
 
 function applyFeeCapAndDustFloor(build){
-    let { feePerBytes, nodeFeePerBytes, dust } = build
+    const { nodeFeePerBytes, dust } = build
+    let { feePerBytes } = build
     // Bound the rate that prices the fee AND sizes the P2SH/P2WSH legs, so a
     // hostile feePerKb cannot drain inputs to the miner. capFeePerBytes stays
     // the pure operator cap (null when both are off), so refuseExcessiveFee

@@ -29,7 +29,7 @@ const { estimateRevealSizes, wantedRevealFee, judgeRevealFee, judgePaddedRevealF
 
 // The change output, then the P2WSH reveal's stripped-size floor pad.
 function emitChangeAndPad(build){
-    let { changeSatoshis, change, psbt, p2shHash, preparedData, pubkey } = build
+    const { changeSatoshis, change, psbt, p2shHash, preparedData, pubkey } = build
     if ((changeSatoshis > 0) && (change)) {
         // Emit change only at or above the relay floor for authored outputs; below it the
         // output is non-standard or soft dust that makes the transaction unrelayable, so it
@@ -60,10 +60,10 @@ function emitChangeAndPad(build){
     // OP_RETURN would be non-standard (multi-op-return), so we cannot pad
     // with that. The funding tx already over-funded this reveal by one dust
     // (see the P2WSH funding branch) so the output's value is available.
-    let strippedFloor = this.network.minStandardTxNonWitnessSize
+    const strippedFloor = this.network.minStandardTxNonWitnessSize
     if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
         // Resolved only when the pad is added, so an unused caller identity is never refused here.
-        let padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        const padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
         if (padAddress){
             psbt.addOutput({
                 address: padAddress,
@@ -75,7 +75,7 @@ function emitChangeAndPad(build){
 }
 
 function* sweepP2shReveal(build){
-    let { p2shHash, preparedData, phaseLegInputSatoshis, customOutputs, feePerBytes, estimatedFee, outputSatoshis,
+    const { p2shHash, preparedData, phaseLegInputSatoshis, customOutputs, feePerBytes, estimatedFee, outputSatoshis,
         change, pubkey, psbt, softDustSurcharge } = build
     // Sweep the P2SH reveal's leg surplus back to the
     // caller. The funding tx (P2SH funding branch above) tops the first leg
@@ -109,10 +109,10 @@ function* sweepP2shReveal(build){
         const feeBeforeUplift = revealFeeKept
         revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
-        let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
+        const revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
         // The sweep is an authored output: below the relay floor the surplus stays as fee,
         // and the caller identity is resolved only when the sweep is added.
-        let sweepAddress = revealSurplus >= BigInt(this.outputFloor) ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        const sweepAddress = revealSurplus >= BigInt(this.outputFloor) ? (change || resolveCallerAddress(pubkey, this.network)) : null
         if (sweepAddress){
             psbt.addOutput({
                 address: sweepAddress,
@@ -139,7 +139,7 @@ function sweepsRevealSurplus(build){
 }
 
 function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
-    let { feePerBytes, p2shHash } = build
+    const { feePerBytes, p2shHash } = build
     // Keep the package prefund as FEE instead of sweeping it home.
     //
     // The reveal spends only the commit's legs, so commit and reveal are
@@ -207,7 +207,7 @@ function clampRevealFeeCeilings(build, allowed, revealSizeForFee, revealFeeKept)
 
 // The reveal-side uplift actually kept as fee, bounded by every ceiling and by the legs.
 function clampRevealUplift(build, commitPackage, wanted, revealUpliftBound, revealSizeForFee, revealFeeKept){
-    let { customOutputs, phaseLegInputSatoshis, outputSatoshis, feePerBytes } = build
+    const { customOutputs, phaseLegInputSatoshis, outputSatoshis, feePerBytes } = build
 // The legs are the only money this transaction has, and every
 // satoshi above the fee is already spoken for by the outputs
 // it must emit. Spend the surplus and not one unit more.
@@ -243,13 +243,13 @@ if (allowed > 0){
 }
 
 function buildEnvelopeReveal(build){
-    let { envelopeContext } = build
+    const { envelopeContext } = build
     // Envelope reveal construction. Runs only on the
     // TAPROOT funding path, after input selection and change, so the commit
     // transaction is final in shape and its unsigned txid is the txid the
     // network will see (segwit-only inputs, enforced above).
-    let revealPsbt = null
-    let envelopeResult = null
+    const revealPsbt = null
+    const envelopeResult = null
     Object.assign(build, { revealPsbt, envelopeResult })
     if (envelopeContext){
         locateEnvelopeCommit.call(this, build)
@@ -259,7 +259,7 @@ function buildEnvelopeReveal(build){
 
 // The commit's unsigned txid, the envelope output's index, and the control block.
 function locateEnvelopeCommit(build){
-    let { psbt, envelopeContext } = build
+    const { psbt, envelopeContext } = build
     // Every commit input is signed SIGHASH_ALL. Attribution rides
     // the commit's ins[0]; ANYONECANPAY-style signing would make index 0
     // third-party-insertable in a replacement. The PSBT field makes the
@@ -290,7 +290,8 @@ function locateEnvelopeCommit(build){
 }
 
 function buildRevealPsbt(build){
-    let { envelopeContext, utxoSequence, commitTxid, commitVout, controlBlock, revealPsbt, envelopeResult } = build
+    const { envelopeContext, utxoSequence, commitTxid, commitVout, controlBlock } = build
+    let { revealPsbt, envelopeResult } = build
     revealPsbt = new bitcoin.Psbt({ network: this.network })
     // Reveal input 0 MUST be the commit outpoint; the decoder's
     // recognition and attribution assume it. RBF preference mirrors the

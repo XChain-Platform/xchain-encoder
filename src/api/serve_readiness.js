@@ -59,9 +59,9 @@ async function probeNodeTier(connector) {
             clearTimeout(timer)
         }
     }
-    const node_tier_mismatch = (connector && connector.nodeTierMismatch) || null
-    const node_tier_checked = Boolean(node_tier_mismatch) || Boolean(connector && connector.nodeTierOk === true)
-    return { node_tier_mismatch, node_tier_checked }
+    const nodeTierMismatch = (connector && connector.nodeTierMismatch) || null
+    const nodeTierChecked = Boolean(nodeTierMismatch) || Boolean(connector && connector.nodeTierOk === true)
+    return { node_tier_mismatch: nodeTierMismatch, node_tier_checked: nodeTierChecked }
 }
 
 // Map one tracker sync-status answer onto the tracker_* readiness fields. Uses

@@ -43,6 +43,7 @@ const {
     validateFeeQuote
 } = require('./fee_and_utxo_checks')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
+const secp = require('tiny-secp256k1')
 
 function assertParamsObject(params) {
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {
@@ -119,13 +120,10 @@ function validateRawTxHex(txHex) {
     return txHex
 }
 
-let secp = null
-
 // Refuse a key that is not a secp256k1 point (33-byte compressed or 32-byte
 // x-only). The hex regexes check shape only, and about half of all x values
 // have no point: one lands unspendable in a multisig or fails late in a p2tr tweak.
 function assertPubkeyOnCurve(buf, label) {
-    if (!secp) secp = require('tiny-secp256k1')    // lazy: wasm-backed, as ensureEccLib
     const onCurve = buf.length === 32 ? secp.isXOnlyPoint(buf) : secp.isPoint(buf)
     if (!onCurve) throw new ParamTypeError(`${label} is not a valid secp256k1 point`)
 }

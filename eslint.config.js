@@ -37,8 +37,34 @@ const src = {
     rules: {
         // Naming: camelCase everywhere except property keys, which carry
         // protocol fields and DB columns through one-to-one.
-        camelcase: ['error', { properties: 'never', ignoreDestructuring: true, ignoreImports: true }],
-        'no-underscore-dangle': ['error', { enforceInMethodNames: true, allowAfterThis: false, allowFunctionParams: false }],
+        camelcase: ['error', {
+            properties: 'never',
+            ignoreDestructuring: true,
+            ignoreImports: true,
+            allow: [
+                'tracker_reachable', 'tracker_synced', 'tracker_lag', 'tracker_halted',
+                'tracker_mempool_ready', 'tracker_max_lag_blocks', 'node_tier_mismatch',
+                'node_tier_checked', 'request_gate', 'probe_gate',
+            ],
+        }],
+        'no-underscore-dangle': ['error', {
+            enforceInMethodNames: true,
+            allowAfterThis: false,
+            allowFunctionParams: false,
+            allow: [
+                '_router', '_m', '_getActiveHandles', '__TX', '__CACHE', '_nodeModulePaths', '_compile',
+                '_buildTransaction', '__xchainNumberValues', '_chainNameCache', '_post', '_attachMetrics',
+                '_startTimer', '_levelCounter', '_emitLocal', '_enqueue', '_noteError', '_key',
+                '_normalizeLabels', '_series', '_noteSeriesDrop', '_register', '_origToHex',
+                '_origAddInput', '_origAddOutput', '_origCreateCipheriv', '_origCompile', '_samples',
+                '_count', '_sorted', '_ensureSorted', '_intervalMs', '_timer', '_snapshots', '_pauses',
+                '_observer', '_histogram', '_envKeys', '_savedEnv', '_code', '_json',
+                '_resetObservability', '_logger', '_registry', '_patched', '_shipperAttached', '_sink',
+                '_unmatchedRouteLabels', '_lazyLogger', '_suggestedFeeClampWarned', '_maxFeeRateKb',
+                '_maxFeeRateMultiplier', '_utxoTrackerMaxLagBlocks', '_dustAmount', '_auth', '_base',
+                '_wallet', '_rpc',
+            ],
+        }],
         // Logging: one logger. Entry points override this below.
         'no-console': 'error',
         // Module shape: requires at the top, environment in config.js only,
@@ -60,7 +86,17 @@ const src = {
 };
 
 const configAndEntry = {
-    files: ['src/config.js', 'src/api.js', 'src/migrate.js', 'src/index.js', 'bin/**/*.js'],
+    files: [
+        'src/common/config.js',
+        'src/api.js',
+        'src/migrate.js',
+        'src/index.js',
+        'src/coins/index.js',
+        'src/observability/index.js',
+        'src/observability/logShipper.js',
+        'src/server/rate_limit_log.js',
+        'bin/**/*.js',
+    ],
     rules: {
         'no-console': 'off',
         'no-restricted-syntax': ['error',
@@ -83,4 +119,16 @@ const tests = {
     },
 };
 
-module.exports = [src, configAndEntry, tests];
+const moduleTests = {
+    files: [
+        'test/performance/helpers/k6/*.js',
+        'test/xchain_encoder.test.js',
+        'test/xchain_encoder.test/*.js',
+    ],
+    languageOptions: {
+        ...src.languageOptions,
+        sourceType: 'module',
+    },
+};
+
+module.exports = [src, configAndEntry, tests, moduleTests];

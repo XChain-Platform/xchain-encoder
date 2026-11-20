@@ -30,7 +30,8 @@ const { createInputQueue, addSelectedInput } = require('./selected_inputs.js')
 const { prepareTwoStepReveal } = require('./envelope_two_step.js')
 
 function initSelection(build){
-    let { estimatedTxSize, fee, psbt, softDustSurcharge } = build
+    const { fee, psbt, softDustSurcharge } = build
+    let { estimatedTxSize } = build
     estimatedTxSize = estimatedTxSize + 43 // change output (worst case: taproot)
     // The output-count varint is 1 byte up to 252 outputs and 3 bytes past that; the
     // 10-byte header counted in initEmissionState assumed 1. A MULTISIGN payload plus
@@ -53,7 +54,7 @@ function initSelection(build){
         estimatedFee = requestedFee + (softDustSurcharge || 0)
     }
 
-    let selectedInputCount = 0
+    const selectedInputCount = 0
     // Txids of the SELECTED inputs that are still in the mempool. Their
     // ancestor package is what CPFP sizing below has to pay for. An entry with no
     // confirmations field counts as unconfirmed (isUnconfirmedUtxo), so it is sized as
@@ -62,7 +63,7 @@ function initSelection(build){
     // Candidates the loop skipped because another build holds them. Reported
     // when nothing could be selected, so the caller learns the inputs exist
     // and are spoken for rather than that the address is empty.
-    let reservedCandidates = 0
+    const reservedCandidates = 0
     // Whether the segwit marker and flag have been counted; see framingBytesForInput.
     const segwitMarkerCounted = false
     Object.assign(build, { estimatedTxSize, estimatedFee, requestedFee, selectedInputCount, unconfirmedInputTxids,
@@ -99,7 +100,7 @@ function refuseOverweightSelection(estimatedTxSize, selectedInputCount){
 }
 
 function* selectFundingInputs(build){
-    let { p2shHash } = build
+    const { p2shHash } = build
     if (build.options && build.options.envelopeCommitHex){
         prepareTwoStepReveal.call(this, build)
         return
@@ -114,9 +115,9 @@ function* selectFundingInputs(build){
 // Walks the ordered candidates, claiming and adding inputs until they cover
 // outputs plus fee (or, in exact-input mode, until every named one is spent).
 function* selectInputs(build){
-    let { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
-        attachPrevTx, fee, feePerBytes, outputSatoshis, estimatedTxSize, estimatedFee, inputSatoshis,
-        selectedInputCount, unconfirmedInputTxids, reservedCandidates, softDustSurcharge } = build
+    const { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
+        attachPrevTx, fee, feePerBytes, outputSatoshis, unconfirmedInputTxids, softDustSurcharge } = build
+    let { estimatedTxSize, estimatedFee, inputSatoshis, selectedInputCount, reservedCandidates } = build
     const now = Date.now()
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
@@ -125,7 +126,7 @@ function* selectInputs(build){
     const inputQueue = createInputQueue(psbt)
     while (nextUtxoIndex < utxos.length){
         refuseCappedSelection.call(this, build, nextUtxoIndex, inputSatoshis, estimatedFee, selectedInputCount, now)
-        let nextUtxo = utxos[nextUtxoIndex]
+        const nextUtxo = utxos[nextUtxoIndex]
 
         refuseUnsignableInput.call(this, preparedData, nextUtxo, build.options)
 
@@ -267,7 +268,7 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
 }
 
 function refuseEmptySelection(build){
-    let { selectedInputCount, reservedCandidates, outputSatoshis, estimatedTxSize } = build
+    const { selectedInputCount, reservedCandidates, outputSatoshis, estimatedTxSize } = build
     // Report the fee the build would charge, floor included.
     const estimatedFee = selectionTargetFee.call(this, build.estimatedFee, build.softDustSurcharge)
     // The caller-facing MAX_UTXO_COUNT cap is intentionally NOT
@@ -304,7 +305,7 @@ function refuseEmptySelection(build){
 }
 
 function refuseFirstInputRace(build){
-    let { hasActionPayload, preparedData, txidFirstInput, psbt } = build
+    const { hasActionPayload, preparedData, txidFirstInput, psbt } = build
     // Fail-closed ins[0] invariant. OP_RETURN and MULTISIGN
     // obfuscate their payload with txidFirstInput, and the decoder derives its
     // deobfuscation key from the first input's txid, so the action only decodes if

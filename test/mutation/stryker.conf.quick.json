@@ -4,6 +4,7 @@
     "src/XChainEncoder.js"
   ],
   "testRunner": "mocha",
+  "plugins": ["./test/mutation/mocha12_runner_compat.mjs"],
   "mochaOptions": {
     "spec": [
       "test/unit/**/*.test.js",
