@@ -58,8 +58,9 @@ function fixture (kind, floorMultiplier) {
     confirmations: 6,
     scriptPubKey: payment.output.toString('hex')
   }
+  let feeEstimate = 0.00001
   encoder.connector = {
-    getFeePerKilobyte: async () => 0.00001,
+    getFeePerKilobyte: async () => feeEstimate,
     getNetworkInfo: async () => ({ relayfee: 0.00001 }),
     getTransactionHex: async txid => {
       if (txid !== previous.getId()) throw new Error('unexpected previous transaction')
@@ -69,14 +70,15 @@ function fixture (kind, floorMultiplier) {
   encoder.utxoTrackerConnector = {
     getUtxosFromAddress: async () => { throw new Error('unit test: no tracker') }
   }
-  return { encoder, utxo, source: payment.address }
+  return { encoder, utxo, source: payment.address, setFeeEstimate: value => { feeEstimate = value } }
 }
 
-async function buildPair (kind, floorMultiplier) {
-  const { encoder, utxo, source } = fixture(kind, floorMultiplier)
+async function buildPair (kind, floorMultiplier, revealEstimate, commitSetup = {}) {
+  const { encoder, utxo, source, setFeeEstimate } = fixture(kind, floorMultiplier)
+  if (commitSetup.estimate) setFeeEstimate(commitSetup.estimate)
   const args = [
     [utxo], source, null, `FILE|0|two-step-${kind}`, 'payload',
-    null, false, 'TAPROOT', source, null, null, PUBKEY_HEX
+    commitSetup.fee || null, false, 'TAPROOT', source, null, null, PUBKEY_HEX
   ]
   const commit = await encoder.createTransaction(...args, true, null, null, null, false, false, {
     twoStepEnvelope: true
@@ -91,6 +93,7 @@ async function buildPair (kind, floorMultiplier) {
   const commitTx = commit.psbt.extractTransaction()
   assert.notStrictEqual(commitTx.getId(), bitcoin.Transaction.fromHex(unsignedHex).getId())
 
+  if (revealEstimate) setFeeEstimate(revealEstimate)
   const reveal = await encoder.createTransaction(...args, true, null, null, null, false, false, {
     envelopeCommitHex: commitTx.toHex()
   })
@@ -108,7 +111,23 @@ async function buildPair (kind, floorMultiplier) {
   assert.strictEqual(Buffer.from(revealTx.ins[0].hash).reverse().toString('hex'), commitTx.getId())
   assert.strictEqual(revealTx.ins[0].index, 0)
 
-  return { encoder, args, unsignedHex, commit, reveal, revealTx }
+  return { encoder, args, unsignedHex, commit, commitTx, reveal, revealTx }
+}
+
+// The fee a finalized reveal actually pays: its only input is the commit output.
+function paidRevealFee (commitTx, revealTx) {
+  const spent = Number(commitTx.outs[revealTx.ins[0].index].value)
+  return spent - revealTx.outs.reduce((sum, out) => sum + Number(out.value), 0)
+}
+
+// A signed-looking commit paying `value` to the envelope address the encoder derives.
+function handBuiltCommit (encoder, commit, value) {
+  const tx = new bitcoin.Transaction()
+  tx.version = 2
+  tx.addInput(Buffer.alloc(32, 7), 0, 0xfffffffd)
+  tx.setWitness(0, [Buffer.alloc(64, 1)])
+  tx.addOutput(bitcoin.address.toOutputScript(commit.envelope.commitAddress, encoder.network), value)
+  return tx
 }
 
 describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits', function () {
@@ -126,6 +145,11 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
     assert.strictEqual(reveal.envelope.commitValue, reveal.envelope.revealFee + encoder.outputFloor)
     assert.strictEqual(revealTx.outs.length, 1)
     assert.strictEqual(Number(revealTx.outs[0].value), encoder.outputFloor)
+  })
+
+  it('builds the reveal when the node fee estimate changes after commit signing', async function () {
+    const { commit, reveal } = await buildPair('p2pkh', null, 0.0003, { estimate: 0.0001 })
+    assert.strictEqual(reveal.envelope.commitValue, commit.envelope.commitValue)
   })
 
   it('refuses an unsigned envelopeCommitHex', async function () {
@@ -150,5 +174,57 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
       () => validator.validateAll({ ...base, options: { twoStepEnvelop: true } }),
       /Unknown options key/
     )
+  })
+})
+
+describe('XChainEncoder TAPROOT two-step reveal binds the signed commit value', function () {
+  it('keeps the signed commit fee when the node estimate rises after commit signing', async function () {
+    const { encoder, commit, commitTx, reveal, revealTx } = await buildPair('p2pkh', null, 0.0003, { estimate: 0.0001 })
+    assert.ok(commit.envelope.revealFee > encoder.dustAmount, 'commit fee must sit above the dust floor to move with the rate')
+    assert.strictEqual(Number(reveal.psbt.data.inputs[0].witnessUtxo.value), Number(commitTx.outs[0].value))
+    assert.strictEqual(reveal.envelope.revealFee, commit.envelope.revealFee)
+    assert.strictEqual(paidRevealFee(commitTx, revealTx), commit.envelope.revealFee)
+  })
+
+  it('keeps the signed commit fee when the node estimate falls after commit signing', async function () {
+    const { encoder, commit, commitTx, reveal, revealTx } = await buildPair('p2pkh', null, 0.0001, { estimate: 0.0003 })
+    assert.ok(commit.envelope.revealFee / 2 > encoder.dustAmount, 'the lower rate must still price above the dust floor')
+    assert.strictEqual(reveal.envelope.commitValue, Number(commitTx.outs[0].value))
+    assert.strictEqual(reveal.envelope.revealFee, commit.envelope.revealFee)
+    assert.strictEqual(paidRevealFee(commitTx, revealTx), commit.envelope.revealFee)
+  })
+
+  it('reveals a commit whose reveal fee was raised by the package prefund', async function () {
+    const unprefunded = (await buildPair('p2pkh', null, null, { estimate: 0.0001 })).commit.envelope.revealFee
+    const { commit, commitTx, reveal, revealTx } = await buildPair('p2pkh', null, null, { estimate: 0.0001, fee: 700 })
+    assert.ok(commit.envelope.revealFee > unprefunded, `prefund did not fire: ${commit.envelope.revealFee}`)
+    assert.strictEqual(reveal.envelope.commitValue, commit.envelope.commitValue)
+    assert.strictEqual(reveal.envelope.revealFee, commit.envelope.revealFee)
+    assert.strictEqual(paidRevealFee(commitTx, revealTx), commit.envelope.revealFee)
+  })
+
+  it('refuses a commit output too small to fund a relayable reveal', async function () {
+    const { encoder, args, commit } = await buildPair('p2pkh')
+    const change = commit.envelope.commitValue - commit.envelope.revealFee
+    const underfunded = handBuiltCommit(encoder, commit, change + 1)
+    await assert.rejects(
+      encoder.createTransaction(...args, true, null, null, null, false, false, {
+        envelopeCommitHex: underfunded.toHex()
+      }),
+      err => err.xchainCode === 'ENVELOPE_COMMIT_UNDERFUNDED' && /create_envelope_cancel_tx/.test(err.message)
+    )
+  })
+
+  it('returns commit value above the burn ceiling as reveal change instead of miner fee', async function () {
+    const { encoder, args, commit } = await buildPair('p2pkh')
+    const overfunded = handBuiltCommit(encoder, commit, 500000)
+    const reveal = await encoder.createTransaction(...args, true, null, null, null, false, false, {
+      envelopeCommitHex: overfunded.toHex()
+    })
+    const outs = reveal.psbt.txOutputs
+    assert.strictEqual(reveal.envelope.commitValue, 500000)
+    assert.strictEqual(reveal.envelope.revealFee, commit.envelope.revealFee)
+    assert.strictEqual(outs.length, 1)
+    assert.strictEqual(Number(outs[0].value), 500000 - commit.envelope.revealFee)
   })
 })

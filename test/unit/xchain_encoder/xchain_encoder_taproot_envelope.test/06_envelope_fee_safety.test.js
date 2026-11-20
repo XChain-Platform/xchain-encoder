@@ -21,8 +21,8 @@ const PUBKEY_HEX = PUBKEY.toString('hex')
 const TXID = 'a'.repeat(64)
 const SATOSHI_UNIT = 100000000
 
-function makeEncoder (estimate = 0.00001, relayfee = 0.00001) {
-  const encoder = new XChainEncoder('bitcoin-regtest', '', '', '', '', '', '')
+function makeEncoder (estimate = 0.00001, relayfee = 0.00001, networkKey = 'bitcoin-regtest') {
+  const encoder = new XChainEncoder(networkKey, '', '', '', '', '', '')
   encoder.connector = {
     getFeePerKilobyte: async () => estimate,
     getNetworkInfo: async () => ({ relayfee }),
@@ -80,6 +80,44 @@ describe('TAPROOT envelope fee safety', function () {
     const scriptBytes = Buffer.from(result.carrierScripts[0], 'hex').length
     const revealSize = TxSizeEstimator.estimateEnvelopeRevealTx(scriptBytes, outputBytes)
     assert.ok(result.envelope.revealFee <= revealSize * 100)
+  })
+})
+
+describe('TAPROOT envelope cancel suggested ceiling', function () {
+  it('clamps a node-selected cancel rate to the test-chain suggested ceiling', async function () {
+    const high = await makeEncoder(0.00376).createEnvelopeCancelTransaction(cancelRecord(makeEncoder()))
+    const ceiling = await makeEncoder(0.0002).createEnvelopeCancelTransaction(cancelRecord(makeEncoder()))
+    assert.strictEqual(high.fee, ceiling.fee)
+  })
+
+  it('prices a node-selected cancel at the default 20 per vByte ceiling, not the raw estimate', async function () {
+    const encoder = makeEncoder(0.00376)
+    const cancel = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    assert.strictEqual(cancel.fee, 2040)
+    assert.strictEqual(Number(cancel.psbt.txOutputs[0].value), 100000 - 2040)
+  })
+
+  it('honours SUGGESTED_FEE_MAX_PER_VBYTE for a node-selected cancel rate', async function () {
+    process.env.SUGGESTED_FEE_MAX_PER_VBYTE = '30'
+    try {
+      const encoder = makeEncoder(0.00376)
+      const cancel = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+      assert.strictEqual(cancel.fee, 3060)
+    } finally {
+      delete process.env.SUGGESTED_FEE_MAX_PER_VBYTE
+    }
+  })
+
+  it('leaves a caller cancel feePerKb above the suggested ceiling unclamped', async function () {
+    const encoder = makeEncoder(0.00376)
+    const cancel = await encoder.createEnvelopeCancelTransaction({ ...cancelRecord(encoder), feePerKb: 50000 })
+    assert.strictEqual(cancel.fee, 50 * 102)
+  })
+
+  it('leaves a mainnet node-selected cancel rate unclamped', async function () {
+    const encoder = makeEncoder(0.00376, 0.00001, 'bitcoin-mainnet')
+    const cancel = await encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    assert.strictEqual(cancel.fee, 376 * 102)
   })
 })
 

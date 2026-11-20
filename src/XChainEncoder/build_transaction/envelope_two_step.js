@@ -14,8 +14,9 @@
 
 const bitcoin = require('bitcoinjs-lib')
 const { OperationalError, ParamTypeError } = require('../../build/errors')
-const { TAPROOT_LEAF_VERSION, Encoding } = require('../constants.js')
+const { TAPROOT_LEAF_VERSION, Encoding, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, logger } = require('../constants.js')
 const { envelopeTapLeafHash } = require('../script_amount_helpers.js')
+const { backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 
 function hasUnlockingData(input){
     return input.script.length > 0 || input.witness.length > 0
@@ -42,11 +43,29 @@ function locateCommitOutput(tx, envelopeContext){
     if (matches.length !== 1){
         throw new ParamTypeError('options.envelopeCommitHex must contain exactly one output for this envelope leaf')
     }
-    const commitVout = matches[0]
-    if (BigInt(tx.outs[commitVout].value) !== BigInt(envelopeContext.commitValue)){
-        throw new ParamTypeError('options.envelopeCommitHex envelope output value does not match this reveal build')
+    return matches[0]
+}
+
+function bindSignedCommitValue(build, tx, commitVout){
+    const context = build.envelopeContext
+    const actualValue = Number(tx.outs[commitVout].value)
+    const pad = context.revealPadNeeded ? this.outputFloor : 0
+    const fundedFee = actualValue - build.finalDust - pad
+    const relayFee = feeForVsize(context.revealVsize, build.relayFeePerKb / 1000, SATOSHI_UNIT)
+    const minimumFee = Math.max(this.dustAmount, relayFee)
+    if (fundedFee < minimumFee){
+        throw new OperationalError('ENVELOPE_COMMIT_UNDERFUNDED', `envelope commit leaves a ${fundedFee} satoshi reveal fee, below the ${minimumFee} satoshi minimum; recover it with create_envelope_cancel_tx`)
     }
-    return commitVout
+    const reference = backstopReferenceFeePerBytes(build)
+    if (!(reference > 0)) throw new Error('Reveal fee safety cannot be verified without a node or relay fee reference')
+    const ceiling = Math.max(this.dustAmount,
+        feeForVsize(tx.virtualSize() + context.revealVsize, reference, SATOSHI_UNIT) * BURN_BACKSTOP_MULTIPLIER)
+    context.commitValue = actualValue
+    if (fundedFee < context.revealFee){
+        logger.warn(`Envelope commit funds ${fundedFee} satoshis for the reveal, under the ${context.revealFee} this call's rate asks for; its change output stays a CPFP handle`)
+    }
+    if (fundedFee <= ceiling) context.revealFee = fundedFee
+    else logger.warn(`Envelope commit funds ${fundedFee} satoshis for the reveal, above the burn ceiling; returning the excess as reveal change`)
 }
 
 function controlBlockFor(envelopeContext, network){
@@ -63,6 +82,7 @@ function prepareTwoStepReveal(build){
     const tx = parseSignedCommit(build.options.envelopeCommitHex)
     const envelopeContext = build.envelopeContext
     const commitVout = locateCommitOutput(tx, envelopeContext)
+    bindSignedCommitValue.call(this, build, tx, commitVout)
     const commitTxid = tx.getId()
     const outpoint = `${commitTxid}:${commitVout}`
     const now = Date.now()

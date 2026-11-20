@@ -29,6 +29,7 @@ const { getLogger } = require('../observability');
 const { version: ENCODER_VERSION } = require('../../package.json')
 const { readMaintenanceWindow } = require('../server/maintenance_window')   // operator-declared scheduled outage, reported beside readiness
 const { createServeReadiness } = require('./serve_readiness')
+const { getTxStatus } = require('./tx_status')
 const config = require('../common/config')
 const logger = getLogger();
 
@@ -315,10 +316,7 @@ function buildUtxoMethods({ encoder }) {
 return {
     async get_tx_status(rawParams) {
         const txid = validateLookupTxid(rawParams)
-        try {
-            if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
-            return { status: await encoder.utxoTrackerConnector.getTxBlock(txid) === null ? 'unknown' : 'chain' }
-        } catch (err) { throw lookupFailure(err, 'Transaction status') }
+        try { return await getTxStatus(encoder, txid) } catch (err) { throw lookupFailure(err, 'Transaction status') }
     },
     async get_tx_block(rawParams) {
         const txid = validateLookupTxid(rawParams)

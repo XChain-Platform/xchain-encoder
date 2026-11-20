@@ -28,7 +28,11 @@ const { OperationalError, ParamTypeError, ParamRangeError } = require('../build/
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
 const { assertAddressOnNetwork } = require('./request_resolution.js')
-const { capCallerFeeRate, clampLimitLabel, feeForVsize } = require('./fee_policy.js')
+const { capCallerFeeRate, clampLimitLabel, feeForVsize, resolveSuggestedFeePerByte } = require('./fee_policy.js')
+
+// Encoders that already logged a suggested-ceiling clamp on the cancel path, so a
+// quiet test chain logs it once per process rather than once per cancel.
+const cancelClampWarned = new WeakSet()
 
 // The cancel's recovery record as handed over: validated, decoded, and read
 // into the values the build uses.
@@ -149,7 +153,15 @@ function* cancelFeeRate(feeRatePerKb){
         }
     } else {
         nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
-        feePerBytes = Math.max(nodeFeePerBytes, relayFeePerKb / 1000)
+        const resolved = resolveSuggestedFeePerByte({ networkKey: this.networkKey,
+            satoshiUnit: SATOSHI_UNIT, nodeFeePerBytes, relayFeePerKb })
+        feePerBytes = resolved.feePerBytes
+        if (resolved.clamped && !cancelClampWarned.has(this)){
+            cancelClampWarned.add(this)
+            logger.warn(`Suggested fee rate ${Math.round(nodeFeePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
+                `test-chain ceiling; using ${Math.round(resolved.cap * SATOSHI_UNIT)} per vByte for the envelope cancel. ` +
+                `Set SUGGESTED_FEE_MAX_PER_VBYTE to change or 0 to disable.`)
+        }
     }
     const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
         maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })

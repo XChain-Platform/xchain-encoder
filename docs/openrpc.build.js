@@ -13,6 +13,8 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { ENVELOPE_MAX_PAYLOAD } = require('../src/common/validator/constants.js');
+const formatInteger = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 const str = (description, extra) => Object.assign({ type: 'string', description }, extra);
 const int = (description) => ({ type: 'integer', description });
@@ -48,7 +50,7 @@ const METHODS = [
             + 'call once for the funding tx, then again with p2shHash/p2shHex to build the reveal tx). '
             + 'rawData is decoded as Latin-1 so arbitrary bytes round-trip losslessly. '
             + 'Dogecoin has no segwit: P2WSH and TAPROOT encodings are rejected on DOGE networks. '
-            + 'encoding:"TAPROOT" (BTC/LTC, explicit only) normally uses a single-call two-transaction flow: the result '
+            + 'encoding:"TAPROOT" (BTC/LTC; explicit, or selected by AUTO for a tapscript-capable signer) normally uses a single-call two-transaction flow: the result '
             + 'carries the commit PSBT (psbt), the pre-built reveal PSBT (revealPsbt) and an `envelope` recovery '
             + 'record ({commitTxid, commitVout, commitValue, commitAddress, internalPubkey, tapleafHash, '
             + 'controlBlock, revealFee}) that the wallet must persist durably BEFORE broadcasting the commit; '
@@ -56,7 +58,7 @@ const METHODS = [
             + 'options.twoStepEnvelope returns only the commit PSBT and envelope leaf, then replaying create_tx with '
             + 'options.envelopeCommitHex set to the fully signed commit returns the reveal PSBT in psbt, built against '
             + 'the signed commit txid. TAPROOT requires compressedPubKey (the envelope internal key), native-segwit '
-            + 'inputs on the one-call path, and accepts payloads up to the 400,000-byte envelope ceiling. '
+            + `inputs on the one-call path, and accepts payloads up to the ${formatInteger(ENVELOPE_MAX_PAYLOAD)}-byte envelope ceiling. `
             + 'An unknown top-level param is refused with -32602 rather than ignored, as unknown options keys are.',
         params: [
             { name: 'pubkey', required: true, schema: str('caller identity: sender address (base58 or bech32) or compressed public key hex (02/03 + 64 hex); uncompressed (04...) keys are rejected') },
@@ -132,7 +134,7 @@ const METHODS = [
         name: 'get_tx_status',
         summary: 'Classify a transaction as present in the node mempool, confirmed on chain, or unknown.',
         description: 'Checks the coin node mempool first, then the UTXO tracker chain index. '
-            + 'A lookup failure is an error and is never reported as an unknown transaction.',
+            + 'Unknown is returned only after the tracker has committed the node tip; tracker lag or a lookup failure is an error.',
         params: [{ name: 'txid', required: true, schema: str('transaction id (64-character hexadecimal string)') }],
         result: {
             name: 'transaction_status',

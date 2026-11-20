@@ -292,6 +292,7 @@ function emitEnvelopeCommit(build, nextDataBuffer){
         commitPayment,
         commitValue,
         revealFee,
+        revealVsize,
         revealPadNeeded,
         revealChangeAddress
     }
