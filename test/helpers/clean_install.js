@@ -45,6 +45,12 @@ try {
         path.join(patchRoot, 'apply_bufferutils_patch'),
         { recursive: true }
     );
+    // The patch parts resolve bitcoinjs-lib internals through this sibling directory.
+    fs.cpSync(
+        path.join(repoRoot, 'src', 'build', 'bitcoinjs_compat'),
+        path.join(patchRoot, 'bitcoinjs_compat'),
+        { recursive: true }
+    );
 
     const npmCli = process.env.npm_execpath;
     assert.ok(npmCli, 'npm_execpath is required for isolated dependency verification');

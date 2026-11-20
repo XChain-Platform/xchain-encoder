@@ -42,6 +42,7 @@ const { softDustFloorFor, envelopeTapLeafHash, ensureEccLib, asSatValue, jsonSaf
 const { isTestNetworkKey, suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, resolveSuggestedFeePerByte, maxCpfpUpliftSat, packageFeeUpliftSatoshis } = require('./XChainEncoder/fee_policy.js')
 const { classifyTrackerFreshness, resolveCallerAddress, defaultCompressionEnabled, assertRevealFundingTxMatches } = require('./XChainEncoder/request_resolution.js')
 const { checkPayloadInput, compressPayload, compilePayload, classifyPayload, chooseEncoding, checkEnvelopeEncoding } = require('./XChainEncoder/build_transaction/payload_checks.js')
+const { checkPolicyFlags } = require('./XChainEncoder/build_transaction/policy_flags.js')
 const { resolveFeeRates } = require('./XChainEncoder/build_transaction/fee_rates.js')
 const { initInputState, checkExactInputs, gatherUtxos, refuseShrunkExactInputs, filterAndOrderUtxos } = require('./XChainEncoder/build_transaction/input_candidates.js')
 const { bindObfuscationKey } = require('./XChainEncoder/build_transaction/first_input_key.js')
@@ -214,6 +215,7 @@ class XChainEncoder {
 // delegated to with yield*, which adds no suspension of its own; every other
 // step runs synchronously inside the same stretch.
 function* buildSteps(build){
+    checkPolicyFlags(build)
     checkPayloadInput.call(this, build)
     yield* resolveFeeRates.call(this, build)
     yield* compressPayload.call(this, build)

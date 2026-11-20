@@ -239,6 +239,15 @@ describe('applyBufferutilsPatch', function () {
             }
         });
 
+        it('keeps the bitcoinjs internals resolver byte-identical to the SDK copy', function () {
+            const sdkRoot = requireSdkRoot(this);
+            const encoderFile = path.join(repoRoot, 'src/build/bitcoinjs_compat/internals.js');
+            const sdkFile = path.join(sdkRoot, 'src/utils/bitcoinjs_compat/internals.js');
+            assert.ok(fs.existsSync(sdkFile), 'xchain-sdk is present but its internals resolver is missing: ' + sdkFile);
+            assert.strictEqual(fs.readFileSync(encoderFile, 'utf8'), fs.readFileSync(sdkFile, 'utf8'),
+                'bitcoinjs_compat/internals.js has drifted from the SDK copy; converge SDK-ward');
+        });
+
         it('declares every package it deep-requires', function () {
             const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
             const sources = patchModuleSources(mine);

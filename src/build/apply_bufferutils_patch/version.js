@@ -16,6 +16,6 @@
  *
  ********************************************************************/
 
-const bitcoinTypes = require('bitcoinjs-lib/src/types')
+const { types: bitcoinTypes } = require('../bitcoinjs_compat/internals')
 
 module.exports = { IS_BITCOINJS_V7: !!bitcoinTypes.SatoshiSchema }

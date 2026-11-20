@@ -70,7 +70,36 @@ describe('P2WSH reveal funding prices the stripped-size pad output', () => {
     })
     const valueOutputs = reveal.psbt.txOutputs.filter((o) => Number(o.value) > 0)
     assert.strictEqual(valueOutputs.length, 1, 'single floor-padding output')
-    assert.strictEqual(Number(valueOutputs[0].value), encoder.outputFloor)
+    assert.ok(Number(valueOutputs[0].value) >= encoder.outputFloor)
+    const a = F.account(reveal.psbt)
+    assert.ok(Number(a.fee) < encoder.outputFloor,
+      `reveal fee ${a.fee} should stay below the raised output floor ${encoder.outputFloor}`)
+  })
+
+  it('returns an inflated caller dust amount instead of burning it as reveal fee', async () => {
+    const encoder = F.makeEncoder('btc')
+    const common = {
+      pubkey: F.p2pkhAddr('btc'), data: 'BROADCAST|0|0|' + 'w'.repeat(16),
+      encoding: 'P2WSH', change: F.p2pkhAddr('btc'), feePerKb: 1000, dust: 100000000
+    }
+    const funding = await F.create(encoder, {
+      ...common, utxos: [F.makeUtxo('btc', 'p2wpkh', 200000000)]
+    })
+    const fundingTx = F.account(funding.psbt).tx
+    const reveal = await F.create(encoder, {
+      ...common, p2shHash: fundingTx.getId(), p2shHex: fundingTx.toHex()
+    })
+    const a = F.account(reveal.psbt)
+    const valueOutputs = reveal.psbt.txOutputs.filter((o) => Number(o.value) > 0)
+    const padBytes = TxSizeEstimator.estimateOutputSizeForAddress(common.change, F.net('btc'))
+    const chunks = reveal.psbt.data.inputs.map((i) => i.witnessScript)
+    const owedSize = encoder.estimateP2wshRevealTx(chunks, padBytes)
+    const owed = Math.max(feeForVsize(owedSize, common.feePerKb / 1000 / SATOSHI_UNIT, SATOSHI_UNIT), encoder.dustAmount)
+
+    assert.strictEqual(valueOutputs.length, 1, 'single floor-padding output')
+    assert.ok(Number(valueOutputs[0].value) >= encoder.outputFloor, 'pad remains relayable')
+    assert.ok(Number(a.fee) - owed < encoder.outputFloor,
+      `reveal fee ${a.fee} exceeds owed fee ${owed} by at least one output floor`)
   })
 })
 

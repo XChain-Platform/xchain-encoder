@@ -23,6 +23,7 @@ const os = require('os')
 const path = require('path')
 
 const { acquireInstanceLock } = require('../../../../src/server/single_instance_guard')
+const { withStaleBreakMutex } = require('../../../../src/server/stale_lock_breaker')
 
 // A pid that existed a moment ago and has exited, so the liveness check is real.
 function deadPid() {
@@ -110,5 +111,73 @@ describe('singleInstanceGuard orphaned break mutex bounds @regression', function
     const release = acquireInstanceLock(file)
     release()
     assert.deepStrictEqual(fs.readdirSync(dir), [])
+  })
+
+  it('never removes a live replacement while reclaiming an observed orphan', function () {
+    const file = path.join(dir, 'replacement.lock')
+    const mutex = file + '.break'
+    const orphanPid = deadPid()
+    const orphan = JSON.stringify({ pid: orphanPid, token: 'orphan' })
+    const live = JSON.stringify({ pid: process.ppid, token: 'live-owner' })
+    fs.writeFileSync(mutex, orphan)
+
+    const originalRename = fs.renameSync
+    let installedLive = false
+    let sawGap = false
+    fs.renameSync = function (from, to) {
+      originalRename.call(fs, from, to)
+      if (from === mutex) {
+        sawGap = true
+        fs.writeFileSync(mutex, JSON.stringify({ pid: process.pid, token: 'contender' }), { flag: 'wx' })
+      }
+    }
+    try {
+      assert.throws(() => withStaleBreakMutex(file, 'waiter', () => {
+        assert.fail('the protected action must not run')
+      }, {
+        isPidAlive(pid) {
+          if (pid === orphanPid && !installedLive) {
+            installedLive = true
+            fs.writeFileSync(mutex, live)
+            return false
+          }
+          return pid === process.ppid || pid === process.pid
+        }
+      }), /Refusing to reclaim it automatically/)
+    } finally {
+      fs.renameSync = originalRename
+    }
+
+    assert.strictEqual(sawGap, false, 'the mutex name was absent during reclaim')
+    assert.strictEqual(fs.readFileSync(mutex, 'utf8'), live)
+  })
+
+  it('fails closed when a matching reclaim claim is already present', function () {
+    const file = path.join(dir, 'claimed.lock')
+    const mutex = file + '.break'
+    const orphan = JSON.stringify({ pid: deadPid(), token: 'orphan' })
+    fs.writeFileSync(mutex, orphan)
+    const stat = fs.statSync(mutex, { bigint: true })
+    const claim = mutex + '.reclaim-' + stat.ino + '-' + stat.ctimeNs
+    fs.writeFileSync(claim, JSON.stringify({ pid: process.ppid, token: 'claimant' }))
+
+    assert.throws(() => withStaleBreakMutex(file, 'waiter', () => {
+      assert.fail('the protected action must not run')
+    }, { isPidAlive: () => false }), /Refusing to reclaim it automatically/)
+    assert.strictEqual(fs.readFileSync(mutex, 'utf8'), orphan)
+    assert.strictEqual(fs.existsSync(claim), true)
+  })
+
+  it('sweeps a reclaim claim that matches no current mutex', function () {
+    const file = path.join(dir, 'stale-claim.lock')
+    const claim = file + '.break.reclaim-1-1'
+    fs.writeFileSync(claim, JSON.stringify({ pid: deadPid(), token: 'old-claimant' }))
+    let ran = false
+
+    withStaleBreakMutex(file, 'waiter', () => { ran = true })
+
+    assert.strictEqual(ran, true)
+    assert.strictEqual(fs.existsSync(claim), false)
+    assert.strictEqual(fs.existsSync(file + '.break'), false)
   })
 })

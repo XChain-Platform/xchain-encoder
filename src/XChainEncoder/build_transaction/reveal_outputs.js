@@ -20,8 +20,9 @@
 
 const bitcoin = require('bitcoinjs-lib');
 const util = require('node:util');
+const TxSizeEstimator = require('../../build/tx_size_estimator')
 const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, Encoding } = require('../constants.js')
-const { envelopeTapLeafHash, asSatValue } = require('../script_amount_helpers.js')
+const { envelopeTapLeafHash, asSatValue, compactSizeLen } = require('../script_amount_helpers.js')
 const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { revealNeedsFloorPad } = require('./script_hash_legs.js')
@@ -64,13 +65,9 @@ function emitChangeAndPad(build){
     if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
         // Resolved only when the pad is added, so an unused caller identity is never refused here.
         const padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
-        if (padAddress){
-            psbt.addOutput({
-                address: padAddress,
-                value: this.outputFloor
-            })
-            build.revealPadOutputIndex = psbt.txOutputs.length - 1
-        }
+        // Its value is settled after the reveal fee is known, so every leg unit
+        // above that fee returns to the caller instead of becoming miner fee.
+        if (padAddress) build.revealPadAddress = padAddress
     }
 }
 
@@ -125,8 +122,51 @@ function* sweepP2shReveal(build){
             : wantedRevealFee.call(this, build, revealSizes.withoutSweep) + (revealFeeKept - feeBeforeUplift)
         judgeRevealFee.call(this, build, wantedFee, sweepAddress ? revealSizes.withSweep : revealSizes.withoutSweep, revealFeeKept)
     } else if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && phaseLegInputSatoshis > 0n){
-        judgePaddedRevealFee.call(this, build)
+        yield* settlePaddedReveal.call(this, build)
     }
+}
+
+// A padded reveal must keep a rate-priced fee and return the rest through its
+// required value output. This also repairs an already-funded leg whose caller
+// dust was much larger than the chain floor.
+function* settlePaddedReveal(build){
+    const { preparedData, phaseLegInputSatoshis, psbt, revealPadAddress } = build
+    if (!revealPadAddress) {
+        judgePaddedRevealFee.call(this, build)
+        return
+    }
+    let valueOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(revealPadAddress, this.network)
+    let emittedValue = 0n
+    for (const output of psbt.txOutputs) {
+        if (BigInt(output.value) <= 0n) continue
+        emittedValue += BigInt(output.value)
+        valueOutputBytes += 8 + compactSizeLen(output.script.length) + output.script.length
+    }
+    const revealSize = this.estimateP2wshRevealTx(preparedData["dataBufferArray"], valueOutputBytes)
+    let revealFeeKept = wantedRevealFee.call(this, build, revealSize)
+    revealFeeKept = yield* upliftRevealForCommit.call(this, build, revealSize, revealFeeKept)
+    const available = phaseLegInputSatoshis - emittedValue - BigInt(revealFeeKept)
+    const padValue = available >= BigInt(this.outputFloor) ? available : BigInt(this.outputFloor)
+    psbt.addOutput({ address: revealPadAddress, value: asSatValue(padValue) })
+    build.revealPadOutputIndex = psbt.txOutputs.length - 1
+    judgePaddedRevealFee.call(this, build)
+    checkPaddedRevealBackstop.call(this, build, revealSize)
+}
+
+// This is a tripwire rather than a refusal: refusing a reveal may strand a
+// confirmed commit. The sweep above should make the warning unreachable.
+function checkPaddedRevealBackstop(build, revealSize){
+    const { nodeFeePerBytes, phaseLegInputSatoshis, psbt, relayFeePerKb } = build
+    const reference = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+    if (reference == null) return
+    const outputs = psbt.txOutputs.reduce((sum, output) => sum + BigInt(output.value), 0n)
+    const actualFee = phaseLegInputSatoshis - outputs
+    const fairFee = feeForVsize(revealSize, reference, SATOSHI_UNIT)
+    const ceiling = BigInt(Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER))
+    if (actualFee <= ceiling) return
+    const message = `padded reveal fee ${actualFee} exceeds the node-anchored burn ceiling ${ceiling}`
+    logger.warn(`REVEAL_FEE_OVER_BACKSTOP: ${message}`)
+    build.revealFeeCeilingMessage = message
 }
 
 // Which chunk reveals end with a surplus sweep back to the caller: those whose first
