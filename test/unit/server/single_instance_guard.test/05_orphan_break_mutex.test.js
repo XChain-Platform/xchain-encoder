@@ -163,6 +163,18 @@ describe('singleInstanceGuard orphaned break mutex bounds @regression', function
     assert.strictEqual(sawGap, false, 'the mutex name was absent during reclaim')
     assert.strictEqual(fs.readFileSync(mutex, 'utf8'), live)
   })
+})
+
+describe('singleInstanceGuard orphaned break mutex bounds @regression', function () {
+  let dir
+
+  beforeEach(function () {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'enc-lock-orphan-'))
+  })
+
+  afterEach(function () {
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
 
   it('fails closed when a matching reclaim claim is already present', function () {
     const file = path.join(dir, 'claimed.lock')
