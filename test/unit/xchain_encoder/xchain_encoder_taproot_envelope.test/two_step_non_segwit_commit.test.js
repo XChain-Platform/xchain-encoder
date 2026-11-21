@@ -130,7 +130,7 @@ function handBuiltCommit (encoder, commit, value) {
   return tx
 }
 
-describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits', function () {
+function registerBuildCases () {
   it('builds and finalizes a P2PKH-funded commit and reveal with source attribution at input 0', async function () {
     await buildPair('p2pkh')
   })
@@ -151,7 +151,9 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
     const { commit, reveal } = await buildPair('p2pkh', null, 0.0003, { estimate: 0.0001 })
     assert.strictEqual(reveal.envelope.commitValue, commit.envelope.commitValue)
   })
+}
 
+function registerReservationCases () {
   it('reports the reserved envelope commit outpoint with its own reason and data', async function () {
     const { encoder, args, commitTx } = await buildPair('p2pkh')
     const outpoint = `${commitTx.getId()}:0`
@@ -191,7 +193,9 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
         !/earlier reveal or cancel/.test(err.message)
     )
   })
+}
 
+function registerCancelReservationCase () {
   it('reports a commit outpoint held by an envelope cancel with the reveal reason and data', async function () {
     const { encoder, args, commitTx, reveal } = await buildPair('p2pkh')
     const outpoint = `${commitTx.getId()}:0`
@@ -212,7 +216,9 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
       err => err.xchainCode === 'ENVELOPE_COMMIT_OUTPOINT_RESERVED' && err.details.outpoint === outpoint
     )
   })
+}
 
+function registerValidationCases () {
   it('refuses an unsigned envelopeCommitHex', async function () {
     const { encoder, args, unsignedHex } = await buildPair('p2pkh')
     await assert.rejects(
@@ -236,6 +242,13 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
       /Unknown options key/
     )
   })
+}
+
+describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits', function () {
+  registerBuildCases()
+  registerReservationCases()
+  registerCancelReservationCase()
+  registerValidationCases()
 })
 
 describe('XChainEncoder TAPROOT two-step reveal binds the signed commit value', function () {
