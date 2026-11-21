@@ -87,7 +87,14 @@ function prepareTwoStepReveal(build){
     const outpoint = `${commitTxid}:${commitVout}`
     const now = Date.now()
     if (this.isOutpointReserved(outpoint, now)){
-        throw new OperationalError('INPUT_RESERVED', `envelope commit output ${outpoint} is reserved by another build`)
+        throw new OperationalError(
+            'ENVELOPE_COMMIT_OUTPOINT_RESERVED',
+            `envelope commit output ${outpoint} is reserved by another transaction built inside the ` +
+                'reservation window (a reveal already built from this commit, an envelope cancel, or any ' +
+                'create_tx that selected it); broadcast that transaction, release its reservation, or wait ' +
+                'for the reservation to lapse',
+            { outpoint }
+        )
     }
     this.claimOutpoint(build.callReservations, outpoint, now)
     build.twoStepSignedCommit = tx

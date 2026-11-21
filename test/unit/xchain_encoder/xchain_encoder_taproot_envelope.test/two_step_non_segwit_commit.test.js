@@ -152,6 +152,67 @@ describe('XChainEncoder TAPROOT two-step envelope for non-native-segwit commits'
     assert.strictEqual(reveal.envelope.commitValue, commit.envelope.commitValue)
   })
 
+  it('reports the reserved envelope commit outpoint with its own reason and data', async function () {
+    const { encoder, args, commitTx } = await buildPair('p2pkh')
+    const outpoint = `${commitTx.getId()}:0`
+    await assert.rejects(
+      encoder.createTransaction(...args, true, null, null, null, false, false, {
+        envelopeCommitHex: commitTx.toHex()
+      }),
+      err => err.operational === true &&
+        err.xchainCode === 'ENVELOPE_COMMIT_OUTPOINT_RESERVED' &&
+        err.details.outpoint === outpoint
+    )
+  })
+
+  it('reports a commit outpoint held by an ordinary input claim without naming a reveal or cancel holder', async function () {
+    const { encoder, args, commitTx, reveal } = await buildPair('p2pkh')
+    const outpoint = `${commitTx.getId()}:0`
+    assert.ok(reveal.reservation && reveal.reservation.outpoints.includes(outpoint))
+    assert.strictEqual(encoder.releaseReservation(reveal.reservation.id).found, true)
+    assert.strictEqual(encoder.isOutpointReserved(outpoint, Date.now()), false)
+    // Releasing the holder's ticket is enough to rebuild the reveal: the
+    // duplicate-build record rides on the same ticket and goes with it.
+    const rebuilt = await encoder.createTransaction(...args, true, null, null, null, false, false, {
+      envelopeCommitHex: commitTx.toHex()
+    })
+    assert.strictEqual(rebuilt.envelope.commitTxid, commitTx.getId())
+    assert.strictEqual(encoder.releaseReservation(rebuilt.reservation.id).found, true)
+    // The same claim input selection takes for any create_tx that picks this
+    // output; the map stores only an expiry, so the state matches a real one.
+    encoder.claimOutpoint([], outpoint, Date.now())
+    await assert.rejects(
+      encoder.createTransaction(...args, true, null, null, null, false, false, {
+        envelopeCommitHex: commitTx.toHex()
+      }),
+      err => err.xchainCode === 'ENVELOPE_COMMIT_OUTPOINT_RESERVED' &&
+        err.details.outpoint === outpoint &&
+        /reserved by another transaction/.test(err.message) &&
+        !/earlier reveal or cancel/.test(err.message)
+    )
+  })
+
+  it('reports a commit outpoint held by an envelope cancel with the reveal reason and data', async function () {
+    const { encoder, args, commitTx, reveal } = await buildPair('p2pkh')
+    const outpoint = `${commitTx.getId()}:0`
+    assert.strictEqual(encoder.releaseReservation(reveal.reservation.id).found, true)
+    const destination = bitcoin.payments.p2wpkh({ pubkey: PUBKEY, network: encoder.network }).address
+    await encoder.createEnvelopeCancelTransaction({
+      commitTxid: commitTx.getId(),
+      commitVout: 0,
+      commitValue: reveal.envelope.commitValue,
+      internalPubkey: reveal.envelope.internalPubkey,
+      tapleafHash: reveal.envelope.tapleafHash,
+      destination
+    })
+    await assert.rejects(
+      encoder.createTransaction(...args, true, null, null, null, false, false, {
+        envelopeCommitHex: commitTx.toHex()
+      }),
+      err => err.xchainCode === 'ENVELOPE_COMMIT_OUTPOINT_RESERVED' && err.details.outpoint === outpoint
+    )
+  })
+
   it('refuses an unsigned envelopeCommitHex', async function () {
     const { encoder, args, unsignedHex } = await buildPair('p2pkh')
     await assert.rejects(

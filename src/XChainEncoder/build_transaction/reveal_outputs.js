@@ -154,7 +154,8 @@ function* settlePaddedReveal(build){
 }
 
 // This is a tripwire rather than a refusal: refusing a reveal may strand a
-// confirmed commit. The sweep above should make the warning unreachable.
+// confirmed commit. The sweep above should make the warning unreachable, but
+// a firing check is logged and returned to the signer in result.warnings.
 function checkPaddedRevealBackstop(build, revealSize){
     const { nodeFeePerBytes, phaseLegInputSatoshis, psbt, relayFeePerKb } = build
     const reference = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })

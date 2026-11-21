@@ -357,7 +357,7 @@
             },
             "warnings": {
               "type": "array",
-              "description": "present only when the built transaction carries a caveat the caller should see before signing; each entry is {code, message}. RAWDATA_ONLY_NOT_DECODED means rawData sent without data is not indexed as an ACTION. REVEAL_LEG_UNDERSIZED means a P2SH or P2WSH reveal lacks a relay-floor value output or its value outputs leave less fee than requested.",
+              "description": "present only when the built transaction carries a caveat the caller should see before signing; each entry is {code, message}. RAWDATA_ONLY_NOT_DECODED means rawData sent without data is not indexed as an ACTION. REVEAL_LEG_UNDERSIZED means a P2SH or P2WSH reveal lacks a relay-floor value output or its value outputs leave less fee than requested. REVEAL_FEE_OVER_BACKSTOP means a padded P2WSH reveal exceeds the node-anchored burn ceiling; review the fee before signing.",
               "items": {
                 "type": "object",
                 "properties": {

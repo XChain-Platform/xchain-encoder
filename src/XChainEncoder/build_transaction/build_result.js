@@ -53,15 +53,17 @@ function finishBuild(build){
 
     // Last gate before the transaction leaves: an identical unsigned tx built
     // inside the reservation window is refused, not returned as a new success.
-    // Every path through _buildTransaction reaches it, the P2SH/P2WSH reveal
-    // included (an identical reveal is a duplicate too), and the TAPROOT reveal
-    // is derived from this commit, so guarding the commit guards the pair.
-    // createEnvelopeCancelTransaction is the one build path outside
-    // _buildTransaction; it takes its own outpoint reservation instead, and
-    // states there why duplicate refusal must not apply to it.
+    // A claimless P2SH/P2WSH reveal is exempt: its inputs come from one named
+    // commit, so an identical result is a retry of that commit's reveal, and it
+    // has no reservation ticket that could retire a duplicate-build record.
+    // Keep the condition tied to both facts so a future reveal that claims an
+    // outpoint remains guarded. The TAPROOT reveal returns above and keeps its
+    // own duplicate gate in finishTwoStepReveal.
     // The txid rides back on the per-call reservation ledger so the ticket
-    // minted for this build can retire this record too (see releaseReservation).
-    callReservations.buildTxid = this.refuseDuplicateBuild(psbt, Date.now())
+    // minted for every guarded build can retire this record too.
+    if (!(build.isReveal && callReservations.length === 0)) {
+        callReservations.buildTxid = this.refuseDuplicateBuild(psbt, Date.now())
+    }
 
     const result = {"psbt":psbt,"encoding":preparedData["encoding"]}
 
@@ -76,7 +78,7 @@ function finishBuild(build){
 }
 
 function attachAdvisories(build, result){
-    const { rawDataOnlyPayload, unknownAction, revealLegUndersizedMessage } = build
+    const { rawDataOnlyPayload, unknownAction, revealLegUndersizedMessage, revealFeeCeilingMessage } = build
     // Non-fatal advisory for the fee-payer; see rawDataOnlyPayload above. Additive
     // result field, the same shape `compression` already established, so a caller
     // that does not read it is unaffected.
@@ -109,6 +111,14 @@ function attachAdvisories(build, result){
         result.warnings.push({
             code: 'REVEAL_LEG_UNDERSIZED',
             message: revealLegUndersizedMessage
+        })
+    }
+
+    if (revealFeeCeilingMessage){
+        if (!result.warnings) result.warnings = []
+        result.warnings.push({
+            code: 'REVEAL_FEE_OVER_BACKSTOP',
+            message: revealFeeCeilingMessage
         })
     }
 }
