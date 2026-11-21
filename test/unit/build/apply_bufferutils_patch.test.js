@@ -247,6 +247,13 @@ describe('applyBufferutilsPatch', function () {
             assert.strictEqual(fs.readFileSync(encoderFile, 'utf8'), fs.readFileSync(sdkFile, 'utf8'),
                 'bitcoinjs_compat/internals.js has drifted from the SDK copy; converge SDK-ward');
         });
+    });
+});
+
+describe('applyBufferutilsPatch', function () {
+    describe('twin guard against the SDK copy', function () {
+        const repoRoot = path.resolve(__dirname, '../../..');
+        const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
 
         it('declares every package it deep-requires', function () {
             const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));

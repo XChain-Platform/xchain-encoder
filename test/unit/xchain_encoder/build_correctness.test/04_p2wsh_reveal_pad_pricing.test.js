@@ -53,6 +53,9 @@ describe('P2WSH reveal funding prices the stripped-size pad output', () => {
     const worst = encoder.estimateSpendingP2wshTx(Buffer.alloc(40))
     assert.strictEqual(worst - bare, 43 - 34)
   })
+})
+
+describe('P2WSH reveal funding prices the stripped-size pad output', () => {
 
   it('funds and emits the pad at a raised operator output floor', async () => {
     const encoder = F.makeEncoder('ltc')

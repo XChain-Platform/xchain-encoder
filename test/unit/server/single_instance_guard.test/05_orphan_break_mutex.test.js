@@ -112,6 +112,18 @@ describe('singleInstanceGuard orphaned break mutex bounds @regression', function
     release()
     assert.deepStrictEqual(fs.readdirSync(dir), [])
   })
+})
+
+describe('singleInstanceGuard orphaned break mutex bounds @regression', function () {
+  let dir
+
+  beforeEach(function () {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'enc-lock-orphan-'))
+  })
+
+  afterEach(function () {
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
 
   it('never removes a live replacement while reclaiming an observed orphan', function () {
     const file = path.join(dir, 'replacement.lock')
