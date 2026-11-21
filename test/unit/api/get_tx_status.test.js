@@ -112,11 +112,17 @@ describe('get_tx_status miss confirmation', function () {
 
   it('throws when the tracker switches tips at one height during the lookup', async function () {
     const { controller } = controllerWith({
-      syncBefore: { committed_height: 100, committed_hash: 'b'.repeat(64) },
-      syncAfter: { committed_height: 100, committed_hash: 'c'.repeat(64) }
+      syncBefore: { committed_height: 100, tracker_height: 100, reorg_count: 0, committed_hash: 'b'.repeat(64) },
+      syncAfter: { committed_height: 100, tracker_height: 100, reorg_count: 0, committed_hash: 'c'.repeat(64) }
     })
     await assert.rejects(() => controller.get_tx_status({ txid: TXID }),
       (err) => err.code === -32603 && /switched chain tips/.test(err.message))
+  })
+
+  it('returns unknown when the committed tip hash stays unchanged', async function () {
+    const sync = { committed_height: 100, tracker_height: 100, reorg_count: 0, committed_hash: 'b'.repeat(64) }
+    const { controller } = controllerWith({ syncBefore: sync, syncAfter: { ...sync } })
+    assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'unknown' })
   })
 
   it('throws when the tracker reorgs during an unknown lookup', async function () {

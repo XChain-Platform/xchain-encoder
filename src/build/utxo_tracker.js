@@ -329,8 +329,9 @@ class UtxoTracker {
     }
 
     // Probe the tracker's lag behind the chain tip. Returns the parsed
-    // get_sync_status result ({committed_height, tracker_height, node_height,
-    // lag, synced}). `synced` is the tracker's own verdict (lag within its
+    // get_sync_status result ({committed_height, committed_hash, tracker_height,
+    // node_height, lag, synced}). `committed_hash` is present on trackers that
+    // support same-height tip-change detection. `synced` is the tracker's own verdict (lag within its
     // threshold); callers should rely on it rather than re-deriving a local
     // threshold. Throws on transport/HTTP/shape errors so callers can treat an
     // unreachable or malformed status response as "do not proceed".

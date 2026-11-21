@@ -83,7 +83,7 @@ const { jsonErrorHandler } = require('./server/json_error_handler')
 const { installGateMetrics } = require('./server/gate_metrics')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
-
+const { resolveApiPort, listenOrCrash } = require('./server/api_listen')
 
 const NETWORK = config.NETWORK_RAW
 const NODE_URL = config.NODE_URL
@@ -385,6 +385,7 @@ if (require.main === module) {
   // src/server/single_instance_guard.js.
   // The crash handlers are already installed at the top of this file, so a
   // throw from the instance guard is still a CRASH record.
+  const apiPort = resolveApiPort(ENCODER_API_PORT)
   assertSingleInstance()
   const releaseInstanceLock = acquireInstanceLock()
   process.on('exit', releaseInstanceLock)
@@ -392,9 +393,7 @@ if (require.main === module) {
   // kill this process with SIGTERM, which needs its own release or the lockfile
   // outlives every restart.
   releaseLockOnSignals(releaseInstanceLock)
-  app.listen(ENCODER_API_PORT, () => {
-    console.log('API listening on port '+ENCODER_API_PORT);
-  });
+  listenOrCrash(app, apiPort)
 }
 
 module.exports = { app, jsonRpcController, encoder, makeRpcBatchGuard, requestGate, probeGate }
