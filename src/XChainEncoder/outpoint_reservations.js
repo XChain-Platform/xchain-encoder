@@ -119,6 +119,14 @@ module.exports = {
         return max
     },
 
+    // Whether one cancel build's owner token is still live on this outpoint.
+    isCancelOwnerLive(key, ownerId, now) {
+        const owners = this.envelopeCancelClaims.get(key)
+        if (!owners) return false
+        const expiry = owners.get(ownerId)
+        return expiry != null && expiry > now
+    },
+
     // Drop ONE cancel build's owner token and restate what the outpoint is now
     // worth. While another live owner remains, outpointReservations is rewritten
     // to that owner's expiry and the key stays reserved: this is the whole point
@@ -205,7 +213,17 @@ module.exports = {
             // cancelOwnerId rides onto the ticket because releaseReservation has to
             // retire this build's owner token as well as its reservation; leaving it
             // behind would hold the outpoint until the token's own TTL lapsed.
-            if (this.outpointReservations.get(claim.key) === claim.expiry) {
+            //
+            // A cancel claim is also live while its owner token is, whatever stamp
+            // the map carries: an overlapping cancel on the same outpoint overwrites
+            // the map with its later expiry, and judging by the stamp alone dropped
+            // the earlier build's ticket while its owner token stayed live, so the
+            // outpoint was held for the full TTL after the only ticket was released.
+            // releaseReservation already hands cancel owners back via dropCancelOwner.
+            const ownerLive = claim.cancelOwnerId
+                ? this.isCancelOwnerLive(claim.key, claim.cancelOwnerId, now)
+                : false
+            if (ownerLive || this.outpointReservations.get(claim.key) === claim.expiry) {
                 live.push({ key: claim.key, expiry: claim.expiry, cancelOwnerId: claim.cancelOwnerId || null })
             }
         }

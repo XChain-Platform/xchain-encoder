@@ -25,27 +25,27 @@ import {ECPairFactory} from 'ecpair'
 
 
 async function loadMultisignFunds () {
-            var network = bitcoin.networks.regtest
+            const network = bitcoin.networks.regtest
 
-            var mnemonic = bip39.generateMnemonic()
+            const mnemonic = bip39.generateMnemonic()
             console.log("The seed used for multisign is: " + mnemonic)
 
-            var seed = bip39.mnemonicToSeedSync(mnemonic)
-            var root = bip32.fromSeed(seed, network)
-            var account = root.derivePath("m/44'/0'/0'/0")
-            var address = account.derive(0).derive(0)
+            const seed = bip39.mnemonicToSeedSync(mnemonic)
+            const root = bip32.fromSeed(seed, network)
+            const account = root.derivePath("m/44'/0'/0'/0")
+            const address = account.derive(0).derive(0)
 
-            var testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
+            const testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
             console.log("address for multisig: "+testAddress)
 
-            let txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
-            let rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
+            const txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
+            const rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
             await nodeClientTest.generateToAddress(1, mainTestAddress)
 
-            let utxos = []
+            const utxos = []
             let utxo1 = null
-            for (let nextVoutIndex in rawTx1["vout"]){
-                let nextVout = rawTx1["vout"][nextVoutIndex]
+            for (const nextVoutIndex in rawTx1["vout"]){
+                const nextVout = rawTx1["vout"][nextVoutIndex]
 
                 if (("scriptPubKey" in nextVout) && ("address" in nextVout["scriptPubKey"]) && (nextVout["scriptPubKey"]["address"] == testAddress)){
                     utxo1 = {
@@ -83,19 +83,19 @@ async function createMultisignTransaction ({ network, address, testAddress, utxo
 
             //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
-            var ECPair = ECPairFactory(ecc);
+            const ECPair = ECPairFactory(ecc);
 
-            let keyToSign = ECPair.fromPrivateKey(address.privateKey, { network });
+            const keyToSign = ECPair.fromPrivateKey(address.privateKey, { network });
 
-            for (let proxInputIndex in psbtParaFirmar.data.inputs){
-                let proxInput = psbtParaFirmar.data.inputs[proxInputIndex]
+            for (const proxInputIndex in psbtParaFirmar.data.inputs){
+                const proxInput = psbtParaFirmar.data.inputs[proxInputIndex]
                 psbtParaFirmar.signInput(parseInt(proxInputIndex), keyToSign);
             }
 
             psbtParaFirmar.finalizeAllInputs();
-            let tx1 = psbtParaFirmar.extractTransaction()
-            let tx1Hex = tx1.toHex()
-            let tx1Id = tx1.getId()
+            const tx1 = psbtParaFirmar.extractTransaction()
+            const tx1Hex = tx1.toHex()
+            const tx1Id = tx1.getId()
 
             return { tx1Hex, data, rawData }
 }
@@ -107,23 +107,23 @@ describe('XChainEncoder', () => {
 
             //Broadcast multisign tx
             console.log("Broadcasting the multisign transacion to the node")
-            let txHash = await nodeHelper.broadcastTx(tx1Hex)
+            const txHash = await nodeHelper.broadcastTx(tx1Hex)
 
             assert((txHash != null) && (txHash.length == 64))
             await nodeClientTest.generateToAddress(1, mainTestAddress)
 
             console.log("Getting the multisign transaction from the node and verifying its structure")
-            let txObj = await nodeHelper.getTransaction(txHash, false)
+            const txObj = await nodeHelper.getTransaction(txHash, false)
 
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
 
 
-            let scriptPubKeyData = Buffer.from(txObj["vout"][0]["scriptPubKey"]["hex"],"hex")
-            let decompiledScript = bitcoin.script.decompile(scriptPubKeyData)
+            const scriptPubKeyData = Buffer.from(txObj["vout"][0]["scriptPubKey"]["hex"],"hex")
+            const decompiledScript = bitcoin.script.decompile(scriptPubKeyData)
 
-            let pubkey1 = decompiledScript[1].subarray(1) //removing the 02 at the beginning
-            let pubkey2 = decompiledScript[2].subarray(1) //removing the 02 at the beginning
+            const pubkey1 = decompiledScript[1].subarray(1) //removing the 02 at the beginning
+            const pubkey2 = decompiledScript[2].subarray(1) //removing the 02 at the beginning
 
             let dataConcat = Buffer.concat([pubkey1, pubkey2])
 
@@ -135,12 +135,12 @@ describe('XChainEncoder', () => {
             }
 
 
-            let decodedData = await nodeHelper.removeObfuscation(dataConcat, txObj["vin"][0]["txid"])
+            const decodedData = await nodeHelper.removeObfuscation(dataConcat, txObj["vin"][0]["txid"])
             decodedDataString = decodedData.toString("utf-8")
 
             assert(decodedDataString.substr(0,4) == "XCHN")
 
-			let decompiledData = bitcoin.script.decompile(decodedData.slice(4))
+			const decompiledData = bitcoin.script.decompile(decodedData.slice(4))
 			assert(decompiledData.length == 2)
 
 			assert(decompiledData[0] == data)

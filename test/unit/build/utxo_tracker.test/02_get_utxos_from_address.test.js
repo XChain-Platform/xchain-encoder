@@ -104,7 +104,7 @@ describe('UtxoTracker.getUtxosFromAddress()', () => {
   it('coerces numeric-string confirmations and rejects non-integer values', async () => {
     stubSyncedThenUtxos([makeUtxo({ confirmations: '7' })])
     let t = makeTracker()
-    let result = await t.getUtxosFromAddress(ADDRESS)
+    const result = await t.getUtxosFromAddress(ADDRESS)
     assert.strictEqual(result.utxos[0].confirmations, 7)
 
     for (const bad of [1.5, -1, 'abc', {}]) {

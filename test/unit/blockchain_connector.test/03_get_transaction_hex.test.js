@@ -161,6 +161,32 @@ describe('BlockchainConnector.getTransactionHex() node RPC error detail', () => 
     await assert.rejects(() => c.getTransactionHex(TXID), /not found.*txindex/)
   })
 
+})
+
+describe('BlockchainConnector.getTransactionHex() unknown txid', () => {
+  registerAxiosHooks()
+
+  it('rejects an HTTP 500 -5 answer as an operational PREV_TX_NOT_FOUND error', async () => {
+    stubAxiosPostThrow(http500(-5, 'No such mempool or blockchain transaction'))
+    const c = makeConnector()
+    await assert.rejects(() => c.getTransactionHex(TXID), (err) => {
+      assert.strictEqual(err.operational, true)
+      assert.strictEqual(err.xchainCode, 'PREV_TX_NOT_FOUND')
+      return true
+    })
+  })
+
+  it('rejects an HTTP 200 -5 answer as an operational PREV_TX_NOT_FOUND error', async () => {
+    stubAxiosPost({ data: { result: null, error: { code: -5, message: 'No such mempool or blockchain transaction' } } })
+    const c = makeConnector()
+    await assert.rejects(() => c.getTransactionHex(TXID), (err) => {
+      assert.strictEqual(err.operational, true)
+      assert.strictEqual(err.xchainCode, 'PREV_TX_NOT_FOUND')
+      assert.match(err.message, /not found.*txindex/)
+      return true
+    })
+  })
+
   it('keeps the code and message of an HTTP 200 error body', async () => {
     stubAxiosPost({ data: { result: null, error: { code: -28, message: 'Loading block index...' } } })
     const c = makeConnector()

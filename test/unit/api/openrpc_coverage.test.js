@@ -64,6 +64,14 @@ describe('openrpc.json method coverage', () => {
         assert.deepStrictEqual(spec, JSON.parse(JSON.stringify(built)),
             'docs/openrpc.json is out of date or hand-edited; run: node docs/openrpc.build.js');
     });
+
+    it('create_tx advertises the enforced envelope payload ceiling', () => {
+        const { ENVELOPE_MAX_PAYLOAD } = require('../../../src/common/validator/constants.js');
+        const description = spec.methods.find((method) => method.name === 'create_tx').description;
+        const formatted = String(ENVELOPE_MAX_PAYLOAD).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        assert.ok(description.includes(`${formatted}-byte envelope ceiling`));
+        assert.ok(!description.includes('400,000-byte envelope ceiling'));
+    });
 });
 
     // Param-level drift guard. The method check above never looked at params, which

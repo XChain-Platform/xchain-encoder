@@ -156,7 +156,8 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       const encoder = makeEncoder('bitcoin-regtest')
       const address = getTestAddress('bitcoin-regtest')
 
-      // 600 equal 50-sat UTXOs, fee 25000: covering it needs 501 inputs (>500).
+      // 600 equal 50-sat UTXOs, fee 25001: 500 inputs fund 25000 exactly, so
+      // covering it needs 501 inputs (>500).
       const small = []
       for (let i = 0; i < 600; i++) small.push(makeUtxo('bitcoin-regtest', TXID_A, i, 50))
       encoder.utxoTrackerConnector.getUtxosFromAddress = async () => ({ utxos: small })
@@ -164,7 +165,7 @@ describe('REG-09: 2026-07-03 deepdive encoder fixes', () => {
       await assert.rejects(
         () => encoder.createTransaction(
           null, address, null,
-          'test', null, 25000, false, null, address,
+          'test', null, 25001, false, null, address,
           null, null, null, true, 0.00001
         ),
         (err) => err instanceof RangeError && /selected input count/.test(err.message)

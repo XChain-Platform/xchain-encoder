@@ -67,6 +67,7 @@ const config = {
     get ENCODER_TRUST_PROXY() { return process.env.ENCODER_TRUST_PROXY; },
     get ENCODER_RATE_LIMIT_RPM() { return process.env.ENCODER_RATE_LIMIT_RPM; },
     get ENCODER_MAX_CONCURRENT_PROBES() { return process.env.ENCODER_MAX_CONCURRENT_PROBES; },
+    get ENCODER_TRACKER_PROBE_TTL_MS() { return process.env.ENCODER_TRACKER_PROBE_TTL_MS; },
     get ENCODER_MAX_CONCURRENT_REQUESTS() { return process.env.ENCODER_MAX_CONCURRENT_REQUESTS; },
     get ENCODER_MAX_RPC_BATCH() { return process.env.ENCODER_MAX_RPC_BATCH; },
     // Operator override of the mainnet prelaunch refusal; raw string, parsed by assertNotMainnetPrelaunch below.

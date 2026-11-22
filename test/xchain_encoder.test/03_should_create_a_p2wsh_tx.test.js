@@ -80,26 +80,26 @@ function xchainP2shFinalizer(inputIndex, input, script, isSegwit, isP2SH, isP2WS
 
 
 async function loadP2wshFunds () {
-            var network = bitcoin.networks.regtest
+            const network = bitcoin.networks.regtest
 
-            var mnemonic = bip39.generateMnemonic()
+            const mnemonic = bip39.generateMnemonic()
             console.log("The seed used for p2wsh is: " + mnemonic)
 
-            var seed = bip39.mnemonicToSeedSync(mnemonic)
-            var root = bip32.fromSeed(seed, network)
-            var account = root.derivePath("m/44'/0'/0'/0")
-            var address = account.derive(0).derive(0)
-            var testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
+            const seed = bip39.mnemonicToSeedSync(mnemonic)
+            const root = bip32.fromSeed(seed, network)
+            const account = root.derivePath("m/44'/0'/0'/0")
+            const address = account.derive(0).derive(0)
+            const testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
             console.log("address for P2WSH: "+testAddress)
 
-            let txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
-            let rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
+            const txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
+            const rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
             await nodeClientTest.generateToAddress(1, mainTestAddress)
 
-            let utxos = []
+            const utxos = []
             let utxo1 = null
-            for (let nextVoutIndex in rawTx1["vout"]){
-                let nextVout = rawTx1["vout"][nextVoutIndex]
+            for (const nextVoutIndex in rawTx1["vout"]){
+                const nextVout = rawTx1["vout"][nextVoutIndex]
 
                 if (("scriptPubKey" in nextVout) && ("address" in nextVout["scriptPubKey"]) && (nextVout["scriptPubKey"]["address"] == testAddress)){
                     utxo1 = {
@@ -135,19 +135,19 @@ async function createP2wshTransactions ({ network, address, testAddress, utxos }
 
             //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
-            var ECPair = ECPairFactory(ecc);
+            const ECPair = ECPairFactory(ecc);
 
-            let keyToSign = ECPair.fromPrivateKey(address.privateKey, { network });
+            const keyToSign = ECPair.fromPrivateKey(address.privateKey, { network });
 
-            for (let proxInputIndex in psbtParaFirmar.data.inputs){
-                let proxInput = psbtParaFirmar.data.inputs[proxInputIndex]
+            for (const proxInputIndex in psbtParaFirmar.data.inputs){
+                const proxInput = psbtParaFirmar.data.inputs[proxInputIndex]
                 psbtParaFirmar.signInput(parseInt(proxInputIndex), keyToSign);
             }
 
             psbtParaFirmar.finalizeAllInputs();
-            let tx1 = psbtParaFirmar.extractTransaction()
-            let tx1Hex = tx1.toHex()
-            let tx1Id = tx1.getId()
+            const tx1 = psbtParaFirmar.extractTransaction()
+            const tx1Hex = tx1.toHex()
+            const tx1Id = tx1.getId()
 
             //Cargar el psbt2
             console.log("Creating the second transaction with XchainEncoder")
@@ -155,16 +155,16 @@ async function createP2wshTransactions ({ network, address, testAddress, utxos }
             const psbt2Base64 = psbt2Resultante.toBase64()
             const psbt2ParaFirmar = bitcoin.Psbt.fromBase64(psbt2Base64)
 
-            for (let proxInputIndex in psbt2ParaFirmar.data.inputs){
-                let intIndex = parseInt(proxInputIndex)
+            for (const proxInputIndex in psbt2ParaFirmar.data.inputs){
+                const intIndex = parseInt(proxInputIndex)
                 psbt2ParaFirmar.signInput(intIndex, keyToSign);
             }
 
             psbt2ParaFirmar.finalizeInput(0,xchainP2shFinalizer);
 
-            let tx2 = psbt2ParaFirmar.extractTransaction()
-            let tx2Hex = tx2.toHex()
-            let tx2Id = tx2.getId()
+            const tx2 = psbt2ParaFirmar.extractTransaction()
+            const tx2Hex = tx2.toHex()
+            const tx2Id = tx2.getId()
 
             return { tx1Hex, tx2Hex, data, rawData }
 }
@@ -176,41 +176,41 @@ describe('XChainEncoder', () => {
 
             //Broadcast first p2wsh tx
             console.log("Broadcasting the first p2wsh transacion to the node")
-            let txHash = await nodeHelper.broadcastTx(tx1Hex)
+            const txHash = await nodeHelper.broadcastTx(tx1Hex)
 
             assert((txHash != null) && (txHash.length == 64))
             await nodeClientTest.generateToAddress(1, mainTestAddress)
 
             console.log("Getting the first p2wsh transacion from the node and verifying its structure")
-            let txObj = await nodeHelper.getTransaction(txHash, false)
+            const txObj = await nodeHelper.getTransaction(txHash, false)
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
 
             //Broadcast second p2wsh tx
             console.log("Broadcasting the second p2wsh transacion to the node")
-            let tx2Hash = await nodeHelper.broadcastTx(tx2Hex)
+            const tx2Hash = await nodeHelper.broadcastTx(tx2Hex)
             assert((tx2Hash != null) && (tx2Hash.length == 64))
             await nodeClientTest.generateToAddress(1, mainTestAddress)
 
             console.log("Getting the second p2wsh transacion from the node and verifying its structure and its data")
-            let tx2Obj = await nodeHelper.getTransaction(tx2Hash, false)
+            const tx2Obj = await nodeHelper.getTransaction(tx2Hash, false)
             assert(tx2Obj["vin"].length == 1)
             assert(tx2Obj["vout"].length == 1)
 
-            let scriptPubKeyData = tx2Obj["vout"][0]["scriptPubKey"]["hex"].substr(4,64)
-            let txData = await nodeHelper.removeObfuscation(
+            const scriptPubKeyData = tx2Obj["vout"][0]["scriptPubKey"]["hex"].substr(4,64)
+            const txData = await nodeHelper.removeObfuscation(
                 new Buffer.from(scriptPubKeyData, 'hex'),
                 tx2Obj["vin"][0]["txid"]
             )
-            let txDataStr = txData.toString("utf-8")
+            const txDataStr = txData.toString("utf-8")
 
             assert(txDataStr.substr(0,4) == "XCHN")
             assert(txDataStr.substr(4) == "p2wsh")
 
-            let decodedRedeemScript = bitcoin.script.decompile(Buffer.from(tx2Obj["vin"][0]["txinwitness"][2], "hex"))
-            let decodedData = Buffer.from(decodedRedeemScript[0])
+            const decodedRedeemScript = bitcoin.script.decompile(Buffer.from(tx2Obj["vin"][0]["txinwitness"][2], "hex"))
+            const decodedData = Buffer.from(decodedRedeemScript[0])
 
-			let decompiledData = bitcoin.script.decompile(decodedData)
+			const decompiledData = bitcoin.script.decompile(decodedData)
 			assert(decompiledData.length == 2)
 
 			assert(decompiledData[0] == data)

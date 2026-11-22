@@ -23,11 +23,16 @@ const crypto = require('crypto');
 const util = require('node:util');
 const TxSizeEstimator = require('../build/tx_size_estimator')
 const { parseSatoshiAmount, validateFeePerKb, validateOptionalBoolean, validateOutpoint, assertPubkeyOnCurve, validateEnvelopeCancelParamKeys } = require('../common/validator')
+const { HEX_64_RE, COMPRESSED_PUBKEY_RE } = require('../common/validator/constants')
 const { OperationalError, ParamTypeError, ParamRangeError } = require('../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('./constants.js')
 const { ensureEccLib } = require('./script_amount_helpers.js')
 const { assertAddressOnNetwork } = require('./request_resolution.js')
-const { capCallerFeeRate, clampLimitLabel, feeForVsize } = require('./fee_policy.js')
+const { capCallerFeeRate, clampLimitLabel, feeForVsize, resolveSuggestedFeePerByte } = require('./fee_policy.js')
+
+// Encoders that already logged a suggested-ceiling clamp on the cancel path, so a
+// quiet test chain logs it once per process rather than once per cancel.
+const cancelClampWarned = new WeakSet()
 
 // The cancel's recovery record as handed over: validated, decoded, and read
 // into the values the build uses.
@@ -38,16 +43,16 @@ function readCancelRecord(commitTxid, commitVout, commitValue, internalPubkey, t
     // Accept the 33-byte compressed form (what create_tx took) or the
     // 32-byte x-only form (what the recovery record may hold).
     let internalKeyBuf
-    if (typeof internalPubkey === 'string' && /^(02|03)[0-9a-fA-F]{64}$/.test(internalPubkey)) {
+    if (typeof internalPubkey === 'string' && COMPRESSED_PUBKEY_RE.test(internalPubkey)) {
         internalKeyBuf = Buffer.from(internalPubkey, 'hex').subarray(1)
-    } else if (typeof internalPubkey === 'string' && /^[0-9a-fA-F]{64}$/.test(internalPubkey)) {
+    } else if (typeof internalPubkey === 'string' && HEX_64_RE.test(internalPubkey)) {
         internalKeyBuf = Buffer.from(internalPubkey, 'hex')
     } else {
         throw new ParamTypeError('internalPubkey must be a 66-character compressed or 64-character x-only pubkey hex string')
     }
     // Refuse an off-curve key here as -32602, before any claim or fee RPC.
     assertPubkeyOnCurve(internalKeyBuf, 'internalPubkey')
-    if (typeof tapleafHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(tapleafHash)) {
+    if (typeof tapleafHash !== 'string' || !HEX_64_RE.test(tapleafHash)) {
         throw new ParamTypeError('tapleafHash must be a 64-character hex string')
     }
     // validateAddress, not a local non-empty check: this is the one create
@@ -147,8 +152,16 @@ function* cancelFeeRate(feeRatePerKb){
             logger.warn(util.format('Envelope-cancel fee cap anchored on relayfee: node fee estimate unavailable:', err.message))
         }
     } else {
-        feePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
-        nodeFeePerBytes = feePerBytes
+        nodeFeePerBytes = (yield this.connector.getFeePerKilobyte(1)) / 1000
+        const resolved = resolveSuggestedFeePerByte({ networkKey: this.networkKey,
+            satoshiUnit: SATOSHI_UNIT, nodeFeePerBytes, relayFeePerKb })
+        feePerBytes = resolved.feePerBytes
+        if (resolved.clamped && !cancelClampWarned.has(this)){
+            cancelClampWarned.add(this)
+            logger.warn(`Suggested fee rate ${Math.round(nodeFeePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
+                `test-chain ceiling; using ${Math.round(resolved.cap * SATOSHI_UNIT)} per vByte for the envelope cancel. ` +
+                `Set SUGGESTED_FEE_MAX_PER_VBYTE to change or 0 to disable.`)
+        }
     }
     const capped = capCallerFeeRate({ feePerBytes, nodeFeePerBytes, relayFeePerKb,
         maxFeePerBytes: this.maxFeePerBytes, maxFeeRateMultiplier: this.maxFeeRateMultiplier })
@@ -174,9 +187,9 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
     }
     const cancelVsize = strippedBytes + Math.ceil((2 + 1 + 1 + 65) / 4) + 2
     let cancelFee = feeForVsize(cancelVsize, feePerBytes, SATOSHI_UNIT)
+    const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
+    const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
     if (callerFeePerKb != null){
-        const relayFeeBaseUnitsPerKb = Math.round(relayFeePerKb * SATOSHI_UNIT)
-        const minimumRelayFee = Math.ceil(cancelVsize * relayFeeBaseUnitsPerKb / 1000)
         if (cancelFee < minimumRelayFee){
             throw new ParamRangeError(`feePerKb ${callerFeePerKb} base units/kB produces fee ${cancelFee}, below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
         }
@@ -184,12 +197,15 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
     if (cancelFee < this.dustAmount){
         cancelFee = this.dustAmount
     }
+    if (callerFeePerKb == null && cancelFee < minimumRelayFee){
+        throw new Error(`fee ${cancelFee} from the node fee estimate (after the fee-rate cap) is below the node relay minimum ${minimumRelayFee} base units for a ~${cancelVsize}-byte transaction`)
+    }
 
-    const sweepValue = value - cancelFee - (padNeeded ? this.dustAmount : 0)
-    if (sweepValue < this.dustAmount){
+    const sweepValue = value - cancelFee - (padNeeded ? this.outputFloor : 0)
+    if (sweepValue < this.outputFloor){
         throw new OperationalError(
             'ENVELOPE_CANCEL_BELOW_DUST',
-            `cancel would sweep ${sweepValue} satoshis (commit value ${value} minus fee ${cancelFee}${padNeeded ? ' minus floor pad' : ''}), below the dust floor (${this.dustAmount}); spend it via the reveal or CPFP instead`,
+            `cancel would sweep ${sweepValue} satoshis (commit value ${value} minus fee ${cancelFee}${padNeeded ? ' minus floor pad' : ''}), below the output floor (${this.outputFloor}); spend it via the reveal or CPFP instead`,
             { commitValue: value, fee: cancelFee, sweepValue }
         )
     }
@@ -197,6 +213,18 @@ function sizeCancelSweep(destination, value, feePerBytes, relayFeePerKb, callerF
 }
 
 module.exports = {
+    // Check-only twin of the build entry validation. The API calls this before
+    // the node tier gate; direct callers remain protected by the checks below.
+    validateEnvelopeCancelParams(params = {}){
+        validateEnvelopeCancelParamKeys(params)
+        const {
+            commitTxid, commitVout, commitValue, internalPubkey, tapleafHash,
+            destination, feePerKb = null, replacebyfee = false
+        } = params
+        readCancelRecord.call(this, commitTxid, commitVout, commitValue, internalPubkey,
+            tapleafHash, destination, feePerKb, replacebyfee)
+    },
+
     // Key-path cancel of an UNREVEALED envelope commit:
     // sweeps the commit output back to the caller before any reveal exists. By
     // contract this must be buildable from the wallet's PERSISTED RECOVERY
@@ -278,7 +306,7 @@ module.exports = {
         })
         psbt.addOutput({ address: destination, value: sweepValue })
         if (padNeeded){
-            psbt.addOutput({ address: destination, value: this.dustAmount })
+            psbt.addOutput({ address: destination, value: this.outputFloor })
         }
 
         return { psbt, encoding: Encoding.TAPROOT, cancel: true, fee: cancelFee }

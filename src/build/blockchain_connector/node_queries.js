@@ -19,6 +19,13 @@ const { sanitizeRpcError, rpcErrorDetail, nodeRequestError } = require('./rpc_he
 const { chainTierMismatch, chainGenesisMismatch, chainGenesisUnpinned } = require('./chain_identity');
 const { OperationalError } = require('../errors');
 
+// The node answered RPC -5 for a txid: a caller-named outpoint it does not know (or, for a
+// confirmed one, a node without txindex). Operational so the caller sees -32010 and the
+// build logs no error-level stack; the message carries no host or credential.
+function prevTxNotFound(txid) {
+    return new OperationalError('PREV_TX_NOT_FOUND',`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
+}
+
 function mempoolEntryAbsent(body) {
     const error = body && body.error;
     return Boolean(error && error.code === -5);
@@ -218,7 +225,7 @@ module.exports = {
             } else if (responseData.error?.code === -5) {
                 // RPC -5: tx not in mempool and not retrievable. For confirmed
                 // transactions this typically means the coin node lacks txindex.
-                throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
+                throw prevTxNotFound(txid);
             } else {
                 // Keep the node's reason from an HTTP 200 error body (BTC v28's shape).
                 throw new Error('Error getting transaction hex' + rpcErrorDetail(responseData));
@@ -228,9 +235,11 @@ module.exports = {
             // the success branch above is reached. Mirror sendRawTransaction: inspect
             // the node's JSON-RPC error body off error.response so the -5 txindex
             // hint is surfaced on all chains, not only BTC v28 (which returns HTTP 200).
+            // The -5 answer above is already the caller-facing error: pass it through unlogged.
+            if (error instanceof OperationalError) throw error;
             const body = error.response?.data;
             if (body && body.error?.code === -5) {
-                throw new Error(`Transaction ${txid} not found (the coin node may require txindex=1 to retrieve confirmed transactions)`);
+                throw prevTxNotFound(txid);
             }
             // Read any other node reason (-28 warming up, -8) before the scrub
             // drops error.response, so it is not flattened to "status code 500".

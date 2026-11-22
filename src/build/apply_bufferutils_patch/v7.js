@@ -16,12 +16,15 @@
  *
  ********************************************************************/
 
-const bufferutils = require('bitcoinjs-lib/src/bufferutils')
-const bitcoinTypes = require('bitcoinjs-lib/src/types')
+const { bufferutils, types: bitcoinTypes } = require('../bitcoinjs_compat/internals')
 const bitcoin = require('bitcoinjs-lib')
 const valibot = require('valibot')
 const uint8Tools = require('uint8array-tools')
-const psbtutils = require('bitcoinjs-lib/src/psbt/psbtutils')
+// Browserify cannot resolve bitcoinjs-lib 7.0.5's nested export wildcard.
+// The Node-only compatibility patch is optional in browser bundles.
+const psbtutils = typeof module.require === 'function'
+    ? module.require('bitcoinjs-lib/src/psbt/psbtutils')
+    : null
 const { IS_BITCOINJS_V7 } = require('./version')
 const { MAX_U64, MAX_SAFE_BIG, verifyU64, narrowU64 } = require('./u64')
 const {
@@ -204,7 +207,7 @@ if (IS_BITCOINJS_V7 && !Transaction.prototype.__xchainNumberValues) {
             })
         }
     }
-    for (const name of Object.keys(psbtutils)) {
+    for (const name of Object.keys(psbtutils || {})) {
         const fn = psbtutils[name]
         if (typeof fn !== 'function') continue
         psbtutils[name] = function (...args) {

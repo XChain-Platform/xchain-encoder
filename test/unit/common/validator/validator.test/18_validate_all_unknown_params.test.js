@@ -18,7 +18,7 @@
 
 const assert = require('assert');
 const v = require('../../../../../src/common/validator.js');
-const { VALID_CREATE_TX_PARAMS } = require('../../../../../src/common/validator/constants.js');
+const { VALID_CREATE_TX_OPTIONS, VALID_CREATE_TX_PARAMS } = require('../../../../../src/common/validator/constants.js');
 const { ParamTypeError } = require('../../../../../src/build/errors');
 const { spec } = require('../../../../../docs/openrpc.build.js');
 
@@ -54,6 +54,25 @@ describe('Encoder input validator', function () {
             const declared = createTx.params.map((p) => p.name).sort();
             assert.ok(declared.length > 10, `extraction too small: ${declared.length}`);
             assert.deepStrictEqual([...VALID_CREATE_TX_PARAMS].sort(), declared);
+        });
+    });
+
+    describe('validateAll options params', function () {
+        it('keeps the allow-list equal to the published create_tx options', function () {
+            assert.deepStrictEqual([...VALID_CREATE_TX_OPTIONS].sort(),
+                ['envelopeCommitHex', 'exactInputs', 'signerSupportsTapscript', 'twoStepEnvelope']);
+            const createTx = spec.methods.find((method) => method.name === 'create_tx');
+            const description = createTx.params.find((param) => param.name === 'options').schema.description;
+            for (const key of VALID_CREATE_TX_OPTIONS) assert.ok(description.includes(key), key);
+        });
+
+        it('routes known options to policy checks and refuses an unknown option first', function () {
+            assert.throws(() => v.validateAll({ ...BASE, options: { twoStepEnvelope: true } }), (err) => {
+                assert.doesNotMatch(err.message, /Unknown options key/);
+                return true;
+            });
+            assert.throws(() => v.validateAll({ ...BASE, options: { twoStepEnvelop: true } }),
+                (err) => err instanceof ParamTypeError && /Unknown options key: "twoStepEnvelop"/.test(err.message));
         });
     });
 });

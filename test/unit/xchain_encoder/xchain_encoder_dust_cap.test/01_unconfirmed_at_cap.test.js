@@ -1,3 +1,13 @@
+// Copyright © 2025–2026 Dankest, LLC
+// Based on XChain Platform by Dankest, LLC – https://dankest.llc
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This file is part of XChain Platform. Licensed under the GNU Affero
+// General Public License v3.0 or later; see LICENSE.md. A commercial
+// license (without AGPL source-disclosure terms) is available -
+// contact legal@dankest.llc.
+
 'use strict';
 
 const assert = require('assert')
@@ -70,7 +80,8 @@ describe('tracker-funded selection at the input cap', function () {
 
     it('preserves the range error when additional inputs could fund the transaction', async function () {
         await assert.rejects(
-            () => buildFromTracker(dustSet(600, 50), true, 25000),
+            // 500 inputs fund 25000 exactly, so one satoshi more needs a 501st.
+            () => buildFromTracker(dustSet(600, 50), true, 25001),
             (error) => error instanceof RangeError && /selected input count/.test(error.message)
         )
     })

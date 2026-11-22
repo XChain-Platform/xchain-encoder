@@ -46,4 +46,4 @@ function isSpecRequest (req) {
     return isGetRouted(req) && SPEC_PATH.test(req.path)
 }
 
-module.exports = { isProbe, isSpecRequest, PROBE_PATH, SPEC_PATH }
+module.exports = { isProbe, isSpecRequest }

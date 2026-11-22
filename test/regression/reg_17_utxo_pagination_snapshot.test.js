@@ -28,15 +28,89 @@ function utxo (txidChar) {
   return { txid: txidChar.repeat(64), vout: 0, value: 1000, scriptPubKey: SCRIPT, confirmations: 6 }
 }
 
-// First call is the get_sync_status pre-flight; the rest are get_utxos pages.
+// First call is the get_sync_status pre-flight; the rest are get_utxos pages. The
+// pages repeat in order, so a fetch that restarts from page 1 reads the same
+// divergent sequence again: a tracker whose snapshot keeps moving on every attempt.
 function stubPages (pages) {
   let call = 0
   axios.post = async () => {
     call++
     if (call === 1) return { data: { result: HEALTHY_STATUS } }
-    return { data: { result: pages[call - 2] } }
+    return { data: { result: pages[(call - 2) % pages.length] } }
   }
+  return () => call - 1
 }
+
+// A tracker that pages like the real one: it caps each page at maxPage rows
+// whatever limit the caller asks for, and sends a cursor whenever a page is full.
+// syncAt(n) gives the sync sibling of the n-th get_utxos request (0-based).
+function stubTracker ({ count, maxPage, syncAt }) {
+  const rows = []
+  for (let i = 0; i < count; i++) {
+    rows.push({ txid: i.toString(16).padStart(64, '0'), vout: 0, value: 1000, scriptPubKey: SCRIPT, confirmations: 6 })
+  }
+  const requests = []
+  axios.post = async (url, body) => {
+    if (body.method === 'get_sync_status') return { data: { result: HEALTHY_STATUS } }
+    const n = requests.length
+    requests.push(body.params)
+    const start = body.params.after ? Number(body.params.after) : 0
+    const limit = Math.min(body.params.limit, maxPage)
+    const page = rows.slice(start, start + limit).map((r) => ({ ...r }))
+    const result = { utxos: page, sync: syncAt(n) }
+    if (page.length === limit) result.nextCursor = String(start + limit)
+    return { data: { result } }
+  }
+  return requests
+}
+
+function syncAtHeight (height) {
+  return { tracker_height: height, node_height: height, lag: 0, synced: true, reorg_count: 0, committed_hash: String(height).padStart(64, '0') }
+}
+
+describe('an address holding exactly the cap survives a block between its two page reads @regression', function () {
+  const origPost = axios.post
+  afterEach(() => { axios.post = origPost })
+
+  it('returns all cap UTXOs when one block lands between page 1 and the cursor page', async function () {
+    // At the default cap of 10000 the tracker's full first page carries a cursor, so
+    // the fetch always reads a second page. One block mined between those two reads
+    // must cost a fresh read, not a refusal.
+    const requests = stubTracker({ count: 10000, maxPage: 10000, syncAt: (n) => syncAtHeight(n === 0 ? 100 : 101) })
+    const tracker = new UtxoTracker('127.0.0.1', '1234')
+    const out = await tracker.getUtxosFromAddress('someaddr')
+    assert.strictEqual(out.utxos.length, 10000)
+    assert.strictEqual(new Set(out.utxos.map((u) => u.txid)).size, 10000)
+    assert.strictEqual(out.sync.tracker_height, 101)
+    // Two reads at height 100 then 101 (refused merge), then two reads at 101.
+    assert.strictEqual(requests.length, 4)
+  })
+
+  it('still refuses when the snapshot moves on every read', async function () {
+    const requests = stubTracker({ count: 3, maxPage: 3, syncAt: (n) => syncAtHeight(100 + n) })
+    const tracker = new UtxoTracker('127.0.0.1', '1234', undefined, undefined, 3)
+    await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), /chain state changed while paginating/)
+    // The first attempt plus a bounded number of restarts, two reads each.
+    assert.strictEqual(requests.length, 6)
+  })
+
+  it('still refuses an address holding one more than the cap', async function () {
+    stubTracker({ count: 4, maxPage: 3, syncAt: () => syncAtHeight(100) })
+    const tracker = new UtxoTracker('127.0.0.1', '1234', undefined, undefined, 3)
+    await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), (e) => e.code === 'UTXO_SET_TOO_LARGE')
+  })
+
+  it('refuses a tracker that halts mid-fetch without restarting', async function () {
+    const requests = stubTracker({
+      count: 3,
+      maxPage: 3,
+      syncAt: (n) => (n === 0 ? syncAtHeight(100) : { ...syncAtHeight(100), halted: true, halt_reason: 'unrecoverable reorg' })
+    })
+    const tracker = new UtxoTracker('127.0.0.1', '1234', undefined, undefined, 3)
+    await assert.rejects(() => tracker.getUtxosFromAddress('someaddr'), /halted mid-fetch/)
+    assert.strictEqual(requests.length, 2)
+  })
+})
 
 describe('paginated utxo fetch is one chain-state snapshot @regression', function () {
   const origPost = axios.post

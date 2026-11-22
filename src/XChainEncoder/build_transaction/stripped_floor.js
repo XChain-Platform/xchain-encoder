@@ -76,4 +76,4 @@ function refuseUnderStrippedFloor(build){
         { strippedSize, minimum: floor })
 }
 
-module.exports = { CORE_MIN_STANDARD_TX_NONWITNESS_SIZE, clearsStrippedFloor, refuseUnderStrippedFloor }
+module.exports = { clearsStrippedFloor, refuseUnderStrippedFloor }

@@ -4,8 +4,8 @@
 # XChain Platform Encoder
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.27.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/tests-2%2C337%2B%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/version-0.28.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/tests-2%2C564%2B%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/node-%3E%3D22-green" alt="Node">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License">
 </p>
@@ -28,7 +28,7 @@ PSBT encoding service for the XChain Platform. Takes an ACTION string, a set of 
 - **Multi-chain support**: Bitcoin, Litecoin, and Dogecoin today on mainnet, testnet, and regtest (9 network configs)
 - **Replace-By-Fee**: optional RBF signaling via sequence number
 - **Custom outputs**: arbitrary address/value outputs (e.g., COINPay native coin payments)
-- **Token-gated content support**: encodes [FILE v1](https://github.com/XChain-Platform/xchain-documentation/blob/master/protocol/actions/file.md) gated files and `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
+- **Token-gated content support**: encodes gated FILE actions (format 0) with optional `GATE_TICKER`, `ENCRYPTION_METHOD`, `KEY_HASH`, and `GATE_MIN_AMOUNT` fields, plus `BATCH(FILE, MESSAGE)` issuer-publish flows; ciphertext travels as `rawData` via P2WSH alongside the action string
 - **JSON-RPC API**: Express server with Helmet security headers, optional API key auth, configurable rate limiting, CORS
 - **Single-instance guard**: refuses to boot when `ENCODER_REPLICAS` declares more than one replica, and takes an exclusive PID lockfile against a second local process; the UTXO reservation guard, the recent-build duplicate refusal, the envelope-cancel owner set, the `release_inputs` reservation tickets, the rate limiter and the concurrency-gate counters are in-process only until a shared store exists
 - **1330+ tests**: unit, integration, e2e, boundary, security, fuzz, chaos, mutation, regression, performance, smoke
@@ -41,6 +41,13 @@ Full encoder documentation is available in the [xchain-documentation](https://gi
 |---|---|
 | [README](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/README.md) | Overview, encoding process, format details, API, testing, configuration |
 | [Format Selection](https://github.com/XChain-Platform/xchain-documentation/blob/master/components/encoder/format-selection.md) | Decision guide for encoding formats with size limits and trade-offs |
+
+### Dependency pins
+
+The encoder and SDK intentionally use bitcoinjs-lib 7.0.4, with the encoder's
+compatibility patch in `src/build/apply_bufferutils_patch/`. The decoder and
+UTXO tracker remain together on 6.1.8 for their BigInt-safe Dogecoin output
+reader. See the decoder README for the migration constraint and revisit rules.
 
 ## Quick Start
 
@@ -83,9 +90,9 @@ npm run api
 | `UTXO_TRACKER_MAX_LAG_BLOCKS` | No | `2` | Max blocks the utxo-tracker's reported sync lag may be before `create_tx` refuses to select UTXOs from it. `GET /status` publishes the effective value as `tracker_max_lag_blocks`, so a status board can rank lag against the other unready causes without mirroring a constant it cannot see (the tracker's own `SYNCED_THRESHOLD` is looser and is not this gate) |
 | `MAX_FEE_RATE_KB` | No | Uncapped | Absolute maximum fee rate in sat/kB |
 | `MAX_FEE_RATE_MULTIPLIER` | No | `100` | Caps caller-supplied fee/feePerKb at this multiple of the node's fee estimate (`0` disables this cap). Whatever this and `MAX_FEE_RATE_KB` are set to, a fixed 100x burn backstop still clamps feePerKb and refuses an explicit fee, so a value above `100` loosens nothing past 100x |
-| `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing) |
+| `MAX_CPFP_UPLIFT_SAT` | No | `10000000` | Most a transaction spending unconfirmed inputs may add to its fee so the whole mempool package reaches the target rate (`0` disables package-aware sizing). The fixed 100x burn backstop still applies, so raising this value does not lift that limit |
 | `FEE_NO_ESTIMATE_RELAY_MULTIPLIER` | No | `10` | Multiple of the node's relay floor charged on a non-mainnet chain when `estimatesmartfee` has no data. Raise it where miners ignore the documented rate (`100` gives 0.1 DOGE/kB). Mainnet is unaffected |
-| `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors (funding legs, data outputs, change). Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
+| `DUST_AMOUNT` | No | Coin default | Floor in base units on every value output the encoder authors, including funding legs, data outputs, change, envelope reveal change and padding, P2WSH reveal padding, and envelope cancel sweeps and padding. Only raises the floor: the coin's consensus dust threshold and its relay-policy soft-dust floor (Dogecoin: 0.01 DOGE, below which each output adds the whole limit to the required relay fee) already apply |
 | `XCHAIN_COMPRESSION_DEFAULT` | No | Enabled | Deployment default for transparent FILE compression; set `0`, `false`, or `off` to disable |
 | `ENCODER_REPLICAS` | No | `1` | Deploy-manifest declared replica count; boot refuses above `1` until the in-process reservation, recent-build, envelope-cancel owner, reservation-ticket, rate-limit and concurrency-gate state is shared |
 | `ENCODER_INSTANCE_LOCK_FILE` | No | `<os tmpdir>/xchain-encoder-<ENCODER_API_PORT>.lock` (`default` in place of the port when `ENCODER_API_PORT` is unset) | Same-host PID lockfile taken exclusively at boot, so a second encoder process started on one host fails fast instead of racing UTXO selections. Point intentionally separate deployments (different coins or networks) on one host at different files. It cannot see replicas on other hosts or containers; `ENCODER_REPLICAS` is that declaration |
@@ -98,6 +105,10 @@ npm run api
 | `ENCODER_MAINNET_PRELAUNCH_OVERRIDE` | No | Unset | On a mainnet encoder, `create_tx` refuses every action outside the consensus validator set before unix time `1798761600` with `-32010` and `data.reason` `MAINNET_PRELAUNCH` (`data.opens_at` carries the time). The set is read by name and format, exactly as the indexer's launch gate reads it: `ANCHOR` formats 0 to 3, `PRICE` format 0, `NODEPROOF` format 0, `ROLLCALL` formats 0 and 1, and the quorum `ATTEST` formats 1, 3, 4, 5 and 6. `PRICE` format 1, `ATTEST` formats 0 and 2, `STAKE`, `UNSTAKE`, `DELEGATE`, `SLASH` and every other action are refused. Set `1`, `true`, `yes` or `on` to lift the refusal for every action; read live on every call, any other value leaves it in force. Set it only on the foundation's own bootstrap encoder that builds the seed sources' pre-launch actions (the encoder cannot see the pinned seed sources), never on a public encoder. Testnet and regtest are never refused |
 | `ENCODER_MAINTENANCE_FILE` | No | `/tmp/xchain-encoder-maintenance.json` | Where the encoder looks for an operator-declared scheduled-maintenance window. `health` and `GET /status` report it as `maintenance` beside the readiness fields, so a status board can tell a planned outage from a fault; it never changes a readiness field or the 503. See [Scheduled maintenance](#scheduled-maintenance) |
 | `CORS_ORIGIN` | No | Disabled | Allowed CORS origin(s): `*` for any, one origin, or a comma-separated allowlist matched per-origin (browser wallet shells each send a different origin). A stray `*` inside a list is not a wildcard, so the grant fails closed |
+
+Build every phase of a two-step envelope or P2WSH reveal with the same
+`DUST_AMOUNT`. Changing it between funding and reveal can make the reconstructed
+commit value differ or shift value between the reveal fee and its outputs.
 
 ## Scheduled maintenance
 
@@ -120,14 +131,15 @@ readiness fields. What it does **not** do is as important: the readiness
 booleans and the 503 are unchanged, so every load balancer and uptime monitor
 keyed on them keeps seeing exactly what it saw before.
 
-`until` is required, and a window longer than 24 hours, already expired,
+`since` and `until` are required, and a window whose declared span is longer than 24 hours, already expired,
 malformed, or oversized is ignored: a publish that dies without cleaning up
 stops excusing the outage at its own declared end time rather than hiding it
 indefinitely. A `since` in the future holds the window closed until it opens.
 `reason` is optional, bounded, and stripped to printable ASCII.
 
 `xchain-node` writes and removes this file automatically around a bootstrap
-publish (`src/server/maintenance_window.js`).
+publish (`xchain-node/src/services/encoder_maintenance_window.js`); this service
+reads it in `src/server/maintenance_window.js`.
 
 ## Metrics and log shipping (optional, off by default)
 
@@ -164,20 +176,20 @@ neither source sets one, so these defaults hold on an unconfigured box:
 |---|---|
 | `npm run api` | Start the JSON-RPC API server |
 | `npm run smoke-test` | Smoke tests (~52 tests, <1s) |
-| `npm run test:unit` | Unit tests (1,420 tests) |
+| `npm run test:unit` | Unit tests (1,617 tests) |
 | `npm run test:integration` | Integration tests (96 tests) |
 | `npm run test:boundary` | Boundary condition tests (~101 tests) |
 | `npm run test:security` | Security tests (76 tests) |
 | `npm run test:fuzz` | Property-based fuzz tests (6 suites, 6 tests) |
-| `npm run test:chaos` | Chaos engineering tests (65 tests) |
+| `npm run test:chaos` | Chaos engineering tests (70 tests) |
 | `npm run test:e2e` | End-to-end tests (~158 tests) |
-| `npm run test:regression` | Regression tests (357 tests) |
+| `npm run test:regression` | Regression tests (382 tests) |
 | `npm run mutate` | Full mutation testing via StrykerJS |
 | `npm run mutate:quick` | Quick mutation check (XChainEncoder.js only) |
 | `npm run bench` | Performance benchmarks |
 | `npm run bench:full` | Extended benchmarks with JSON output |
 | `npm run bench:soak` | Soak test (sustained load) |
-| `npm test` | Unit tests (hermetic, no external services, 1,420 tests) |
+| `npm test` | Unit tests (hermetic, no external services, 1,617 tests) |
 | `npm run test:regtest` | Regtest integration tests (requires local bitcoind) |
 
 ## Test Suite

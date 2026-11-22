@@ -47,7 +47,7 @@ module.exports = {
     },
 
     prepareData(data, encoding, pubKey, compressedPubKey){
-        let magicWordBuffer = Buffer.from(MAGIC_WORD,'utf8')
+        const magicWordBuffer = Buffer.from(MAGIC_WORD,'utf8')
 
         if (!encoding){
             if (data.length + magicWordBuffer.length <= OP_RETURN_SIZE) {
@@ -73,17 +73,17 @@ module.exports = {
     },
 
     async obfuscate(data, key){
-        var cipherKey = key.substr(0,16)
-        var iv = key.substr(16,16)
+        const cipherKey = key.substr(0,16)
+        const iv = key.substr(16,16)
 
-        var cipher = crypto.createCipheriv('aes-128-ctr', cipherKey, iv);
-        var encryptedData = cipher.update(data)
+        const cipher = crypto.createCipheriv('aes-128-ctr', cipherKey, iv);
+        let encryptedData = cipher.update(data)
         encryptedData = Buffer.concat([encryptedData,cipher.final()])
         return encryptedData
     },
 
     async dataToPubkey(data){
-        let bufferArray = [Buffer.from("02","hex"),data]
+        const bufferArray = [Buffer.from("02","hex"),data]
         let bufferFill = null
         if (data.length < 32){
             bufferFill = Buffer.allocUnsafe(32 - data.length)

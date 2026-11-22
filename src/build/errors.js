@@ -25,8 +25,8 @@
  * The message here is encoder-authored; any upstream text it embeds (a tracker
  * error or halt reason) has first passed upstreamErrorMessage (a transport
  * failure, or any URL, dotted quad or host:port, collapses to a fallback) or
- * safeUpstreamReason (the same leak check, plus printable ASCII and a length
- * cap), so it carries no topology or credentials and is safe to forward.
+ * knownTrackerReason (a fixed rendering for known tracker states), so it
+ * carries no topology, credentials, or arbitrary upstream prose.
  *
  ********************************************************************/
 
@@ -34,6 +34,8 @@ class OperationalError extends Error {
     // `code` is a stable, machine-readable string (e.g. 'INSUFFICIENT_FUNDS')
     // callers can branch on; `details` is an optional plain-object payload
     // (e.g. { required, available }) surfaced in the JSON-RPC error `data`.
+    // `reason` is reserved for the stable code, so a details key with that name
+    // is ignored when the JSON-RPC payload is assembled.
     constructor(code, message, details) {
         super(message)
         this.name = 'OperationalError'

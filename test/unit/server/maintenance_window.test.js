@@ -65,7 +65,7 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
         });
 
         it('accepts epoch-millisecond timestamps as well as ISO strings', function () {
-            const w = parseMaintenanceWindow(JSON.stringify({ until: NOW + 60000 }), NOW);
+            const w = parseMaintenanceWindow(JSON.stringify({ since: NOW - 60000, until: NOW + 60000 }), NOW);
             assert.ok(w);
             assert.strictEqual(w.until, new Date(NOW + 60000).toISOString());
         });
@@ -85,7 +85,7 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
         it('refuses a window longer than the ceiling', function () {
             const tooLong = JSON.stringify({ until: NOW + MAX_WINDOW_MS + 60000 });
             assert.strictEqual(parseMaintenanceWindow(tooLong, NOW), null);
-            const atCeiling = JSON.stringify({ until: NOW + MAX_WINDOW_MS });
+            const atCeiling = JSON.stringify({ since: NOW, until: NOW + MAX_WINDOW_MS });
             assert.ok(parseMaintenanceWindow(atCeiling, NOW), 'the ceiling itself is still a window');
         });
 
@@ -135,6 +135,14 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
             assert.strictEqual(parseMaintenanceWindow(opened, NOW + 60000), null, 'invalid just after it opens');
             assert.strictEqual(parseMaintenanceWindow(opened, NOW + thirtyDays - 3600 * 1000), null, 'still invalid an hour before expiry');
         });
+
+        it('refuses a sentinel with no declared start at every clock', function () {
+            const thirtyDays = 30 * 24 * 3600 * 1000;
+            const sinceless = JSON.stringify({ until: NOW + thirtyDays });
+            assert.strictEqual(parseMaintenanceWindow(sinceless, NOW + 60000), null);
+            assert.strictEqual(parseMaintenanceWindow(sinceless, NOW + thirtyDays - 3600 * 1000), null);
+            assert.strictEqual(parseMaintenanceWindow(JSON.stringify({ until: in2h, since: null }), NOW), null);
+        });
     });
 });
 
@@ -161,16 +169,16 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
         // and stripped before it can leave the process.
         it('bounds and sanitizes the reason', function () {
             const w = parseMaintenanceWindow(JSON.stringify({
-                until: in2h, reason: 'line\nbreakbell ' + 'y'.repeat(MAX_REASON_CHARS)
+                since: NOW - 60000, until: in2h, reason: 'line\nbreakbell ' + 'y'.repeat(MAX_REASON_CHARS)
             }), NOW);
             assert.ok(w.reason.length <= MAX_REASON_CHARS);
             assert.ok(!/[\n]/.test(w.reason), 'control characters are stripped');
         });
 
         it('tolerates a missing reason', function () {
-            const w = parseMaintenanceWindow(JSON.stringify({ until: in2h }), NOW);
+            const w = parseMaintenanceWindow(JSON.stringify({ since: NOW - 60000, until: in2h }), NOW);
             assert.strictEqual(w.reason, '');
-            assert.strictEqual(w.since, null);
+            assert.strictEqual(w.since, new Date(NOW - 60000).toISOString());
         });
     });
 });
@@ -191,7 +199,7 @@ describe('maintenanceWindow: an operator-declared scheduled outage @regression',
 
         it('reads an active window off disk', async function () {
             const p = path.join(dir, 'window.json');
-            fs.writeFileSync(p, JSON.stringify({ reason: 'bootstrap publish', until: in2h }));
+            fs.writeFileSync(p, JSON.stringify({ reason: 'bootstrap publish', since: NOW - 60000, until: in2h }));
             const w = await readMaintenanceWindow(NOW, p);
             assert.strictEqual(w.active, true);
             assert.strictEqual(w.reason, 'bootstrap publish');

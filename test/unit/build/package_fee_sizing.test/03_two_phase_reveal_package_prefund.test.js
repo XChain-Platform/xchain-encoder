@@ -98,8 +98,32 @@ function signedPair (result) {
   return { commitTx, revealTx }
 }
 
-describe('two-phase reveal package prefund @regression @tier1', () => {
+async function assertBurnBackstopClamp () {
+  const warnings = []
+  const originalWarn = logger.warn
+  let result
+  try {
+    logger.warn = (...args) => warnings.push(args.join(' '))
+    result = await buildEnvelope(envelopeEncoder({ size: 900000, fees: 0 }), { confirmations: 0 })
+  } finally {
+    logger.warn = originalWarn
+  }
+  const baseline = await buildEnvelope(envelopeEncoder({ size: 0, fees: 0 }), { confirmations: 0 })
+  const { commitTx, revealTx } = signedPair(result)
+  const commitFee = COMMIT_INPUT_VALUE - commitTx.outs.reduce((sum, output) => sum + Number(output.value), 0)
+  const pairFee = commitFee + result.envelope.revealFee
+  const pairSize = commitTx.virtualSize() + revealTx.virtualSize()
+  const backstop = 100 * BTC_TARGET_PER_BYTE * pairSize
 
+  assert.ok(pairFee <= backstop * 1.05,
+    `pair fee ${pairFee} exceeds the signed-size burn backstop ${backstop}`)
+  assert.ok(result.envelope.revealFee > baseline.envelope.revealFee,
+    'the backstop limits ancestor carry rather than switching it off')
+  assert.ok(warnings.some(warning => /Reveal package prefund clamped/.test(warning) && /burn backstop/i.test(warning)),
+    'the warning must name the burn backstop: ' + warnings.join(' | '))
+}
+
+describe('two-phase reveal package prefund @regression @tier1', () => {
   afterEach(() => { delete process.env.MAX_CPFP_UPLIFT_SAT })
 
   it('lifts the prefund so a commit paying under the target rate still clears it as a package', async () => {
@@ -228,4 +252,5 @@ describe('two-phase reveal package prefund @regression @tier1', () => {
     assert.strictEqual(result.envelope.commitValue, Number(commitTx.outs[result.envelope.commitVout].value))
   })
 
+  it('limits the pair fee with the burn backstop and names that clamp', assertBurnBackstopClamp)
 })

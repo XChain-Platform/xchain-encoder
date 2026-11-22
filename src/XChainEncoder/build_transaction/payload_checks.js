@@ -29,7 +29,7 @@ const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 // The caller's payload as handed over: wire-safety re-checks, the ACTION-name
 // read, and the fee-quote output injected ahead of every other output.
 function checkPayloadInput(build){
-    let { data, rawData } = build
+    const { data, rawData } = build
     // Re-check what the wire encodings can actually carry, for direct library
     // callers. api.js runs validateAll before createTransaction, but
     // createTransaction is a supported library entry point of its own and
@@ -83,7 +83,8 @@ function checkPayloadInput(build){
 // If feeQuote is provided, inject it as a custom output. It is remembered so the
 // emission step can tell the protocol-fee output from the caller's own payments.
 function injectFeeQuoteOutput(build){
-    let { feeQuote, customOutputs } = build
+    const { feeQuote } = build
+    let { customOutputs } = build
     let feeQuoteOutput = null
     if(feeQuote && feeQuote.address && feeQuote.amount > 0){
         // Push onto a copy: the array is the caller's, and an in-process caller that
@@ -100,13 +101,17 @@ function injectFeeQuoteOutput(build){
 // and emitted on the reveal, so a check at emission alone would let the commit confirm
 // with a reveal that can never relay. Runs before the feeQuote output is injected.
 function checkPaymentDust(build){
-    const { customOutputs } = build
-    if (!Array.isArray(customOutputs)) return
-    customOutputs.forEach((output, i) => {
-        const value = parseSatoshiAmount(output && output.value, `customOutputs[${i}].value`, { allowBig: true })
-        if (value <= 0) throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
-        assertPaymentOverDust(value, i, this.paymentOutputFloor)
-    })
+    const { customOutputs, feeQuote } = build
+    if (Array.isArray(customOutputs)) {
+        customOutputs.forEach((output, i) => {
+            const value = parseSatoshiAmount(output && output.value, `customOutputs[${i}].value`, { allowBig: true })
+            if (value <= 0) throw new ParamRangeError(`customOutputs[${i}].value must be a positive integer (satoshis)`)
+            assertPaymentOverDust(value, i, this.paymentOutputFloor)
+        })
+    }
+    if (feeQuote && feeQuote.address && feeQuote.amount > 0) {
+        assertPaymentOverDust(feeQuote.amount, null, this.paymentOutputFloor, 'feeQuote.amount')
+    }
 }
 
 // Verify every caller output address decodes on this network, inside the first
@@ -123,7 +128,8 @@ function checkOutputAddresses(build){
 }
 
 function* compressPayload(build){
-    let { compress, data, rawData } = build
+    const { compress } = build
+    let { data, rawData } = build
     // Transparent FILE payload compression, ON by default.
     //
     // Runs HERE, before the payload buffers are assembled, so everything
@@ -153,7 +159,7 @@ function* compressPayload(build){
     const compressEnabled = compressExplicit ? compress : defaultCompressionEnabled()
     let compressionResult = null
     if (compressEnabled && rawData != null){
-        let originalBuffer = Buffer.from(rawData, 'binary')
+        const originalBuffer = Buffer.from(rawData, 'binary')
         compressionResult = (yield compressPayloadForAction(data, originalBuffer, { explicit: compressExplicit }))
         if (compressionResult.compressed){
             // Both halves move together: the marker and the bytes it
@@ -167,7 +173,7 @@ function* compressPayload(build){
 
 // The compiled action stream every encoding carries, after the push-shape guard.
 function compilePayload(build){
-    let { data, rawData } = build
+    const { data, rawData } = build
     // Refuse the single-byte shapes bitcoin.script.compile canonicalizes into
     // a bare opcode, for direct library callers. The same reason as the
     // round-trip guard at the head of this method: validateAll runs this
@@ -198,24 +204,24 @@ function compilePayload(build){
     // payment-only tx built from customOutputs) would fail with an opaque
     // internal error. A missing payload defaults to '', identical to the
     // already-supported empty-string case, which compiles cleanly downstream.
-    let dataBuffer = Buffer.from(data == null ? '' : data, 'utf8')
-    let dataToCompile = [dataBuffer]
+    const dataBuffer = Buffer.from(data == null ? '' : data, 'utf8')
+    const dataToCompile = [dataBuffer]
 
     if (rawData != null){
         // 'binary' (Latin-1) preserves bytes 0-255 one-to-one. 'utf8' would
         // corrupt arbitrary binary payloads (e.g. AES-GCM ciphertext for
         // token-gated FILEs, and deflate-raw output). Existing ASCII callers
         // like base64-encoded file bytes are byte-identical under both.
-        let rawDataBuffer = Buffer.from(rawData, 'binary')
+        const rawDataBuffer = Buffer.from(rawData, 'binary')
         dataToCompile.push(rawDataBuffer)
     }
 
-    let finalDataBuffer = bitcoin.script.compile(dataToCompile)
+    const finalDataBuffer = bitcoin.script.compile(dataToCompile)
     Object.assign(build, { dataBuffer, finalDataBuffer })
 }
 
 function classifyPayload(build){
-    let { dataBuffer, rawData } = build
+    const { dataBuffer, rawData } = build
     // Does this transaction carry an XChain ACTION at all?
     //
     // `data` being optional already meant "payment-only tx" in the wire
@@ -246,7 +252,8 @@ function classifyPayload(build){
 
 // The encoding this build uses, and the per-encoding ceilings it must fit.
 function chooseEncoding(build){
-    let { encoding, finalDataBuffer, compressedPubKey, options } = build
+    const { finalDataBuffer, compressedPubKey, options } = build
+    let { encoding } = build
     // Size-aware encoding selection, behind the caller's explicit AUTO opt-in.
     // Runs HERE: after compression, so it prices the bytes that will really be
     // written, and before the ceiling check, so an over-cap payload is refused
@@ -282,7 +289,7 @@ function chooseEncoding(build){
 }
 
 function* checkEnvelopeEncoding(build){
-    let { encoding, p2shHash } = build
+    const { encoding, p2shHash } = build
     // Envelope availability is a property of the network definition:
     // DOGE has no segwit, hence no Taproot; same gate, same error shape as
     // P2WSH. The p2shHash guard exists for direct library callers (the API

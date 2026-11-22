@@ -14,7 +14,7 @@
 
 const assert = require('assert')
 const { createJsonRpcController } = require('../../src/api/json_rpc_methods')
-const { ParamTypeError } = require('../../src/build/errors')
+const { OperationalError, ParamTypeError } = require('../../src/build/errors')
 const { TXID_A, PUBKEY_BUF, makeEncoder, getTestAddress } = require('../integration/helpers/utxoFactory')
 const actions = require('../integration/helpers/actionFactory')
 
@@ -68,6 +68,20 @@ describe('REG-32: create_tx answers a caller fault with -32602', () => {
 })
 
 describe('REG-32: create_tx answers a server fault with -32603 or a tracker error', () => {
+  it('keeps the stable operational reason when details also contain reason', async () => {
+    const caught = await rejectionOf('create_tx', (encoder) => {
+      encoder.createTransaction = async () => {
+        throw new OperationalError('INSUFFICIENT_FUNDS', 'Insufficient funds', {
+          reason: 'clobbered', required: 5000, available: 100
+        })
+      }
+    }, sendParams())
+    assert.strictEqual(caught.code, -32010)
+    assert.strictEqual(caught.data.reason, 'INSUFFICIENT_FUNDS')
+    assert.strictEqual(caught.data.required, 5000)
+    assert.strictEqual(caught.data.available, 100)
+  })
+
   it('answers -32603, generic, when the node reports no relayfee', async () => {
     const caught = await rejectionOf('create_tx', noRelayFee, sendParams())
     assert.strictEqual(caught.code, -32603)

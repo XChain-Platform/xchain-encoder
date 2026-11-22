@@ -321,3 +321,48 @@ describe('envelope-cancel outpoint reservation @regression', function () {
     assert.strictEqual(encoder.envelopeCancelClaims.size, 0)
   })
 })
+
+describe('envelope-cancel outpoint reservation @regression', function () {
+  this.timeout(10000)
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  // Two cancels in flight at once (a lost-response retry overlapping the
+  // original) claim in different milliseconds because the fee RPCs await between
+  // claim and mint. The later claim overwrites the map stamp; the earlier build
+  // must still get a ticket, or its owner token strands the outpoint.
+  async function overlappingCancels () {
+    const encoder = makeEncoder()
+    encoder.connector.getNetworkInfo = async () => { await sleep(40); return { relayfee: 0.00001 } }
+    const a = encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    await sleep(8)
+    const b = encoder.createEnvelopeCancelTransaction(cancelRecord(encoder))
+    const [first, second] = await Promise.all([a, b])
+    return { encoder, first, second }
+  }
+
+  it('both overlapping cancels get a ticket; A then B frees the outpoint', async function () {
+    const { encoder, first, second } = await overlappingCancels()
+    assert.ok(first.reservation, 'the earlier overlapping build must carry a release ticket')
+    assert.ok(second.reservation, 'the later overlapping build must carry a release ticket')
+
+    const releaseA = encoder.releaseReservation(first.reservation.id)
+    assert.deepStrictEqual(releaseA.released, [])
+    assert.deepStrictEqual(releaseA.retained, [COMMIT_KEY])
+    const releaseB = encoder.releaseReservation(second.reservation.id)
+    assert.deepStrictEqual(releaseB.released, [COMMIT_KEY])
+    assert.strictEqual(encoder.isOutpointReserved(COMMIT_KEY, Date.now()), false,
+      'the last owner out must free the outpoint without waiting for the TTL')
+    assert.strictEqual(encoder.releaseReservation(first.reservation.id).found, false)
+  })
+
+  it('overlapping cancels released B then A also free the outpoint', async function () {
+    const { encoder, first, second } = await overlappingCancels()
+    const releaseB = encoder.releaseReservation(second.reservation.id)
+    assert.deepStrictEqual(releaseB.retained, [COMMIT_KEY])
+    const releaseA = encoder.releaseReservation(first.reservation.id)
+    assert.deepStrictEqual(releaseA.released, [COMMIT_KEY])
+    assert.strictEqual(encoder.isOutpointReserved(COMMIT_KEY, Date.now()), false)
+    assert.strictEqual(encoder.envelopeCancelClaims.has(COMMIT_KEY), false)
+  })
+})

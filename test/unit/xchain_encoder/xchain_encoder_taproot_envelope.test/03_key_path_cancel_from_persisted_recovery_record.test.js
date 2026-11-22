@@ -122,6 +122,32 @@ describe('XChainEncoder TAPROOT envelope', function () {
         (err) => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
     })
 
+    it('applies a raised output floor to the cancel sweep and floor pad', async function () {
+      const bitcoinEncoder = makeEncoder()
+      bitcoinEncoder.outputFloor = bitcoinEncoder.dustAmount * 4
+      await assert.rejects(bitcoinEncoder.createEnvelopeCancelTransaction({
+        commitTxid: TXID_A, commitVout: 0,
+        commitValue: bitcoinEncoder.dustAmount + bitcoinEncoder.outputFloor - 1,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64),
+        destination: callerAddress(bitcoinEncoder.network)
+      }), (err) => err.xchainCode === 'ENVELOPE_CANCEL_BELOW_DUST')
+
+      const litecoinEncoder = makeEncoder('litecoin-regtest')
+      litecoinEncoder.outputFloor = litecoinEncoder.dustAmount * 4
+      const cancel = await litecoinEncoder.createEnvelopeCancelTransaction({
+        commitTxid: TXID_A, commitVout: 0, commitValue: 100000,
+        internalPubkey: PUBKEY_HEX, tapleafHash: 'c'.repeat(64),
+        destination: callerAddress(litecoinEncoder.network)
+      })
+      assert.ok(Number(cancel.psbt.txOutputs[0].value) >= litecoinEncoder.outputFloor)
+      assert.strictEqual(Number(cancel.psbt.txOutputs[1].value), litecoinEncoder.outputFloor)
+    })
+  })
+})
+
+describe('XChainEncoder TAPROOT envelope', function () {
+  describe('key-path cancel from the persisted recovery record (§3.5/§3.7)', function () {
+
     it('validates the recovery-record fields', async function () {
       const encoder = makeEncoder()
       const base = {

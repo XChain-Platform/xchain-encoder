@@ -1,3 +1,13 @@
+// Copyright © 2025–2026 Dankest, LLC
+// Based on XChain Platform by Dankest, LLC – https://dankest.llc
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This file is part of XChain Platform. Licensed under the GNU Affero
+// General Public License v3.0 or later; see LICENSE.md. A commercial
+// license (without AGPL source-disclosure terms) is available -
+// contact legal@dankest.llc.
+
 // Unit coverage for src/build/apply_bufferutils_patch.js. The encoder patches
 // bitcoinjs bufferutils so 64-bit amount fields round-trip through a
 // BigInt-safe path (values above 2^53 would otherwise silently corrupt).
@@ -8,15 +18,17 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const bufferutils = require('../../../src/build/apply_bufferutils_patch.js');
+const { siblingCheckout, skipOrFail } = require('../../helpers/sibling_checkout.js');
 
-function findSdkRoot(repoRoot) {
-    let cursor = path.dirname(repoRoot);
-    while (cursor !== path.dirname(cursor)) {
-        const candidate = path.join(cursor, 'xchain-sdk');
-        if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate;
-        cursor = path.dirname(cursor);
-    }
-    return null;
+// The SDK checkout beside this repo (or the XCHAIN_SDK_DIR override), judged by
+// the shared sibling helper: absent skips, and fails under
+// XCHAIN_REQUIRE_SIBLINGS=1, and a lane symlink into a live main checkout is
+// refused the same way. Called from inside a test or hook so `ctx.skip()` lands.
+function requireSdkRoot(ctx) {
+    const sdk = process.env.XCHAIN_SDK_DIR || path.join(__dirname, '../../../../xchain-sdk');
+    skipOrFail(ctx, siblingCheckout(__dirname, path.join(sdk, 'package.json')),
+        'the bufferutils patch twin guard against xchain-sdk');
+    return sdk;
 }
 
 function patchModuleSources(entry) {
@@ -211,13 +223,12 @@ describe('applyBufferutilsPatch', function () {
 describe('applyBufferutilsPatch', function () {
     describe('twin guard against the SDK copy', function () {
         const repoRoot = path.resolve(__dirname, '../../..');
-        const sdkRoot = findSdkRoot(repoRoot);
         const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
 
         it('is byte-identical to the SDK copy below the banner', function () {
             // A standalone encoder checkout has no sibling to compare. When
             // the SDK is present, every shared per-major module must exist.
-            if (!sdkRoot) return this.skip();
+            const sdkRoot = requireSdkRoot(this);
             const shared = ['compat.js', 'u64.js', 'v7.js', 'version.js'];
             for (const name of shared) {
                 const encoderFile = path.join(repoRoot, 'src/build/apply_bufferutils_patch', name);
@@ -227,6 +238,22 @@ describe('applyBufferutilsPatch', function () {
                     name + ' has drifted from the SDK copy; converge SDK-ward');
             }
         });
+
+        it('keeps the bitcoinjs internals resolver byte-identical to the SDK copy', function () {
+            const sdkRoot = requireSdkRoot(this);
+            const encoderFile = path.join(repoRoot, 'src/build/bitcoinjs_compat/internals.js');
+            const sdkFile = path.join(sdkRoot, 'src/utils/bitcoinjs_compat/internals.js');
+            assert.ok(fs.existsSync(sdkFile), 'xchain-sdk is present but its internals resolver is missing: ' + sdkFile);
+            assert.strictEqual(fs.readFileSync(encoderFile, 'utf8'), fs.readFileSync(sdkFile, 'utf8'),
+                'bitcoinjs_compat/internals.js has drifted from the SDK copy; converge SDK-ward');
+        });
+    });
+});
+
+describe('applyBufferutilsPatch', function () {
+    describe('twin guard against the SDK copy', function () {
+        const repoRoot = path.resolve(__dirname, '../../..');
+        const mine = path.join(__dirname, '../../../src/build/apply_bufferutils_patch.js');
 
         it('declares every package it deep-requires', function () {
             const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
@@ -275,10 +302,9 @@ function bodyBelowHeader(file) {
 describe('applyBufferutilsPatch', function () {
     describe('entry twin guard against the SDK copy', function () {
         const repoRoot = path.resolve(__dirname, '../../..');
-        const sdkRoot = findSdkRoot(repoRoot);
 
         it('keeps the entry body below the header identical to the SDK copy apart from its v6 require', function () {
-            if (!sdkRoot) return this.skip();
+            const sdkRoot = requireSdkRoot(this);
             const sdkEntry = path.join(sdkRoot, 'src/utils/apply_bufferutils_patch.js');
             const sdkBody = bodyBelowHeader(sdkEntry).split('\n').filter((line) => line !== SDK_ONLY_LINE).join('\n');
             assert.ok(/require\('\.\/apply_bufferutils_patch\/v7'\)/.test(sdkBody), 'SDK entry body lost its v7 require');
@@ -287,7 +313,7 @@ describe('applyBufferutilsPatch', function () {
         });
 
         it('holds the same patch part files as the SDK apart from its v6 fallback', function () {
-            if (!sdkRoot) return this.skip();
+            const sdkRoot = requireSdkRoot(this);
             const parts = (dir) => fs.readdirSync(dir).filter((name) => name.endsWith('.js')).sort();
             const sdkParts = parts(path.join(sdkRoot, 'src/utils/apply_bufferutils_patch')).filter((name) => name !== 'v6.js');
             assert.deepStrictEqual(parts(path.join(repoRoot, 'src/build/apply_bufferutils_patch')), sdkParts);

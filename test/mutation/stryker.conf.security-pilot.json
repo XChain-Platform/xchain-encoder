@@ -4,6 +4,7 @@
     "src/common/validator.js"
   ],
   "testRunner": "mocha",
+  "plugins": ["./test/mutation/mocha12_runner_compat.mjs"],
   "mochaOptions": {
     "spec": [
       "test/security/**/*.test.js"

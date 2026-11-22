@@ -18,20 +18,20 @@
  *
  ********************************************************************/
 
-const bitcoin = require('bitcoinjs-lib')
-const TxSizeEstimator = require('../../build/tx_size_estimator')
-const { MAX_UTXO_COUNT, parseSatoshiAmount } = require('../../common/validator')
+const { MAX_UTXO_COUNT, MAX_STANDARD_TX_WEIGHT, parseSatoshiAmount } = require('../../common/validator')
 const { OperationalError, ParamTypeError, ParamRangeError } = require('../../build/errors')
 const { SATOSHI_UNIT, RESERVATION_TTL_MS, Encoding } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
 const { feeForVsize } = require('../fee_policy.js')
 const { isUnconfirmedUtxo, outpointKey } = require('./input_candidates.js')
-const { matchingLegacyRedeemScript } = require('./legacy_p2sh.js')
 const { nestedP2wpkhRedeem } = require('./nested_segwit.js')
 const { clearsStrippedFloor } = require('./stripped_floor.js')
+const { createInputQueue, addSelectedInput } = require('./selected_inputs.js')
+const { prepareTwoStepReveal } = require('./envelope_two_step.js')
 
 function initSelection(build){
-    let { estimatedTxSize, fee, psbt, softDustSurcharge } = build
+    const { fee, psbt, softDustSurcharge } = build
+    let { estimatedTxSize } = build
     estimatedTxSize = estimatedTxSize + 43 // change output (worst case: taproot)
     // The output-count varint is 1 byte up to 252 outputs and 3 bytes past that; the
     // 10-byte header counted in initEmissionState assumed 1. A MULTISIGN payload plus
@@ -54,7 +54,7 @@ function initSelection(build){
         estimatedFee = requestedFee + (softDustSurcharge || 0)
     }
 
-    let selectedInputCount = 0
+    const selectedInputCount = 0
     // Txids of the SELECTED inputs that are still in the mempool. Their
     // ancestor package is what CPFP sizing below has to pay for. An entry with no
     // confirmations field counts as unconfirmed (isUnconfirmedUtxo), so it is sized as
@@ -63,7 +63,7 @@ function initSelection(build){
     // Candidates the loop skipped because another build holds them. Reported
     // when nothing could be selected, so the caller learns the inputs exist
     // and are spoken for rather than that the address is empty.
-    let reservedCandidates = 0
+    const reservedCandidates = 0
     // Whether the segwit marker and flag have been counted; see framingBytesForInput.
     const segwitMarkerCounted = false
     Object.assign(build, { estimatedTxSize, estimatedFee, requestedFee, selectedInputCount, unconfirmedInputTxids,
@@ -73,8 +73,8 @@ function initSelection(build){
 // The fee selection has to cover: the fee the build will finally charge, which the
 // post-selection floor (floorEstimatedFee) never lets fall under the dust threshold.
 // Stopping at the unfloored fee left a fundable spend one input short.
-function selectionTargetFee(estimatedFee){
-    return Math.max(estimatedFee, this.dustAmount)
+function selectionTargetFee(estimatedFee, softDustSurcharge){
+    return Math.max(estimatedFee, this.dustAmount + (softDustSurcharge || 0))
 }
 
 // Transaction framing an input adds beyond its own estimated size: the segwit marker
@@ -90,8 +90,21 @@ function framingBytesForInput(build, utxo, selectedInputCount, nested){
     return bytes
 }
 
+function refuseOverweightSelection(estimatedTxSize, selectedInputCount){
+    const estimatedWeight = estimatedTxSize * 4
+    if (estimatedWeight <= MAX_STANDARD_TX_WEIGHT) return
+    throw new ParamRangeError(
+        `estimated transaction weight ${estimatedWeight} WU with ${selectedInputCount} input(s) exceeds ` +
+        `the standard limit (${MAX_STANDARD_TX_WEIGHT} WU); split the spend into smaller transactions`
+    )
+}
+
 function* selectFundingInputs(build){
-    let { p2shHash } = build
+    const { p2shHash } = build
+    if (build.options && build.options.envelopeCommitHex){
+        prepareTwoStepReveal.call(this, build)
+        return
+    }
     if (!p2shHash){//The p2sh input is already created before
         yield* selectInputs.call(this, build)
         refuseEmptySelection.call(this, build)
@@ -102,17 +115,20 @@ function* selectFundingInputs(build){
 // Walks the ordered candidates, claiming and adding inputs until they cover
 // outputs plus fee (or, in exact-input mode, until every named one is spent).
 function* selectInputs(build){
-    let { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
-        attachPrevTx, fee, feePerBytes, outputSatoshis, estimatedTxSize, estimatedFee, inputSatoshis,
-        selectedInputCount, unconfirmedInputTxids, reservedCandidates, softDustSurcharge } = build
+    const { utxos, preparedData, exactInputs, firstReservedOutpoint, callReservations, psbt, utxoSequence,
+        attachPrevTx, fee, feePerBytes, outputSatoshis, unconfirmedInputTxids, softDustSurcharge } = build
+    let { estimatedTxSize, estimatedFee, inputSatoshis, selectedInputCount, reservedCandidates } = build
     const now = Date.now()
     this.evictExpiredReservations(now)
     let nextUtxoIndex = 0
+    // One fetch and parse per parent txid for this build; never shared across builds.
+    const prevTxMemo = new Map()
+    const inputQueue = createInputQueue(psbt)
     while (nextUtxoIndex < utxos.length){
         refuseCappedSelection.call(this, build, nextUtxoIndex, inputSatoshis, estimatedFee, selectedInputCount, now)
-        let nextUtxo = utxos[nextUtxoIndex]
+        const nextUtxo = utxos[nextUtxoIndex]
 
-        refuseUnsignableInput.call(this, preparedData, nextUtxo)
+        refuseUnsignableInput.call(this, preparedData, nextUtxo, build.options)
 
         if (skipReservedInput.call(this, callReservations, nextUtxo, exactInputs, firstReservedOutpoint, now)){
             reservedCandidates = reservedCandidates + 1
@@ -123,12 +139,13 @@ function* selectInputs(build){
         nextUtxo.value = parseSatoshiAmount(nextUtxo.value, `utxos[${nextUtxoIndex}].value`, { allowBig: true })
 
         const nestedRedeem = nestedP2wpkhRedeem.call(this, build, nextUtxo)
-        const added = yield* addSelectedInput.call(this, psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker, nestedRedeem)
+        const added = yield* addSelectedInput.call(this, inputQueue, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, build.fetchedFromTracker, nestedRedeem, prevTxMemo)
         estimatedTxSize = added.estimatedTxSize
         inputSatoshis = added.inputSatoshis
 
         selectedInputCount = selectedInputCount + 1
         estimatedTxSize = estimatedTxSize + framingBytesForInput.call(this, build, nextUtxo, selectedInputCount, !!nestedRedeem)
+        refuseOverweightSelection(estimatedTxSize, selectedInputCount)
 
         if (isUnconfirmedUtxo(nextUtxo)){
             unconfirmedInputTxids.push(nextUtxo.txid)
@@ -145,13 +162,16 @@ function* selectInputs(build){
         // at sufficiency is exactly the behaviour that made a stuck batch
         // unrescuable through this API. Any surplus goes to change, which
         // the shortfall/change math below already handles.
-        const targetFee = selectionTargetFee.call(this, estimatedFee)
-        if (!exactInputs && inputSatoshis > outputSatoshis + BigInt(targetFee) && clearsStrippedFloor.call(this, build, inputSatoshis, targetFee)){
-            break
+        const targetFee = selectionTargetFee.call(this, estimatedFee, softDustSurcharge)
+        if (!exactInputs && inputSatoshis >= outputSatoshis + BigInt(targetFee)){
+            // The floor check sizes each input's scriptSig from its fields, so attach them first.
+            inputQueue.flush()
+            if (clearsStrippedFloor.call(this, build, inputSatoshis, targetFee)) break
         }
 
         nextUtxoIndex = nextUtxoIndex + 1
     }
+    inputQueue.flush()
     Object.assign(build, { estimatedTxSize, estimatedFee, inputSatoshis, selectedInputCount, reservedCandidates })
 }
 
@@ -171,8 +191,8 @@ function refuseCappedSelection(build, nextUtxoIndex, inputSatoshis, estimatedFee
 }
 
 function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimatedFee, now){
-    const { utxos, exactInputs, firstReservedOutpoint, outputSatoshis } = build
-    const required = outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee))
+    const { utxos, exactInputs, firstReservedOutpoint, outputSatoshis, softDustSurcharge } = build
+    const required = outputSatoshis + BigInt(selectionTargetFee.call(this, estimatedFee, softDustSurcharge))
     let available = inputSatoshis
     for (let index = nextUtxoIndex; index < utxos.length; index++){
         const candidate = utxos[index]
@@ -181,23 +201,24 @@ function remainingCandidatesCanFund(build, nextUtxoIndex, inputSatoshis, estimat
             continue
         }
         available += BigInt(parseSatoshiAmount(candidate.value, `utxos[${index}].value`, { allowBig: true }))
-        if (available > required) return true
+        if (available >= required) return true
     }
     return false
 }
 
-function refuseUnsignableInput(preparedData, nextUtxo){
-    // Envelope commit inputs MUST be segwit. The
-    // reveal is pre-built against the UNSIGNED commit's txid, which
-    // is only stable when no selected input's signature lands in
-    // the txid-covered serialization. Enforced as native-segwit
+function refuseUnsignableInput(preparedData, nextUtxo, options){
+    // One-call envelope commit inputs MUST be segwit. That path's reveal is
+    // pre-built against the UNSIGNED commit's txid, which is only stable when
+    // no selected input's signature lands in the txid-covered serialization.
+    // The explicit two-step path waits for the signed commit instead. Enforced as native-segwit
     // (witness-program scriptPubKey): a P2SH-wrapped segwit UTXO is
     // indistinguishable from plain P2SH here and its scriptSig
     // (redeem-script push) shifts the txid, so it is refused too --
     // stricter than the spec's floor, never looser. Fail closed
     // rather than skip: silently dropping a caller's coin-control
     // input would change what they spend.
-    if (preparedData["encoding"] === Encoding.TAPROOT && !this.isSegwitUTXO(nextUtxo)){
+    if (preparedData["encoding"] === Encoding.TAPROOT && !this.isSegwitUTXO(nextUtxo) &&
+        !(options && options.twoStepEnvelope)){
         throw new ParamTypeError(
             `TAPROOT commit inputs must be native-segwit UTXOs (witness-program scriptPubKey); ` +
             `utxo ${nextUtxo.txid}:${nextUtxo.vout} is not. A non-segwit input would shift the ` +
@@ -246,94 +267,18 @@ function skipReservedInput(callReservations, nextUtxo, exactInputs, firstReserve
     return false
 }
 
-// Refuses a UTXO whose stated value differs from its output in the fetched previous tx.
-// A legacy sighash does not commit to input amounts, so an understated value would sign
-// and the hidden difference would go to miners, past fee guards that read the same figure.
-function assertPrevOutValueMatches(prevTxHex, utxo, fetchedFromTracker){
-    const outpoint = `${utxo.txid}:${utxo.vout}`
-    let prevOut = null
-    try {
-        prevOut = bitcoin.Transaction.fromHex(prevTxHex).outs[utxo.vout]
-    } catch (err) {
-        prevOut = null
-    }
-    let problem = null
-    if (!prevOut){
-        problem = `previous transaction for utxo ${outpoint} has no output at index ${utxo.vout}`
-    } else if (BigInt(prevOut.value) !== BigInt(utxo.value)){
-        problem = `utxo ${outpoint} states value ${BigInt(utxo.value).toString()} but the previous transaction ` +
-            `pays ${BigInt(prevOut.value).toString()} to that output`
-    }
-    if (problem === null) return
-    // Name who supplied the bad figure: a tracker row is not a caller parameter.
-    if (fetchedFromTracker) throw new OperationalError('UTXO_TRACKER_ERROR', `utxo-tracker returned a wrong utxo: ${problem}`)
-    throw new ParamRangeError(problem)
-}
-
-// nestedRedeem is the P2WPKH redeem script of a P2SH-P2WPKH input, signed as segwit.
-function* addSelectedInput(psbt, nextUtxo, utxoSequence, attachPrevTx, estimatedTxSize, inputSatoshis, fetchedFromTracker, nestedRedeem){
-    if (nestedRedeem || this.isSegwitUTXO(nextUtxo)){
-        let nextInput = {
-            hash: nextUtxo.txid,
-            index: nextUtxo.vout,
-            sequence: utxoSequence,
-            witnessUtxo: {
-                script: Buffer.from(nextUtxo.scriptPubKey, 'hex'),
-                value: nextUtxo.value,
-            }
-        }
-        if (nestedRedeem) nextInput.redeemScript = nestedRedeem
-        // A hardware signer needs the FULL previous
-        // transaction even for a segwit input, because Ledger takes
-        // the outpoint it signs from those bytes rather than from
-        // the PSBT's own txid. witnessUtxo alone left the device
-        // unable to sign (and, before it failed closed, signing a
-        // synthesized outpoint that does not exist). Opt-in: it is
-        // one node round trip and one prev tx of PSBT weight per
-        // input, which only that caller should pay. Attached NOW,
-        // at build time, so the PSBT the user previews is the one
-        // that gets signed - hydrating it later would break the
-        // byte-identity guarantee the confirm surface rests on.
-        if (attachPrevTx) {
-            const prevTxHex = yield this.connector.getTransactionHex(nextUtxo.txid)
-            // Check the amount too: a hardware signer reads it from these bytes.
-            assertPrevOutValueMatches(prevTxHex, nextUtxo, fetchedFromTracker)
-            nextInput.nonWitnessUtxo = Buffer.from(prevTxHex, 'hex')
-        }
-        psbt.addInput(nextInput)
-        estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-        inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
-    } else {
-        let wholeUtxoHex = yield this.connector.getTransactionHex(nextUtxo.txid)
-        // Check the stated amount against the node's copy before it enters the fee math.
-        assertPrevOutValueMatches(wholeUtxoHex, nextUtxo, fetchedFromTracker)
-        let nextInput = {
-            hash: nextUtxo.txid,
-            index: nextUtxo.vout,
-            sequence: utxoSequence,
-            nonWitnessUtxo: Buffer.from(wholeUtxoHex, 'hex')
-        }
-        const redeemScript = matchingLegacyRedeemScript(nextUtxo)
-        if (redeemScript) nextInput.redeemScript = redeemScript
-        psbt.addInput(nextInput)
-        estimatedTxSize = estimatedTxSize + TxSizeEstimator.estimateInputSize(nextInput)
-        inputSatoshis = inputSatoshis + BigInt(nextUtxo.value)
-    }
-    return { estimatedTxSize, inputSatoshis }
-}
-
 function refuseEmptySelection(build){
-    let { selectedInputCount, reservedCandidates, outputSatoshis } = build
+    const { selectedInputCount, reservedCandidates, outputSatoshis, estimatedTxSize } = build
     // Report the fee the build would charge, floor included.
-    const estimatedFee = selectionTargetFee.call(this, build.estimatedFee)
+    const estimatedFee = selectionTargetFee.call(this, build.estimatedFee, build.softDustSurcharge)
     // The caller-facing MAX_UTXO_COUNT cap is intentionally NOT
     // applied to the fetched set before selection (a rich address must
-    // stay spendable). Bound the SELECTED input count instead: a tx that
-    // genuinely needs more inputs than this is over standardness size and
-    // would be rejected at broadcast, so fail here with a precise reason.
+    // stay spendable). Bound the SELECTED input count as a work and PSBT-size
+    // limit; the estimated-weight check above is the standard relay-size guard.
     if (selectedInputCount > MAX_UTXO_COUNT){
         throw new ParamRangeError(`selected input count (${selectedInputCount}) exceeds the maximum (${MAX_UTXO_COUNT}) inputs for a single transaction`)
     }
+    refuseOverweightSelection(estimatedTxSize, selectedInputCount)
 
     // No spendable input was selected on the funding/single-tx path: the
     // set was empty of usable outputs or every candidate is reserved by a
@@ -360,7 +305,7 @@ function refuseEmptySelection(build){
 }
 
 function refuseFirstInputRace(build){
-    let { hasActionPayload, preparedData, txidFirstInput, psbt } = build
+    const { hasActionPayload, preparedData, txidFirstInput, psbt } = build
     // Fail-closed ins[0] invariant. OP_RETURN and MULTISIGN
     // obfuscate their payload with txidFirstInput, and the decoder derives its
     // deobfuscation key from the first input's txid, so the action only decodes if

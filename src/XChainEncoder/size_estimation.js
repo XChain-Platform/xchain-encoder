@@ -75,7 +75,7 @@ module.exports = {
         let size = 4 + 4 // version + locktime
         size = size + varIntSize(psbt.txInputs.length) + (41 * psbt.txInputs.length)
         size = size + varIntSize(psbt.txOutputs.length)
-        for (let out of psbt.txOutputs){
+        for (const out of psbt.txOutputs){
             size = size + 8 + varIntSize(out.script.length) + out.script.length
         }
         return size
@@ -123,7 +123,7 @@ module.exports = {
         // compressed pubkey + redeem script push; see estimateP2shInputWithRedeem),
         // plus a small safety margin to absorb DER signature length jitter so the
         // broadcast never lands fractionally under the node's min relay fee floor.
-        let sizeEstimated =
+        const sizeEstimated =
             10 // 4 version + 1 inputs count + 1 outputs count + 4 locktime
             + TxSizeEstimator.estimateP2shInputWithRedeem(redeemData)
             + TxSizeEstimator.estimateOpReturnOutput(Buffer.concat([
@@ -178,12 +178,12 @@ module.exports = {
         // The two disagree in two bands and the old script-push model was wrong
         // in both: 76..252 it over-funded by a byte, and 253..255 it UNDER-funded
         // by a byte (OP_PUSHDATA1 is 2 bytes there, the varint is 3).
-        let witnessScriptPrefix = compactSizeLen(witnessData.length)
+        const witnessScriptPrefix = compactSizeLen(witnessData.length)
         // Witness stack (weight 1): item count + sig item (1+72) + pubkey item
         // (1+33) + witness-script item prefix + script bytes, plus the segwit
         // marker+flag (2) which are also weight 1. The 72- and 33-byte items are
         // both under 253, so their compactSize prefix is the literal 1 below.
-        let witnessBytes = 2                                    // marker + flag
+        const witnessBytes = 2                                    // marker + flag
             + 1                                                 // witness stack item count
             + (1 + 72)                                          // sig item
             + (1 + 33)                                          // compressed pubkey item
@@ -206,13 +206,13 @@ module.exports = {
         // lower bound, as the P2SH and envelope reveal estimates price their
         // outputs. Flooring to the threshold alone left a 34-byte pad unpriced and
         // the reveal ~10% under the requested rate on high-fee chains.
-        let strippedFloor = this.network.minStandardTxNonWitnessSize
+        const strippedFloor = this.network.minStandardTxNonWitnessSize
         if (strippedFloor && nonWitnessBytes < strippedFloor){
             nonWitnessBytes = Math.max(nonWitnessBytes + padOutputBytes, strippedFloor)
         }
 
         // vsize = ceil(total weight / 4) = nonWitnessBytes + ceil(witnessBytes/4)
-        let sizeEstimated = nonWitnessBytes
+        const sizeEstimated = nonWitnessBytes
             + Math.ceil(witnessBytes / 4)
             + 8 // safety margin for DER-sig length jitter (sig push assumes 72B)
 

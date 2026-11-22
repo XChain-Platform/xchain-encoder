@@ -19,9 +19,7 @@
  ********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib');
-
-// Only a compressed key has a standard P2WPKH script.
-const COMPRESSED_PUBKEY_RE = /^0[23][0-9a-fA-F]{64}$/
+const { COMPRESSED_PUBKEY_RE } = require('../../common/validator/constants')
 
 // The P2WPKH redeem script of the caller's key, or null when the key has none.
 function p2wpkhRedeemFor(keyHex, network){
@@ -44,6 +42,7 @@ function nestedP2wpkhRedeem(build, utxo){
     const script = Buffer.from(utxo.scriptPubKey, 'hex')
     // Verify the output is P2SH (OP_HASH160 <20> OP_EQUAL)
     if (script.length !== 23 || script[0] !== 0xa9 || script[1] !== 0x14 || script[22] !== 0x87) return null
+    // Only a compressed key has a standard P2WPKH script.
     const keys = [build.pubkey, build.compressedPubKey].filter(k => typeof k === 'string' && COMPRESSED_PUBKEY_RE.test(k))
     for (const key of keys){
         const redeem = p2wpkhRedeemFor(key, this.network)

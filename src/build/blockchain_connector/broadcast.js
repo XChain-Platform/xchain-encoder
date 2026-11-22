@@ -16,6 +16,7 @@ const axios = require('axios')
 const util = require('node:util');
 const { logger, RPC_TIMEOUT } = require('./constants');
 const { sanitizeRpcError } = require('./rpc_helpers');
+const { callerSafeError } = require('../../common/error_sanitize');
 
 // An Error carrying the node's own message and, when it sent one, its numeric
 // RPC code as nodeCode, so callers can tell a rejection from a transport fault.
@@ -82,7 +83,7 @@ module.exports = {
             if (responseData && responseData.result) {
                 return responseData.result;
             } else {
-                throw new Error('Error broadcasting transaction: empty result');
+                throw callerSafeError('Error broadcasting transaction: empty result');
             }
         } catch (error) {
             // bitcoind/litecoind/dogecoind return HTTP 500 for RPC-level errors

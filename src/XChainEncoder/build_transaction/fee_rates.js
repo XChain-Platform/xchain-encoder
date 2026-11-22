@@ -20,15 +20,15 @@
 
 const util = require('node:util');
 const { logger, SATOSHI_UNIT } = require('../constants.js')
-const { suggestedFeeCeilingPerByte, suggestedFeeCeilingFloorPerByte, capCallerFeeRate, clampLimitLabel } = require('../fee_policy.js')
+const { resolveSuggestedFeePerByte, capCallerFeeRate, clampLimitLabel } = require('../fee_policy.js')
 
 // The relay floor, per-byte rate this build charges, node rate the drain caps
 // anchor to, effective cap, and dust floor, settled in that order.
 function* resolveFeeRates(build){
-    let { feePerKb } = build
-    let feePerBytes = null
-    let nodeFeePerBytes = null
-    let relayFeePerKb = null
+    const { feePerKb } = build
+    const feePerBytes = null
+    const nodeFeePerBytes = null
+    const relayFeePerKb = null
     Object.assign(build, { feePerBytes, nodeFeePerBytes, relayFeePerKb })
     yield* resolveRelayFeeRate.call(this, build)
     if (feePerKb){
@@ -52,7 +52,8 @@ function* resolveRelayFeeRate(build){
 }
 
 function* useCallerFeeRate(build){
-    let { feePerKb, feePerBytes, nodeFeePerBytes } = build
+    const { feePerKb } = build
+    let { feePerBytes, nodeFeePerBytes } = build
     // feePerKb is the caller's rate in BASE UNITS (sat/litoshi/koinu)
     // per kB: docs/openrpc.json documents it as "base units per kB" and
     // the SDK's getFeeTiers() guidance is base-unit/vByte x 1000, the
@@ -84,43 +85,40 @@ function* useCallerFeeRate(build){
 }
 
 function* useNodeFeeRate(build){
-    let { feePerBytes, nodeFeePerBytes, relayFeePerKb } = build
+    const { relayFeePerKb } = build
+    let { feePerBytes, nodeFeePerBytes } = build
     feePerBytes = (yield this.connector.getFeePerKilobyte(1))/1000 //Highest fee. In bitcoin context every kilobyte is 1000 bytes
     nodeFeePerBytes = feePerBytes
     // Clamp only the rate chosen ON THE CALLER'S BEHALF, and only on a test
     // chain. nodeFeePerBytes keeps the raw estimate so the fee-drain caps
     // below still anchor to what the node actually reported.
-    let suggestedCap = suggestedFeeCeilingPerByte(this.networkKey, SATOSHI_UNIT)
-    if (suggestedCap != null && feePerBytes > suggestedCap){
-        const floor = suggestedFeeCeilingFloorPerByte(relayFeePerKb)
-        if (floor != null && floor > suggestedCap) suggestedCap = floor
-    }
+    const resolved = resolveSuggestedFeePerByte({ networkKey: this.networkKey, satoshiUnit: SATOSHI_UNIT,
+        nodeFeePerBytes, relayFeePerKb })
     // Compare with a relative epsilon. Both sides are coin-per-byte floats
     // derived by dividing by 1000 and by SATOSHI_UNIT, so a ceiling that
     // EQUALS the node rate (the ordinary case on a DOGE test chain, where the
     // relay-derived floor and the node rate are both ten times relayfee) can
     // land one ULP above it and clamp the value to itself, logging a ceiling
     // breach that did not happen. A real breach is never this close.
-    if (suggestedCap != null && feePerBytes > suggestedCap * (1 + 1e-12)){
+    if (resolved.clamped){
         if (!this._suggestedFeeClampWarned){
             this._suggestedFeeClampWarned = true
             logger.warn(`Suggested fee rate ${Math.round(feePerBytes * SATOSHI_UNIT)} per vByte exceeds the ` +
-                `test-chain ceiling; using ${Math.round(suggestedCap * SATOSHI_UNIT)} per vByte. ` +
+                `test-chain ceiling; using ${Math.round(resolved.cap * SATOSHI_UNIT)} per vByte. ` +
                 `Set SUGGESTED_FEE_MAX_PER_VBYTE to change or 0 to disable.`)
         }
-        feePerBytes = suggestedCap
     }
     // Never price a build under the node's own relay floor. An estimate can sit
     // under relayfee (a stale or custom estimator, a misconfigured ceiling), and a
     // caller who left the rate to the node has nothing to fix, so lift the rate here,
     // before selection, rather than refuse the build afterwards.
-    const relayFeePerBytes = relayFeePerKb / 1000
-    if (feePerBytes < relayFeePerBytes) feePerBytes = relayFeePerBytes
+    feePerBytes = resolved.feePerBytes
     Object.assign(build, { feePerBytes, nodeFeePerBytes })
 }
 
 function* anchorRelayFeeRate(build){
-    let { nodeFeePerBytes, relayFeePerKb } = build
+    const { relayFeePerKb } = build
+    let { nodeFeePerBytes } = build
     // Relative-cap anchor fallback. getFeePerKilobyte THROWS on mainnet when
     // estimatesmartfee has no data (fresh node, warming mempool, low
     // activity) or errors, and on any chain when the connector's relayfee
@@ -142,7 +140,8 @@ function* anchorRelayFeeRate(build){
 }
 
 function applyFeeCapAndDustFloor(build){
-    let { feePerBytes, nodeFeePerBytes, dust } = build
+    const { nodeFeePerBytes, dust } = build
+    let { feePerBytes } = build
     // Bound the rate that prices the fee AND sizes the P2SH/P2WSH legs, so a
     // hostile feePerKb cannot drain inputs to the miner. capFeePerBytes stays
     // the pure operator cap (null when both are off), so refuseExcessiveFee

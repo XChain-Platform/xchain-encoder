@@ -19,11 +19,14 @@
 
 const assert = require('assert')
 const crypto = require('crypto')
+const path = require('path')
 const bitcoin = require('bitcoinjs-lib')
 const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 const XChainEncoder = require('../../../src/XChainEncoder')
-const vectors = require('../../../../xchain-documentation/protocol/test-vectors/taproot_envelope.json');
+const { siblingCheckout, skipOrFail } = require('../../helpers/sibling_checkout.js')
+
+const VECTORS_FILE = path.join(__dirname, '../../../../xchain-documentation/protocol/test-vectors/taproot_envelope.json')
 
 bitcoin.initEccLib(ecc)
 const ECPair = ECPairFactory(ecc)
@@ -131,7 +134,9 @@ describe('XChainEncoder TAPROOT envelope', function () {
     })
 
     it('matches the golden grammar vector', function () {
-      const v = vectors.envelope_grammar
+      if (!skipOrFail(this, siblingCheckout(__dirname, VECTORS_FILE),
+        'the golden grammar vector guard against xchain-documentation')) return
+      const v = require(VECTORS_FILE).envelope_grammar
       const payload = Buffer.from(v.compiled_payload_hex, 'hex')
       const prepared = encoder.prepareData(payload, 'TAPROOT', callerAddress(encoder.network), v.internal_pubkey_compressed)
       assert.strictEqual(prepared.dataBufferArray[0].toString('hex'), v.envelope_script_hex, 'golden envelope bytes')

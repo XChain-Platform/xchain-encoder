@@ -52,7 +52,8 @@ describe('Encoder input validator', function () {
         });
 
         it('rejects the CAST payload one byte over the ceiling with a RangeError', function () {
-            // RangeError is what api.js maps to a JSON-RPC -32602 invalid-params.
+            // ParamRangeError is a RangeError subclass and toRpcError maps it to
+            // JSON-RPC -32602 invalid-params; a bare RangeError maps to -32603.
             assert.strictEqual(v.compiledPushSize(overCeiling.length), v.MAX_COMPILED_ACTION_DATA_LENGTH + 1);
             assert.throws(() => v.validateCombinedDataLength(overCeiling, null), RangeError);
         });

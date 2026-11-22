@@ -1,3 +1,13 @@
+// Copyright © 2025–2026 Dankest, LLC
+// Based on XChain Platform by Dankest, LLC – https://dankest.llc
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This file is part of XChain Platform. Licensed under the GNU Affero
+// General Public License v3.0 or later; see LICENSE.md. A commercial
+// license (without AGPL source-disclosure terms) is available -
+// contact legal@dankest.llc.
+
 'use strict'
 
 process.env.NETWORK = process.env.NETWORK || 'bitcoin-regtest'
@@ -207,7 +217,8 @@ describe('classifyTrackerFreshness(): the halt reason is tracker-authored', func
 
   it('bounds a long halt reason and keeps an absent one null', function () {
     const v = halted('r'.repeat(1000))
-    assert.ok(v.details.halt_reason.length <= 120)
+    assert.strictEqual(v.details.halt_reason, null)
+    assert.ok(v.message.includes('(unrecoverable reorg)'), v.message)
     assert.ok(v.message.length < 200, v.message)
     assert.strictEqual(halted(undefined).details.halt_reason, null)
   })

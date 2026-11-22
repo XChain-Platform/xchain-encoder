@@ -77,3 +77,44 @@ describe('capCallerFeeRate: operator cap against the burn backstop', () => {
     assert.strictEqual(r.feePerBytes, DRAIN)
   })
 })
+
+describe('capCallerFeeRate: a rate exactly at the limit is within it', () => {
+  // An anchor of 100 sat/kB (relayfee 1e-6 coin/kB, no node estimate) puts the
+  // x100 cap at 9999.999999999998 sat/kB in floats, one ULP under the 10000
+  // sat/kB a caller types.
+  const atCap = 10000 / 1000 / 1e8
+  const base = { nodeFeePerBytes: null, relayFeePerKb: 1e-6 }
+
+  it('multiplier cap: a caller rate exactly at the cap is not clamped', () => {
+    const r = capCallerFeeRate(Object.assign({ feePerBytes: atCap, maxFeePerBytes: null, maxFeeRateMultiplier: 100 }, base))
+    assert.strictEqual(r.limit, 'cap')
+    assert.strictEqual(r.clamped, false)
+    assert.strictEqual(r.feePerBytes, atCap)
+  })
+
+  it('fixed MAX_FEE_RATE_KB cap: a caller rate exactly at the cap is not clamped', () => {
+    const r = capCallerFeeRate({ feePerBytes: atCap, nodeFeePerBytes: ANCHOR, relayFeePerKb: 1e-6, maxFeePerBytes: 10000 / 1000 / 1e8, maxFeeRateMultiplier: null })
+    assert.strictEqual(r.limit, 'cap')
+    assert.strictEqual(r.clamped, false)
+    assert.strictEqual(r.feePerBytes, atCap)
+  })
+
+  it('backstop: a caller rate exactly at the backstop is not clamped', () => {
+    const r = capCallerFeeRate(Object.assign({ feePerBytes: atCap, maxFeePerBytes: null, maxFeeRateMultiplier: 1000 }, base))
+    assert.strictEqual(r.limit, 'backstop')
+    assert.strictEqual(r.clamped, false)
+    assert.strictEqual(r.feePerBytes, atCap)
+  })
+
+  it('a real excess still clamps to the ceiling on both limits', () => {
+    const over = (10000 + 1) / 1000 / 1e8
+    const c = capCallerFeeRate(Object.assign({ feePerBytes: over, maxFeePerBytes: null, maxFeeRateMultiplier: 100 }, base))
+    assert.strictEqual(c.limit, 'cap')
+    assert.strictEqual(c.clamped, true)
+    assert.strictEqual(c.feePerBytes, 1e-6 / 1000 * 100)
+    const b = capCallerFeeRate(Object.assign({ feePerBytes: over, maxFeePerBytes: null, maxFeeRateMultiplier: 1000 }, base))
+    assert.strictEqual(b.limit, 'backstop')
+    assert.strictEqual(b.clamped, true)
+    assert.strictEqual(b.feePerBytes, 1e-6 / 1000 * 100)
+  })
+})

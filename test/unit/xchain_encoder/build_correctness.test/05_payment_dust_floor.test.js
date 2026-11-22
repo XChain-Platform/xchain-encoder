@@ -20,6 +20,8 @@ const F = require('./helpers/build_fixture')
 const validator = require('../../../../src/common/validator')
 const { createJsonRpcController } = require('../../../../src/api/json_rpc_methods')
 
+const FLOORS = { btc: 546, ltc: 5460, doge: 100000 }
+
 function pay (coin, value, extra = {}) {
   const kind = coin === 'doge' ? 'p2pkh' : 'p2wpkh'
   return F.create(F.makeEncoder(coin), {
@@ -29,19 +31,17 @@ function pay (coin, value, extra = {}) {
   })
 }
 
-describe('caller payment outputs respect the coin relay dust threshold', () => {
-  const floors = { btc: 546, ltc: 5460, doge: 100000 }
-
-  for (const coin of Object.keys(floors)) {
-    it(`${coin}: the encoder exposes ${floors[coin]} as its payment floor`, () => {
-      assert.strictEqual(F.makeEncoder(coin).paymentOutputFloor, floors[coin])
+function registerPaymentOutputTests () {
+  for (const coin of Object.keys(FLOORS)) {
+    it(`${coin}: the encoder exposes ${FLOORS[coin]} as its payment floor`, () => {
+      assert.strictEqual(F.makeEncoder(coin).paymentOutputFloor, FLOORS[coin])
     })
     it(`${coin}: one unit under the floor is refused`, async () => {
-      await assert.rejects(pay(coin, floors[coin] - 1), (err) => err instanceof RangeError && /dust/.test(err.message))
+      await assert.rejects(pay(coin, FLOORS[coin] - 1), (err) => err instanceof RangeError && /dust/.test(err.message))
     })
     it(`${coin}: exactly the floor builds`, async () => {
-      const res = await pay(coin, floors[coin])
-      assert.ok(res.psbt.txOutputs.some((o) => Number(o.value) === floors[coin]))
+      const res = await pay(coin, FLOORS[coin])
+      assert.ok(res.psbt.txOutputs.some((o) => Number(o.value) === FLOORS[coin]))
     })
   }
 
@@ -53,12 +53,28 @@ describe('caller payment outputs respect the coin relay dust threshold', () => {
   it('a P2WSH funding call refuses a sub-dust payment before the commit is built', async () => {
     await assert.rejects(pay('btc', 545, { encoding: 'P2WSH' }), /dust/)
   })
+}
 
+function registerProtocolFeeTests () {
   it('the protocol-fee output injected from feeQuote keeps its own positive-amount rule', async () => {
-    const res = await pay('btc', 546, { feeQuote: { address: F.otherAddr('btc'), amount: 300 } })
-    assert.ok(res.psbt.txOutputs.some((o) => Number(o.value) === 300))
+    await assert.rejects(pay('btc', 546, { feeQuote: { address: F.otherAddr('btc'), amount: 300 } }),
+      (err) => err instanceof RangeError && /feeQuote\.amount/.test(err.message) && /dust/.test(err.message))
   })
 
+  for (const coin of Object.keys(FLOORS)) {
+    it(`${coin}: a protocol fee exactly at the floor builds`, async () => {
+      const res = await pay(coin, FLOORS[coin], { feeQuote: { address: F.otherAddr(coin), amount: FLOORS[coin] } })
+      assert.strictEqual(res.psbt.txOutputs.filter((o) => Number(o.value) === FLOORS[coin]).length, 2)
+    })
+  }
+
+  it('a P2WSH funding call refuses a sub-dust protocol fee before the commit is built', async () => {
+    await assert.rejects(pay('btc', 546, { encoding: 'P2WSH', feeQuote: { address: F.otherAddr('btc'), amount: 545 } }),
+      /feeQuote\.amount.*dust/)
+  })
+}
+
+function registerJsonRpcTests () {
   it('create_tx answers a sub-dust payment with -32602 before any node call', async () => {
     const encoder = F.makeEncoder('btc')
     const calls = []
@@ -71,6 +87,21 @@ describe('caller payment outputs respect the coin relay dust threshold', () => {
     assert.deepStrictEqual(calls, [])
   })
 
+  it('create_tx answers a sub-dust protocol fee with -32602 before any node call', async () => {
+    const encoder = F.makeEncoder('btc')
+    const calls = []
+    const info = encoder.connector.getNetworkInfo
+    encoder.connector.getNetworkInfo = (...args) => { calls.push('networkinfo'); return info(...args) }
+    const controller = createJsonRpcController({ encoder, NETWORK: 'bitcoin-regtest' })
+    const params = { pubkey: F.p2pkhAddr('btc'), data: 'BROADCAST|0|0|x', change: F.p2pkhAddr('btc'),
+      customOutputs: [{ address: F.otherAddr('btc'), value: 546 }], feeQuote: { address: F.otherAddr('btc'), amount: 545 } }
+    await assert.rejects(controller.create_tx(params),
+      (err) => err.code === -32602 && /feeQuote\.amount/.test(err.message) && /dust/.test(err.message))
+    assert.deepStrictEqual(calls, [])
+  })
+}
+
+function registerValidationTests () {
   describe('validateAll at the API boundary', () => {
     const base = { pubkey: 'addr', data: 'BROADCAST|0|0|x' }
     it('refuses an output under the floor the caller passes', () => {
@@ -84,5 +115,17 @@ describe('caller payment outputs respect the coin relay dust threshold', () => {
     it('keeps the positive-amount rule when no floor is passed', () => {
       assert.strictEqual(validator.validateAll({ ...base, customOutputs: [{ address: 'a', value: 1 }] }).customOutputs[0].value, 1)
     })
+    it('applies the floor to feeQuote only when the caller passes one', () => {
+      assert.throws(() => validator.validateAll({ ...base, feeQuote: { address: 'a', amount: 545 } }, { paymentOutputFloor: 546 }),
+        (err) => err instanceof RangeError && /feeQuote\.amount 545 is below the 546/.test(err.message))
+      assert.strictEqual(validator.validateAll({ ...base, feeQuote: { address: 'a', amount: 1 } }).feeQuote.amount, 1)
+    })
   })
+}
+
+describe('caller payment outputs respect the coin relay dust threshold', () => {
+  registerPaymentOutputTests()
+  registerProtocolFeeTests()
+  registerJsonRpcTests()
+  registerValidationTests()
 })

@@ -150,13 +150,15 @@ describe('E2E-8: Error Handling & Negative Tests', () => {
         throw new Error('ECONNREFUSED')
       }
 
+      // The refusal still propagates, but an unmarked transport error reaches the caller
+      // only as the sanitized tracker-unavailable message (finding 19119).
       await assert.rejects(
         () => encoder.createTransaction(
           null, address, null,
           action.data, null, 10000, false, null, address,
           null, null, null, true, 0.00001
         ),
-        /ECONNREFUSED/
+        /UTXO tracker unavailable/
       )
     })
   })

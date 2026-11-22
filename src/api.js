@@ -19,7 +19,7 @@
  ********************************************************************/
 
 const dotenv = require('dotenv')
-dotenv.config()
+dotenv.config({ quiet: true })
 const config = require('./common/config')
 
 // Before anything else logs. The API_KEY notice and env-validation lines
@@ -45,6 +45,7 @@ const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
 const crypto = require('crypto');
+const fs = require('fs'); const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { limitedHandler } = require('./server/rate_limit_log.js')
 const XChainEncoder  = require('./XChainEncoder');
@@ -79,9 +80,10 @@ function makeRpcBatchGuard(maxBatch){
 const { assertSingleInstance, acquireInstanceLock, releaseLockOnSignals } = require('./server/single_instance_guard')
 const { parseCorsOrigin } = require('./server/cors_origin')
 const { jsonErrorHandler } = require('./server/json_error_handler')
+const { installGateMetrics } = require('./server/gate_metrics')
 const { version: ENCODER_VERSION } = require('../package.json')
 const { installObservability } = require('./observability');   // default-off /metrics + structured log shim
-
+const { resolveApiPort, listenOrCrash } = require('./server/api_listen')
 
 const NETWORK = config.NETWORK_RAW
 const NODE_URL = config.NODE_URL
@@ -95,7 +97,7 @@ const ENCODER_API_PORT = config.ENCODER_API_PORT
 const _maxFeeRateKb = parseInt(config.MAX_FEE_RATE_KB, 10)
 const MAX_FEE_RATE_KB = (Number.isFinite(_maxFeeRateKb) && _maxFeeRateKb > 0) ? _maxFeeRateKb : null
 // Relative fee-rate ceiling as a multiple of the node's estimatesmartfee(1)
-// estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder.js).
+// estimate (default 100, DEFAULT_MAX_FEE_RATE_MULTIPLIER in XChainEncoder/constants.js).
 // Caps caller-supplied fee/feePerKb so a hostile request cannot drain inputs
 // into miner fee. Set to 0 to disable (not recommended).
 // An unset, unparseable or negative value keeps the encoder default (fail-safe).
@@ -277,11 +279,12 @@ app.use(requestGate)
 // as every other route. The request-timing middleware hoists itself to the front
 // of the stack so it still measures the routes registered above.
 // See src/observability/README.md.
-installObservability(app, {
+const observability = installObservability(app, {
     service: 'xchain-encoder',
     version: ENCODER_VERSION,
     network: NETWORK || ''
 });
+installGateMetrics(observability, { request: requestGate, probe: probeGate });
 
 // The readiness probe and every JSON-RPC method live beside this file; they
 // close over the encoder instance and network built above, so the part hands
@@ -333,7 +336,7 @@ app.get('/status', probeGate.hold(async (req, res) => {
 let openrpcSpec = null
 app.get('/openrpc.json', (req, res) => {
     if (!openrpcSpec)
-        openrpcSpec = require('fs').readFileSync(require('path').join(__dirname, '../docs/openrpc.json'))
+        openrpcSpec = fs.readFileSync(path.join(__dirname, '../docs/openrpc.json'))
     res.set('Cache-Control', 'public, max-age=3600')
     res.type('application/json').send(openrpcSpec)
 })
@@ -352,6 +355,11 @@ app.use(makeRpcBatchGuard(parseInt(config.ENCODER_MAX_RPC_BATCH, 10) || 20))
 // it throws ("req.body is required"). Restore the {} default so unmatched requests
 // that fall through to this root-mounted router get a normal JSON-RPC error
 // response instead of crashing the request.
+// The router's own reply to that {} has no jsonrpc member and is served 200, so a
+// request with no parsed body is refused first as a 400 JSON-RPC Invalid Request.
+app.use((req, res, next) => req.body !== undefined ? next() : res.status(400).json({
+    jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request, Content-Type must be application/json' }
+}))
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 // requestGate.hold: the router's middleware is async and awaits every method it
 // dispatches that carries an id. It starts an id-less batch entry without awaiting
@@ -377,6 +385,7 @@ if (require.main === module) {
   // src/server/single_instance_guard.js.
   // The crash handlers are already installed at the top of this file, so a
   // throw from the instance guard is still a CRASH record.
+  const apiPort = resolveApiPort(ENCODER_API_PORT)
   assertSingleInstance()
   const releaseInstanceLock = acquireInstanceLock()
   process.on('exit', releaseInstanceLock)
@@ -384,9 +393,7 @@ if (require.main === module) {
   // kill this process with SIGTERM, which needs its own release or the lockfile
   // outlives every restart.
   releaseLockOnSignals(releaseInstanceLock)
-  app.listen(ENCODER_API_PORT, () => {
-    console.log('API listening on port '+ENCODER_API_PORT);
-  });
+  listenOrCrash(app, apiPort)
 }
 
 module.exports = { app, jsonRpcController, encoder, makeRpcBatchGuard, requestGate, probeGate }

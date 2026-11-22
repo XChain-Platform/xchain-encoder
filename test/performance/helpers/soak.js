@@ -66,7 +66,7 @@ async function soak () {
   const deadline = Date.now() + DURATION_SECS * 1000
   let windowStart = Date.now()
   let windowOps = 0
-  let windowHist = new Histogram('window')
+  const windowHist = new Histogram('window')
   let windowNum = 0
   let baselineP99 = null
   let baselineHeap = null
@@ -89,8 +89,8 @@ async function soak () {
     // Window boundary
     if (Date.now() - windowStart >= WINDOW_SECS * 1000) {
       windowNum++
-      const elapsed_s = (Date.now() - windowStart) / 1000
-      const opsPerSec = (windowOps / elapsed_s).toFixed(0)
+      const elapsedS = (Date.now() - windowStart) / 1000
+      const opsPerSec = (windowOps / elapsedS).toFixed(0)
       const wp99 = windowHist.percentile(99) / 1e6
       const currentHeap = process.memoryUsage().heapUsed / 1e6
 

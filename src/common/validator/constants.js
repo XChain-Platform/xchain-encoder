@@ -15,8 +15,10 @@
  * XChain Encoder - Input Validator
  *
  * Centralized validation for all createTransaction parameters.
- * Every function throws TypeError or RangeError on invalid input,
- * or returns the (possibly coerced) valid value.
+ * Every function throws ParamTypeError or ParamRangeError from src/build/errors.js
+ * on invalid input, or returns the (possibly coerced) valid value. toRpcError in
+ * src/api/json_rpc_methods.js maps these marked errors to -32602; bare
+ * TypeError/RangeError instances map to -32603.
  *
  ********************************************************************/
 
@@ -99,7 +101,7 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/
 const COMPRESSED_PUBKEY_RE = /^(02|03)[0-9a-fA-F]{64}$/
 
 // Canonical ACTION names the decoder accepts (xchain-decoder VALID_ACTION_NAMES,
-// XChainDecoder.js). Vendored here byte-for-byte from
+// src/XChainDecoder/constants.js). Vendored here byte-for-byte from
 // xchain-documentation/protocol/action-manifest.json (wireDecoded slice), the
 // same source xchain-decoder/test/fixtures/action-manifest.json vendors from.
 // The decoder is the arbiter of which leading ACTION token survives
@@ -125,7 +127,7 @@ const VALID_ACTION_NAMES = new Set([
 
 // Short-form ACTION-name aliases, expanded to canonical form before the
 // VALID_ACTION_NAMES gate. Must stay identical to xchain-decoder's
-// ACTION_ALIASES (XChainDecoder.js): the decoder is what actually expands
+// ACTION_ALIASES (src/protocol/action_aliases.js): the decoder is what actually expands
 // these on-chain, so the encoder's pre-check has to agree with it exactly or
 // it will reject an alias the decoder would have accepted, or (worse) accept a
 // typo the decoder does not recognize as an alias.
@@ -143,8 +145,14 @@ const MAX_SATOSHI_U64 = 0xffffffffffffffffn
 // The create_tx options bag. Unknown keys are refused rather than ignored: a
 // misspelled capability that silently means "no" would send an envelope-capable
 // signer down the P2WSH path at 2x the cost with no signal, and a misspelled one
-// that silently meant "yes" would be worse.
-const VALID_CREATE_TX_OPTIONS = new Set(['signerSupportsTapscript', 'exactInputs'])
+// that silently meant "yes" would be worse. Must match the options keys described
+// for create_tx in docs/openrpc.build.js.
+const VALID_CREATE_TX_OPTIONS = new Set([
+    'signerSupportsTapscript',
+    'exactInputs',
+    'twoStepEnvelope',
+    'envelopeCommitHex'
+])
 // The create_tx top-level params, refused when unknown for the options-bag reason
 // above: a misspelled unconfirmed, feePerKb or rbf would silently build under the
 // default policy. Must equal the create_tx params in docs/openrpc.build.js.

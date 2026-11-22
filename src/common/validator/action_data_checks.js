@@ -31,7 +31,8 @@ const { ParamTypeError, ParamRangeError } = require('../../build/errors')
 // U+FFFD under utf8, and a code unit above U+00FF is truncated to its low byte
 // under latin-1. Accepting those silently mutates a fee-paid payload into bytes
 // the decoder can never reconstruct into the value that was validated, so refuse
-// them here instead. RangeError so api.js maps it to -32602 invalid-params. This
+// them here instead. ParamRangeError is mapped to -32602 invalid-params by
+// toRpcError in src/api/json_rpc_methods.js. A bare RangeError maps to -32603. This
 // rejects only non-roundtrippable inputs, leaving faithfully encoded inputs
 // unchanged.
 function validateDataParam(value, fieldName) {
@@ -100,9 +101,9 @@ function isMinimalOpSingleByte(buf) {
 // (XChainDecoder.js: !Buffer.isBuffer(decompiledData[0]) blanks the payload; a
 // non-Buffer decompiledData[1] drops rawData). Real ACTION payloads are
 // multi-byte text so this shape is degenerate, but it is fee-paid silent data
-// loss, so refuse it at validate time. Throws RangeError so api.js maps it to a
-// -32602 invalid-params classification. The empty-data cases are intentionally
-// out of scope here (see isMinimalOpSingleByte).
+// loss, so refuse it at validate time. Throws ParamRangeError, which toRpcError
+// in src/api/json_rpc_methods.js maps to -32602 invalid-params. The empty-data
+// cases are intentionally out of scope here (see isMinimalOpSingleByte).
 function validateActionPushDecodability(data, rawData) {
     if (data != null && isMinimalOpSingleByte(Buffer.from(data, 'utf8'))) {
         throw new ParamRangeError(
@@ -125,8 +126,9 @@ function validateActionPushDecodability(data, rawData) {
 // check, a typoed or not-yet-deployed ACTION name compiles into a valid,
 // fee-paid, broadcast transaction that the decoder then silently no-actions
 // (parseErrors++, decodedData = "" / tx skipped) with no error back to the
-// caller. Throws RangeError so api.js maps it to a -32602 invalid-params
-// classification, matching the validateActionPushDecodability convention.
+// caller. Throws ParamRangeError, which toRpcError in src/api/json_rpc_methods.js
+// maps to -32602 invalid-params, matching the validateActionPushDecodability
+// convention.
 // An empty/absent `data` intentionally skips this check: it has no leading
 // ACTION token to validate and the decoder never reaches its own name gate
 // for a zero-length payload either (see the `parseResult["data"].length > 0`

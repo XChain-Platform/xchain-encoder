@@ -26,3 +26,8 @@
 'use strict';
 
 process.env.XCHAIN_LOG_PATCH = '0';
+
+// GET /status and health() share one module-level readiness probe, and the
+// suites swap the tracker stub between probes; a cached tracker read would hand
+// them the previous stub's answer. The read-sharing window has its own tests.
+process.env.ENCODER_TRACKER_PROBE_TTL_MS = '0';

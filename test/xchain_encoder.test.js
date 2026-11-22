@@ -24,26 +24,26 @@ import {ECPairFactory} from 'ecpair'
 
 
 async function loadOpReturnFunds () {
-            var network = bitcoin.networks.regtest
+            const network = bitcoin.networks.regtest
         
-            var mnemonic = bip39.generateMnemonic()
+            const mnemonic = bip39.generateMnemonic()
             console.log("The seed for OP_RETURN test is: " + mnemonic)
 
-            var seed = bip39.mnemonicToSeedSync(mnemonic)
-            var root = bip32.fromSeed(seed, network)
-            var account = root.derivePath("m/44'/0'/0'/0")
-            var address = account.derive(0).derive(0)
-            var testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
+            const seed = bip39.mnemonicToSeedSync(mnemonic)
+            const root = bip32.fromSeed(seed, network)
+            const account = root.derivePath("m/44'/0'/0'/0")
+            const address = account.derive(0).derive(0)
+            const testAddress = bitcoin.payments.p2pkh({ pubkey: address.publicKey, network }).address
             console.log("address for OP_RETURN: "+testAddress)
 
-            let txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
-            let rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
+            const txId1 = await nodeClientTest.sendToAddress(testAddress, 1)
+            const rawTx1 = await nodeClientTest.getRawTransaction(txId1, true)
             await nodeClientTest.generateToAddress(1, mainTestAddress)
             
-            let utxos = []
+            const utxos = []
             let utxo1 = null
-            for (let nextVoutIndex in rawTx1["vout"]){
-                let nextVout = rawTx1["vout"][nextVoutIndex]
+            for (const nextVoutIndex in rawTx1["vout"]){
+                const nextVout = rawTx1["vout"][nextVoutIndex]
                 
                 if (("scriptPubKey" in nextVout) && ("address" in nextVout["scriptPubKey"]) && (nextVout["scriptPubKey"]["address"] == testAddress)){
                     utxo1 = {
@@ -79,12 +79,12 @@ async function createOpReturnTransaction ({ network, address, testAddress, utxos
 
             //Cargar el psbt
             const psbtParaFirmar = bitcoin.Psbt.fromBase64(psbtBase64)
-            var ECPair = ECPairFactory(ecc);
+            const ECPair = ECPairFactory(ecc);
 
-            let keyToSign = ECPair.fromPrivateKey(address.privateKey, { network });
+            const keyToSign = ECPair.fromPrivateKey(address.privateKey, { network });
 
-            for (let proxInputIndex in psbtParaFirmar.data.inputs){
-                let proxInput = psbtParaFirmar.data.inputs[proxInputIndex]            
+            for (const proxInputIndex in psbtParaFirmar.data.inputs){
+                const proxInput = psbtParaFirmar.data.inputs[proxInputIndex]
                 psbtParaFirmar.signInput(parseInt(proxInputIndex), keyToSign);
             }
             
@@ -93,7 +93,7 @@ async function createOpReturnTransaction ({ network, address, testAddress, utxos
             console.log("Sending the OP_RETURN transaction to the node")
             txHex = psbtParaFirmar.extractTransaction().toHex()
             
-            let txHash = await nodeHelper.broadcastTx(txHex)
+            const txHash = await nodeHelper.broadcastTx(txHex)
 
             return { txHash, data, rawData }
 }
@@ -107,24 +107,24 @@ describe('XChainEncoder', () => {
             await nodeClientTest.generateToAddress(1, mainTestAddress)
             
             console.log("Obtaining the OP_RETURN transaction from the node")
-            let txObj = await nodeHelper.getTransaction(txHash, false)
+            const txObj = await nodeHelper.getTransaction(txHash, false)
             
             console.log("Verifying the transaction structure and its data")
             assert(txObj["vin"].length == 1)
             assert(txObj["vout"].length == 2)
             
-            let scriptPubKeyData = txObj["vout"][0]["scriptPubKey"]["hex"].substr(4,64)
+            const scriptPubKeyData = txObj["vout"][0]["scriptPubKey"]["hex"].substr(4,64)
             
-            let txData = await nodeHelper.removeObfuscation(
+            const txData = await nodeHelper.removeObfuscation(
                 new Buffer.from(scriptPubKeyData, 'hex'),
                 txObj["vin"][0]["txid"]
             )
             
-            let txDataStr = txData.toString("utf-8")
+            const txDataStr = txData.toString("utf-8")
             
 			assert(txDataStr.substr(0,4) == "XCHN")
             
-			let decompiledData = bitcoin.script.decompile(txData.slice(4))
+			const decompiledData = bitcoin.script.decompile(txData.slice(4))
 			assert(decompiledData.length == 2)
             
 			assert(decompiledData[0] == data)

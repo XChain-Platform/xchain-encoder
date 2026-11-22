@@ -22,11 +22,11 @@ const util = require('node:util');
 const { OperationalError, ParamRangeError } = require('../../build/errors')
 const { logger, SATOSHI_UNIT, RESERVATION_TTL_MS, BURN_BACKSTOP_MULTIPLIER } = require('../constants.js')
 const { jsonSafeSat } = require('../script_amount_helpers.js')
-const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, feeForVsize } = require('../fee_policy.js')
+const { maxCpfpUpliftSat, packageFeeUpliftSatoshis, backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 
 // The caller-fee ceilings: the rate cap, then the absolute burn backstop.
 function refuseExcessiveFee(build){
-    let { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, feePerBytes } = build
+    const { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb } = build
     // The rate ceilings judge the caller's own fee; the soft-dust surcharge is policy.
     const estimatedFee = build.estimatedFee - (build.softDustSurcharge || 0)
     // Reject a caller-supplied absolute fee whose effective rate exceeds the
@@ -50,21 +50,18 @@ function refuseExcessiveFee(build){
     // the default MAX_FEE_RATE_MULTIPLIER, so default deployments are unaffected.
     // A caller feePerKb gets the same ceiling as a clamp, in capCallerFeeRate.
     //
-    // The fair-fee reference is the NODE's rate (nodeFeePerBytes), never the
-    // caller-supplied feePerKb: deriving the ceiling from feePerBytes let a
-    // caller inflate feePerKb to lift the ceiling with it, bypassing the
-    // backstop entirely whenever the rate cap was disabled. feePerBytes is
-    // used only as a last resort when the node can produce neither an
-    // estimate nor a relayfee (same graceful degradation as the relative
-    // cap, and the caller cannot cause that condition).
+    // The fair-fee reference is the node estimate, or the node relayfee when no
+    // estimate exists, never the caller's rate. If neither exists, an explicit-fee
+    // build is refused and an ancestor uplift is skipped.
     if (fee != null && fee !== false){
-        const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
-        if (referenceFeePerBytes != null){
-            const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
-            const hardCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
-            if (estimatedFee > hardCeiling){
-                throw new ParamRangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
-            }
+        const referenceFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+        if (referenceFeePerBytes == null){
+            throw new Error('Node reported neither a fee estimate nor a positive relayfee; the fee burn backstop cannot be anchored')
+        }
+        const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
+        const hardCeiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
+        if (estimatedFee > hardCeiling){
+            throw new ParamRangeError(`fee ${estimatedFee} exceeds ${BURN_BACKSTOP_MULTIPLIER}x the estimated fair fee (${fairFee} satoshis) for a ~${estimatedTxSize}-byte transaction`)
         }
     }
 }
@@ -103,7 +100,8 @@ function refuseInsufficientRelayFee(build){
 }
 
 function* upliftForAncestors(build){
-    let { unconfirmedInputTxids, feePerBytes, estimatedFee, estimatedTxSize } = build
+    const { unconfirmedInputTxids, feePerBytes, estimatedTxSize } = build
+    let { estimatedFee } = build
     // CPFP-aware package sizing.
     //
     // A miner fills a block by ANCESTOR fee rate, so a transaction spending
@@ -161,8 +159,9 @@ function* upliftForAncestors(build){
 
 // The ancestor uplift actually applied, bounded by every ceiling and by the inputs.
 function upliftAncestorFee(build, ancestorPackage, wanted, cpfpUpliftBound){
-    let { capFeePerBytes, estimatedTxSize, estimatedFee, nodeFeePerBytes, feePerBytes, p2shHash, inputSatoshis,
+    const { capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb, feePerBytes, p2shHash, inputSatoshis,
         outputSatoshis, unconfirmedInputTxids } = build
+    let { estimatedFee } = build
 // Its own absolute bound first: the uplift buys ancestor bytes, and
 // the rate caps below only ever measure a fee against THIS
 // transaction's size.
@@ -173,8 +172,10 @@ if (capFeePerBytes != null){
     allowed = Math.min(allowed, maxFeeSatoshis - estimatedFee)
 }
 
-const referenceFeePerBytes = nodeFeePerBytes != null ? nodeFeePerBytes : feePerBytes
-if (referenceFeePerBytes != null){
+const referenceFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+if (referenceFeePerBytes == null){
+    allowed = 0
+} else {
     const fairFee = Math.ceil(estimatedTxSize * referenceFeePerBytes * SATOSHI_UNIT)
     allowed = Math.min(allowed, Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER) - estimatedFee)
 }
@@ -218,7 +219,7 @@ function floorEstimatedFee(build){
 }
 
 function prefundRevealPackage(build){
-    let { revealPrefund, p2shHash, feePerBytes, cpfpUpliftBound, estimatedTxSize, commitAncestorSize, estimatedFee,
+    const { revealPrefund, p2shHash, feePerBytes, cpfpUpliftBound, estimatedTxSize, commitAncestorSize, estimatedFee,
         commitAncestorFeeSat } = build
     // Two-phase package prefund.
     //
@@ -261,12 +262,27 @@ function prefundRevealPackage(build){
 
 // Moves the bounded prefund into the commit output that carries the reveal's fee.
 function applyRevealPrefund(build, wanted){
-    let { cpfpUpliftBound, inputSatoshis, outputSatoshis, estimatedFee, commitAncestorSize, estimatedTxSize,
-        revealPrefund, commitAncestorFeeSat, feePerBytes, psbt, envelopeContext } = build
+    const { cpfpUpliftBound, inputSatoshis, estimatedFee, commitAncestorSize, estimatedTxSize,
+        commitAncestorFeeSat, feePerBytes, psbt, envelopeContext, nodeFeePerBytes, relayFeePerKb } = build
+    const { revealPrefund } = build; let { outputSatoshis } = build
 // The same absolute bound the single-tx uplift answers to: this
 // buys someone else's bytes, so no rate cap measured against one
 // transaction's size can bound it.
 let allowed = Math.min(wanted, cpfpUpliftBound)
+
+// Bound the pair's total fee by the same node-anchored burn backstop as a
+// single transaction. Ancestor bytes can justify a package uplift, but cannot
+// raise the amount this commit and reveal are allowed to burn on their own.
+const referenceFeePerBytes = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+let backstopRoom = 0
+if (referenceFeePerBytes != null){
+    const pairSize = estimatedTxSize + revealPrefund.revealSize
+    const fairFee = Math.ceil(pairSize * referenceFeePerBytes * SATOSHI_UNIT)
+    const ceiling = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER)
+    backstopRoom = ceiling - (estimatedFee - (build.softDustSurcharge || 0)) - revealPrefund.revealFee
+}
+const clampedByBackstop = backstopRoom < allowed
+allowed = Math.min(allowed, backstopRoom)
 
 // Never spend an input that is not there. The prefund is paid out
 // of change, so it is bounded by what change actually holds;
@@ -280,11 +296,15 @@ if (allowed < 0) allowed = 0
 if (allowed < wanted){
     const packageSize = commitAncestorSize + estimatedTxSize + revealPrefund.revealSize
     const packageFee = commitAncestorFeeSat + estimatedFee + revealPrefund.revealFee + allowed
+    const advice = clampedByBackstop
+        ? `The ${BURN_BACKSTOP_MULTIPLIER}x burn backstop over the commit and reveal bytes limited the prefund; ` +
+            `wait for the unconfirmed ancestors to confirm or fund the build from confirmed inputs.`
+        : `Raise MAX_CPFP_UPLIFT_SAT, the commit's fee, or the input balance.`
     logger.warn(`Reveal package prefund clamped to ${allowed} of ${wanted} base units: this commit ` +
         `pays ${estimatedFee} base units over ~${estimatedTxSize} bytes, so the commit/reveal package ` +
         `will pay ${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
         `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)}. The reveal cannot raise its own fee later, ` +
-        `so the pair may stay unmined. Raise MAX_CPFP_UPLIFT_SAT, the commit's fee, or the input balance.`)
+        `so the pair may stay unmined. ${advice}`)
 }
 
 if (allowed > 0){
@@ -303,7 +323,7 @@ if (allowed > 0){
 }
 
 function computeChange(build){
-    let { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change, requestedFee } = build
+    const { estimatedFee, inputSatoshis, outputSatoshis, p2shHash, reservedCandidates, change, requestedFee } = build
     // Validate the fee BEFORE the BigInt conversion below: BigInt(estimatedFee)
     // throws an opaque error on a NaN/Infinity fee, where this check names the cause.
     // A plain Error (API -32603): the validator already bounds every caller fee
@@ -315,7 +335,7 @@ function computeChange(build){
     // Exact change math in BigInt: with a >2^53-1-sat input, Number
     // subtraction would round the change (and the caller would sign a
     // PSBT whose change is off by up to ~2 sats per 2^53).
-    let changeSatoshis = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
+    const changeSatoshis = inputSatoshis - outputSatoshis - BigInt(estimatedFee)
 
     // Reject a genuinely under-funded selection instead of returning an
     // unbroadcastable PSBT whose outputs exceed its inputs (the caller would

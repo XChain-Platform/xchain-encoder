@@ -79,7 +79,7 @@ function create (encoder, a) {
     a.fee == null ? null : a.fee, false, a.encoding == null ? null : a.encoding, a.change == null ? null : a.change,
     a.p2shHash || null, a.p2shHex || null, a.compressedPubKey || null,
     a.unconfirmed === undefined ? true : a.unconfirmed, a.feePerKb == null ? null : a.feePerKb,
-    null, a.feeQuote || null, false, false, null)
+    a.dust == null ? null : a.dust, a.feeQuote || null, false, false, null)
 }
 
 // The unsigned transaction with every input carrying a worst-case signature.

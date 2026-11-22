@@ -44,13 +44,8 @@ const crypto = require('crypto')
 const { getLogger } = require('../observability');
 const config = require('../common/config');
 const { breakStaleLock, withStaleBreakMutex } = require('./stale_lock_breaker')
+const { NO_HARDLINK_CODES } = require('./lock_file_protocol')
 const logger = getLogger();
-
-// Filesystems that cannot hard-link. The atomic publication below falls back to
-// the older open-'wx'-then-write on exactly these and on nothing else, because
-// swallowing an unrecognized errno would silently give up the atomicity the
-// whole protocol rests on.
-const NO_HARDLINK_CODES = new Set(['EPERM', 'ENOSYS', 'EOPNOTSUPP', 'ENOTSUP', 'EXDEV'])
 
 // How many times a contender re-reads a lock whose record is not yet legible,
 // and the pause between passes. A half-written record means an owner is mid
@@ -148,7 +143,7 @@ function selfDescription() {
 // Publication also takes the stale-break mutex, so a fresh owner cannot occupy
 // the path between a breaker's verified read and unlink.
 // `token` is the acquisition's ownership token, `self` describes this process.
-function publishLock(file, token, self) {
+function publishLock(file, token, self, deps) {
     return withStaleBreakMutex(file, token, () => {
         const record = JSON.stringify({ pid: process.pid, cmd: self(), token })
         const tmp = file + '.' + process.pid + '.' + token.slice(0, 8) + '.tmp'
@@ -171,7 +166,7 @@ function publishLock(file, token, self) {
         } finally {
             if (tmpWritten) { try { fs.unlinkSync(tmp) } catch (e) { /* already gone */ } }
         }
-    })
+    }, deps)
 }
 
 // Read the record at the lock path. Accepts three shapes: the JSON written
@@ -298,7 +293,7 @@ function acquireInstanceLock(lockPath, env = config, deps = {}) {
 
     for (let pass = 0; ; pass++) {
         try {
-            publishLock(file, token, self)
+            publishLock(file, token, self, deps)
             break
         } catch (err) {
             if (err.code !== 'EEXIST') throw err
@@ -307,7 +302,7 @@ function acquireInstanceLock(lockPath, env = config, deps = {}) {
             if (Number.isInteger(holderPid) && holderPid > 0 && alive(holderPid) && holderPid !== process.pid) {
                 refuseLiveEncoder(holder, file, describe)
             }
-            breakStaleLock(file, holder.text, token, pass)
+            breakStaleLock(file, holder.text, token, pass, deps)
         }
     }
 

@@ -21,15 +21,16 @@
 const bitcoin = require('bitcoinjs-lib');
 const util = require('node:util');
 const TxSizeEstimator = require('../../build/tx_size_estimator')
-const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, Encoding } = require('../constants.js')
-const { envelopeTapLeafHash, asSatValue } = require('../script_amount_helpers.js')
-const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, feeForVsize } = require('../fee_policy.js')
+const { logger, TAPROOT_LEAF_VERSION, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, Encoding } = require('../constants.js')
+const { envelopeTapLeafHash, asSatValue, compactSizeLen } = require('../script_amount_helpers.js')
+const { packageFeeUpliftSatoshis, maxCpfpUpliftSat, backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 const { resolveCallerAddress } = require('../request_resolution.js')
 const { revealNeedsFloorPad } = require('./script_hash_legs.js')
+const { estimateRevealSizes, wantedRevealFee, judgeRevealFee, judgePaddedRevealFee } = require('./reveal_fee_checks.js')
 
 // The change output, then the P2WSH reveal's stripped-size floor pad.
 function emitChangeAndPad(build){
-    let { changeSatoshis, change, psbt, p2shHash, preparedData, pubkey } = build
+    const { changeSatoshis, change, psbt, p2shHash, preparedData, pubkey } = build
     if ((changeSatoshis > 0) && (change)) {
         // Emit change only at or above the relay floor for authored outputs; below it the
         // output is non-standard or soft dust that makes the transaction unrelayable, so it
@@ -60,21 +61,18 @@ function emitChangeAndPad(build){
     // OP_RETURN would be non-standard (multi-op-return), so we cannot pad
     // with that. The funding tx already over-funded this reveal by one dust
     // (see the P2WSH funding branch) so the output's value is available.
-    let strippedFloor = this.network.minStandardTxNonWitnessSize
+    const strippedFloor = this.network.minStandardTxNonWitnessSize
     if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && strippedFloor){
         // Resolved only when the pad is added, so an unused caller identity is never refused here.
-        let padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
-        if (padAddress){
-            psbt.addOutput({
-                address: padAddress,
-                value: this.dustAmount
-            })
-        }
+        const padAddress = this.strippedTxSize(psbt) < strippedFloor ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        // Its value is settled after the reveal fee is known, so every leg unit
+        // above that fee returns to the caller instead of becoming miner fee.
+        if (padAddress) build.revealPadAddress = padAddress
     }
 }
 
 function* sweepP2shReveal(build){
-    let { p2shHash, preparedData, phaseLegInputSatoshis, customOutputs, feePerBytes, estimatedFee, outputSatoshis,
+    const { p2shHash, preparedData, phaseLegInputSatoshis, customOutputs, feePerBytes, estimatedFee, outputSatoshis,
         change, pubkey, psbt, softDustSurcharge } = build
     // Sweep the P2SH reveal's leg surplus back to the
     // caller. The funding tx (P2SH funding branch above) tops the first leg
@@ -93,15 +91,8 @@ function* sweepP2shReveal(build){
     // headroom, and so is a single-chunk one whose caller outputs clear the stripped
     // floor. A single-chunk one under the floor was funded a floor pad instead and is not swept.
     if (p2shHash && sweepsRevealSurplus.call(this, build) && phaseLegInputSatoshis > 0n){
-        let revealEmittedOutputBytes = 43 // change output (worst case), matching the reserve above
-        if (customOutputs && Array.isArray(customOutputs)){
-            for (let i = 0; i < customOutputs.length; i++){
-                revealEmittedOutputBytes = revealEmittedOutputBytes + TxSizeEstimator.estimateOutputSizeForAddress(customOutputs[i].address, this.network)
-            }
-        }
-        const revealSizeForFee = preparedData["encoding"] === Encoding.P2SH
-            ? this.estimateP2shRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
-            : this.estimateP2wshRevealTx(preparedData["dataBufferArray"], revealEmittedOutputBytes)
+        const revealSizes = estimateRevealSizes.call(this, preparedData, customOutputs)
+        const revealSizeForFee = revealSizes.withSweep
         // estimatedFee already carries the soft-dust surcharge. Compare the two base
         // fees, then put that surcharge back exactly once after the larger base wins.
         const surcharge = softDustSurcharge || 0
@@ -112,19 +103,71 @@ function* sweepP2shReveal(build){
         }
         revealFeeKept = revealFeeKept + surcharge
 
+        const feeBeforeUplift = revealFeeKept
         revealFeeKept = (yield* upliftRevealForCommit.call(this, build, revealSizeForFee, revealFeeKept))
 
-        let revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
+        const revealSurplus = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept)
         // The sweep is an authored output: below the relay floor the surplus stays as fee,
         // and the caller identity is resolved only when the sweep is added.
-        let sweepAddress = revealSurplus >= BigInt(this.outputFloor) ? (change || resolveCallerAddress(pubkey, this.network)) : null
+        const sweepAddress = revealSurplus >= BigInt(this.outputFloor) ? (change || resolveCallerAddress(pubkey, this.network)) : null
         if (sweepAddress){
             psbt.addOutput({
                 address: sweepAddress,
                 value: asSatValue(revealSurplus)
             })
         }
+        // Unswept, the reveal emits no sweep slot, so it is judged on the fee its real
+        // outputs ask for plus any package uplift it kept.
+        const wantedFee = sweepAddress ? revealFeeKept
+            : wantedRevealFee.call(this, build, revealSizes.withoutSweep) + (revealFeeKept - feeBeforeUplift)
+        judgeRevealFee.call(this, build, wantedFee, sweepAddress ? revealSizes.withSweep : revealSizes.withoutSweep, revealFeeKept)
+    } else if (p2shHash && preparedData["encoding"] === Encoding.P2WSH && phaseLegInputSatoshis > 0n){
+        yield* settlePaddedReveal.call(this, build)
     }
+}
+
+// A padded reveal must keep a rate-priced fee and return the rest through its
+// required value output. This also repairs an already-funded leg whose caller
+// dust was much larger than the chain floor.
+function* settlePaddedReveal(build){
+    const { preparedData, phaseLegInputSatoshis, psbt, revealPadAddress } = build
+    if (!revealPadAddress) {
+        judgePaddedRevealFee.call(this, build)
+        return
+    }
+    let valueOutputBytes = TxSizeEstimator.estimateOutputSizeForAddress(revealPadAddress, this.network)
+    let emittedValue = 0n
+    for (const output of psbt.txOutputs) {
+        if (BigInt(output.value) <= 0n) continue
+        emittedValue += BigInt(output.value)
+        valueOutputBytes += 8 + compactSizeLen(output.script.length) + output.script.length
+    }
+    const revealSize = this.estimateP2wshRevealTx(preparedData["dataBufferArray"], valueOutputBytes)
+    let revealFeeKept = wantedRevealFee.call(this, build, revealSize)
+    revealFeeKept = yield* upliftRevealForCommit.call(this, build, revealSize, revealFeeKept)
+    const available = phaseLegInputSatoshis - emittedValue - BigInt(revealFeeKept)
+    const padValue = available >= BigInt(this.outputFloor) ? available : BigInt(this.outputFloor)
+    psbt.addOutput({ address: revealPadAddress, value: asSatValue(padValue) })
+    build.revealPadOutputIndex = psbt.txOutputs.length - 1
+    judgePaddedRevealFee.call(this, build)
+    checkPaddedRevealBackstop.call(this, build, revealSize)
+}
+
+// This is a tripwire rather than a refusal: refusing a reveal may strand a
+// confirmed commit. The sweep above should make the warning unreachable, but
+// a firing check is logged and returned to the signer in result.warnings.
+function checkPaddedRevealBackstop(build, revealSize){
+    const { nodeFeePerBytes, phaseLegInputSatoshis, psbt, relayFeePerKb } = build
+    const reference = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+    if (reference == null) return
+    const outputs = psbt.txOutputs.reduce((sum, output) => sum + BigInt(output.value), 0n)
+    const actualFee = phaseLegInputSatoshis - outputs
+    const fairFee = feeForVsize(revealSize, reference, SATOSHI_UNIT)
+    const ceiling = BigInt(Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER))
+    if (actualFee <= ceiling) return
+    const message = `padded reveal fee ${actualFee} exceeds the node-anchored burn ceiling ${ceiling}`
+    logger.warn(`REVEAL_FEE_OVER_BACKSTOP: ${message}`)
+    build.revealFeeCeilingMessage = message
 }
 
 // Which chunk reveals end with a surplus sweep back to the caller: those whose first
@@ -137,7 +180,7 @@ function sweepsRevealSurplus(build){
 }
 
 function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
-    let { feePerBytes, p2shHash } = build
+    const { feePerBytes, p2shHash } = build
     // Keep the package prefund as FEE instead of sweeping it home.
     //
     // The reveal spends only the commit's legs, so commit and reveal are
@@ -180,9 +223,32 @@ function* upliftRevealForCommit(build, revealSizeForFee, revealFeeKept){
     return revealFeeKept
 }
 
-// The reveal-side uplift actually kept as fee, bounded by the legs' spendable surplus.
+function clampRevealFeeCeilings(build, allowed, revealSizeForFee, revealFeeKept){
+    const { capFeePerBytes, nodeFeePerBytes, relayFeePerKb } = build
+    let limitingCeiling = null
+    if (capFeePerBytes != null){
+        const maxFee = Math.max(this.dustAmount,
+            feeForVsize(revealSizeForFee, capFeePerBytes, SATOSHI_UNIT))
+        const room = maxFee - revealFeeKept
+        if (room < allowed) limitingCeiling = 'fee-rate cap'
+        allowed = Math.min(allowed, room)
+    }
+    const reference = backstopReferenceFeePerBytes({ nodeFeePerBytes, relayFeePerKb })
+    if (reference == null){
+        if (allowed > 0) limitingCeiling = 'fixed burn backstop'
+        allowed = 0
+    } else {
+        const fairFee = feeForVsize(revealSizeForFee, reference, SATOSHI_UNIT)
+        const room = Math.max(this.dustAmount, fairFee * BURN_BACKSTOP_MULTIPLIER) - revealFeeKept
+        if (room < allowed) limitingCeiling = 'fixed burn backstop'
+        allowed = Math.min(allowed, room)
+    }
+    return { allowed: Math.max(0, allowed), limitingCeiling }
+}
+
+// The reveal-side uplift actually kept as fee, bounded by every ceiling and by the legs.
 function clampRevealUplift(build, commitPackage, wanted, revealUpliftBound, revealSizeForFee, revealFeeKept){
-    let { customOutputs, phaseLegInputSatoshis, outputSatoshis, feePerBytes } = build
+    const { customOutputs, phaseLegInputSatoshis, outputSatoshis, feePerBytes } = build
 // The legs are the only money this transaction has, and every
 // satoshi above the fee is already spoken for by the outputs
 // it must emit. Spend the surplus and not one unit more.
@@ -196,16 +262,20 @@ const emitsValueOutput = !!(customOutputs && Array.isArray(customOutputs) && cus
 const sweepReserve = emitsValueOutput ? 0n : BigInt(this.outputFloor)
 const spendable = phaseLegInputSatoshis - outputSatoshis - BigInt(revealFeeKept) - sweepReserve
 let allowed = Math.min(wanted, revealUpliftBound)
+const ceilingClamp = clampRevealFeeCeilings.call(this, build, allowed, revealSizeForFee, revealFeeKept)
+allowed = ceilingClamp.allowed
 if (spendable <= 0n) allowed = 0
 else if (spendable < BigInt(allowed)) allowed = Number(spendable)
 if (allowed < wanted){
     const packageSize = commitPackage.size + revealSizeForFee
     const packageFee = Math.round(commitPackage.fees * SATOSHI_UNIT) + revealFeeKept + allowed
+    const advice = ceilingClamp.limitingCeiling
+        ? ` The ${ceilingClamp.limitingCeiling} limited the uplift; the remaining leg surplus is swept back to the caller.`
+        : ` The reveal has no other input to raise, so rebuild the commit with a package-aware fee.`
     logger.warn(`Reveal package fee uplift clamped to ${allowed} of ${wanted} base units: the commit ` +
         `package totals ${commitPackage.size} bytes, so the commit/reveal package will pay ` +
         `${Math.round(packageFee / packageSize * 1000)} base units/kB against a target of ` +
-        `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)} and may stay unmined. The reveal has no ` +
-        `other input to raise, so rebuild the commit with a package-aware fee.`)
+        `${Math.round(feePerBytes * SATOSHI_UNIT * 1000)} and may stay unmined.${advice}`)
 }
 if (allowed > 0){
     revealFeeKept = revealFeeKept + allowed
@@ -214,13 +284,13 @@ if (allowed > 0){
 }
 
 function buildEnvelopeReveal(build){
-    let { envelopeContext } = build
+    const { envelopeContext } = build
     // Envelope reveal construction. Runs only on the
     // TAPROOT funding path, after input selection and change, so the commit
     // transaction is final in shape and its unsigned txid is the txid the
     // network will see (segwit-only inputs, enforced above).
-    let revealPsbt = null
-    let envelopeResult = null
+    const revealPsbt = null
+    const envelopeResult = null
     Object.assign(build, { revealPsbt, envelopeResult })
     if (envelopeContext){
         locateEnvelopeCommit.call(this, build)
@@ -230,7 +300,7 @@ function buildEnvelopeReveal(build){
 
 // The commit's unsigned txid, the envelope output's index, and the control block.
 function locateEnvelopeCommit(build){
-    let { psbt, envelopeContext } = build
+    const { psbt, envelopeContext } = build
     // Every commit input is signed SIGHASH_ALL. Attribution rides
     // the commit's ins[0]; ANYONECANPAY-style signing would make index 0
     // third-party-insertable in a replacement. The PSBT field makes the
@@ -261,7 +331,8 @@ function locateEnvelopeCommit(build){
 }
 
 function buildRevealPsbt(build){
-    let { envelopeContext, utxoSequence, commitTxid, commitVout, controlBlock, revealPsbt, envelopeResult } = build
+    const { envelopeContext, utxoSequence, commitTxid, commitVout, controlBlock } = build
+    let { revealPsbt, envelopeResult } = build
     revealPsbt = new bitcoin.Psbt({ network: this.network })
     // Reveal input 0 MUST be the commit outpoint; the decoder's
     // recognition and attribution assume it. RBF preference mirrors the
@@ -282,12 +353,12 @@ function buildRevealPsbt(build){
         }]
     })
     // Change back to the caller: the commit value minus the reveal's
-    // prefunded fee (and minus the floor pad's dust when present) is
-    // exactly the dust floor by construction; it exists because the
+    // prefunded fee (and minus the floor pad when present) is the caller's
+    // requested dust floor by construction; it exists because the
     // reveal must carry an output and it doubles as the CPFP handle.
     const revealChangeValue = envelopeContext.commitValue
         - envelopeContext.revealFee
-        - (envelopeContext.revealPadNeeded ? this.dustAmount : 0)
+        - (envelopeContext.revealPadNeeded ? this.outputFloor : 0)
     revealPsbt.addOutput({
         address: envelopeContext.revealChangeAddress,
         value: revealChangeValue
@@ -295,7 +366,7 @@ function buildRevealPsbt(build){
     if (envelopeContext.revealPadNeeded){
         revealPsbt.addOutput({
             address: envelopeContext.revealChangeAddress,
-            value: this.dustAmount
+            value: this.outputFloor
         })
     }
 

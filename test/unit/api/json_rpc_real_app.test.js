@@ -62,7 +62,11 @@ async function loadRealApp () {
   const originalReadMaintenanceWindow = maintenance.readMaintenanceWindow
   const priorNetwork = process.env.NETWORK
   const priorApiKey = process.env[API_KEY_ENV]
-  dotenv.config = () => ({ parsed: {} })
+  let dotenvOptions
+  dotenv.config = options => {
+    dotenvOptions = options
+    return { parsed: {} }
+  }
   maintenance.readMaintenanceWindow = async () => null
   process.env.NETWORK = 'bitcoin-regtest'
   delete process.env[API_KEY_ENV]
@@ -70,6 +74,7 @@ async function loadRealApp () {
   delete require.cache[JSON_RPC_METHODS_PATH]
   try {
     api = require(API_PATH)
+    assert.deepStrictEqual(dotenvOptions, { quiet: true })
   } finally {
     dotenv.config = originalDotenvConfig
     maintenance.readMaintenanceWindow = originalReadMaintenanceWindow
@@ -103,6 +108,9 @@ async function routeEachPublicHandler () {
     calls.fees.push(target)
     return target / 100000
   }
+  api.encoder.connector.getNetworkInfo = async () => ({ relayfee: 0.00001 })
+  // The backend is stubbed, so its param validation is too.
+  api.encoder.validateEnvelopeCancelParams = () => {}
   api.encoder.createEnvelopeCancelTransaction = async params => {
     calls.cancel.push(params)
     return { psbt: { toHex: () => 'cancel-psbt' }, encoding: 'TAPROOT', cancel: true }

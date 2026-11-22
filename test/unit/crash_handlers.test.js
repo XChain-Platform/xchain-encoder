@@ -19,6 +19,7 @@ const assert = require('assert')
 const childProcess = require('child_process')
 const { EventEmitter } = require('events')
 const fs = require('fs')
+const net = require('net')
 const os = require('os')
 const path = require('path')
 
@@ -68,5 +69,5 @@ describe('encoder crash handlers', function () {
 
 // Kept out of the block above: its hooks reset the shim this process does not use here.
 describe('encoder crash handlers', function () {
-  registerBootOrderTests({ assert, childProcess, fs, os, path, dirname: __dirname })
+  registerBootOrderTests({ assert, childProcess, fs, net, os, path, dirname: __dirname })
 })

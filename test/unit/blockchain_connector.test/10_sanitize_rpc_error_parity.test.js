@@ -9,10 +9,10 @@
 // contact legal@dankest.llc.
 
 const assert = require('assert')
-const fs = require('fs')
 const path = require('path')
 const util = require('util')
 const { sanitizeRpcError, rpcErrorDetail } = require('../../../src/build/blockchain_connector/rpc_helpers')
+const { siblingCheckout, skipOrFail } = require('../../helpers/sibling_checkout.js')
 
 const FAKE_RPC_PASSWORD = 'FAKEPASS_must_never_be_logged_10'
 
@@ -72,8 +72,9 @@ describe('sanitizeRpcError() parity with the xchain-decoder twin', function () {
   let twin
 
   before(function () {
+    if (!skipOrFail(this, siblingCheckout(__dirname, TWIN),
+      'the sanitizeRpcError parity guard against xchain-decoder')) return
     try {
-      if (!fs.existsSync(TWIN)) throw new Error('not found at ' + TWIN)
       twin = require(TWIN)
     } catch (e) {
       if (process.env.XCHAIN_REQUIRE_SIBLINGS === '1') {

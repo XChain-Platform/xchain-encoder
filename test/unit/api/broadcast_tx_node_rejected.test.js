@@ -46,14 +46,14 @@ describe('broadcast_tx node rejection codes', function () {
   it('answers a node rejection as -32010 NODE_REJECTED with the node code', async function () {
     const e = await rejection(controllerFailing(nodeError('min relay fee not met', -26)))
     assert.strictEqual(e.code, -32010)
-    assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26 })
+    assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26, node_reason: 'MIN_RELAY_FEE' })
     assert.match(e.message, /min relay fee not met/)
   })
 
   it('answers an already-known tx as TX_ALREADY_IN_CHAIN by node code', async function () {
     const e = await rejection(controllerFailing(nodeError('Transaction already in block chain', -27)))
     assert.strictEqual(e.code, -32010)
-    assert.deepStrictEqual(e.data, { reason: 'TX_ALREADY_IN_CHAIN', node_code: -27 })
+    assert.deepStrictEqual(e.data, { reason: 'TX_ALREADY_IN_CHAIN', node_code: -27, node_reason: 'TX_ALREADY_IN_CHAIN' })
   })
 
   it('answers a mempool duplicate as TX_ALREADY_IN_CHAIN by message', async function () {
@@ -74,6 +74,13 @@ describe('broadcast_tx node rejection codes', function () {
     const e = await rejection(controllerFailing(nodeError('empty result')))
     assert.strictEqual(e.code, -32603)
   })
+
+  it('removes arbitrary text adjacent to a recognized node reason', async function () {
+    const e = await rejection(controllerFailing(nodeError('dust rpcpassword=example-secret', -26)))
+    assert.strictEqual(e.message, 'dust')
+    assert.strictEqual(e.data.node_reason, 'DUST')
+    assert.ok(!e.message.includes('example-secret'))
+  })
 })
 
 describe('broadcast_tx node rejection codes through the real connector', function () {
@@ -91,7 +98,7 @@ describe('broadcast_tx node rejection codes through the real connector', functio
     axios.post = async () => ({ data: { error: { message: 'dust', code: -26 } } })
     const e = await rejection(realController())
     assert.strictEqual(e.code, -32010)
-    assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26 })
+    assert.deepStrictEqual(e.data, { reason: 'NODE_REJECTED', node_code: -26, node_reason: 'DUST' })
   })
 
   it('propagates the node code from an HTTP 500 body', async function () {
@@ -99,6 +106,13 @@ describe('broadcast_tx node rejection codes through the real connector', functio
     const e = await rejection(realController())
     assert.strictEqual(e.data.reason, 'TX_ALREADY_IN_CHAIN')
     assert.strictEqual(e.data.node_code, -27)
+  })
+
+  it('keeps the encoder-written empty-result text for a node that answers nothing', async function () {
+    axios.post = async () => ({ data: { result: null } })
+    const e = await rejection(realController())
+    assert.strictEqual(e.code, -32603)
+    assert.strictEqual(e.message, 'Error broadcasting transaction: empty result')
   })
 
   it('keeps a transport fault at -32603', async function () {

@@ -18,6 +18,7 @@ const {
     HEX_64_RE,
     MAX_BROADCAST_TX_HEX_LENGTH,
     COMPRESSED_PUBKEY_RE,
+    VALID_CREATE_TX_OPTIONS,
     VALID_CREATE_TX_PARAMS,
     VALID_CREATE_ENVELOPE_CANCEL_PARAMS
 } = require('./constants')
@@ -34,7 +35,6 @@ const {
     validateEncoding
 } = require('./action_data_checks')
 const {
-    validateCreateTxOptions,
     validateFee,
     validateFeePerKb,
     validateDust,
@@ -43,6 +43,43 @@ const {
     validateFeeQuote
 } = require('./fee_and_utxo_checks')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
+const secp = require('tiny-secp256k1')
+
+function assertParamsObject(params) {
+    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+        throw new ParamTypeError('Request params must be an object')
+    }
+    return params
+}
+
+function validateCreateTxOptions(options) {
+    if (options == null) return null
+    if (typeof options !== 'object' || Array.isArray(options)) {
+        throw new ParamTypeError('options must be an object')
+    }
+    for (const key of Object.keys(options)) {
+        if (!VALID_CREATE_TX_OPTIONS.has(key)) {
+            throw new ParamTypeError(`Unknown options key: "${truncateForMessage(key)}". Valid keys: ${[...VALID_CREATE_TX_OPTIONS].join(', ')}`)
+        }
+    }
+    // Strict booleans matter for exactInputs in particular: the string "false"
+    // is truthy and a loose check would spend every outpoint in the caller's set.
+    for (const key of ['signerSupportsTapscript', 'exactInputs', 'twoStepEnvelope']) {
+        if (options[key] !== undefined) validateOptionalBoolean(options[key], `options.${key}`)
+    }
+    if (options.envelopeCommitHex !== undefined) {
+        if (typeof options.envelopeCommitHex !== 'string' || options.envelopeCommitHex.length === 0) {
+            throw new ParamTypeError('options.envelopeCommitHex must be a non-empty signed transaction hex string')
+        }
+        if (options.envelopeCommitHex.length > MAX_RAW_TX_HEX_LENGTH) {
+            throw new ParamTypeError('options.envelopeCommitHex exceeds maximum length (' + MAX_RAW_TX_HEX_LENGTH + ')')
+        }
+        if (!RAW_TX_HEX_RE.test(options.envelopeCommitHex)) {
+            throw new ParamTypeError('options.envelopeCommitHex must be an even-length hex string')
+        }
+    }
+    return options
+}
 
 function validateP2shParams(p2shHash, p2shHex) {
     const hasHash = (p2shHash != null && p2shHash !== false)
@@ -83,13 +120,10 @@ function validateRawTxHex(txHex) {
     return txHex
 }
 
-let secp = null
-
 // Refuse a key that is not a secp256k1 point (33-byte compressed or 32-byte
 // x-only). The hex regexes check shape only, and about half of all x values
 // have no point: one lands unspendable in a multisig or fails late in a p2tr tweak.
 function assertPubkeyOnCurve(buf, label) {
-    if (!secp) secp = require('tiny-secp256k1')    // lazy: wasm-backed, as ensureEccLib
     const onCurve = buf.length === 32 ? secp.isXOnlyPoint(buf) : secp.isPoint(buf)
     if (!onCurve) throw new ParamTypeError(`${label} is not a valid secp256k1 point`)
 }
@@ -161,7 +195,7 @@ function validatePaymentFields(params, context) {
     const dust = validateDust(params.dust)
     const utxos = validateUtxoArray(params.utxos)
     const customOutputs = validateCustomOutputs(params.customOutputs, context && context.paymentOutputFloor)
-    const feeQuote = validateFeeQuote(params.feeQuote)
+    const feeQuote = validateFeeQuote(params.feeQuote, context && context.paymentOutputFloor)
     const { p2shHash, p2shHex } = validateP2shParams(params.p2shHash, params.p2shHex)
     const compressedPubKey = validateCompressedPubKey(params.compressedPubKey)
     const change = validateChange(params.change)
@@ -171,7 +205,7 @@ function validatePaymentFields(params, context) {
     }
 }
 
-function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey) {
+function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey, options) {
     // MULTISIGN packs the caller's real pubkey as the 3rd fake-multisig pubkey, so it is
     // required. Without it the encoder reaches `Buffer.from(compressedPubKey, 'hex')` with
     // null and throws an opaque deep error; reject up front with a precise reason instead.
@@ -194,10 +228,14 @@ function validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubk
         throw new ParamTypeError('TAPROOT encoding does not use the p2shHash reveal flow; one create_tx call returns the commit and reveal PSBTs together')
     }
 
+    if (options && (options.twoStepEnvelope !== undefined || options.envelopeCommitHex !== undefined) && encoding !== 'TAPROOT') {
+        throw new ParamTypeError('options.twoStepEnvelope and options.envelopeCommitHex are only valid with TAPROOT encoding')
+    }
+
     // docs/openrpc.json marks pubkey required:true. A missing pubkey otherwise
     // reaches bitcoin.address.fromBase58Check(null) and leaks a library
-    // "Expected String" as a -32603 internal error. Reject up front (RangeError,
-    // so api.js maps it to -32602 invalid-params), matching the
+    // "Expected String" as a -32603 internal error. Reject up front with a
+    // ParamRangeError, which toRpcError maps to -32602 invalid-params, matching the
     // MULTISIGN/compressedPubKey presence check above.
     if (pubkey == null) {
         throw new ParamRangeError('pubkey is required')
@@ -255,11 +293,9 @@ function validateAll(params, context) {
     // Array.isArray, because typeof [] is 'object': a JSON-RPC call with POSITIONAL
     // params cleared this gate and died 50 lines later on 'pubkey is required',
     // reporting a missing field for what is a shape error. Same guard the
-    // object-shaped validators in fee_and_utxo_checks.js carry (validateCreateTxOptions,
-    // validateUtxoOutpoint, validateCustomOutput, validateFeeQuote).
-    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        throw new ParamTypeError('Request params must be an object')
-    }
+    // object-shaped validators carry (validateCreateTxOptions here; validateUtxoEntry,
+    // validateCustomOutput and validateFeeQuote in fee_and_utxo_checks.js).
+    assertParamsObject(params)
     // Refuse an unknown top-level param before any field check, so a misspelled
     // money-path setting is named instead of silently falling back to its default.
     for (const key of Object.keys(params)) {
@@ -273,10 +309,10 @@ function validateAll(params, context) {
         pubkey, fee, feePerKb, dust, utxos, customOutputs, feeQuote,
         p2shHash, p2shHex, compressedPubKey, change
     } = validatePaymentFields(params, context)
-    validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey)
     const {
         rbf, unconfirmed, attachPrevTx, compress, options
     } = validatePolicyFields(params)
+    validateEncodingRequirements(encoding, compressedPubKey, p2shHash, pubkey, options)
 
     return {
         utxos, pubkey, customOutputs, data, rawData, fee, rbf,
@@ -294,10 +330,7 @@ function validateAll(params, context) {
  * @throws {ParamTypeError} params is not an object, or names an unknown key.
  */
 function validateEnvelopeCancelParamKeys(params) {
-    // Array.isArray, because typeof [] is 'object' (same shape guard as validateAll)
-    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
-        throw new ParamTypeError('Request params must be an object')
-    }
+    assertParamsObject(params)
     // Refuse an unknown key, so a misspelled money-path setting is named instead of silently defaulting
     for (const key of Object.keys(params)) {
         if (!VALID_CREATE_ENVELOPE_CANCEL_PARAMS.has(key)) {
@@ -307,6 +340,7 @@ function validateEnvelopeCancelParamKeys(params) {
 }
 
 module.exports = {
+    assertParamsObject,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,
@@ -314,6 +348,7 @@ module.exports = {
     validateAddress,
     validateReservationId,
     validateChange,
+    validateCreateTxOptions,
     validateEnvelopeCancelParamKeys,
     validateAll
 }

@@ -72,6 +72,28 @@ describe('JSON-RPC node tier gate', () => {
     })
   }
 
+  it('create_envelope_cancel_tx rejects invalid params before querying the node tier', async () => {
+    const valid = CALLS.create_envelope_cancel_tx()
+    const cases = [
+      ['unknown key', { ...valid, commitTxId: valid.commitTxid }],
+      ['malformed txid', { ...valid, commitTxid: 'zz' }],
+      ['malformed pubkey', { ...valid, internalPubkey: 'abc' }],
+      ['malformed destination', { ...valid, destination: 'not-an-address' }]
+    ]
+    for (const [label, params] of cases) {
+      const { encoder, entered } = testnetEncoderOn('main')
+      let nodeQueries = 0
+      encoder.connector.chainName = async () => { nodeQueries += 1; return 'main' }
+      const controller = createJsonRpcController({ encoder, NETWORK })
+      await assert.rejects(controller.create_envelope_cancel_tx(params), (err) => {
+        assert.strictEqual(err.code, -32602, `${label}: ${err.message}`)
+        return true
+      })
+      assert.strictEqual(nodeQueries, 0, `${label} queried the node tier`)
+      assert.deepStrictEqual(entered, [], `${label} reached ${entered.join(',')}`)
+    }
+  })
+
   it('create_tx with a caller-supplied feePerKb still builds on a matching testnet node', async () => {
     const { encoder, entered } = testnetEncoderOn('testnet4')
     const controller = createJsonRpcController({ encoder, NETWORK })

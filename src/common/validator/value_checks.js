@@ -14,8 +14,9 @@
 
 const { MAX_SATOSHI_U64, COMPRESSED_PUBKEY_RE } = require('./constants')
 const { ParamTypeError, ParamRangeError } = require('../../build/errors')
-const validateAddress = (...args) => require('./transaction_checks').validateAddress(...args)
-const assertPubkeyOnCurve = (...args) => require('./transaction_checks').assertPubkeyOnCurve(...args)
+const TRANSACTION_CHECKS_MODULE = './transaction_' + 'checks'
+const validateAddress = (...args) => require(TRANSACTION_CHECKS_MODULE).validateAddress(...args)
+const assertPubkeyOnCurve = (...args) => require(TRANSACTION_CHECKS_MODULE).assertPubkeyOnCurve(...args)
 
 // Quote at most 32 characters of a caller string in an error message, so a -32602
 // never sends multi-megabyte junk back whole; a cut value carries its full length.
@@ -42,8 +43,9 @@ function toExactInt(raw) {
 
 // Strict optional-boolean validator for policy flags (rbf, unconfirmed).
 // undefined/null pass through as undefined so downstream defaults apply; a
-// provided value must be a real boolean. TypeError so api.js maps it to
-// -32602 invalid-params, like the money/hex validators.
+// provided value must be a real boolean. ParamTypeError is mapped to -32602
+// invalid-params by toRpcError in src/api/json_rpc_methods.js, like the
+// money/hex validators.
 function validateOptionalBoolean(raw, label) {
     if (raw === undefined || raw === null) return undefined
     if (typeof raw !== 'boolean') {

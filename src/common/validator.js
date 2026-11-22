@@ -15,8 +15,10 @@
  * XChain Encoder - Input Validator
  *
  * Centralized validation for all createTransaction parameters.
- * Every function throws TypeError or RangeError on invalid input,
- * or returns the (possibly coerced) valid value.
+ * Every function throws ParamTypeError or ParamRangeError from src/build/errors.js
+ * on invalid input, or returns the (possibly coerced) valid value. toRpcError in
+ * src/api/json_rpc_methods.js maps these marked errors to -32602; bare
+ * TypeError/RangeError instances map to -32603.
  *
  ********************************************************************/
 
@@ -62,6 +64,7 @@ const {
     assertPaymentOverDust
 } = require('./validator/fee_and_utxo_checks')
 const {
+    assertParamsObject,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,
@@ -145,6 +148,7 @@ module.exports = {
     validateUtxoEntry,
     validateCustomOutputs,
     assertPaymentOverDust,
+    assertParamsObject,
     validateP2shParams,
     validateRawTxHex,
     validateCompressedPubKey,
