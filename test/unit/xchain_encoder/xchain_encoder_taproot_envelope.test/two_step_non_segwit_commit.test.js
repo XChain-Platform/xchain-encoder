@@ -14,6 +14,7 @@ const ecc = require('tiny-secp256k1')
 const { ECPairFactory } = require('ecpair')
 const XChainEncoder = require('../../../../src/XChainEncoder')
 const validator = require('../../../../src/common/validator')
+const { ParamRangeError } = require('../../../../src/build/errors')
 
 bitcoin.initEccLib(ecc)
 const ECPair = ECPairFactory(ecc)
@@ -300,5 +301,20 @@ describe('XChainEncoder TAPROOT two-step reveal binds the signed commit value', 
     assert.strictEqual(reveal.envelope.revealFee, commit.envelope.revealFee)
     assert.strictEqual(outs.length, 1)
     assert.strictEqual(Number(outs[0].value), 500000 - commit.envelope.revealFee)
+  })
+})
+
+describe('XChainEncoder TAPROOT two-step reveal refuses a commit value a Number cannot hold', function () {
+  it('refuses a signed commit whose envelope output carries more than 2^53-1 satoshis', async function () {
+    const { encoder, args, commit } = await buildPair('p2pkh')
+    const oversized = handBuiltCommit(encoder, commit, BigInt(Number.MAX_SAFE_INTEGER) + 2n)
+    assert.strictEqual(typeof bitcoin.Transaction.fromHex(oversized.toHex()).outs[0].value, 'bigint')
+    await assert.rejects(
+      encoder.createTransaction(...args, true, null, null, null, false, false, {
+        envelopeCommitHex: oversized.toHex()
+      }),
+      err => err instanceof ParamRangeError && /envelopeCommitHex/.test(err.message) && /9007199254740993/.test(err.message)
+    )
+    assert.strictEqual(encoder.isOutpointReserved(`${oversized.getId()}:0`, Date.now()), false)
   })
 })

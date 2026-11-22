@@ -49,5 +49,23 @@ describe('XChainEncoder.createTransaction()', () => {
         /change address/i
       )
     })
+
+    it('refuses a build whose sub-floor change would exceed the actual fee backstop', async () => {
+      const encoder = makeEncoder()
+      encoder.dustAmount = 546
+      encoder.outputFloor = 1000000
+      const utxo = makeSegwitUtxo(TXID_A, 0, 1000000)
+      const customOutputs = [{ address: TEST_ADDRESS, value: '10000' }]
+
+      await assert.rejects(
+        () => encoder.createTransaction(
+          [utxo], TEST_ADDRESS, customOutputs,
+          'test', null, 546, false, null, TEST_ADDRESS,
+          null, null, null, true, 0.00001
+        ),
+        (err) => err.xchainCode === 'CHANGE_BELOW_OUTPUT_FLOOR' &&
+          err.details.changeSatoshis === 989454 && err.details.actualFee === 990000
+      )
+    })
   })
 })

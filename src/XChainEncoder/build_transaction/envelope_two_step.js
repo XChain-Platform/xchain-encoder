@@ -13,8 +13,8 @@
  **********************************************************************/
 
 const bitcoin = require('bitcoinjs-lib')
-const { OperationalError, ParamTypeError } = require('../../build/errors')
-const { TAPROOT_LEAF_VERSION, Encoding, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, logger } = require('../constants.js')
+const { OperationalError, ParamTypeError, ParamRangeError } = require('../../build/errors')
+const { TAPROOT_LEAF_VERSION, Encoding, SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER, MAX_SAFE_SATOSHI_BIG, logger } = require('../constants.js')
 const { envelopeTapLeafHash } = require('../script_amount_helpers.js')
 const { backstopReferenceFeePerBytes, feeForVsize } = require('../fee_policy.js')
 
@@ -46,9 +46,19 @@ function locateCommitOutput(tx, envelopeContext){
     return matches[0]
 }
 
+// The patched u64 reader hands back a BigInt above 2^53-1, and a bare Number()
+// would round it, so the reveal would be sized from a value its input does not carry.
+function exactCommitValue(raw){
+    const tooLarge = typeof raw === 'bigint' ? raw > MAX_SAFE_SATOSHI_BIG : !Number.isSafeInteger(raw)
+    if (tooLarge){
+        throw new ParamRangeError(`options.envelopeCommitHex commit output value ${String(raw)} exceeds the maximum safe satoshi amount (${Number.MAX_SAFE_INTEGER})`)
+    }
+    return Number(raw)
+}
+
 function bindSignedCommitValue(build, tx, commitVout){
     const context = build.envelopeContext
-    const actualValue = Number(tx.outs[commitVout].value)
+    const actualValue = exactCommitValue(tx.outs[commitVout].value)
     const pad = context.revealPadNeeded ? this.outputFloor : 0
     const fundedFee = actualValue - build.finalDust - pad
     const relayFee = feeForVsize(context.revealVsize, build.relayFeePerKb / 1000, SATOSHI_UNIT)

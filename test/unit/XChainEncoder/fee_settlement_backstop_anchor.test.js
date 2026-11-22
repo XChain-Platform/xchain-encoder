@@ -11,6 +11,7 @@
 const assert = require('assert')
 const { backstopReferenceFeePerBytes } = require('../../../src/XChainEncoder/fee_policy.js')
 const { refuseExcessiveFee, upliftForAncestors } = require('../../../src/XChainEncoder/build_transaction/fee_settlement.js')
+const { refuseExcessiveActualFee } = require('../../../src/XChainEncoder/build_transaction/actual_fee_guard.js')
 
 function explicitFeeBuild(overrides = {}){
     return Object.assign({
@@ -47,6 +48,20 @@ function ancestorBuild(overrides = {}){
     }, overrides)
 }
 
+function actualFeeBuild(overrides = {}){
+    return Object.assign({
+        fee: 546,
+        capFeePerBytes: null,
+        estimatedTxSize: 267,
+        nodeFeePerBytes: 1e-8,
+        relayFeePerKb: 0.00001,
+        softDustSurcharge: 0,
+        inputSatoshis: 1000000n,
+        changeSatoshis: 989454n,
+        psbt: { txOutputs: [{ value: 10000n }] }
+    }, overrides)
+}
+
 describe('fee burn backstop reference', function () {
     it('prefers the node estimate, falls back to relayfee, and never uses the caller rate', function () {
         assert.strictEqual(backstopReferenceFeePerBytes({ nodeFeePerBytes: 2e-8, relayFeePerKb: 0.00001 }), 2e-8)
@@ -75,5 +90,54 @@ describe('fee burn backstop reference', function () {
         const build = ancestorBuild({ relayFeePerKb: null })
         await applyAncestorUplift(build)
         assert.strictEqual(build.estimatedFee, 100)
+    })
+})
+
+describe('actual emitted fee backstop', function () {
+    it('refuses sub-floor change that would exceed the burn ceiling', function () {
+        assert.throws(
+            () => refuseExcessiveActualFee.call({ dustAmount: 546, outputFloor: 1000000 }, actualFeeBuild()),
+            (err) => err.xchainCode === 'CHANGE_BELOW_OUTPUT_FLOOR' && err.details.actualFee === 990000
+        )
+    })
+
+    it('allows the same transaction when its change was emitted', function () {
+        const build = actualFeeBuild({ psbt: { txOutputs: [{ value: 10000n }, { value: 989454n }] } })
+        assert.doesNotThrow(
+            () => refuseExcessiveActualFee.call({ dustAmount: 546, outputFloor: 1000000 }, build)
+        )
+    })
+
+    it('applies the explicit fee-rate cap to the actual fee', function () {
+        const build = actualFeeBuild({ capFeePerBytes: 0.000001, nodeFeePerBytes: 0.001 })
+        assert.throws(
+            () => refuseExcessiveActualFee.call({ dustAmount: 546, outputFloor: 1000000 }, build),
+            (err) => err.xchainCode === 'CHANGE_BELOW_OUTPUT_FLOOR' && /fee-rate cap/.test(err.message)
+        )
+    })
+
+    it('allows normal DOGE soft-dust folding below the burn ceiling', function () {
+        const build = actualFeeBuild({
+            fee: null,
+            estimatedTxSize: 250,
+            nodeFeePerBytes: 0.00001,
+            inputSatoshis: 1000000n,
+            changeSatoshis: 900000n,
+            psbt: { txOutputs: [{ value: 100000n }] }
+        })
+        assert.doesNotThrow(
+            () => refuseExcessiveActualFee.call({
+                dustAmount: 100000,
+                outputFloor: 1000000,
+                networkKey: 'dogecoin-regtest'
+            }, build)
+        )
+    })
+
+    it('leaves reveal spends to their warn-only fee checks', function () {
+        assert.doesNotThrow(() => refuseExcessiveActualFee.call(
+            { dustAmount: 546, outputFloor: 1000000 },
+            actualFeeBuild({ p2shHash: 'commit', psbt: null })
+        ))
     })
 })
