@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-22
+
+### Added
+- Added signed-commit Taproot reveal flows for legacy and wrapped SegWit funding inputs.
+- Added multipart FILE encoding support with exact funding selection.
+
+### Fixed
+- Shared tracker readiness reads, restarted paginated UTXO reads after tip changes and bounded upstream failure logs.
+- Corrected fee cap equality, exact funding selection and Dogecoin soft-dust targets.
+- Prevented single-part Dogecoin reveals from paying padded output value to miners.
+- Reclaimed orphaned instance locks and returned clean errors when a previous transaction is unavailable.
+- Sped up large builds by adding selected inputs in linear time and parsing shared parent transactions once.
+
+### Security
+- Updated bitcoinjs-lib, tiny-secp256k1, bip32, ecpair, bs58check and vulnerable dependencies including zod, qs and minimatch.
+
 ## [0.27.0] - 2026-11-01
 
 ### Changed
