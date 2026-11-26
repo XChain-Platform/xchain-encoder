@@ -21,20 +21,31 @@
 
 const { callerSafeError } = require('../common/error_sanitize')
 
-// Why `before` and `after` cannot vouch for a miss at `nodeTip`, or null when they can.
-// The tracker must have committed the node tip BEFORE the decisive lookup ran, since
-// the node drops a confirmed transaction from its mempool the moment it accepts the
-// block while the tracker commits that block a poll later. A committed height that
-// fell, a reorg recorded across the lookup, or a different tip hash at the same
-// height means it read a moving chain.
+// Every tracker lookup costs a slot in the tracker's per-IP request budget, which all
+// encoder callers share, so a status answer reuses the sync status the lookup's own
+// readiness gate read: an unknown answer costs 3 tracker requests, a chain answer 2.
+
 function committedHeight(sync){
     return Number.isSafeInteger(sync.committed_height) ? sync.committed_height : sync.tracker_height
 }
 
-function unprovenMiss(before, after, nodeTip){
+// Why `before` cannot vouch for a miss at `nodeTip`, or null when it can. The tracker
+// must have committed the node tip BEFORE the decisive lookup ran, since the node
+// drops a confirmed transaction from its mempool the moment it accepts the block
+// while the tracker commits that block a poll later. The node tip is read after the
+// mempool miss, so any block that could hold the transaction is at or below it.
+function uncoveredTip(before, nodeTip){
     const trackerTip = committedHeight(before)
     if (!Number.isSafeInteger(nodeTip) || nodeTip < 0) return 'cannot compare against an unknown node tip'
     if (!Number.isSafeInteger(trackerTip) || trackerTip < nodeTip) return 'has not committed the node tip'
+    return null
+}
+
+// Why `before` and `after` describe a moving chain, or null when they are one view: a
+// committed height that fell, a reorg recorded across the lookup, or a different tip
+// hash at the same height.
+function movedDuringLookup(before, after){
+    const trackerTip = committedHeight(before)
     if (!Number.isSafeInteger(committedHeight(after)) || committedHeight(after) < trackerTip) return 'rolled back during the lookup'
     if (Number.isSafeInteger(before.reorg_count) && Number.isSafeInteger(after.reorg_count) &&
         before.reorg_count !== after.reorg_count) return 'recorded a reorg during the lookup'
@@ -45,25 +56,37 @@ function unprovenMiss(before, after, nodeTip){
     return null
 }
 
-// Both fast lookups missed. Repeat the tracker lookup inside a sync snapshot taken
-// first, so a block the tracker committed after the fast miss is found rather than
-// hidden, then re-read the mempool, which a reorg before the snapshot refills.
-async function classifyUnseenTx(encoder, txid){
+function indeterminate(reason){
+    return callerSafeError(`utxo-tracker ${reason}; transaction status is indeterminate, retry`)
+}
+
+// Both fast lookups missed. `fastSync` is the snapshot taken just before the fast
+// tracker lookup. When it already covers the node tip, that lookup is the decisive
+// one; otherwise repeat the lookup once, so a block the tracker committed after the
+// fast miss is found rather than hidden. Then re-read the sync status to prove the
+// view held still, and re-read the mempool, which a reorg before the snapshot refills.
+async function classifyUnseenTx(encoder, txid, fastSync){
     const tracker = encoder.utxoTrackerConnector
-    const before = await tracker.getSyncStatus()
     const nodeTip = await encoder.connector.getBlockCount()
-    if (await tracker.getTxBlock(txid) !== null) return { status: 'chain' }
-    const after = await tracker.getSyncStatus()
-    const reason = unprovenMiss(before, after, nodeTip)
-    if (reason) throw callerSafeError(`utxo-tracker ${reason}; transaction status is indeterminate, retry`)
+    let before = fastSync
+    if (uncoveredTip(before, nodeTip)) {
+        const relook = await tracker.lookupTxBlock(txid)
+        if (relook.block !== null) return { status: 'chain' }
+        before = relook.sync
+        const reason = uncoveredTip(before, nodeTip)
+        if (reason) throw indeterminate(reason)
+    }
+    const reason = movedDuringLookup(before, await tracker.getSyncStatus())
+    if (reason) throw indeterminate(reason)
     if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
     return { status: 'unknown' }
 }
 
 async function getTxStatus(encoder, txid){
     if (await encoder.connector.getMempoolEntry(txid) !== null) return { status: 'mempool' }
-    if (await encoder.utxoTrackerConnector.getTxBlock(txid) !== null) return { status: 'chain' }
-    return classifyUnseenTx(encoder, txid)
+    const fast = await encoder.utxoTrackerConnector.lookupTxBlock(txid)
+    if (fast.block !== null) return { status: 'chain' }
+    return classifyUnseenTx(encoder, txid, fast.sync)
 }
 
 module.exports = { getTxStatus }

@@ -14,9 +14,11 @@ const TXID = 'a'.repeat(64)
 
 // `lateBlock` and `lateMempoolEntry` answer every lookup after the first, modelling a
 // tracker commit or a reorg mempool refill landing between the first and second reads.
+// `syncBefore` is the status the first lookup's readiness gate read, `syncRelook` the
+// one a repeated lookup's gate read, and `syncAfter` every later get_sync_status.
 function controllerWith ({ mempoolEntry = null, block = null, nodeError, trackerError,
-  nodeTip = 100, syncBefore = { committed_height: 100, reorg_count: 0 }, syncAfter = syncBefore,
-  lateBlock, lateMempoolEntry } = {}) {
+  nodeTip = 100, syncBefore = { committed_height: 100, reorg_count: 0 }, syncRelook = syncBefore,
+  syncAfter = syncBefore, lateBlock, lateMempoolEntry } = {}) {
   const calls = []
   const seen = (kind) => calls.filter((call) => call[0] === kind).length
   const encoder = {
@@ -32,14 +34,18 @@ function controllerWith ({ mempoolEntry = null, block = null, nodeError, tracker
       }
     },
     utxoTrackerConnector: {
-      async getTxBlock (txid) {
+      async lookupTxBlock (txid) {
         calls.push(['chain', txid])
         if (trackerError) throw trackerError
-        return seen('chain') > 1 && lateBlock !== undefined ? lateBlock : block
+        const first = seen('chain') === 1
+        return {
+          block: !first && lateBlock !== undefined ? lateBlock : block,
+          sync: first ? syncBefore : syncRelook
+        }
       },
       async getSyncStatus () {
         calls.push(['sync'])
-        return seen('sync') === 1 ? syncBefore : syncAfter
+        return syncAfter
       }
     }
   }
@@ -73,24 +79,42 @@ describe('get_tx_status transaction location', function () {
 
     assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'unknown' })
     assert.deepStrictEqual(calls, [
-      ['mempool', TXID], ['chain', TXID], ['sync'], ['tip'], ['chain', TXID], ['sync'], ['mempool', TXID]
+      ['mempool', TXID], ['chain', TXID], ['tip'], ['sync'], ['mempool', TXID]
     ])
   })
 
   it('throws when the tracker has not committed the node tip', async function () {
-    const { controller } = controllerWith({ nodeTip: 100, syncBefore: { committed_height: 99, reorg_count: 0 } })
+    const { controller, calls } = controllerWith({ nodeTip: 100, syncBefore: { committed_height: 99, reorg_count: 0 } })
     await assert.rejects(() => controller.get_tx_status({ txid: TXID }),
       (err) => err.code === -32603 && /has not committed the node tip/.test(err.message))
+    // One repeated lookup, then a refusal with no further status read.
+    assert.deepStrictEqual(calls, [['mempool', TXID], ['chain', TXID], ['tip'], ['chain', TXID]])
+  })
+})
+
+describe('get_tx_status repeated lookup', function () {
+  it('reports chain when the tracker commits the confirming block after the first lookup', async function () {
+    const { controller, calls } = controllerWith({
+      syncBefore: { committed_height: 99, reorg_count: 0 },
+      syncRelook: { committed_height: 100, reorg_count: 0 },
+      lateBlock: { block_height: 100 }
+    })
+    assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'chain' })
+    assert.deepStrictEqual(calls, [['mempool', TXID], ['chain', TXID], ['tip'], ['chain', TXID]])
+  })
+
+  it('returns unknown when the repeated lookup misses at a snapshot covering the node tip', async function () {
+    const covering = { committed_height: 100, reorg_count: 0 }
+    const { controller } = controllerWith({
+      syncBefore: { committed_height: 99, reorg_count: 0 },
+      syncRelook: covering,
+      syncAfter: { ...covering }
+    })
+    assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'unknown' })
   })
 })
 
 describe('get_tx_status miss confirmation', function () {
-  it('reports chain when the tracker commits the confirming block after the first lookup', async function () {
-    const { controller, calls } = controllerWith({ lateBlock: { block_height: 100 } })
-    assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'chain' })
-    assert.deepStrictEqual(calls, [['mempool', TXID], ['chain', TXID], ['sync'], ['tip'], ['chain', TXID]])
-  })
-
   it('reports mempool when a reorg returns the transaction to the node mempool', async function () {
     const { controller } = controllerWith({ lateMempoolEntry: { vsize: 250 } })
     assert.deepStrictEqual(await controller.get_tx_status({ txid: TXID }), { status: 'mempool' })

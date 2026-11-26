@@ -110,6 +110,7 @@ function trackerStoppedServing(later){
 // produce transactions the network rejects, which would otherwise fail
 // silently. Converting this into an explicit, catchable error lets
 // callers (e.g. the oracle PRICE submission path) surface or retry.
+// Resolves to the status it judged, so a caller reuses it instead of another request.
 async function assertTrackerReady(tracker){
     if (isRemoteProfile(tracker.profile)) return assertRemoteTrackerReady(tracker)
     try {
@@ -152,6 +153,7 @@ async function assertTrackerReady(tracker){
         if (syncStatus.mempool_ready === false) {
             throw callerSafeError('utxo-tracker has not reconverged its mempool yet, so an already-spent confirmed output cannot be filtered; refusing to fetch UTXOs')
         }
+        return syncStatus
     } catch (error) {
         logErrorOnce(logger, 'Error checking UTXO tracker sync status:', error);
         throw error;
@@ -174,6 +176,7 @@ async function assertRemoteTrackerReady(tracker){
         logErrorOnce(logger, 'Error checking UTXO tracker sync status:', error);
         throw error
     }
+    return status
 }
 
 // One get_utxos page: `cursor` is the previous page's nextCursor, absent on
@@ -359,24 +362,20 @@ class UtxoTracker {
     }
 
     async getTxBlock(txid) {
-        await assertTrackerReady(this)
+        return (await this.lookupTxBlock(txid)).block
+    }
 
-        const data = {
-            jsonrpc: '2.0',
-            method: 'get_tx_block',
-            params: { txid },
-            id: 1
-        };
-
-        const response = await axios.post(this.url, data, {
-            timeout: TRACKER_TIMEOUT
-        });
-        const responseData = response.data;
+    // { block, sync }: sync is the status the readiness gate read just before the
+    // lookup, the pre-lookup snapshot a miss proof needs, at no extra request.
+    async lookupTxBlock(txid) {
+        const sync = await assertTrackerReady(this)
+        const data = { jsonrpc: '2.0', method: 'get_tx_block', params: { txid }, id: 1 }
+        const responseData = (await axios.post(this.url, data, { timeout: TRACKER_TIMEOUT })).data
 
         if (responseData && Object.prototype.hasOwnProperty.call(responseData, 'result')) {
             const result = responseData.result
             if (result === null || (typeof result === 'object' && !Array.isArray(result))) {
-                return result
+                return { block: result, sync }
             }
         }
         throw callerSafeError('Error getting transaction block: empty result')
