@@ -62,6 +62,19 @@ function actualFeeBuild(overrides = {}){
     }, overrides)
 }
 
+function rateCappedActualBuild(overrides = {}){
+    return actualFeeBuild(Object.assign({
+        fee: null,
+        feePerKb: 20000,
+        capFeePerBytes: 2e-7,
+        nodeFeePerBytes: 2e-8,
+        estimatedTxSize: 200,
+        inputSatoshis: 1000000n,
+        changeSatoshis: 30000n,
+        psbt: { txOutputs: [{ value: 966000n }] }
+    }, overrides))
+}
+
 describe('fee burn backstop reference', function () {
     it('prefers the node estimate, falls back to relayfee, and never uses the caller rate', function () {
         assert.strictEqual(backstopReferenceFeePerBytes({ nodeFeePerBytes: 2e-8, relayFeePerKb: 0.00001 }), 2e-8)
@@ -139,5 +152,40 @@ describe('actual emitted fee backstop', function () {
             { dustAmount: 546, outputFloor: 1000000 },
             actualFeeBuild({ p2shHash: 'commit', psbt: null })
         ))
+    })
+})
+
+describe('actual emitted fee rate cap', function () {
+    it('applies the fee-rate cap to a feePerKb-priced actual fee', function () {
+        assert.throws(
+            () => refuseExcessiveActualFee.call(
+                { dustAmount: 546, outputFloor: 50000 }, rateCappedActualBuild()),
+            (err) => err.xchainCode === 'CHANGE_BELOW_OUTPUT_FLOOR' && /fee-rate cap/.test(err.message)
+        )
+    })
+
+    it('applies the fee-rate cap to a node-priced actual fee', function () {
+        const build = rateCappedActualBuild({ feePerKb: null })
+        assert.throws(
+            () => refuseExcessiveActualFee.call({ dustAmount: 546, outputFloor: 50000 }, build),
+            (err) => err.xchainCode === 'CHANGE_BELOW_OUTPUT_FLOOR' && /fee-rate cap/.test(err.message)
+        )
+    })
+
+    it('uses only the burn ceiling when the fee-rate cap is disabled', function () {
+        const build = rateCappedActualBuild({ capFeePerBytes: null })
+        assert.doesNotThrow(
+            () => refuseExcessiveActualFee.call({ dustAmount: 546, outputFloor: 50000 }, build)
+        )
+    })
+
+    it('allows a feePerKb-priced actual fee at the rate ceiling', function () {
+        const build = rateCappedActualBuild({
+            changeSatoshis: 3000n,
+            psbt: { txOutputs: [{ value: 996000n }] }
+        })
+        assert.doesNotThrow(
+            () => refuseExcessiveActualFee.call({ dustAmount: 546, outputFloor: 50000 }, build)
+        )
     })
 })

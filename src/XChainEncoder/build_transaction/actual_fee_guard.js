@@ -15,22 +15,22 @@ const { SATOSHI_UNIT, BURN_BACKSTOP_MULTIPLIER } = require('../constants.js')
 const { jsonSafeSat, softDustFloorFor } = require('../script_amount_helpers.js')
 const { backstopReferenceFeePerBytes } = require('../fee_policy.js')
 
-// Recheck the fee the finished single transaction will actually pay. Change
-// below outputFloor is intentionally omitted, but it must not bypass either
-// fee ceiling by becoming an unbounded miner fee.
+// Recheck the fee the finished single transaction will actually pay on every
+// pricing path. Change below outputFloor is intentionally omitted, but it must
+// not bypass either fee ceiling by becoming an unbounded miner fee.
 function refuseExcessiveActualFee(build){
     if (build.p2shHash) return
     const chainOutputFloor = Math.max(this.dustAmount, softDustFloorFor(this.networkKey))
     if (build.changeSatoshis < BigInt(chainOutputFloor) ||
         build.changeSatoshis >= BigInt(this.outputFloor)) return
-    const { fee, capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb } = build
+    const { capFeePerBytes, estimatedTxSize, nodeFeePerBytes, relayFeePerKb } = build
     const outputSatoshis = build.psbt.txOutputs.reduce((sum, output) => sum + BigInt(output.value), 0n)
     const actualFee = build.inputSatoshis - outputSatoshis
     const judgedFee = actualFee - BigInt(build.softDustSurcharge || 0)
     let ceiling = null
     let limit = null
 
-    if (fee != null && fee !== false && capFeePerBytes != null){
+    if (capFeePerBytes != null){
         const rateCeiling = BigInt(Math.max(
             this.dustAmount,
             Math.ceil(estimatedTxSize * capFeePerBytes * SATOSHI_UNIT)
